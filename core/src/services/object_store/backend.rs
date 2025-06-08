@@ -4,7 +4,8 @@ use std::sync::Arc;
 
 use crate::raw::*;
 use crate::services::object_store::error::parse_error;
-use crate::services::object_store::reader::{parse_read_args, ObjectStoreReader};
+use crate::services::object_store::reader::ObjectStoreReader;
+use crate::services::object_store::writer::ObjectStoreWriter;
 use crate::Error;
 use crate::ErrorKind;
 use crate::*;
@@ -59,7 +60,7 @@ impl Debug for ObjectStoreBackend {
 
 impl Access for ObjectStoreBackend {
     type Reader = ObjectStoreReader;
-    type Writer = ();
+    type Writer = ObjectStoreWriter;
     type Lister = ();
     type Deleter = ();
 
@@ -102,19 +103,13 @@ impl Access for ObjectStoreBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = object_store::path::Path::from(path);
-        let opts = parse_read_args(&args)?;
-        let result = self
-            .store
-            .get_opts(&path, opts)
-            .await
-            .map_err(parse_error)?;
-        let reader = ObjectStoreReader::new(result, args).await?;
-        Ok((reader.rp_read(), reader))
+        let reader = ObjectStoreReader::new(self.store.clone(), path, args).await?;
+        Ok((reader.rp(), reader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        todo!()
+        let writer = ObjectStoreWriter::new(self.store.clone(), path, args);
+        Ok((RpWrite::default(), writer))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

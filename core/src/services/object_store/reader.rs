@@ -1,8 +1,10 @@
 use std::future::Future;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use object_store::GetRange;
 use object_store::GetResult;
+use object_store::ObjectStore;
 
 use crate::raw::*;
 use crate::services::object_store::error::parse_error;
@@ -19,7 +21,14 @@ pub struct ObjectStoreReader {
 }
 
 impl ObjectStoreReader {
-    pub(crate) async fn new(result: GetResult, args: OpRead) -> Result<Self> {
+    pub(crate) async fn new(
+        store: Arc<dyn ObjectStore + 'static>,
+        path: &str,
+        args: OpRead,
+    ) -> Result<Self> {
+        let path = object_store::path::Path::from(path);
+        let opts = parse_read_args(&args)?;
+        let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
         let bytes = result.bytes().await.map_err(parse_error)?;
         Ok(Self {
@@ -29,7 +38,7 @@ impl ObjectStoreReader {
         })
     }
 
-    pub(crate) fn rp_read(&self) -> RpRead {
+    pub(crate) fn rp(&self) -> RpRead {
         let mut rp = RpRead::new().with_size(Some(self.meta.size));
         if !self.args.range().is_full() {
             let range = self.args.range();
@@ -58,7 +67,7 @@ impl oio::Read for ObjectStoreReader {
     }
 }
 
-pub(crate) fn parse_read_args(args: &OpRead) -> Result<object_store::GetOptions> {
+fn parse_read_args(args: &OpRead) -> Result<object_store::GetOptions> {
     let mut options = object_store::GetOptions::default();
 
     if let Some(version) = args.version() {

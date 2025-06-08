@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use crate::raw::*;
+use crate::services::object_store::error::parse_error;
 use crate::Error;
 use crate::ErrorKind;
 use crate::*;
@@ -62,16 +63,41 @@ impl Access for ObjectStoreBackend {
     type Deleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let mut info = AccessorInfo::default();
-        info.set_scheme(Scheme::ObjectStore);
-        info.set_capability(Capability {
-            read: true,
-            write: true,
-            delete: true,
-            list: true,
-            ..Default::default()
-        });
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::ObjectStore)
+            .set_root("/")
+            .set_name("object_store")
+            .set_native_capability(Capability {
+                stat: true,
+                stat_has_content_length: true,
+                stat_has_last_modified: true,
+
+                read: true,
+                write: true,
+                delete: true,
+
+                list: true,
+                list_has_content_length: true,
+                list_has_last_modified: true,
+                ..Default::default()
+            });
         Arc::new(info)
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let path = object_store::path::Path::from(path);
+        let meta = self.store.head(&path).await.map_err(parse_error)?;
+
+        let mut metadata = Metadata::new(EntryMode::FILE);
+        metadata.set_content_length(meta.size);
+        metadata.set_last_modified(meta.last_modified);
+        if let Some(etag) = meta.e_tag {
+            metadata.set_etag(&etag);
+        }
+        if let Some(version) = meta.version {
+            metadata.set_version(&version);
+        }
+        Ok(RpStat::new(metadata))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {

@@ -121,8 +121,7 @@ func (op *Operator) Check() (err error) {
 // Note: Always check lister.Err() after the loop to catch any errors that
 // occurred during iteration.
 func (op *Operator) List(path string) (*Lister, error) {
-	list := getFFI[operatorList](op.ctx, symOperatorList)
-	inner, err := list(op.inner, path)
+	inner, err := ffiOperatorList.symbol(op.ctx)(op.inner, path)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +174,7 @@ type Lister struct {
 // This method implements the io.Closer interface. It should be called when
 // the Lister is no longer needed to ensure proper resource cleanup.
 func (l *Lister) Close() error {
-	free := getFFI[listerFree](l.ctx, symListerFree)
-	free(l.inner)
+	ffiListerFree.symbol(l.ctx)(l.inner)
 
 	return nil
 }
@@ -222,8 +220,7 @@ func (l *Lister) Error() error {
 //		fmt.Println(entry.Name())
 //	}
 func (l *Lister) Next() bool {
-	next := getFFI[listerNext](l.ctx, symListerNext)
-	inner, err := next(l.inner)
+	inner, err := ffiListerNext.symbol(l.ctx)(l.inner)
 	if inner == nil || err != nil {
 		l.err = err
 		l.entry = nil
@@ -284,15 +281,11 @@ type Entry struct {
 }
 
 func newEntry(ctx context.Context, inner *opendalEntry) *Entry {
-	name := getFFI[entryName](ctx, symEntryName)
-	path := getFFI[entryPath](ctx, symEntryPath)
-	free := getFFI[entryFree](ctx, symEntryFree)
-
-	defer free(inner)
+	defer ffiEntryFree.symbol(ctx)(inner)
 
 	return &Entry{
-		name: name(inner),
-		path: path(inner),
+		name: ffiEntryName.symbol(ctx)(inner),
+		path: ffiEntryPath.symbol(ctx)(inner),
 	}
 }
 
@@ -306,15 +299,11 @@ func (e *Entry) Path() string {
 	return e.path
 }
 
-const symOperatorList = "opendal_operator_list"
-
-type operatorList func(op *opendalOperator, path string) (*opendalLister, error)
-
-var withOperatorList = withFFI(ffiOpts{
-	sym:    symOperatorList,
+var ffiOperatorList = newFFI(ffiOpts{
+	sym:    "opendal_operator_list",
 	rType:  &typeResultList,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorList {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalLister, error) {
 	return func(op *opendalOperator, path string) (*opendalLister, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -333,15 +322,11 @@ var withOperatorList = withFFI(ffiOpts{
 	}
 })
 
-const symListerFree = "opendal_lister_free"
-
-type listerFree func(l *opendalLister)
-
-var withListerFree = withFFI(ffiOpts{
-	sym:    symListerFree,
+var ffiListerFree = newFFI(ffiOpts{
+	sym:    "opendal_lister_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) listerFree {
+}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) {
 	return func(l *opendalLister) {
 		ffiCall(
 			nil,
@@ -350,15 +335,11 @@ var withListerFree = withFFI(ffiOpts{
 	}
 })
 
-const symListerNext = "opendal_lister_next"
-
-type listerNext func(l *opendalLister) (*opendalEntry, error)
-
-var withListerNext = withFFI(ffiOpts{
-	sym:    symListerNext,
+var ffiListerNext = newFFI(ffiOpts{
+	sym:    "opendal_lister_next",
 	rType:  &typeResultListerNext,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) listerNext {
+}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) (*opendalEntry, error) {
 	return func(l *opendalLister) (*opendalEntry, error) {
 		var result opendalResultListerNext
 		ffiCall(
@@ -372,15 +353,11 @@ var withListerNext = withFFI(ffiOpts{
 	}
 })
 
-const symEntryFree = "opendal_entry_free"
-
-type entryFree func(e *opendalEntry)
-
-var withEntryFree = withFFI(ffiOpts{
-	sym:    symEntryFree,
+var ffiEntryFree = newFFI(ffiOpts{
+	sym:    "opendal_entry_free",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) entryFree {
+}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) {
 	return func(e *opendalEntry) {
 		ffiCall(
 			nil,
@@ -389,15 +366,11 @@ var withEntryFree = withFFI(ffiOpts{
 	}
 })
 
-const symEntryName = "opendal_entry_name"
-
-type entryName func(e *opendalEntry) string
-
-var withEntryName = withFFI(ffiOpts{
-	sym:    symEntryName,
+var ffiEntryName = newFFI(ffiOpts{
+	sym:    "opendal_entry_name",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) entryName {
+}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
 	return func(e *opendalEntry) string {
 		var bytePtr *byte
 		ffiCall(
@@ -408,15 +381,11 @@ var withEntryName = withFFI(ffiOpts{
 	}
 })
 
-const symEntryPath = "opendal_entry_path"
-
-type entryPath func(e *opendalEntry) string
-
-var withEntryPath = withFFI(ffiOpts{
-	sym:    symEntryPath,
+var ffiEntryPath = newFFI(ffiOpts{
+	sym:    "opendal_entry_path",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) entryPath {
+}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
 	return func(e *opendalEntry) string {
 		var bytePtr *byte
 		ffiCall(

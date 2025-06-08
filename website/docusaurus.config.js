@@ -22,6 +22,8 @@
 
 const semver = require("semver");
 const exec = require("child_process").execSync;
+const path = require("path");
+const crates_llms_txt = require("crates-llms-txt");
 
 const lightCodeTheme = require("prism-react-renderer/themes/github");
 const darkCodeTheme = require("prism-react-renderer/themes/dracula");
@@ -37,6 +39,27 @@ const websiteStaging = process.env.OPENDAL_WEBSITE_STAGING
   ? process.env.OPENDAL_WEBSITE_STAGING
   : false;
 
+const websiteVersion = (function () {
+  if (websiteStaging && process.env.GITHUB_REF_TYPE === "tag") {
+    const refName = process.env.GITHUB_REF_NAME;
+    if (refName.startsWith("v")) {
+      const version = semver.parse(refName, {}, true);
+      return `${version.major}.${version.minor}.${version.patch}`;
+    }
+  }
+
+  try {
+    const refName = exec(
+      "git describe --tags --abbrev=0 --match 'v*' --exclude '*rc*'"
+    ).toString();
+    const version = semver.parse(refName, {}, true);
+    return `${version.major}.${version.minor}.${version.patch}`;
+  } catch (error) {
+    console.warn("Failed to get version from Git, using default '0.0.0'");
+    return "0.0.0";
+  }
+})();
+
 /** @type {import('@docusaurus/types').Config} */
 const config = {
   title: "Apache OpenDAL™",
@@ -46,26 +69,7 @@ const config = {
 
   customFields: {
     isStaging: websiteStaging,
-    version: (function () {
-      if (websiteStaging && process.env.GITHUB_REF_TYPE === "tag") {
-        const refName = process.env.GITHUB_REF_NAME;
-        if (refName.startsWith("v")) {
-          const version = semver.parse(refName, {}, true);
-          return `${version.major}.${version.minor}.${version.patch}`;
-        }
-      }
-
-      try {
-        const refName = exec(
-          "git describe --tags --abbrev=0 --match 'v*' --exclude '*rc*'",
-        ).toString();
-        const version = semver.parse(refName, {}, true);
-        return `${version.major}.${version.minor}.${version.patch}`;
-      } catch (error) {
-        console.warn("Failed to get version from Git, using default '0.0.0'");
-        return "0.0.0";
-      }
-    })(),
+    version: websiteVersion,
   },
 
   url: "https://opendal.apache.org/",
@@ -149,6 +153,118 @@ const config = {
     require.resolve("docusaurus-lunr-search"),
     // This plugin will download all images to local and rewrite the url in html.
     require.resolve("./plugins/image-ssr-plugin"),
+    [
+      "docusaurus-plugin-llms-builder",
+      /** @type {import("docusaurus-plugin-llms-builder").PluginOptions} */
+      ({
+        version: websiteVersion,
+        llmConfigs: [
+          {
+            title: "Apache OpenDAL™: One Layer, All Storage.",
+            description:
+              'OpenDAL (/ˈoʊ.pən.dæl/, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services.',
+            summary:
+              "OpenDAL's development is guided by its vision of One Layer, All Storage and its core principles: Open Community, Solid Foundation, Fast Access, Object Storage First, and Extensible Architecture. Read the explained vision at OpenDAL Vision.",
+            generateLLMsTxt: true,
+            generateLLMsFullTxt: true,
+            hooks: {
+              "generate:prepare": (ctx) => {
+                try {
+                  // cargo rustdoc all features
+                  const config =
+                    crates_llms_txt.getLlmsConfigByRustdocAllFeatures(
+                      "stable",
+                      path.resolve(process.cwd(), "../core/Cargo.toml")
+                    );
+                  if (!config) return;
+
+                  const linkProcess = (link) => {
+                    if (
+                      /^https:\/\/docs\.rs([\/\w].*\/[0-9]+.[0-9]+.[0-9]+$)/.test(
+                        link
+                      )
+                    ) {
+                      return "https://opendal.apache.org/docs/rust/opendal/";
+                    }
+
+                    return link.includes("source/src")
+                      ? link.replace(
+                          /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
+                          "https://opendal.apache.org/docs/rust/src/opendal"
+                        ) + ".html"
+                      : link;
+                  };
+
+                  if (config.sessions) {
+                    const sessions = config.sessions;
+                    ctx.llmConfig.llmStdConfig.sessions.unshift({
+                      sessionName: config.libName,
+                      source: "normal",
+                      items: sessions.map((item) => {
+                        return {
+                          title: item.title,
+                          description: item.description,
+                          link: linkProcess(item.link),
+                        };
+                      }),
+                    });
+                  }
+
+                  if (config.fullSessions) {
+                    const fullSessions = config.fullSessions;
+                    ctx.llmConfig.llmFullStdConfig.sessions = fullSessions
+                      .map((item) => {
+                        return {
+                          link: linkProcess(item.link),
+                          content: item.content,
+                        };
+                      })
+                      .concat(ctx.llmConfig.llmFullStdConfig.sessions);
+                  }
+                } catch (error) {
+                  console.log("QAQ error:", error);
+                }
+              },
+            },
+            sessions: [
+              {
+                type: "docs",
+                docsDir: "docs",
+                sessionName: "Docs",
+                sitemap: "sitemap.xml",
+                patterns: {
+                  ignorePatterns: ["**/blog/**", "**/blog", "**/community/**"],
+                  orderPatterns: (a, b) => {
+                    const aPath = new URL(a).pathname;
+                    const bPath = new URL(b).pathname;
+
+                    const aSegments = aPath.split("/").filter(Boolean);
+                    const bSegments = bPath.split("/").filter(Boolean);
+
+                    if (aSegments.length !== bSegments.length) {
+                      return aSegments.length - bSegments.length;
+                    }
+
+                    return a.localeCompare(b);
+                  },
+                },
+              },
+              {
+                type: "blog",
+                docsDir: "blog",
+                sessionName: "Blog",
+                rss: "rss.xml",
+              },
+              {
+                type: "docs",
+                docsDir: "community",
+                sessionName: "Community",
+              },
+            ],
+          },
+        ],
+      }),
+    ],
   ],
 
   themeConfig:

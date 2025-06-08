@@ -1,2 +1,3 @@
 pub mod backend;
-mod error;
+pub mod error;
+pub mod reader;

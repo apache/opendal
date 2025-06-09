@@ -165,7 +165,6 @@ foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIRes
 
 foreign import ccall "&free_lister" c_free_lister :: FunPtr (Ptr RawLister -> IO ())
 
-foreign import ccall "blocking_append" c_blocking_append :: Ptr RawOperator -> CString -> Ptr CChar -> CSize -> Ptr (FFIResult ()) -> IO ()
 
 foreign import ccall "operator_info" c_operator_info :: Ptr RawOperator -> Ptr (FFIResult CString) -> IO ()
 

@@ -326,6 +326,12 @@ parseCString value = do
   free value
   return $ Just value'
 
+parseString :: CString -> IO String
+parseString value = do
+  value' <- peekCString value
+  free value
+  return value'
+
 parseTime :: String -> Maybe UTCTime
 parseTime time = zonedTimeToUTC <$> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%z" time
 
@@ -591,7 +597,7 @@ operatorInfoRaw (Operator op) = withForeignPtr op $ \opptr ->
     if ffiCode ffiResult == 0
       then do
         val <- peek $ dataPtr ffiResult
-        Right <$> peekCString val
+        Right <$> parseString val
       else do
         let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
         errMsg <- peekCString (errorMessage ffiResult)

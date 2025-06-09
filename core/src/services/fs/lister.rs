@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::path::Path;
+use std::path::PathBuf;
+
 use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
-use chrono::DateTime;
-use std::path::Path;
-use std::path::PathBuf;
 
 pub struct FsLister<P> {
     root: PathBuf,
@@ -50,17 +50,7 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         // since list should return path itself, we return it first
         if let Some(path) = self.current_path.take() {
-            let meta = tokio::fs::metadata(self.root.join(&path))
-                .await
-                .map_err(new_std_io_error)?;
-            let m = Metadata::new(EntryMode::DIR)
-                .with_content_length(meta.len())
-                .with_last_modified(
-                    meta.modified()
-                        .map(DateTime::from)
-                        .map_err(new_std_io_error)?,
-                );
-            let e = oio::Entry::new(&path, m);
+            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
             return Ok(Some(e));
         }
 
@@ -78,26 +68,14 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
         );
 
         let ft = de.file_type().await.map_err(new_std_io_error)?;
-        let (path, mode) = if ft.is_dir() {
+        let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            (&format!("{rel_path}/"), EntryMode::DIR)
+            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
         } else if ft.is_file() {
-            (&rel_path, EntryMode::FILE)
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
         } else {
-            (&rel_path, EntryMode::Unknown)
+            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
         };
-
-        let meta = tokio::fs::metadata(self.root.join(path))
-            .await
-            .map_err(new_std_io_error)?;
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-        let entry = oio::Entry::new(path, m);
         Ok(Some(entry))
     }
 }

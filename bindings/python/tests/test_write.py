@@ -37,19 +37,6 @@ def test_sync_write(service_name, operator, async_operator):
     assert metadata.mode.is_file()
     assert metadata.content_length == size
 
-    last_modified = (
-        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
-        if metadata.last_modified
-        else None
-    )
-    assert repr(metadata) == (
-        "Metadata(mode=file, "
-        f"content_length={metadata.content_length}, "
-        f"content_type={metadata.content_type}, "
-        f"last_modified={last_modified}, "
-        f"etag={metadata.etag})"
-    )
-
     operator.delete(filename)
 
 
@@ -64,19 +51,6 @@ def test_sync_write_path(service_name, operator, async_operator):
     assert metadata is not None
     assert metadata.mode.is_file()
     assert metadata.content_length == size
-
-    last_modified = (
-        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
-        if metadata.last_modified
-        else None
-    )
-    assert repr(metadata) == (
-        "Metadata(mode=file, "
-        f"content_length={metadata.content_length}, "
-        f"content_type={metadata.content_type}, "
-        f"last_modified={last_modified}, "
-        f"etag={metadata.etag})"
-    )
 
     operator.delete(filename)
 

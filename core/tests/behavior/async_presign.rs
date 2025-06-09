@@ -22,7 +22,7 @@ use anyhow::Result;
 use http::header;
 use log::debug;
 use opendal::raw;
-use reqwest::Url;
+use reqwest::{Response, Url};
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -35,8 +35,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(
             op,
             test_presign_write,
+            test_presign_write_options,
             test_presign_read,
+            test_presign_read_options,
             test_presign_stat,
+            test_presign_stat_options,
             test_presign_delete
         ))
     }
@@ -61,6 +64,48 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     }
     req = req.header(header::CONTENT_LENGTH, content.len());
     req = req.body(reqwest::Body::from(content));
+    let resp = req.send().await.expect("send request must succeed");
+    debug!(
+        "write response: {:?}",
+        resp.text().await.expect("read response must succeed")
+    );
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_presign_write_options(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file with options: {}", &path);
+    let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
+
+    let target_content_type = "application/json";
+    let target_cache_control = "no-cache, no-store, max-age=300";
+    let target_content_disposition = "attachment; filename=\"filename.jpg\"";
+    let write_opts = options::WriteOptions {
+        content_type: Some(target_content_type.to_string()),
+        cache_control: Some(target_cache_control.to_string()),
+        content_disposition: Some(target_content_disposition.to_string()),
+        ..Default::default()
+    };
+
+    let signed_req = op
+        .presign_write_options(&path, Duration::from_secs(3600), write_opts)
+        .await?;
+    debug!("Generated request: {signed_req:?}");
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+    req = req.header(header::CONTENT_LENGTH, content.len());
+    req = req.body(reqwest::Body::from(content));
 
     let resp = req.send().await.expect("send request must succeed");
     debug!(
@@ -70,6 +115,19 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
 
     let meta = op.stat(&path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), size as u64);
+    assert_eq!(
+        meta.content_type().expect("content type must exist"),
+        target_content_type
+    );
+    assert_eq!(
+        meta.cache_control().expect("cache control must exist"),
+        target_cache_control
+    );
+    assert_eq!(
+        meta.content_disposition()
+            .expect("content disposition must exist"),
+        target_content_disposition
+    );
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
@@ -99,6 +157,54 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
         .expect("no content length")
         .expect("content length must be present");
     assert_eq!(content_length, size as u64);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+pub async fn test_presign_stat_options(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file for stat options: {}", &path);
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+    let meta = op.stat(&path).await?;
+    let etag = meta.etag().unwrap_or("\"unknown\"");
+    let target_content_type = "application/opendal";
+    let target_cache_control = "no-cache, no-store, must-revalidate";
+    let target_content_disposition = "attachment; filename=foo.txt";
+
+    let stat_opts = options::StatOptions {
+        if_match: Some(etag.to_string()),
+        override_content_type: Some(target_content_type.to_string()),
+        override_cache_control: Some(target_cache_control.to_string()),
+        override_content_disposition: Some(target_content_disposition.to_string()),
+        ..Default::default()
+    };
+
+    let signed_req = op
+        .presign_stat_options(&path, Duration::from_secs(3600), stat_opts)
+        .await?;
+    debug!("Generated request: {signed_req:?}");
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send request must succeed");
+    assert_header_value(&resp, header::CONTENT_TYPE, target_content_type);
+    assert_header_value(&resp, header::CACHE_CONTROL, target_cache_control);
+    assert_header_value(
+        &resp,
+        header::CONTENT_DISPOSITION,
+        target_content_disposition,
+    );
 
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
@@ -140,6 +246,46 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     Ok(())
 }
 
+pub async fn test_presign_read_options(op: Operator) -> Result<()> {
+    let path = uuid::Uuid::new_v4().to_string();
+    debug!("Generate a random file for read options: {}", &path);
+    let (content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let target_content_type = "text/plain";
+    let target_cache_control = "no-store";
+
+    let read_opts = options::ReadOptions {
+        override_content_type: Some(target_content_type.to_string()),
+        override_cache_control: Some(target_cache_control.to_string()),
+        ..Default::default()
+    };
+    let signed_req = op
+        .presign_read_options(&path, Duration::from_secs(3600), read_opts)
+        .await?;
+    debug!("Generated request: {signed_req:?}");
+
+    let client = reqwest::Client::new();
+    let mut req = client.request(
+        signed_req.method().clone(),
+        Url::from_str(&signed_req.uri().to_string()).expect("must be valid url"),
+    );
+    for (k, v) in signed_req.header() {
+        req = req.header(k, v);
+    }
+
+    let resp = req.send().await.expect("send request must succeed");
+    assert_header_value(&resp, header::CONTENT_TYPE, target_content_type);
+    assert_header_value(&resp, header::CACHE_CONTROL, target_cache_control);
+    assert_eq!(resp.bytes().await?, content);
+
+    op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
     let cap = op.info().full_capability();
@@ -172,4 +318,17 @@ pub async fn test_presign_delete(op: Operator) -> Result<()> {
 
     assert!(!op.exists(&path).await.expect("delete must succeed"));
     Ok(())
+}
+
+fn assert_header_value(resp: &Response, header_name: header::HeaderName, expected: &str) {
+    let actual = resp
+        .headers()
+        .get(&header_name)
+        .expect(&format!("{} header must exist", header_name.to_string()))
+        .to_str()
+        .expect(&format!(
+            "{} header must be string",
+            header_name.to_string()
+        ));
+    assert_eq!(actual, expected);
 }

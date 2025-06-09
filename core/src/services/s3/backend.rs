@@ -1150,9 +1150,9 @@ impl Access for S3Backend {
                 self.core
                     .s3_get_object_request(path, BytesRange::default(), &v)
             }
-            PresignOperation::Write(v) => {
+            PresignOperation::Write(_) => {
                 self.core
-                    .s3_put_object_request(path, None, &v, Buffer::new())
+                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
                 ErrorKind::Unsupported,

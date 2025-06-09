@@ -108,7 +108,7 @@ testError = do
 testWriter :: Assertion
 testWriter = do
   Right op <- newOperator "memory"
-  Right writer <- newWriter op "test-writer-file"
+  Right writer <- writerOpRaw op "test-writer-file" defaultWriterOption
   writerWrite writer "Hello" ?= Right ()
   writerWrite writer " " ?= Right ()
   writerWrite writer "World!" ?= Right ()
@@ -123,7 +123,7 @@ testWriterAppend = do
   -- First write some initial content
   writeOpRaw op "append-file" "Initial content" ?= Right ()
   -- Create append writer and add more content
-  result <- newWriterAppend op "append-file"
+  result <- writerOpRaw op "append-file" appendWriterOption
   case result of
     Right writer -> do
       writerWrite writer " appended" ?= Right ()

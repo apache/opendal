@@ -65,7 +65,7 @@ testWriterVsDirectWrite = do
   
   -- Test writer approach
   start1 <- getCurrentTime
-  Right writer <- newWriter op "writer-test"
+  Right writer <- writerOpRaw op "writer-test" defaultWriterOption
   mapM_ (\_ -> writerWrite writer "chunk" ?= Right ()) [1..100 :: Int]
   Right _ <- writerClose writer
   end1 <- getCurrentTime
@@ -97,7 +97,7 @@ testLargeFileOperations = do
       chunk = BS8.replicate chunkSize 'X'
   
   start <- getCurrentTime
-  Right writer <- newWriter op "large-file"
+  Right writer <- writerOpRaw op "large-file" defaultWriterOption
   mapM_ (\_ -> writerWrite writer chunk ?= Right ()) [1..numChunks]
   Right meta <- writerClose writer
   end <- getCurrentTime

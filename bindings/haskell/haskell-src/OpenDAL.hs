@@ -33,6 +33,7 @@ module OpenDAL
     Operator,
     Lister,
     Writer,
+    WriterOption (..),
     OpenDALError (..),
     ErrorCode (..),
     EntryMode (..),
@@ -44,12 +45,15 @@ module OpenDAL
     runOp,
     newOperator,
 
+    -- * Writer Option Functions
+    defaultWriterOption,
+    appendWriterOption,
+
     -- * Lister APIs
     nextLister,
 
     -- * Writer APIs
-    newWriter,
-    newWriterAppend,
+    writerOpRaw,
     writerWrite,
     writerClose,
 
@@ -67,8 +71,6 @@ module OpenDAL
     scanOpRaw,
     appendOpRaw,
     operatorInfoRaw,
-    writerOpRaw,
-    writerAppendOpRaw,
     removeAllOpRaw,
   )
 where
@@ -134,6 +136,13 @@ newtype Lister = Lister (ForeignPtr RawLister)
 
 -- | `Writer` is designed to write bytes into given path.
 newtype Writer = Writer (ForeignPtr RawWriter)
+
+-- | Options for creating a Writer.
+data WriterOption = WriterOption
+  { -- | Whether to append to the file instead of overwriting it.
+    woAppend :: Bool
+  }
+  deriving (Eq, Show)
 
 -- | Represents the possible error codes that can be returned by OpenDAL.
 data ErrorCode
@@ -351,6 +360,14 @@ parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength
       }
 
 -- Exported functions
+
+-- | Default WriterOption for writing (overwriting).
+defaultWriterOption :: WriterOption
+defaultWriterOption = WriterOption {woAppend = False}
+
+-- | WriterOption for appending to a file.
+appendWriterOption :: WriterOption
+appendWriterOption = WriterOption {woAppend = True}
 
 -- |  Runner for 'OperatorT' monad.
 -- This function will run given 'OperatorT' monad with given 'Operator'.
@@ -618,39 +635,7 @@ appendOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
             errMsg <- peekCString (errorMessage ffiResult)
             return $ Left $ OpenDALError code errMsg
 
--- | Creates a new OpenDAL writer via `Operator`.
-newWriter :: Operator -> String -> IO (Either OpenDALError Writer)
-newWriter (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
-      c_blocking_writer opptr cPath ffiResultPtr
-      ffiResult <- peek ffiResultPtr
-      if ffiCode ffiResult == 0
-        then do
-          ffiwriter <- peek $ dataPtr ffiResult
-          writer <- Writer <$> newForeignPtr c_free_writer ffiwriter
-          return $ Right writer
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
 
--- | Creates a new OpenDAL writer append via `Operator`.
-newWriterAppend :: Operator -> String -> IO (Either OpenDALError Writer)
-newWriterAppend (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
-      c_blocking_writer_append opptr cPath ffiResultPtr
-      ffiResult <- peek ffiResultPtr
-      if ffiCode ffiResult == 0
-        then do
-          ffiwriter <- peek $ dataPtr ffiResult
-          writer <- Writer <$> newForeignPtr c_free_writer ffiwriter
-          return $ Right writer
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
 
 -- | Writes bytes into given writer.
 writerWrite :: Writer -> ByteString -> IO (Either OpenDALError ())
@@ -682,12 +667,14 @@ writerClose (Writer writer) = withForeignPtr writer $ \writerptr ->
         errMsg <- peekCString (errorMessage ffiResult)
         return $ Left $ OpenDALError code errMsg
 
--- | Create a new writer for given path.
-writerOpRaw :: Operator -> String -> IO (Either OpenDALError Writer)
-writerOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
+-- | Create a new writer for given path with specified options.
+writerOpRaw :: Operator -> String -> WriterOption -> IO (Either OpenDALError Writer)
+writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
     alloca $ \ffiResultPtr -> do
-      c_blocking_writer opptr cPath ffiResultPtr
+      if woAppend writerOption
+        then c_blocking_writer_append opptr cPath ffiResultPtr
+        else c_blocking_writer opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
@@ -699,22 +686,7 @@ writerOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
           errMsg <- peekCString (errorMessage ffiResult)
           return $ Left $ OpenDALError code errMsg
 
--- | Create a new writer for given path with append mode.
-writerAppendOpRaw :: Operator -> String -> IO (Either OpenDALError Writer)
-writerAppendOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
-      c_blocking_writer_append opptr cPath ffiResultPtr
-      ffiResult <- peek ffiResultPtr
-      if ffiCode ffiResult == 0
-        then do
-          ffiwriter <- peek $ dataPtr ffiResult
-          writer <- Writer <$> newForeignPtr c_free_writer ffiwriter
-          return $ Right writer
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+
 
 -- | Remove all files and directories recursively.
 removeAllOpRaw :: Operator -> String -> IO (Either OpenDALError ())

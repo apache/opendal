@@ -39,7 +39,7 @@ writerTests =
 testWriterSequentialWrites :: Assertion
 testWriterSequentialWrites = do
   Right op <- newOperator "memory"
-  Right writer <- newWriter op "sequential-test"
+  Right writer <- writerOpRaw op "sequential-test" defaultWriterOption
   
   -- Write in multiple chunks
   writerWrite writer "Line 1\n" ?= Right ()
@@ -55,7 +55,7 @@ testWriterSequentialWrites = do
 testWriterLargeData :: Assertion
 testWriterLargeData = do
   Right op <- newOperator "memory"
-  Right writer <- newWriter op "large-data-test"
+  Right writer <- writerOpRaw op "large-data-test" defaultWriterOption
   
   -- Write 1KB of data in chunks
   let chunk = BS8.replicate 100 'A'
@@ -72,7 +72,7 @@ testWriterLargeData = do
 testWriterEmptyData :: Assertion
 testWriterEmptyData = do
   Right op <- newOperator "memory"
-  Right writer <- newWriter op "empty-test"
+  Right writer <- writerOpRaw op "empty-test" defaultWriterOption
   
   -- Write empty data
   writerWrite writer "" ?= Right ()
@@ -86,7 +86,7 @@ testWriterEmptyData = do
 testWriterBinaryData :: Assertion
 testWriterBinaryData = do
   Right op <- newOperator "memory"
-  Right writer <- newWriter op "binary-test"
+  Right writer <- writerOpRaw op "binary-test" defaultWriterOption
   
   -- Write binary data (all bytes 0-255)
   let binaryData = BS8.pack ['\0'..'\255']
@@ -132,7 +132,7 @@ testWriterErrorHandling = do
   
   -- Test writing to invalid path (should work with memory backend)
   -- Memory backend is permissive, so let's test a more complex scenario
-  Right writer <- newWriter op "test-file"
+  Right writer <- writerOpRaw op "test-file" defaultWriterOption
   writerWrite writer "some data" ?= Right ()
   
   -- Close writer successfully

@@ -69,7 +69,6 @@ module OpenDAL
     statOpRaw,
     listOpRaw,
     scanOpRaw,
-    appendOpRaw,
     operatorInfoRaw,
     removeAllOpRaw,
   )
@@ -247,9 +246,6 @@ class (Monad m) => MonadOperation m where
   -- An error will be returned if given path doesn't end with /.
   scanOp :: String -> m Lister
 
-  -- | Append bytes to given path.
-  appendOp :: String -> ByteString -> m ()
-
   -- | Remove all files and directories recursively.
   removeAllOp :: String -> m ()
 
@@ -293,10 +289,6 @@ instance (MonadIO m) => MonadOperation (OperatorT m) where
   scanOp path = do
     op <- ask
     result <- liftIO $ scanOpRaw op path
-    either throwError return result
-  appendOp src byte = do
-    op <- ask
-    result <- liftIO $ appendOpRaw op src byte
     either throwError return result
   removeAllOp path = do
     op <- ask
@@ -619,22 +611,6 @@ nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
         let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
         errMsg <- peekCString (errorMessage ffiResult)
         return $ Left $ OpenDALError code errMsg
-
--- | Append bytes to given path.
-appendOpRaw :: Operator -> String -> ByteString -> IO (Either OpenDALError ())
-appendOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
-  withCString path $ \cPath ->
-    BS.useAsCStringLen byte $ \(cByte, len) ->
-      alloca $ \ffiResultPtr -> do
-        c_blocking_append opptr cPath cByte (fromIntegral len) ffiResultPtr
-        ffiResult <- peek ffiResultPtr
-        if ffiCode ffiResult == 0
-          then return $ Right ()
-          else do
-            let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-            errMsg <- peekCString (errorMessage ffiResult)
-            return $ Left $ OpenDALError code errMsg
-
 
 
 -- | Writes bytes into given writer.

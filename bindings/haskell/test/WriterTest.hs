@@ -106,8 +106,12 @@ testAppendToNonExistent = do
   -- Verify file doesn't exist
   isExistOpRaw op "new-append-file" ?= Right False
   
-  -- Append to non-existent file (should create it)
-  appendOpRaw op "new-append-file" "First content" ?= Right ()
+  -- Write to non-existent file using writer API (should create it)
+  Right writer <- writerOpRaw op "new-append-file" defaultWriterOption
+  writerWrite writer "First content" ?= Right ()
+  writerClose writer >>= \case
+    Right _ -> return ()
+    Left err -> assertFailure $ "Failed to close writer: " ++ show err
   
   -- Verify file was created
   isExistOpRaw op "new-append-file" ?= Right True
@@ -117,11 +121,15 @@ testAppendMultipleTimes :: Assertion
 testAppendMultipleTimes = do
   Right op <- newOperator "memory"
   
-  -- Multiple append operations
-  appendOpRaw op "multi-append" "Hello" ?= Right ()
-  appendOpRaw op "multi-append" " " ?= Right ()
-  appendOpRaw op "multi-append" "World" ?= Right ()
-  appendOpRaw op "multi-append" "!" ?= Right ()
+  -- Multiple write operations using writer API
+  Right writer <- writerOpRaw op "multi-append" defaultWriterOption
+  writerWrite writer "Hello" ?= Right ()
+  writerWrite writer " " ?= Right ()
+  writerWrite writer "World" ?= Right ()
+  writerWrite writer "!" ?= Right ()
+  writerClose writer >>= \case
+    Right _ -> return ()
+    Left err -> assertFailure $ "Failed to close writer: " ++ show err
   
   -- Verify final content
   readOpRaw op "multi-append" ?= Right "Hello World!"

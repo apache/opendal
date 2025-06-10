@@ -375,7 +375,7 @@ impl GcsCore {
             if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
                 req = req.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
             } else {
-                eprintln!("Unrecognized predefined_acl. Ignoring"); 
+                eprintln!("Unrecognized predefined_acl. Ignoring");
             }
         }
 
@@ -567,7 +567,11 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_initiate_multipart_upload(&self, path: &str, op: &OpWrite) -> Result<Response<Buffer>> {
+    pub async fn gcs_initiate_multipart_upload(
+        &self,
+        path: &str,
+        op: &OpWrite,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}/{}?uploads", self.endpoint, self.bucket, p);
@@ -602,7 +606,7 @@ impl GcsCore {
             if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
                 builder = builder.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
             } else {
-               eprintln!("Unrecognized predefined_acl. Ignoring"); 
+                eprintln!("Unrecognized predefined_acl. Ignoring");
             }
         }
 
@@ -756,7 +760,7 @@ fn predefined_acl_to_xml_header(predefined_acl: &str) -> Option<&'static str> {
         "bucketOwnerFullControl" => Some("bucket-owner-full-control"),
         "publicRead" => Some("public-read"),
         "authenticatedRead" => Some("authenticated-read"),
-        _ => None
+        _ => None,
     }
 }
 

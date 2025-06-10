@@ -372,7 +372,11 @@ impl GcsCore {
         }
 
         if let Some(acl) = &self.predefined_acl {
-            req = req.header(X_GOOG_ACL, acl);
+            if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
+                req = req.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
+            } else {
+                eprintln!("Unrecognized predefined_acl. Ignoring"); 
+            }
         }
 
         if let Some(storage_class) = &self.default_storage_class {

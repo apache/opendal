@@ -2909,6 +2909,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastmetrics"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "553e4250df074aee64ea2194037451e5506c205b8b9d14345d8cf026d696b39e"
+dependencies = [
+ "cfg-if",
+ "dtoa",
+ "foldhash",
+ "itoa",
+ "parking_lot 0.12.3",
+ "paste",
+]
+
+[[package]]
 name = "fastrace"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5356,6 +5370,7 @@ dependencies = [
  "divan",
  "dotenvy",
  "etcd-client",
+ "fastmetrics",
  "fastrace",
  "fastrace-jaeger",
  "flume",

@@ -68,6 +68,13 @@ pub use self::prometheus_client::PrometheusClientLayer;
 #[cfg(feature = "layers-prometheus-client")]
 pub use self::prometheus_client::PrometheusClientLayerBuilder;
 
+#[cfg(feature = "layers-fastmetrics")]
+mod fastmetrics;
+#[cfg(feature = "layers-fastmetrics")]
+pub use self::fastmetrics::FastmetricsLayer;
+#[cfg(feature = "layers-fastmetrics")]
+pub use self::fastmetrics::FastmetricsLayerBuilder;
+
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;

@@ -18,7 +18,7 @@
  */
 
 import { describe } from 'vitest'
-import { Operator, layers } from '../../index.js'
+import { Operator, layers } from '../../index.mjs'
 import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '../utils.mjs'
 
 import { run as AsyncIOTestRun } from './async.suite.mjs'

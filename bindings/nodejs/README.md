@@ -65,6 +65,19 @@ async function main() {
 main();
 ```
 
+## Usage with Next.js
+
+Config automatically be bundled by [Next.js](https://nextjs.org/docs/app/api-reference/config/next-config-js/serverExternalPackages).
+
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  serverExternalPackages: ["opendal"],
+};
+
+module.exports = nextConfig;
+```
+
 ## Contributing
 
 - Start with [Contributing Guide](CONTRIBUTING.md).

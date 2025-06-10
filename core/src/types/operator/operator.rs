@@ -1652,13 +1652,61 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpStat::default(), expire),
-            |inner, path, (args, dur)| async move {
-                let op = OpPresign::new(args, dur);
-                let rp = inner.presign(&path, op).await?;
-                Ok(rp.into_presigned_request())
-            },
+            (options::StatOptions::default(), expire),
+            Self::presign_stat_inner,
         )
+    }
+
+    /// Presign an operation for stat(head) with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::StatOptions`] for all available options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    /// use opendal::options;
+    /// use std::time::Duration;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.presign_stat_options(
+    ///         "test",
+    ///         Duration::from_secs(3600),
+    ///         options::StatOptions {
+    ///             if_match: Some("<etag>".to_string()),
+    ///             ..Default::default()
+    ///         }
+    ///     ).await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub async fn presign_stat_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::StatOptions,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+        Self::presign_stat_inner(self.inner().clone(), path, (opts, expire)).await
+    }
+
+    #[inline]
+    async fn presign_stat_inner(
+        acc: Accessor,
+        path: String,
+        (opts, expire): (options::StatOptions, Duration),
+    ) -> Result<PresignedRequest> {
+        let op = OpPresign::new(OpStat::from(opts), expire);
+        let rp = acc.presign(&path, op).await?;
+        Ok(rp.into_presigned_request())
     }
 
     /// Presign an operation for read.
@@ -1668,8 +1716,8 @@ impl Operator {
     /// ## Extra Options
     ///
     /// `presign_read` is a wrapper of [`Self::presign_read_with`] without any options. To use
-    /// extra options like `override_content_disposition`, please use [`Self::presign_read_with`]
-    /// instead.
+    /// extra options like `override_content_disposition`, please use [`Self::presign_read_with`] or
+    /// [`Self::presign_read_options] instead.
     ///
     /// # Example
     ///
@@ -1707,47 +1755,9 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// ## `override_content_disposition`
+    /// Visit [`options::ReadOptions`] for all available options.
     ///
-    /// Override the [`content-disposition`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
-    ///         .override_content_disposition("attachment; filename=\"othertext.txt\"")
-    ///         .await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `override_cache_control`
-    ///
-    /// Override the [`cache-control`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_read_with("test.txt", Duration::from_secs(3600))
-    ///         .override_cache_control("no-store")
-    ///         .await?;
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `override_content_type`
-    ///
-    /// Override the [`content-type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header returned by storage services.
+    /// # Example
     ///
     /// ```
     /// use std::time::Duration;
@@ -1774,13 +1784,62 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpRead::default(), expire),
-            |inner, path, (args, dur)| async move {
-                let op = OpPresign::new(args, dur);
-                let rp = inner.presign(&path, op).await?;
-                Ok(rp.into_presigned_request())
-            },
+            (options::ReadOptions::default(), expire),
+            Self::presign_read_inner,
         )
+    }
+
+    /// Presign an operation for read with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::ReadOptions`] for all available options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    /// use opendal::options;
+    /// use std::time::Duration;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.presign_read_options(
+    ///         "file",
+    ///         Duration::from_secs(3600),
+    ///         options::ReadOptions {
+    ///             override_content_disposition: Some("attachment; filename=\"othertext.txt\"".to_string()),
+    ///             ..Default::default()
+    ///         }
+    ///     ).await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub async fn presign_read_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::ReadOptions,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+        Self::presign_read_inner(self.inner().clone(), path, (opts, expire)).await
+    }
+
+    #[inline]
+    async fn presign_read_inner(
+        acc: Accessor,
+        path: String,
+        (opts, expire): (options::ReadOptions, Duration),
+    ) -> Result<PresignedRequest> {
+        let (op_read, _) = opts.into();
+        let op = OpPresign::new(op_read, expire);
+        let rp = acc.presign(&path, op).await?;
+        Ok(rp.into_presigned_request())
     }
 
     /// Presign an operation for write.
@@ -1790,7 +1849,8 @@ impl Operator {
     /// ## Extra Options
     ///
     /// `presign_write` is a wrapper of [`Self::presign_write_with`] without any options. To use
-    /// extra options like `content_type`, please use [`Self::presign_write_with`] instead.
+    /// extra options like `content_type`, please use [`Self::presign_write_with`] or
+    /// [`Self::presign_write_options`] instead.
     ///
     /// # Example
     ///
@@ -1825,57 +1885,9 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// ## `content_type`
+    /// Visit [`options::WriteOptions`] for all available options.    
     ///
-    /// Set the [`content-type`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_write_with("test", Duration::from_secs(3600))
-    ///         .content_type("text/csv")
-    ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `content_disposition`
-    ///
-    /// Set the [`content-disposition`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) header returned by storage services.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use anyhow::Result;
-    /// use opendal::Operator;
-    ///
-    /// async fn test(op: Operator) -> Result<()> {
-    ///     let signed_req = op
-    ///         .presign_write_with("test", Duration::from_secs(3600))
-    ///         .content_disposition("attachment; filename=\"cool.html\"")
-    ///         .await?;
-    ///     let req = http::Request::builder()
-    ///         .method(signed_req.method())
-    ///         .uri(signed_req.uri())
-    ///         .body(())?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    ///
-    /// ## `cache_control`
-    ///
-    /// Set the [`cache-control`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) header returned by storage services.
+    /// # Example
     ///
     /// ```
     /// use std::time::Duration;
@@ -1906,13 +1918,64 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpWrite::default(), expire),
-            |inner, path, (args, dur)| async move {
-                let op = OpPresign::new(args, dur);
-                let rp = inner.presign(&path, op).await?;
-                Ok(rp.into_presigned_request())
-            },
+            (options::WriteOptions::default(), expire),
+            Self::presign_write_inner,
         )
+    }
+
+    /// Presign an operation for write with additional options.
+    ///
+    /// # Options
+    ///
+    /// Check [`options::WriteOptions`] for all available options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    /// use opendal::options;
+    /// use std::time::Duration;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.presign_write_options(
+    ///         "file",
+    ///         Duration::from_secs(3600),
+    ///         options::WriteOptions {
+    ///             content_type: Some("application/json".to_string()),
+    ///             cache_control: Some("max-age=3600".to_string()),
+    ///             if_not_exists: true,
+    ///             ..Default::default()
+    ///         }
+    ///     ).await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub async fn presign_write_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::WriteOptions,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+        Self::presign_write_inner(self.inner().clone(), path, (opts, expire)).await
+    }
+
+    #[inline]
+    async fn presign_write_inner(
+        acc: Accessor,
+        path: String,
+        (opts, expire): (options::WriteOptions, Duration),
+    ) -> Result<PresignedRequest> {
+        let (op_write, _) = opts.into();
+        let op = OpPresign::new(op_write, expire);
+        let rp = acc.presign(&path, op).await?;
+        Ok(rp.into_presigned_request())
     }
 
     /// Presign an operation for delete.
@@ -1963,12 +2026,59 @@ impl Operator {
         OperatorFuture::new(
             self.inner().clone(),
             path,
-            (OpDelete::default(), expire),
-            |inner, path, (args, dur)| async move {
-                let op = OpPresign::new(args, dur);
-                let rp = inner.presign(&path, op).await?;
-                Ok(rp.into_presigned_request())
-            },
+            (options::DeleteOptions::default(), expire),
+            Self::presign_delete_inner,
         )
+    }
+
+    /// Presign an operation for delete with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::DeleteOptions`] for all available options.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use opendal::Operator;
+    /// use opendal::options;
+    /// use std::time::Duration;
+    ///
+    /// async fn test(op: Operator) -> Result<()> {
+    ///     let signed_req = op.presign_delete_options(
+    ///         "path/to/file",
+    ///         Duration::from_secs(3600),
+    ///         options::DeleteOptions {
+    ///             ..Default::default()
+    ///         }
+    ///     ).await?;
+    ///     let req = http::Request::builder()
+    ///         .method(signed_req.method())
+    ///         .uri(signed_req.uri())
+    ///         .body(())?;
+    ///
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub async fn presign_delete_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::DeleteOptions,
+    ) -> Result<PresignedRequest> {
+        let path = normalize_path(path);
+        Self::presign_delete_inner(self.inner().clone(), path, (opts, expire)).await
+    }
+
+    #[inline]
+    async fn presign_delete_inner(
+        acc: Accessor,
+        path: String,
+        (opts, expire): (options::DeleteOptions, Duration),
+    ) -> Result<PresignedRequest> {
+        let op = OpPresign::new(OpDelete::from(opts), expire);
+        let rp = acc.presign(&path, op).await?;
+        Ok(rp.into_presigned_request())
     }
 }

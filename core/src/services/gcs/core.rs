@@ -375,7 +375,7 @@ impl GcsCore {
             if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
                 req = req.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
             } else {
-                eprintln!("Unrecognized predefined_acl. Ignoring");
+                log::warn!("Unrecognized predefined_acl. Ignoring");
             }
         }
 
@@ -606,7 +606,7 @@ impl GcsCore {
             if let Some(predefined_acl_in_xml_spec) = predefined_acl_to_xml_header(acl) {
                 builder = builder.header(X_GOOG_ACL, predefined_acl_in_xml_spec);
             } else {
-                eprintln!("Unrecognized predefined_acl. Ignoring");
+                log::warn!("Unrecognized predefined_acl. Ignoring");
             }
         }
 

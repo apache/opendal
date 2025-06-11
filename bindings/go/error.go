@@ -73,8 +73,7 @@ func parseError(ctx context.Context, err *opendalError) error {
 	if err == nil {
 		return nil
 	}
-	free := getFFI[errorFree](ctx, symErrorFree)
-	defer free(err)
+	defer ffiErrorFree.symbol(ctx)(err)
 	return &Error{
 		code:    ErrorCode(err.code),
 		message: string(parseBytes(err.message)),
@@ -98,15 +97,11 @@ func (e *Error) Message() string {
 	return e.message
 }
 
-type errorFree func(e *opendalError)
-
-const symErrorFree = "opendal_error_free"
-
-var withErrorFree = withFFI(ffiOpts{
-	sym:    symErrorFree,
+var ffiErrorFree = newFFI(ffiOpts{
+	sym:    "opendal_error_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) errorFree {
+}, func(_ context.Context, ffiCall ffiCall) func(e *opendalError) {
 	return func(e *opendalError) {
 		ffiCall(
 			nil,

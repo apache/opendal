@@ -28,6 +28,60 @@ export class ExternalObject<T> {
     [K: symbol]: T
   }
 }
+export interface StatOptions {
+  /**
+  * Sets version for this operation.
+  * Retrieves data of a specified version of the given path.
+  */
+  version?: string
+  /**
+  * Sets if-match condition for this operation.
+  * If file exists and its etag doesn't match, an error will be returned.
+  */
+  ifMatch?: string
+  /**
+  * Sets if-none-match condition for this operation.
+  * If file exists and its etag matches, an error will be returned.
+  */
+  ifNoneMatch?: string
+  /**
+  * Sets if-modified-since condition for this operation.
+  * If file exists and hasn't been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifModifiedSince?: string
+  /**
+  * Sets if-unmodified-since condition for this operation.
+  * If file exists and has been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifUnmodifiedSince?: string
+  /**
+  * Specifies the content-type header for presigned operations.
+  * Only meaningful when used along with presign.
+  */
+  overrideContentType?: string
+  /**
+  * Specifies the cache-control header for presigned operations.
+  * Only meaningful when used along with presign.
+  */
+  overrideCacheControl?: string
+  /**
+  * Specifies the content-disposition header for presigned operations.
+  * Only meaningful when used along with presign.
+  */
+  overrideContentDisposition?: string
+}
+export const enum EntryMode {
+  /** FILE means the path has data to read. */
+  FILE = 0,
+  /** DIR means the path can be listed. */
+  DIR = 1,
+  /** Unknown means we don't know what we can do on this path. */
+  Unknown = 2
+}
 export interface ListOptions {
   limit?: number
   recursive?: boolean
@@ -89,6 +143,18 @@ export class Capability {
   get statWithIfMatch(): boolean
   /** If operator supports stat with if not match. */
   get statWithIfNoneMatch(): boolean
+  /** If operator supports stat with if modified since. */
+  get statWithIfModifiedSince(): boolean
+  /** If operator supports stat with if unmodified since. */
+  get statWithIfUnmodifiedSince(): boolean
+  /** If operator supports stat with versions. */
+  get statWithVersion(): boolean
+  /** If operator supports stat with override content type. */
+  get statWithOverrideContentType(): boolean
+  /** If operator supports stat with override cache control. */
+  get statWithOverrideCacheControl(): boolean
+  /** If operator supports stat with override content disposition. */
+  get statWithOverrideContentDisposition(): boolean
   /** If operator supports read. */
   get read(): boolean
   /** If operator supports read with if matched. */
@@ -189,7 +255,7 @@ export class Operator {
    * }
    * ```
    */
-  stat(path: string): Promise<Metadata>
+  stat(path: string, options?: StatOptions | undefined | null): Promise<Metadata>
   /**
    * Get current path's metadata **without cache** directly and synchronously.
    *
@@ -201,7 +267,7 @@ export class Operator {
    * }
    * ```
    */
-  statSync(path: string): Metadata
+  statSync(path: string, options?: StatOptions | undefined | null): Metadata
   /**
    * Check if this operator can work correctly.
    *
@@ -557,6 +623,10 @@ export class Metadata {
    * We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
    */
   get lastModified(): string | null
+  /** mode represent this entry's mode. */
+  get mode(): EntryMode | null
+  /** Retrieves the `version` of the file, if available. */
+  get version(): string | null
 }
 /**
  * BlockingReader is designed to read data from a given path in a blocking

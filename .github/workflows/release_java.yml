@@ -73,11 +73,11 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup linux for zigbuild
-        if: "contains(matrix.os, 'ubuntu-latest')"
+        if: ${{ contains(matrix.os, 'ubuntu-latest') }}
         run: pip install cargo-zigbuild
 
       - name: Setup linux-aarch_64
-        if: "contains(matrix.classifier, 'linux-aarch_64')"
+        if: ${{ contains(matrix.classifier, 'linux-aarch_64') }}
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu

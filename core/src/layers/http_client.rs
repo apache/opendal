@@ -91,41 +91,6 @@ impl HttpClientLayer {
     pub fn new(client: HttpClient) -> Self {
         Self { client }
     }
-
-    /// Create a new `HttpClientLayer` with a custom HTTP fetcher.
-    ///
-    /// This is a convenience method for creating an HTTP client from
-    /// a custom implementation of [`HttpFetch`].
-    ///
-    /// # Arguments
-    ///
-    /// * `fetcher` - An implementation of the `HttpFetch` trait
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use opendal::layers::HttpClientLayer;
-    /// use opendal::raw::{HttpFetch, HttpBody, Buffer};
-    /// use opendal::Result;
-    ///
-    /// struct MyHttpClient;
-    ///
-    /// impl HttpFetch for MyHttpClient {
-    ///     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
-    ///         // Custom implementation
-    ///         todo!()
-    ///     }
-    /// }
-    ///
-    /// # fn main() {
-    /// let layer = HttpClientLayer::with_fetcher(MyHttpClient);
-    /// # }
-    /// ```
-    pub fn with_fetcher(fetcher: impl HttpFetch) -> Self {
-        Self {
-            client: HttpClient::with(fetcher),
-        }
-    }
 }
 
 impl<A: Access> Layer<A> for HttpClientLayer {
@@ -228,7 +193,8 @@ mod tests {
             }
         }
 
-        let layer = HttpClientLayer::with_fetcher(MockFetcher);
+        let client = HttpClient::with(MockFetcher);
+        let layer = HttpClientLayer::new(client);
         let _op = Operator::new(services::Memory::default())
             .unwrap()
             .layer(layer)

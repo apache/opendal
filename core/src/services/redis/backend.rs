@@ -31,6 +31,7 @@ use tokio::sync::OnceCell;
 
 use super::core::*;
 use super::delete::RedisDeleter;
+use super::lister::RedisLister;
 use super::writer::RedisWriter;
 use crate::raw::oio;
 use crate::raw::*;
@@ -286,6 +287,8 @@ impl RedisAccessor {
             write: true,
             delete: true,
             stat: true,
+            list: true,
+            list_with_recursive: true,
             write_can_empty: true,
             shared: true,
             ..Default::default()
@@ -308,7 +311,7 @@ impl RedisAccessor {
 impl Access for RedisAccessor {
     type Reader = Buffer;
     type Writer = RedisWriter;
-    type Lister = ();
+    type Lister = oio::PageLister<RedisLister>;
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
 
     fn info(&self) -> std::sync::Arc<AccessorInfo> {
@@ -370,10 +373,15 @@ impl Access for RedisAccessor {
         ))
     }
 
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        // Redis doesn't support listing keys, return empty list
-        Ok((RpList::default(), ()))
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = RedisLister::new(
+            self.core.clone(),
+            self.root.clone(),
+            path.to_string(),
+            args.recursive(),
+            args.limit(),
+        );
+        Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 }
 

@@ -1069,7 +1069,6 @@ name = "opendal"
 version = "0.53.3"
 dependencies = [
  "anyhow",
- "async-trait",
  "backon",
  "base64 0.22.1",
  "bytes",

@@ -374,10 +374,11 @@ impl Access for RedisAccessor {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        // Create lister without unnecessary string allocations
         let lister = RedisLister::new(
             self.core.clone(),
             self.root.clone(),
-            path.to_string(),
+            path.to_string(), // We must convert to owned String here since path is borrowed
             args.recursive(),
             args.limit(),
         );

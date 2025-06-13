@@ -210,20 +210,16 @@ impl RedisCore {
         let mut conn = self.conn().await?;
 
         let mut cmd = redis::cmd("SCAN");
-        cmd.arg(cursor);
-        cmd.arg("MATCH");
-        cmd.arg(pattern);
+
+        cmd.arg(cursor).arg("MATCH").arg(pattern);
 
         if let Some(count) = count {
-            cmd.arg("COUNT");
-            cmd.arg(count);
+            cmd.arg("COUNT").arg(count);
         }
 
-        let result: (u64, Vec<String>) = cmd
-            .query_async(&mut *conn)
+        cmd.query_async(&mut *conn)
             .await
-            .map_err(format_redis_error)?;
-        Ok(result)
+            .map_err(format_redis_error)
     }
 }
 

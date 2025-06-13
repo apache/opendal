@@ -70,48 +70,53 @@ impl RedisLister {
         if abs_path.is_empty() {
             "*".to_string()
         } else {
-            let prefix = abs_path.trim_end_matches('/');
-            format!("{}/*", prefix)
+            // Normalize path for pattern matching and ensure trailing slash is handled consistently
+            let normalized_path = abs_path.trim_end_matches('/');
+            format!("{}/*", normalized_path)
         }
     }
 
     fn extract_relative_path(&self, key: &str) -> Option<String> {
         let abs_path = build_abs_path(&self.root, &self.path);
-        let prefix = if abs_path.is_empty() {
-            ""
-        } else {
-            abs_path.trim_end_matches('/')
-        };
 
-        if prefix.is_empty() {
-            Some(key.to_string())
-        } else if key.starts_with(&format!("{}/", prefix)) {
-            Some(key[prefix.len() + 1..].to_string())
+        // For empty path (root listing), all keys are valid
+        if abs_path.is_empty() {
+            return Some(key.to_string());
+        }
+
+        // Normalize the path for consistent prefix matching
+        let prefix = abs_path.trim_end_matches('/');
+        let prefix_with_slash = format!("{}/", prefix);
+
+        // Check if key starts with our path prefix
+        if key.starts_with(&prefix_with_slash) {
+            Some(key[prefix_with_slash.len()..].to_string())
         } else {
             None
         }
     }
 
     fn should_include_key(&self, relative_path: &str) -> bool {
+        // For recursive listing, include all keys
         if self.recursive {
-            true
-        } else {
-            // For non-recursive, only include direct children
-            !relative_path.contains('/')
+            return true;
         }
+
+        // For non-recursive, only include direct children (no slashes)
+        !relative_path.contains('/')
     }
 
     fn extract_directory_from_key(&self, relative_path: &str) -> Option<String> {
+        // For recursive listing, we never need to extract directories
         if self.recursive {
-            return None; // Don't emit directories in recursive mode
+            return None;
         }
 
-        if let Some(slash_pos) = relative_path.find('/') {
+        // Extract the directory part if there's a slash
+        relative_path.find('/').map(|slash_pos| {
             let dir_name = &relative_path[..slash_pos];
-            Some(format!("{}/", dir_name))
-        } else {
-            None
-        }
+            format!("{}/", dir_name)
+        })
     }
 }
 
@@ -124,16 +129,25 @@ impl oio::PageList for RedisLister {
             ctx.token.parse::<u64>().unwrap_or(0)
         };
 
+        // Reuse pattern for all keys in this batch
         let pattern = self.build_scan_pattern();
         let (next_cursor, keys) = self.core.scan(&pattern, current_cursor, self.limit).await?;
 
-        let mut directories_in_this_batch = HashSet::new();
+        // Only allocate HashSet if needed (for non-recursive listing)
+        let mut directories_in_this_batch = if !self.recursive {
+            Some(HashSet::with_capacity(keys.len() / 2)) // Estimate directory count
+        } else {
+            None
+        };
 
         for key in keys {
             if let Some(relative_path) = self.extract_relative_path(&key) {
                 // Handle directory extraction for non-recursive listing
-                if let Some(dir_path) = self.extract_directory_from_key(&relative_path) {
-                    directories_in_this_batch.insert(dir_path);
+                if let (Some(dir_path), Some(dirs)) = (
+                    self.extract_directory_from_key(&relative_path),
+                    &mut directories_in_this_batch,
+                ) {
+                    dirs.insert(dir_path);
                 }
 
                 // Handle file entries
@@ -146,10 +160,12 @@ impl oio::PageList for RedisLister {
             }
         }
 
-        // Add directories to entries
-        for dir_path in directories_in_this_batch {
-            ctx.entries
-                .push_back(oio::Entry::new(&dir_path, Metadata::new(EntryMode::DIR)));
+        // Add directories to entries (only for non-recursive mode)
+        if let Some(dirs) = directories_in_this_batch {
+            for dir_path in dirs {
+                ctx.entries
+                    .push_back(oio::Entry::new(&dir_path, Metadata::new(EntryMode::DIR)));
+            }
         }
 
         // Set next token or mark as done

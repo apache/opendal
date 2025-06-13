@@ -172,6 +172,15 @@ impl RedisCore {
         Ok(result.map(Buffer::from))
     }
 
+    pub async fn get_range(&self, key: &str, start: isize, end: isize) -> Result<Option<Buffer>> {
+        let mut conn = self.conn().await?;
+        let result: Option<Bytes> = conn
+            .getrange(key, start, end)
+            .await
+            .map_err(format_redis_error)?;
+        Ok(result.map(Buffer::from))
+    }
+
     pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let mut conn = self.conn().await?;
         let value = value.to_vec();

@@ -333,11 +333,29 @@ impl Access for RedisAccessor {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p).await? {
-            Some(bs) => bs,
-            None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+
+        let range = args.range();
+        let buffer = if range.is_full() {
+            // Full read - use GET
+            match self.core.get(&p).await? {
+                Some(bs) => bs,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let start = range.offset() as isize;
+            let end = match range.size() {
+                Some(size) => (range.offset() + size - 1) as isize,
+                None => -1, // Redis uses -1 for end of string
+            };
+
+            match self.core.get_range(&p, start, end).await? {
+                Some(bs) => bs,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
         };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+
+        Ok((RpRead::new(), buffer))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

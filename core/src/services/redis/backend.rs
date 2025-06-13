@@ -34,7 +34,7 @@ use redis::RedisConnectionInfo;
 use tokio::sync::OnceCell;
 
 use super::core::*;
-use crate::raw::adapters::kv;
+use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
@@ -174,7 +174,7 @@ impl Builder for RedisBuilder {
 
             let conn = OnceCell::new();
 
-            Ok(RedisBackend::new(Adapter {
+            Ok(RedisAccessor::new(RedisCore {
                 addr: endpoints,
                 client: None,
                 cluster_client: Some(client),
@@ -199,7 +199,7 @@ impl Builder for RedisBuilder {
                 })?;
 
             let conn = OnceCell::new();
-            Ok(RedisBackend::new(Adapter {
+            Ok(RedisAccessor::new(RedisCore {
                 addr: endpoint,
                 client: Some(client),
                 cluster_client: None,
@@ -269,30 +269,25 @@ impl RedisBuilder {
     }
 }
 
-/// Backend for redis services.
-pub type RedisBackend = kv::Backend<Adapter>;
-
+/// RedisCore holds the Redis connection and configuration
 #[derive(Clone)]
-pub struct Adapter {
+pub struct RedisCore {
     addr: String,
     client: Option<Client>,
     cluster_client: Option<ClusterClient>,
     conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
-
     default_ttl: Option<Duration>,
 }
 
-// implement `Debug` manually, or password may be leaked.
-impl Debug for Adapter {
+impl Debug for RedisCore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-
+        let mut ds = f.debug_struct("RedisCore");
         ds.field("addr", &self.addr);
         ds.finish()
     }
 }
 
-impl Adapter {
+impl RedisCore {
     async fn conn(&self) -> Result<bb8::PooledConnection<'_, RedisConnectionManager>> {
         let pool = self
             .conn
@@ -327,24 +322,6 @@ impl Adapter {
             }
         }
     }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Redis,
-            self.addr.as_str(),
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-
-                ..Default::default()
-            },
-        )
-    }
 
     async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let mut conn = self.conn().await?;
@@ -371,10 +348,245 @@ impl kv::Adapter for Adapter {
         let _: () = conn.del(key).await.map_err(format_redis_error)?;
         Ok(())
     }
+}
 
-    async fn append(&self, key: &str, value: &[u8]) -> Result<()> {
-        let mut conn = self.conn().await?;
-        let _: () = conn.append(key, value).await.map_err(format_redis_error)?;
+/// RedisAccessor implements Access trait directly
+#[derive(Debug, Clone)]
+pub struct RedisAccessor {
+    core: std::sync::Arc<RedisCore>,
+    root: String,
+    info: std::sync::Arc<AccessorInfo>,
+}
+
+impl RedisAccessor {
+    fn new(core: RedisCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Redis);
+        info.set_name(&core.addr);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            write: true,
+            delete: true,
+            stat: true,
+            write_can_empty: true,
+            shared: true,
+            ..Default::default()
+        });
+
+        Self {
+            core: std::sync::Arc::new(core),
+            root: "/".to_string(),
+            info: std::sync::Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
+
+impl Access for RedisAccessor {
+    type Reader = Buffer;
+    type Writer = RedisWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<RedisDeleter>;
+
+    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), RedisWriter::new(self.core.clone(), p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(RedisDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        // Redis doesn't support listing keys, return empty list
+        Ok((RpList::default(), ()))
+    }
+}
+
+pub struct RedisWriter {
+    core: std::sync::Arc<RedisCore>,
+    path: String,
+    buffer: oio::QueueBuf,
+}
+
+impl RedisWriter {
+    fn new(core: std::sync::Arc<RedisCore>, path: String) -> Self {
+        Self {
+            core,
+            path,
+            buffer: oio::QueueBuf::new(),
+        }
+    }
+}
+
+impl oio::Write for RedisWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.buffer.push(bs);
         Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let buf = self.buffer.clone().collect();
+        let length = buf.len() as u64;
+        self.core.set(&self.path, buf).await?;
+
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        Ok(meta)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.buffer.clear();
+        Ok(())
+    }
+}
+
+pub struct RedisDeleter {
+    core: std::sync::Arc<RedisCore>,
+    root: String,
+}
+
+impl RedisDeleter {
+    fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for RedisDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_redis_accessor_creation() {
+        let core = RedisCore {
+            addr: "redis://127.0.0.1:6379".to_string(),
+            client: None,
+            cluster_client: None,
+            conn: OnceCell::new(),
+            default_ttl: Some(Duration::from_secs(60)),
+        };
+
+        let accessor = RedisAccessor::new(core);
+
+        // Verify basic properties
+        assert_eq!(accessor.root, "/");
+        assert_eq!(accessor.info.scheme(), Scheme::Redis);
+        assert!(accessor.info.native_capability().read);
+        assert!(accessor.info.native_capability().write);
+        assert!(accessor.info.native_capability().delete);
+        assert!(accessor.info.native_capability().stat);
+    }
+
+    #[test]
+    fn test_redis_accessor_with_root() {
+        let core = RedisCore {
+            addr: "redis://127.0.0.1:6379".to_string(),
+            client: None,
+            cluster_client: None,
+            conn: OnceCell::new(),
+            default_ttl: None,
+        };
+
+        let accessor = RedisAccessor::new(core).with_normalized_root("/test/".to_string());
+
+        assert_eq!(accessor.root, "/test/");
+        assert_eq!(accessor.info.root(), "/test/".into());
+    }
+
+    #[test]
+    fn test_redis_writer_creation() {
+        let core = std::sync::Arc::new(RedisCore {
+            addr: "redis://127.0.0.1:6379".to_string(),
+            client: None,
+            cluster_client: None,
+            conn: OnceCell::new(),
+            default_ttl: None,
+        });
+
+        let writer = RedisWriter::new(core, "/test/key".to_string());
+        assert_eq!(writer.path, "/test/key");
+    }
+
+    #[test]
+    fn test_redis_deleter_creation() {
+        let core = std::sync::Arc::new(RedisCore {
+            addr: "redis://127.0.0.1:6379".to_string(),
+            client: None,
+            cluster_client: None,
+            conn: OnceCell::new(),
+            default_ttl: None,
+        });
+
+        let deleter = RedisDeleter::new(core, "/test/".to_string());
+        assert_eq!(deleter.root, "/test/");
+    }
+
+    #[test]
+    fn test_redis_builder_interface() {
+        // Test that RedisBuilder still works with the new implementation
+        let builder = RedisBuilder::default()
+            .endpoint("redis://localhost:6379")
+            .username("testuser")
+            .password("testpass")
+            .db(1)
+            .root("/test");
+
+        // The builder should be able to create configuration
+        assert!(builder.config.endpoint.is_some());
+        assert_eq!(
+            builder.config.endpoint.as_ref().unwrap(),
+            "redis://localhost:6379"
+        );
+        assert_eq!(builder.config.username.as_ref().unwrap(), "testuser");
+        assert_eq!(builder.config.password.as_ref().unwrap(), "testpass");
+        assert_eq!(builder.config.db, 1);
+        assert_eq!(builder.config.root.as_ref().unwrap(), "/test");
     }
 }

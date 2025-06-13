@@ -17,19 +17,9 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::future;
-use std::sync::Arc;
 use std::time::Duration;
-use std::time::Instant;
 
 use log::debug;
-use moka::future::Cache;
-use moka::future::CacheBuilder;
-use moka::future::FutureExt;
-use moka::notification::ListenerFuture;
-use moka::notification::RemovalCause;
-pub use moka::policy::EvictionPolicy;
-use moka::policy::Expiry;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;
@@ -46,20 +36,15 @@ impl Configurator for MokaConfig {
     }
 }
 
-type Weigher<K, V> = Box<dyn Fn(&K, &V) -> u32 + Send + Sync + 'static>;
-
-type AsyncEvictionListener<K, V> =
-    Box<dyn Fn(Arc<K>, V, RemovalCause) -> ListenerFuture + Send + Sync + 'static>;
+type MokaCache<K, V> = moka::future::Cache<K, V>;
+type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MokaBuilder {
     config: MokaConfig,
-    expiry: Option<ExpiryWrapper<String, typed_kv::Value>>,
-    weigher: Option<Weigher<String, typed_kv::Value>>,
-    eviction_listener: Option<AsyncEvictionListener<String, typed_kv::Value>>,
-    eviction_policy: Option<EvictionPolicy>,
+    builder: MokaCacheBuilder<String, typed_kv::Value>,
 }
 
 impl Debug for MokaBuilder {
@@ -77,16 +62,6 @@ impl MokaBuilder {
     pub fn name(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.name = Some(v.to_owned());
-        }
-        self
-    }
-
-    /// Sets the initial capacity (number of entries) of the cache.
-    ///
-    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.initial_capacity)
-    pub fn initial_capacity(mut self, v: usize) -> Self {
-        if v != 0 {
-            self.config.initial_capacity = Some(v);
         }
         self
     }
@@ -121,73 +96,43 @@ impl MokaBuilder {
         self
     }
 
-    /// Sets the given expiry to the cache.
+    /// Configure the cache builder with a closure.
     ///
-    /// Refer to [`moka::future::CacheBuilder::expire_after`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.expire_after)
-    pub fn expire_after(
-        self,
-        expiry: impl Expiry<String, typed_kv::Value> + Send + Sync + 'static,
-    ) -> Self {
-        Self {
-            expiry: Some(ExpiryWrapper {
-                inner: Box::new(expiry),
-            }),
-            ..self
-        }
-    }
-
-    /// Sets the weigher closure to the cache.
+    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html)
     ///
-    /// Refer to [`moka::future::CacheBuilder::weigher`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.weigher)
-    pub fn weigher(
-        self,
-        weigher: impl Fn(&String, &typed_kv::Value) -> u32 + Send + Sync + 'static,
-    ) -> Self {
-        Self {
-            weigher: Some(Box::new(weigher)),
-            ..self
-        }
-    }
-
-    /// Sets the eviction listener closure to the cache.
+    /// # Example
     ///
-    /// Refer to [`moka::future::CacheBuilder::eviction_listener`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.eviction_listener)
-    pub fn eviction_listener<F>(self, listener: F) -> Self
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use std::time::Duration;
+    /// # use moka::notification::RemovalCause;
+    /// # use opendal::raw::adapters::typed_kv;
+    /// # use opendal::services::MokaConfig;
+    /// # use opendal::Configurator;
+    /// # use log::debug;
+    /// let builder = MokaConfig::default().into_builder();
+    /// let moka = builder.configure(|builder| {
+    ///     builder
+    ///         .name("demo")
+    ///         .max_capacity(1000)
+    ///         .time_to_live(Duration::from_secs(300))
+    ///         .weigher(|k, v| (k.len() + v.size()) as u32)
+    ///         .eviction_listener(|k: Arc<String>, v: typed_kv::Value, cause: RemovalCause| {
+    ///             debug!(
+    ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
+    ///                 k.as_str(), v.value.to_vec(), cause
+    ///             );
+    ///         })
+    /// });
+    /// ```
+    pub fn configure<F>(mut self, f: F) -> Self
     where
-        F: Fn(Arc<String>, typed_kv::Value, RemovalCause) + Send + Sync + 'static,
+        F: FnOnce(
+            MokaCacheBuilder<String, typed_kv::Value>,
+        ) -> MokaCacheBuilder<String, typed_kv::Value>,
     {
-        let async_listener = move |k, v, c| {
-            {
-                listener(k, v, c);
-                future::ready(())
-            }
-            .boxed()
-        };
-
-        self.async_eviction_listener(async_listener)
-    }
-
-    /// Sets the eviction listener closure to the cache.
-    ///
-    /// Refer to [`moka::future::CacheBuilder::async_eviction_listener`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.async_eviction_listener)
-    pub fn async_eviction_listener<F>(self, listener: F) -> Self
-    where
-        F: Fn(Arc<String>, typed_kv::Value, RemovalCause) -> ListenerFuture + Send + Sync + 'static,
-    {
-        Self {
-            eviction_listener: Some(Box::new(listener)),
-            ..self
-        }
-    }
-
-    /// Sets the eviction (and admission) policy of the cache.
-    ///
-    /// Refer to [`moka::future::CacheBuilder::eviction_policy`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.eviction_policy)
-    pub fn eviction_policy(self, policy: EvictionPolicy) -> Self {
-        Self {
-            eviction_policy: Some(policy),
-            ..self
-        }
+        self.builder = f(self.builder);
+        self
     }
 
     /// Set the root path of this backend
@@ -208,13 +153,10 @@ impl Builder for MokaBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
+        let mut builder = MokaCache::builder();
 
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
-        }
-        if let Some(v) = self.config.initial_capacity {
-            builder = builder.initial_capacity(v);
         }
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
@@ -224,18 +166,6 @@ impl Builder for MokaBuilder {
         }
         if let Some(v) = self.config.time_to_idle {
             builder = builder.time_to_idle(v);
-        }
-        if let Some(expiry) = self.expiry {
-            builder = builder.expire_after(expiry);
-        }
-        if let Some(weigher) = self.weigher {
-            builder = builder.weigher(move |k, v| weigher(k, v));
-        }
-        if let Some(v) = self.eviction_listener {
-            builder = builder.async_eviction_listener(v);
-        }
-        if let Some(v) = self.eviction_policy {
-            builder = builder.eviction_policy(v);
         }
 
         debug!("backend build finished: {:?}", self.config);
@@ -256,7 +186,7 @@ pub type MokaBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    inner: Cache<String, typed_kv::Value>,
+    inner: MokaCache<String, typed_kv::Value>,
 }
 
 impl Debug for Adapter {
@@ -307,40 +237,5 @@ impl typed_kv::Adapter for Adapter {
         } else {
             Ok(keys.filter(|k| k.starts_with(path)).collect())
         }
-    }
-}
-
-// Remove the struct once upstream releases a version containing the following implementation:
-// `impl Expiry<K, V> for Box<dyn Expiry<K, V> + Send + Sync> {...}`
-struct ExpiryWrapper<K, V> {
-    inner: Box<dyn Expiry<K, V> + Send + Sync + 'static>,
-}
-
-impl<K, V> Expiry<K, V> for ExpiryWrapper<K, V> {
-    fn expire_after_create(&self, key: &K, value: &V, created_at: Instant) -> Option<Duration> {
-        self.inner.expire_after_create(key, value, created_at)
-    }
-
-    fn expire_after_read(
-        &self,
-        key: &K,
-        value: &V,
-        read_at: Instant,
-        duration_until_expiry: Option<Duration>,
-        last_modified_at: Instant,
-    ) -> Option<Duration> {
-        self.inner
-            .expire_after_read(key, value, read_at, duration_until_expiry, last_modified_at)
-    }
-
-    fn expire_after_update(
-        &self,
-        key: &K,
-        value: &V,
-        updated_at: Instant,
-        duration_until_expiry: Option<Duration>,
-    ) -> Option<Duration> {
-        self.inner
-            .expire_after_update(key, value, updated_at, duration_until_expiry)
     }
 }

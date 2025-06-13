@@ -20,8 +20,6 @@ use std::fmt::Formatter;
 use std::time::Duration;
 
 use log::debug;
-use moka::future::Cache;
-use moka::future::CacheBuilder;
 
 use crate::raw::adapters::typed_kv;
 use crate::raw::*;
@@ -31,19 +29,36 @@ use crate::*;
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
     fn into_builder(self) -> Self::Builder {
-        MokaBuilder { config: self }
+        MokaBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }
 
+type MokaCache<K, V> = moka::future::Cache<K, V>;
+type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
+
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MokaBuilder {
     config: MokaConfig,
+    builder: MokaCacheBuilder<String, typed_kv::Value>,
+}
+
+impl Debug for MokaBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MokaBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl MokaBuilder {
-    /// Name for this cache instance.
+    /// Sets the name of the cache.
+    ///
+    /// Refer to [`moka::future::CacheBuilder::name`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.name)
     pub fn name(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.name = Some(v.to_owned());
@@ -53,7 +68,7 @@ impl MokaBuilder {
 
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
+    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
     pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
             self.config.max_capacity = Some(v);
@@ -63,7 +78,7 @@ impl MokaBuilder {
 
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
+    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_live = Some(v);
@@ -73,7 +88,7 @@ impl MokaBuilder {
 
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
@@ -81,7 +96,46 @@ impl MokaBuilder {
         self
     }
 
-    /// Set root path of this backend
+    /// Configure the cache builder with a closure.
+    ///
+    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use std::time::Duration;
+    /// # use moka::notification::RemovalCause;
+    /// # use opendal::raw::adapters::typed_kv;
+    /// # use opendal::services::MokaConfig;
+    /// # use opendal::Configurator;
+    /// # use log::debug;
+    /// let builder = MokaConfig::default().into_builder();
+    /// let moka = builder.configure(|builder| {
+    ///     builder
+    ///         .name("demo")
+    ///         .max_capacity(1000)
+    ///         .time_to_live(Duration::from_secs(300))
+    ///         .weigher(|k, v| (k.len() + v.size()) as u32)
+    ///         .eviction_listener(|k: Arc<String>, v: typed_kv::Value, cause: RemovalCause| {
+    ///             debug!(
+    ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
+    ///                 k.as_str(), v.value.to_vec(), cause
+    ///             );
+    ///         })
+    /// });
+    /// ```
+    pub fn configure<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(
+            MokaCacheBuilder<String, typed_kv::Value>,
+        ) -> MokaCacheBuilder<String, typed_kv::Value>,
+    {
+        self.builder = f(self.builder);
+        self
+    }
+
+    /// Set the root path of this backend
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = if path.is_empty() {
             None
@@ -99,24 +153,22 @@ impl Builder for MokaBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
+        let mut builder = MokaCache::builder();
 
-        // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }
         if let Some(v) = self.config.max_capacity {
-            builder = builder.max_capacity(v)
+            builder = builder.max_capacity(v);
         }
         if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v)
+            builder = builder.time_to_live(v);
         }
         if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v)
+            builder = builder.time_to_idle(v);
         }
 
-        debug!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", self.config);
 
         let mut backend = MokaBackend::new(Adapter {
             inner: builder.build(),
@@ -134,7 +186,7 @@ pub type MokaBackend = typed_kv::Backend<Adapter>;
 
 #[derive(Clone)]
 pub struct Adapter {
-    inner: Cache<String, typed_kv::Value>,
+    inner: MokaCache<String, typed_kv::Value>,
 }
 
 impl Debug for Adapter {

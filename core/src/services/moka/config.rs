@@ -29,6 +29,10 @@ use serde::Serialize;
 pub struct MokaConfig {
     /// Name for this cache instance.
     pub name: Option<String>,
+    /// Sets the initial capacity (number of entries) of the cache.
+    ///
+    /// Refer to [`moka::future::CacheBuilder::initial_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.initial_capacity)
+    pub initial_capacity: Option<usize>,
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)

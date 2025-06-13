@@ -5355,7 +5355,6 @@ version = "0.53.3"
 dependencies = [
  "anyhow",
  "async-backtrace",
- "async-trait",
  "await-tree",
  "backon",
  "base64 0.22.1",

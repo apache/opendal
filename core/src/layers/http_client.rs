@@ -48,7 +48,8 @@ use crate::*;
 /// # Custom HTTP Client Implementation
 ///
 /// ```no_run
-/// use opendal::raw::{HttpFetch, HttpBody, Buffer};
+/// use opendal::raw::{HttpFetch, HttpBody};
+/// use opendal::Buffer;
 /// use http::{Request, Response};
 /// use opendal::Result;
 ///

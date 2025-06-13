@@ -15,17 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-redis")]
-mod backend;
-#[cfg(feature = "services-redis")]
-mod core;
-#[cfg(feature = "services-redis")]
-mod delete;
-#[cfg(feature = "services-redis")]
-mod writer;
+use super::core::RedisCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-#[cfg(feature = "services-redis")]
-pub use backend::RedisBuilder as Redis;
+pub struct RedisDeleter {
+    core: std::sync::Arc<RedisCore>,
+    root: String,
+}
 
-mod config;
-pub use config::RedisConfig;
+impl RedisDeleter {
+    pub fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for RedisDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

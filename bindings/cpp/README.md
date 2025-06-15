@@ -101,6 +101,7 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
+- `OPENDAL_ENABLE_ASYNC`: Enable async support. Default: `OFF`
 
 ## License and Trademarks
 

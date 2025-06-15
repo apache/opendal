@@ -84,7 +84,16 @@ jobs:
           cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
           ninja
           ./opendal_cpp_test
-      
+
+      - name: test async with valgrind
+        working-directory: "bindings/cpp"
+        run: |
+          mkdir build-valgrind-async
+          cd build-valgrind-async
+          cmake -GNinja -DOPENDAL_ENABLE_ASYNC=ON -DOPENDAL_ENABLE_TESTING=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
+          ninja
+          valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test
+
       - name: Build Cpp examples
         working-directory: "examples/cpp"
         run: |

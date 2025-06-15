@@ -115,7 +115,6 @@ Reader::Reader(Reader &&other) noexcept : reader_id_(other.reader_id_) {
 
 Reader &Reader::operator=(Reader &&other) noexcept {
   if (this != &other) {
-    destroy();
     reader_id_ = other.reader_id_;
     other.reader_id_ = 0;
   }
@@ -146,7 +145,6 @@ Lister::Lister(Lister &&other) noexcept : lister_id_(other.lister_id_) {
 
 Lister &Lister::operator=(Lister &&other) noexcept {
   if (this != &other) {
-    destroy();
     lister_id_ = other.lister_id_;
     other.lister_id_ = 0;
   }

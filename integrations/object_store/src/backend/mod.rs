@@ -10,11 +10,13 @@ use opendal::*;
 
 mod deleter;
 mod error;
+mod lister;
 mod reader;
 mod writer;
 
 use deleter::ObjectStoreDeleter;
 use error::parse_error;
+use lister::ObjectStoreLister;
 use reader::ObjectStoreReader;
 use writer::ObjectStoreWriter;
 
@@ -68,7 +70,7 @@ impl Debug for ObjectStoreBackend {
 impl Access for ObjectStoreBackend {
     type Reader = ObjectStoreReader;
     type Writer = ObjectStoreWriter;
-    type Lister = ();
+    type Lister = ObjectStoreLister;
     type Deleter = ObjectStoreDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -124,7 +126,8 @@ impl Access for ObjectStoreBackend {
         Ok((RpDelete::default(), deleter))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        todo!()
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = ObjectStoreLister::new(self.store.clone(), path, args).await?;
+        Ok((RpList::default(), lister))
     }
 }

@@ -6,12 +6,13 @@ use object_store::GetRange;
 use object_store::GetResult;
 use object_store::ObjectStore;
 
-use crate::raw::*;
-use crate::services::object_store::error::parse_error;
-use crate::Error;
-use crate::ErrorKind;
-use crate::*;
 use futures::FutureExt;
+use opendal::raw::*;
+use opendal::Error;
+use opendal::ErrorKind;
+use opendal::*;
+
+use super::error::parse_error;
 
 /// ObjectStore reader
 pub struct ObjectStoreReader {

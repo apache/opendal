@@ -204,6 +204,3 @@ pub use yandex_disk::*;
 
 #[cfg(target_arch = "wasm32")]
 mod opfs;
-
-mod object_store;
-pub use object_store::*;

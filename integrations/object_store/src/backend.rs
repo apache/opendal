@@ -2,14 +2,19 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::raw::*;
-use crate::services::object_store::error::parse_error;
-use crate::services::object_store::reader::ObjectStoreReader;
-use crate::services::object_store::writer::ObjectStoreWriter;
-use crate::Error;
-use crate::ErrorKind;
-use crate::*;
 use object_store::ObjectStore;
+use opendal::raw::*;
+use opendal::Error;
+use opendal::ErrorKind;
+use opendal::*;
+
+mod error;
+mod reader;
+mod writer;
+
+use error::parse_error;
+use reader::ObjectStoreReader;
+use writer::ObjectStoreWriter;
 
 /// ObjectStore backend builder
 #[derive(Default)]

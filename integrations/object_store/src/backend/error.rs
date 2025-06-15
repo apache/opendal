@@ -1,4 +1,4 @@
-use crate::*;
+use opendal::Error;
 
 pub(crate) fn parse_error(err: object_store::Error) -> Error {
     let err = match err {

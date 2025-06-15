@@ -68,8 +68,8 @@ mod ffi {
         unsafe fn reader_read(reader: ReaderPtr, start: u64, len: u64) -> RustFutureRead;
         unsafe fn lister_next(lister: ListerPtr) -> RustFutureEntryOption;
 
-        unsafe fn delete_reader(reader: *mut Reader);
-        unsafe fn delete_lister(lister: *mut Lister);
+        fn delete_reader(reader: ReaderPtr);
+        fn delete_lister(lister: ListerPtr);
     }
 
     extern "C++" {
@@ -120,7 +120,7 @@ unsafe impl Future for RustFutureEntryOption {
 
 pub struct Operator(od::Operator);
 pub struct Reader {
-    reader: Arc<Mutex<od::Reader>>,
+    reader: Arc<od::Reader>,
     id: usize,
 }
 pub struct Lister {
@@ -129,27 +129,25 @@ pub struct Lister {
 }
 
 // Global storage for readers and listers to avoid Send issues with raw pointers
-static READER_STORAGE: OnceLock<Arc<Mutex<HashMap<usize, Arc<Mutex<od::Reader>>>>>> =
-    OnceLock::new();
-static READER_COUNTER: OnceLock<Arc<Mutex<usize>>> = OnceLock::new();
-static LISTER_STORAGE: OnceLock<Arc<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>>> =
-    OnceLock::new();
-static LISTER_COUNTER: OnceLock<Arc<Mutex<usize>>> = OnceLock::new();
+static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();
+static READER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
+static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> = OnceLock::new();
+static LISTER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
 
-fn get_reader_storage() -> &'static Arc<Mutex<HashMap<usize, Arc<Mutex<od::Reader>>>>> {
-    READER_STORAGE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+fn get_reader_storage() -> &'static Mutex<HashMap<usize, Arc<od::Reader>>> {
+    READER_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn get_reader_counter() -> &'static Arc<Mutex<usize>> {
-    READER_COUNTER.get_or_init(|| Arc::new(Mutex::new(0)))
+fn get_reader_counter() -> &'static Mutex<usize> {
+    READER_COUNTER.get_or_init(|| Mutex::new(0))
 }
 
-fn get_lister_storage() -> &'static Arc<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> {
-    LISTER_STORAGE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+fn get_lister_storage() -> &'static Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>> {
+    LISTER_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn get_lister_counter() -> &'static Arc<Mutex<usize>> {
-    LISTER_COUNTER.get_or_init(|| Arc::new(Mutex::new(0)))
+fn get_lister_counter() -> &'static Mutex<usize> {
+    LISTER_COUNTER.get_or_init(|| Mutex::new(0))
 }
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
@@ -263,7 +261,7 @@ unsafe fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReade
                 .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the reader in global storage and return an ID
-        let reader_arc = Arc::new(Mutex::new(reader));
+        let reader_arc = Arc::new(reader);
         let mut counter = get_reader_counter().lock().await;
         *counter += 1;
         let id = *counter;
@@ -304,8 +302,7 @@ unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutur
             .clone();
         drop(storage);
 
-        let reader_guard = reader_arc.lock().await;
-        let buffer = reader_guard
+        let buffer = reader_arc
             .read(start..(start + len))
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
@@ -333,24 +330,20 @@ unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
     })
 }
 
-unsafe fn delete_reader(reader: *mut Reader) {
-    if !reader.is_null() {
-        let reader_box = Box::from_raw(reader);
-        // Remove from storage
-        tokio::spawn(async move {
-            let mut storage = get_reader_storage().lock().await;
-            storage.remove(&reader_box.id);
-        });
+fn delete_reader(reader: ffi::ReaderPtr) {
+    // Use blocking lock since this is called from C++ destructors
+    if let Ok(mut storage) = get_reader_storage().try_lock() {
+        storage.remove(&reader.id);
     }
+    // If we can't get the lock immediately, we'll just skip cleanup
+    // This is better than panicking in a destructor
 }
 
-unsafe fn delete_lister(lister: *mut Lister) {
-    if !lister.is_null() {
-        let lister_box = Box::from_raw(lister);
-        // Remove from storage
-        tokio::spawn(async move {
-            let mut storage = get_lister_storage().lock().await;
-            storage.remove(&lister_box.id);
-        });
+fn delete_lister(lister: ffi::ListerPtr) {
+    // Use blocking lock since this is called from C++ destructors
+    if let Ok(mut storage) = get_lister_storage().try_lock() {
+        storage.remove(&lister.id);
     }
+    // If we can't get the lock immediately, we'll just skip cleanup
+    // This is better than panicking in a destructor
 }

@@ -126,8 +126,8 @@ Reader::~Reader() noexcept { destroy(); }
 
 void Reader::destroy() noexcept {
   if (reader_id_ != 0) {
-    // Note: In a real implementation, we'd need to expose a delete function
-    // For now, we'll rely on the Rust side to handle cleanup
+    opendal::ffi::async::delete_reader(
+        opendal::ffi::async::ReaderPtr{reader_id_});
     reader_id_ = 0;
   }
 }
@@ -157,8 +157,8 @@ Lister::~Lister() noexcept { destroy(); }
 
 void Lister::destroy() noexcept {
   if (lister_id_ != 0) {
-    // Note: In a real implementation, we'd need to expose a delete function
-    // For now, we'll rely on the Rust side to handle cleanup
+    opendal::ffi::async::delete_lister(
+        opendal::ffi::async::ListerPtr{lister_id_});
     lister_id_ = 0;
   }
 }

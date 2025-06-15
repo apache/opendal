@@ -120,7 +120,7 @@ impl Access for ObjectStoreBackend {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = ObjectStoreDeleter::new(self.store.clone(), "/");
+        let deleter = ObjectStoreDeleter::new(self.store.clone());
         Ok((RpDelete::default(), deleter))
     }
 

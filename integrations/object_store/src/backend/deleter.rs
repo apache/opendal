@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -10,28 +11,43 @@ use super::error::parse_error;
 
 pub struct ObjectStoreDeleter {
     store: Arc<dyn ObjectStore + 'static>,
-    path: object_store::path::Path,
+    paths: VecDeque<object_store::path::Path>,
 }
 
 impl ObjectStoreDeleter {
-    pub(crate) fn new(store: Arc<dyn ObjectStore + 'static>, path: &str) -> Self {
+    pub(crate) fn new(store: Arc<dyn ObjectStore + 'static>) -> Self {
         Self {
             store,
-            path: object_store::path::Path::from(path),
+            paths: VecDeque::new(),
         }
     }
 }
 
 impl oio::Delete for ObjectStoreDeleter {
     fn delete(&mut self, path: &str, _: OpDelete) -> Result<()> {
-        self.path = object_store::path::Path::from(path);
+        self.paths.push_back(object_store::path::Path::from(path));
         Ok(())
     }
 
     fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend {
         async move {
-            self.store.delete(&self.path).await.map_err(parse_error)?;
-            Ok(0)
+            if self.paths.is_empty() {
+                return Ok(0);
+            }
+
+            let mut count = 0;
+            while let Some(path) = self.paths.front() {
+                match self.store.delete(path).await {
+                    Ok(_) => {
+                        self.paths.pop_front();
+                        count += 1;
+                    }
+                    Err(e) => {
+                        return Err(parse_error(e));
+                    }
+                }
+            }
+            Ok(count)
         }
         .boxed()
     }

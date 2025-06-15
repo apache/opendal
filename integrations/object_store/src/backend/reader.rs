@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use object_store::GetRange;
-use object_store::GetResult;
 use object_store::ObjectStore;
 
 use futures::FutureExt;

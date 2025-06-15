@@ -8,13 +8,15 @@ use opendal::Error;
 use opendal::ErrorKind;
 use opendal::*;
 
+mod deleter;
 mod error;
 mod reader;
 mod writer;
 
-pub use error::parse_error;
-pub use reader::ObjectStoreReader;
-pub use writer::ObjectStoreWriter;
+use deleter::ObjectStoreDeleter;
+use error::parse_error;
+use reader::ObjectStoreReader;
+use writer::ObjectStoreWriter;
 
 /// ObjectStore backend builder
 #[derive(Default)]
@@ -39,12 +41,12 @@ impl ObjectStoreBuilder {
 
 impl Builder for ObjectStoreBuilder {
     type Config = ();
-    const SCHEME: Scheme = Scheme::ObjectStore;
+    const SCHEME: Scheme = Scheme::Custom("object_store");
 
     fn build(self) -> Result<impl Access> {
         let store = self.store.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "object store is required")
-                .with_context("service", Scheme::ObjectStore)
+                .with_context("service", Scheme::Custom("object_store"))
         })?;
 
         Ok(ObjectStoreBackend { store })
@@ -67,11 +69,11 @@ impl Access for ObjectStoreBackend {
     type Reader = ObjectStoreReader;
     type Writer = ObjectStoreWriter;
     type Lister = ();
-    type Deleter = ();
+    type Deleter = ObjectStoreDeleter;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::ObjectStore)
+        info.set_scheme(Scheme::Custom("object_store"))
             .set_root("/")
             .set_name("object_store")
             .set_native_capability(Capability {
@@ -118,10 +120,11 @@ impl Access for ObjectStoreBackend {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        todo!()
+        let deleter = ObjectStoreDeleter::new(self.store.clone(), "/");
+        Ok((RpDelete::default(), deleter))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
         todo!()
     }
 }

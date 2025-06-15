@@ -1,4 +1,6 @@
 use opendal::Error;
+use opendal::ErrorKind;
+use opendal::Scheme;
 
 pub(crate) fn parse_error(err: object_store::Error) -> Error {
     let err = match err {
@@ -30,5 +32,5 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
         _ => Error::new(ErrorKind::Unexpected, "unknown error").set_source(err),
     };
 
-    err.with_context("service", Scheme::ObjectStore)
+    err.with_context("service", Scheme::Custom("object_store"))
 }

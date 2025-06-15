@@ -161,8 +161,6 @@ pub enum Scheme {
     Lakefs,
     /// [NebulaGraph](crate::services::NebulaGraph): NebulaGraph Services
     NebulaGraph,
-    /// [ObjectStore](crate::services::ObjectStore): ObjectStore Services
-    ObjectStore,
     /// Custom that allow users to implement services outside OpenDAL.
     ///
     /// # NOTE
@@ -463,7 +461,6 @@ impl From<Scheme> for &'static str {
             Scheme::Surrealdb => "surrealdb",
             Scheme::Lakefs => "lakefs",
             Scheme::NebulaGraph => "nebula_graph",
-            Scheme::ObjectStore => "object_store",
             Scheme::Custom(v) => v,
         }
     }

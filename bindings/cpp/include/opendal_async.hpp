@@ -41,9 +41,9 @@ class Operator {
   Operator &operator=(const Operator &) = delete;
 
   // Enable move
-  Operator(Operator &&) = default;
-  Operator &operator=(Operator &&) = default;
-  ~Operator() = default;
+  Operator(Operator &&other) noexcept;
+  Operator &operator=(Operator &&other) noexcept;
+  ~Operator() noexcept;
 
   using ReadFuture = opendal::ffi::async::RustFutureRead;
   ReadFuture read(std::string_view path);
@@ -79,7 +79,9 @@ class Operator {
   ListerFuture lister(std::string_view path);
 
  private:
-  rust::Box<opendal::ffi::async::Operator> operator_;
+  void destroy() noexcept;
+  
+  size_t operator_id_{0};
 };
 
 /**

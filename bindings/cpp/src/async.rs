@@ -20,7 +20,6 @@ use cxx_async::CxxAsyncException;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
-use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
@@ -32,11 +31,10 @@ mod ffi {
         value: String,
     }
 
-    // here we have to use raw pointers since:
-    // 1. cxx-async futures requires 'static lifetime (and it's hard to change for now)
-    // 2. cxx SharedPtr cannot accept Rust types as type parameters for now
+    // Changed to use id-based approach instead of raw pointers
+    // This eliminates the need for many unsafe blocks
     pub struct OperatorPtr {
-        op: *const Operator,
+        id: usize,
     }
 
     pub struct ReaderPtr {
@@ -48,26 +46,24 @@ mod ffi {
     }
 
     extern "Rust" {
-        type Operator;
-        type Reader;
-        type Lister;
 
-        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
-        unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
-        unsafe fn operator_write(op: OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite;
-        unsafe fn operator_list(op: OperatorPtr, path: String) -> RustFutureList;
-        unsafe fn operator_exists(op: OperatorPtr, path: String) -> RustFutureBool;
-        unsafe fn operator_create_dir(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
-        unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
-        unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
-        unsafe fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
+        fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<usize>;
+        fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
+        fn operator_write(op: OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite;
+        fn operator_list(op: OperatorPtr, path: String) -> RustFutureList;
+        fn operator_exists(op: OperatorPtr, path: String) -> RustFutureBool;
+        fn operator_create_dir(op: OperatorPtr, path: String) -> RustFutureWrite;
+        fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
+        fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
+        fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
+        fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
+        fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
+        fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
 
-        unsafe fn reader_read(reader: ReaderPtr, start: u64, len: u64) -> RustFutureRead;
-        unsafe fn lister_next(lister: ListerPtr) -> RustFutureEntryOption;
+        fn reader_read(reader: ReaderPtr, start: u64, len: u64) -> RustFutureRead;
+        fn lister_next(lister: ListerPtr) -> RustFutureEntryOption;
 
+        fn delete_operator(op: OperatorPtr);
         fn delete_reader(reader: ReaderPtr);
         fn delete_lister(lister: ListerPtr);
     }
@@ -118,21 +114,21 @@ unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }
 
-pub struct Operator(od::Operator);
-pub struct Reader {
-    reader: Arc<od::Reader>,
-    id: usize,
-}
-pub struct Lister {
-    lister: Arc<Mutex<od::Lister>>,
-    id: usize,
-}
-
-// Global storage for readers and listers to avoid Send issues with raw pointers
+// Global storage for operators, readers and listers to avoid Send issues with raw pointers
+static OPERATOR_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Operator>>>> = OnceLock::new();
+static OPERATOR_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
 static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();
 static READER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
 static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> = OnceLock::new();
 static LISTER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
+
+fn get_operator_storage() -> &'static Mutex<HashMap<usize, Arc<od::Operator>>> {
+    OPERATOR_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn get_operator_counter() -> &'static Mutex<usize> {
+    OPERATOR_COUNTER.get_or_init(|| Mutex::new(0))
+}
 
 fn get_reader_storage() -> &'static Mutex<HashMap<usize, Arc<od::Reader>>> {
     READER_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
@@ -150,7 +146,7 @@ fn get_lister_counter() -> &'static Mutex<usize> {
     LISTER_COUNTER.get_or_init(|| Mutex::new(0))
 }
 
-fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
+fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<usize> {
     let scheme = od::Scheme::from_str(scheme)?;
 
     let map: HashMap<String, String> = configs
@@ -158,107 +154,188 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
         .map(|value| (value.key, value.value))
         .collect();
 
-    let op = Box::new(Operator(od::Operator::via_iter(scheme, map)?));
+    let op = od::Operator::via_iter(scheme, map)?;
 
-    Ok(op)
+    // Store the operator in global storage and return an ID
+    let op_arc = Arc::new(op);
+    let counter = get_operator_counter();
+    let mut counter_guard = counter
+        .try_lock()
+        .map_err(|_| anyhow::anyhow!("Failed to get operator counter lock"))?;
+    *counter_guard += 1;
+    let id = *counter_guard;
+    drop(counter_guard);
+
+    let storage = get_operator_storage();
+    let mut storage_guard = storage
+        .try_lock()
+        .map_err(|_| anyhow::anyhow!("Failed to get operator storage lock"))?;
+    storage_guard.insert(id, op_arc);
+    drop(storage_guard);
+
+    Ok(id)
 }
 
-impl Deref for ffi::OperatorPtr {
-    type Target = Operator;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.op }
-    }
-}
-
-unsafe impl Send for ffi::OperatorPtr {}
-unsafe impl Send for ffi::ReaderPtr {}
-unsafe impl Send for ffi::ListerPtr {}
-
-unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
+fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
     RustFutureRead::fallible(async move {
-        Ok(op
-            .0
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        let result = operator
             .read(&path)
             .await
-            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?
-            .to_vec())
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        Ok(result.to_vec())
     })
 }
 
-unsafe fn operator_write(op: ffi::OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite {
+fn operator_write(op: ffi::OperatorPtr, path: String, bs: Vec<u8>) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.write(&path, bs)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .write(&path, bs)
             .await
             .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_list(op: ffi::OperatorPtr, path: String) -> RustFutureList {
+fn operator_list(op: ffi::OperatorPtr, path: String) -> RustFutureList {
     RustFutureList::fallible(async move {
-        let entries =
-            op.0.list(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        let entries = operator
+            .list(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(entries.into_iter().map(|e| e.path().to_string()).collect())
     })
 }
 
-unsafe fn operator_exists(op: ffi::OperatorPtr, path: String) -> RustFutureBool {
+fn operator_exists(op: ffi::OperatorPtr, path: String) -> RustFutureBool {
     RustFutureBool::fallible(async move {
-        op.0.exists(&path)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .exists(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_create_dir(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+fn operator_create_dir(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.create_dir(&path)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .create_dir(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_copy(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+fn operator_copy(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.copy(&from, &to)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .copy(&from, &to)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.rename(&from, &to)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .rename(&from, &to)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.delete(&path)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .delete(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
-        op.0.remove_all(&path)
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        operator
+            .remove_all(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReaderId {
+fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReaderId {
     RustFutureReaderId::fallible(async move {
-        let reader =
-            op.0.reader(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        let reader = operator
+            .reader(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the reader in global storage and return an ID
         let reader_arc = Arc::new(reader);
@@ -273,12 +350,19 @@ unsafe fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReade
     })
 }
 
-unsafe fn operator_lister(op: ffi::OperatorPtr, path: String) -> RustFutureListerId {
+fn operator_lister(op: ffi::OperatorPtr, path: String) -> RustFutureListerId {
     RustFutureListerId::fallible(async move {
-        let lister =
-            op.0.lister(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let storage = get_operator_storage().lock().await;
+        let operator = storage
+            .get(&op.id)
+            .ok_or_else(|| CxxAsyncException::new("Invalid operator ID".into()))?
+            .clone();
+        drop(storage);
+
+        let lister = operator
+            .lister(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the lister in global storage and return an ID
         let lister_arc = Arc::new(Mutex::new(lister));
@@ -293,7 +377,7 @@ unsafe fn operator_lister(op: ffi::OperatorPtr, path: String) -> RustFutureListe
     })
 }
 
-unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutureRead {
+fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutureRead {
     RustFutureRead::fallible(async move {
         let storage = get_reader_storage().lock().await;
         let reader_arc = storage
@@ -310,7 +394,7 @@ unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutur
     })
 }
 
-unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
+fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
     RustFutureEntryOption::fallible(async move {
         use futures::TryStreamExt;
 
@@ -328,6 +412,15 @@ unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
             Err(e) => Err(CxxAsyncException::new(e.to_string().into_boxed_str())),
         }
     })
+}
+
+fn delete_operator(op: ffi::OperatorPtr) {
+    // Use blocking lock since this is called from C++ destructors
+    if let Ok(mut storage) = get_operator_storage().try_lock() {
+        storage.remove(&op.id);
+    }
+    // If we can't get the lock immediately, we'll just skip cleanup
+    // This is better than panicking in a destructor
 }
 
 fn delete_reader(reader: ffi::ReaderPtr) {

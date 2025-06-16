@@ -153,7 +153,7 @@ impl Builder for MokaBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder = MokaCache::builder();
+        let mut builder = self.builder;
 
         if let Some(v) = &self.config.name {
             builder = builder.name(v);

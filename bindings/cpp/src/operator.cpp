@@ -47,8 +47,38 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
 
   auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
   if (last_modified_str.has_value()) {
-    metadata.last_modified =
-        boost::posix_time::from_iso_string(last_modified_str.value());
+    try {
+      // RFC3339 format from Rust needs to be converted to boost::posix_time
+      // Try parsing as ISO extended string first (supports RFC3339 format)
+      std::string timestamp = last_modified_str.value();
+      
+      // Convert RFC3339 'T' separator to space for boost parsing
+      size_t t_pos = timestamp.find('T');
+      if (t_pos != std::string::npos) {
+        timestamp[t_pos] = ' ';
+      }
+      
+      // Remove timezone suffix (Z or +HH:MM) for boost parsing
+      size_t z_pos = timestamp.find('Z');
+      if (z_pos != std::string::npos) {
+        timestamp = timestamp.substr(0, z_pos);
+      } else {
+        size_t plus_pos = timestamp.find('+');
+        if (plus_pos != std::string::npos) {
+          timestamp = timestamp.substr(0, plus_pos);
+        } else {
+          size_t minus_pos = timestamp.rfind('-');
+          if (minus_pos != std::string::npos && minus_pos > 10) { // Make sure it's not part of date
+            timestamp = timestamp.substr(0, minus_pos);
+          }
+        }
+      }
+      
+      metadata.last_modified = boost::posix_time::time_from_string(timestamp);
+    } catch (const std::exception& e) {
+      // If parsing fails, leave last_modified unset
+      metadata.last_modified = std::nullopt;
+    }
   }
 
   return metadata;

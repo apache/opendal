@@ -5324,6 +5324,7 @@ dependencies = [
  "sqlx",
  "suppaftp",
  "surrealdb",
+ "tempfile",
  "tikv-client",
  "tokio",
  "tracing",

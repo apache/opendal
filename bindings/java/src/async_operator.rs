@@ -34,9 +34,9 @@ use opendal::Operator;
 use opendal::Scheme;
 
 use crate::convert::{
-    bytes_to_jbytearray, jmap_to_hashmap, offset_length_to_range, read_int64_field,
+    bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
+    read_int64_field,
 };
-use crate::convert::{jstring_to_string, read_bool_field};
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
 use crate::executor::Executor;
@@ -44,7 +44,7 @@ use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::Result;
-use crate::{make_entry, make_write_options};
+use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
 #[no_mangle]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
@@ -147,8 +147,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    stat_options: JObject,
 ) -> jlong {
-    intern_stat(&mut env, op, executor, path).unwrap_or_else(|e| {
+    intern_stat(&mut env, op, executor, path, stat_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -159,14 +160,16 @@ fn intern_stat(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
+    let stat_opts = make_stat_options(env, &options)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let metadata = op.stat(&path).await.map_err(Into::into);
+        let metadata = op.stat_options(&path, stat_opts).await.map_err(Into::into);
         let mut env = unsafe { get_current_env() };
         let result = metadata.and_then(|metadata| make_metadata(&mut env, metadata));
         complete_future(id, result.map(JValueOwned::Object))
@@ -504,13 +507,9 @@ fn intern_list(
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
-    let recursive = read_bool_field(env, &options, "recursive")?;
-
-    let mut list_op = op.list_with(&path);
-    list_op = list_op.recursive(recursive);
-
+    let list_opts = make_list_options(env, &options)?;
     executor_or_default(env, executor)?.spawn(async move {
-        let entries = list_op.await.map_err(Into::into);
+        let entries = op.list_options(&path, list_opts).await.map_err(Into::into);
         let result = make_entries(entries);
         complete_future(id, result.map(JValueOwned::Object))
     });

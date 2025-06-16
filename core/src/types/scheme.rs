@@ -195,8 +195,6 @@ impl Scheme {
         HashSet::from([
             #[cfg(feature = "services-aliyun-drive")]
             Scheme::AliyunDrive,
-            #[cfg(feature = "services-atomicserver")]
-            Scheme::Atomicserver,
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio,
             #[cfg(feature = "services-azblob")]
@@ -239,8 +237,6 @@ impl Scheme {
             Scheme::Ipfs,
             #[cfg(feature = "services-ipmfs")]
             Scheme::Ipmfs,
-            #[cfg(feature = "services-icloud")]
-            Scheme::Icloud,
             #[cfg(feature = "services-memcached")]
             Scheme::Memcached,
             #[cfg(feature = "services-memory")]
@@ -307,8 +303,6 @@ impl Scheme {
             Scheme::Surrealdb,
             #[cfg(feature = "services-lakefs")]
             Scheme::Lakefs,
-            #[cfg(feature = "services-nebula-graph")]
-            Scheme::NebulaGraph,
         ])
     }
 }
@@ -332,7 +326,6 @@ impl FromStr for Scheme {
         let s = s.to_lowercase();
         match s.as_str() {
             "aliyun_drive" => Ok(Scheme::AliyunDrive),
-            "atomicserver" => Ok(Scheme::Atomicserver),
             "azblob" => Ok(Scheme::Azblob),
             "alluxio" => Ok(Scheme::Alluxio),
             // Notes:
@@ -362,7 +355,6 @@ impl FromStr for Scheme {
             "ftp" | "ftps" => Ok(Scheme::Ftp),
             "ipfs" | "ipns" => Ok(Scheme::Ipfs),
             "ipmfs" => Ok(Scheme::Ipmfs),
-            "icloud" => Ok(Scheme::Icloud),
             "koofr" => Ok(Scheme::Koofr),
             "memcached" => Ok(Scheme::Memcached),
             "memory" => Ok(Scheme::Memory),
@@ -397,7 +389,6 @@ impl FromStr for Scheme {
             "hdfs_native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
             "lakefs" => Ok(Scheme::Lakefs),
-            "nebula_graph" => Ok(Scheme::NebulaGraph),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }

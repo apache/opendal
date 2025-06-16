@@ -72,7 +72,6 @@ pub struct Manager {
     pub enable_secure: bool,
 }
 
-#[async_trait::async_trait]
 impl bb8::ManageConnection for Manager {
     type Connection = AsyncRustlsFtpStream;
     type Error = FtpError;

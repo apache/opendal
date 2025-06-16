@@ -31,20 +31,16 @@ pub struct MokaConfig {
     pub name: Option<String>,
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
+    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
     pub max_capacity: Option<u64>,
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
+    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub time_to_live: Option<Duration>,
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
     pub time_to_idle: Option<Duration>,
-    /// Sets the segments number of the cache.
-    ///
-    /// Refer to [`moka::sync::CacheBuilder::segments`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.segments)
-    pub num_segments: Option<usize>,
 
     /// root path of this backend
     pub root: Option<String>,
@@ -57,7 +53,6 @@ impl Debug for MokaConfig {
             .field("max_capacity", &self.max_capacity)
             .field("time_to_live", &self.time_to_live)
             .field("time_to_idle", &self.time_to_idle)
-            .field("num_segments", &self.num_segments)
             .field("root", &self.root)
             .finish_non_exhaustive()
     }

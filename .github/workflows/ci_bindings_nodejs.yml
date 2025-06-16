@@ -89,7 +89,7 @@ jobs:
   linux:
     name: linux - ${{ matrix.settings.target }}
     runs-on: ubuntu-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     # Notes: this defaults only apply on run tasks.
     defaults:
       run:
@@ -170,7 +170,7 @@ jobs:
   windows:
     name: windows - ${{ matrix.settings.target }}
     runs-on: windows-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
 
     # Windows built failed with services-all
     # Wait for https://github.com/apache/opendal/issues/4761
@@ -218,7 +218,7 @@ jobs:
   macos:
     name: macos - ${{ matrix.settings.target }}
     runs-on: macos-latest
-    if: "startsWith(github.ref, 'refs/tags/')"
+    if: ${{ startsWith(github.ref, 'refs/tags/') }}
     # Notes: this defaults only apply on run tasks.
     defaults:
       run:
@@ -317,14 +317,14 @@ jobs:
         run: cp LICENSE NOTICE ./bindings/nodejs
 
       - name: Publish Dry Run
-        if: "startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         # Since this command will not exit with non-zero code when file missing,
         # we need to check the output manually.
         run: |
           npm publish --access public --provenance --dry-run
 
       - name: Publish
-        if: "startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-')"
+        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public --provenance

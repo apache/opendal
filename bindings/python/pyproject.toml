@@ -70,8 +70,22 @@ cache-keys = [
   { file = "../../core/**/*.rs" },
 ]
 
+[tool.ruff]
+line-length = 88
+fix = true
+
 [tool.ruff.lint]
 ignore = ["E402", "F403", "F405"]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 88
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.ruff.lint.isort]
 known-first-party = ["opendal"]

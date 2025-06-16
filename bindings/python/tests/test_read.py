@@ -17,13 +17,14 @@
 
 import io
 import os
+from datetime import timedelta
 from pathlib import Path
 from random import choices, randint
 from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import NotFound
+from opendal.exceptions import ConditionNotMatch, NotFound
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -72,6 +73,18 @@ def test_sync_reader(service_name, operator, async_operator):
     with operator.open(filename, "rb") as reader:
         reader.readinto(buf)
         assert buf == content[:1]
+
+    range_start = randint(0, len(content) - 1)
+    range_end = randint(range_start, len(content) - 1)
+
+    with operator.open(filename, "rb", offset=range_start, size=range_end) as reader:
+        assert reader.readable()
+        assert not reader.writable()
+        assert not reader.closed
+
+        read_content = reader.read()
+        assert read_content is not None
+        assert read_content == content[range_start:range_end]
 
     operator.delete(filename)
 
@@ -142,6 +155,10 @@ async def test_async_reader(service_name, operator, async_operator):
     await async_operator.write(filename, content)
 
     async with await async_operator.open(filename, "rb") as reader:
+        assert await reader.readable()
+        assert not await reader.writable()
+        assert not await reader.closed
+
         read_content = await reader.read()
         assert read_content is not None
         assert read_content == content
@@ -157,6 +174,20 @@ async def test_async_reader(service_name, operator, async_operator):
         read_content = bytes(read_content)
         assert read_content is not None
         assert read_content == content
+
+    range_start = randint(0, len(content) - 1)
+    range_end = randint(range_start, len(content) - 1)
+
+    async with await async_operator.open(
+        filename, "rb", offset=range_start, size=range_end
+    ) as reader:
+        assert await reader.readable()
+        assert not await reader.writable()
+        assert not await reader.closed
+
+        read_content = await reader.read()
+        assert read_content is not None
+        assert read_content == content[range_start:range_end]
 
     await async_operator.delete(filename)
 
@@ -222,3 +253,32 @@ def test_sync_read_not_exists(service_name, operator, async_operator):
 async def test_async_read_not_exists(service_name, operator, async_operator):
     with pytest.raises(NotFound):
         await async_operator.read(str(uuid4()))
+
+
+@pytest.mark.need_capability(
+    "read", "read_with_if_modified_since", "read_with_if_unmodified_since"
+)
+def test_sync_conditional_reads(service_name, operator):
+    path = f"random_file_{str(uuid4())}"
+    content = b"test data"
+    operator.write(path, content)
+
+    metadata = operator.stat(path)
+    mod_time = metadata.last_modified
+    assert mod_time is not None
+
+    # Large delta: 1 minute earlier
+    before = mod_time - timedelta(minutes=1)
+    after = mod_time + timedelta(seconds=10)
+
+    # Should succeed: file was modified after `before`
+    assert operator.read(path, if_modified_since=before) == content
+
+    # Should succeed: file was unmodified since `after`
+    assert operator.read(path, if_unmodified_since=after) == content
+
+    # Should fail: file was modified after `before`
+    with pytest.raises(ConditionNotMatch):
+        operator.read(path, if_unmodified_since=before)
+
+    operator.delete(path)

@@ -15,13 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-icloud")]
-mod core;
+use super::core::RedisCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-#[cfg(feature = "services-icloud")]
-mod backend;
-#[cfg(feature = "services-icloud")]
-pub use backend::IcloudBuilder as Icloud;
+pub struct RedisDeleter {
+    core: std::sync::Arc<RedisCore>,
+    root: String,
+}
 
-mod config;
-pub use config::IcloudConfig;
+impl RedisDeleter {
+    pub fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for RedisDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

@@ -156,6 +156,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
 ] }
 tokio = { version = "1.28.1", features = ["full"] }
+chrono = "0.4"
 
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954

@@ -400,16 +400,6 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
                         ],
                     }
                 )
-            if language == "cpp":
-                # Add fs service to ensure the cpp binding works on macOS.
-                jobs[f"binding_{language}"].append(
-                    {
-                        "os": "macos-latest",
-                        "cases": [
-                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
-                        ],
-                    }
-                )
 
     for bin in BIN:
         jobs[f"bin_{bin}"] = []

@@ -32,6 +32,7 @@ protected:
 
 // Test writing empty content
 OPENDAL_TEST_F(WriteBehaviorTest, WriteEmptyContent) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     std::string empty_content = "";
     
@@ -45,6 +46,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteEmptyContent) {
 
 // Test writing small content
 OPENDAL_TEST_F(WriteBehaviorTest, WriteSmallContent) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_string(100);
     
@@ -58,6 +60,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteSmallContent) {
 
 // Test writing large content
 OPENDAL_TEST_F(WriteBehaviorTest, WriteLargeContent) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_string(1024 * 1024); // 1MB
     
@@ -71,6 +74,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteLargeContent) {
 
 // Test writing binary data
 OPENDAL_TEST_F(WriteBehaviorTest, WriteBinaryData) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_bytes(1000);
     
@@ -87,6 +91,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteBinaryData) {
 
 // Test overwriting existing file
 OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto original_content = random_string(100);
     auto new_content = random_string(200);
@@ -105,6 +110,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
 
 // Test writing to nested path (should create intermediate directories)
 OPENDAL_TEST_F(WriteBehaviorTest, WriteToNestedPath) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = "nested/deep/directory/file.txt";
     auto content = random_string(100);
     
@@ -118,6 +124,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteToNestedPath) {
 
 // Test writing with special characters in filename
 OPENDAL_TEST_F(WriteBehaviorTest, WriteSpecialCharFilename) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = "test_with-special.chars_123/file-name_with.special.txt";
     auto content = random_string(100);
     
@@ -131,6 +138,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteSpecialCharFilename) {
 
 // Test writing multiple files
 OPENDAL_TEST_F(WriteBehaviorTest, WriteMultipleFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     std::vector<std::string> paths;
     std::vector<std::string> contents;
     
@@ -154,6 +162,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteMultipleFiles) {
 
 // Test writing with unicode content
 OPENDAL_TEST_F(WriteBehaviorTest, WriteUnicodeContent) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     std::string unicode_content = "Hello 世界 🌍 Здравствуй мир";
     
@@ -167,6 +176,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteUnicodeContent) {
 
 // Test concurrent writes to different files
 OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     const int num_threads = 10;
     std::vector<std::thread> threads;
     std::vector<std::string> paths(num_threads);
@@ -204,6 +214,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
 
 // Test writing with different content sizes
 OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     std::vector<size_t> sizes = {0, 1, 10, 100, 1024, 10240, 102400};
     
     for (auto size : sizes) {
@@ -222,6 +233,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
 
 // Test appending behavior (if supported)
 OPENDAL_TEST_F(WriteBehaviorTest, WriteAppendBehavior) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content1 = random_string(100);
     auto content2 = random_string(100);

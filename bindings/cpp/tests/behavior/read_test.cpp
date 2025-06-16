@@ -32,6 +32,7 @@ protected:
 
 // Test reading non-existent file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadNonExistentFile) {
+    // This test only requires read capability and expects failure - can run on read-only services
     auto path = random_path();
     
     EXPECT_THROW({
@@ -41,6 +42,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadNonExistentFile) {
 
 // Test reading empty file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadEmptyFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     std::string empty_content = "";
     
@@ -54,6 +56,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadEmptyFile) {
 
 // Test reading small file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadSmallFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_string(100);
     
@@ -67,6 +70,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadSmallFile) {
 
 // Test reading large file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadLargeFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_string(1024 * 1024); // 1MB
     
@@ -80,6 +84,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadLargeFile) {
 
 // Test reading binary data
 OPENDAL_TEST_F(ReadBehaviorTest, ReadBinaryData) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_bytes(1000);
     
@@ -95,6 +100,8 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadBinaryData) {
 
 // Test reading with special characters in path
 OPENDAL_TEST_F(ReadBehaviorTest, ReadSpecialCharPath) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     auto path = "test_with-special.chars_123/file.txt";
     auto content = random_string(100);
     
@@ -111,6 +118,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadSpecialCharPath) {
 
 // Test reading multiple files
 OPENDAL_TEST_F(ReadBehaviorTest, ReadMultipleFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     std::vector<std::string> paths;
     std::vector<std::string> contents;
     
@@ -133,6 +141,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadMultipleFiles) {
 
 // Test reading after modification
 OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto original_content = random_string(100);
     auto modified_content = random_string(150);
@@ -154,6 +163,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
 
 // Test concurrent reads (if threading is available)
 OPENDAL_TEST_F(ReadBehaviorTest, ConcurrentReads) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     auto path = random_path();
     auto content = random_string(1000);
     

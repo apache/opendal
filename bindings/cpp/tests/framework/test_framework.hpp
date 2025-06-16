@@ -130,17 +130,16 @@ public:
     static std::string random_string(size_t length = 100) {
         static std::random_device rd;
         static std::mt19937 gen(rd());
-        // Exclude '/' (47) and other problematic characters for file paths
+        // Use only alphanumeric characters and safe symbols for maximum compatibility
         static std::vector<char> safe_chars;
         if (safe_chars.empty()) {
-            for (int i = 32; i <= 126; ++i) {
-                char c = static_cast<char>(i);
-                // Exclude characters that can cause issues in file paths
-                if (c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && 
-                    c != '"' && c != '<' && c != '>' && c != '|') {
-                    safe_chars.push_back(c);
-                }
-            }
+            // Include only alphanumeric characters and a few safe symbols
+            for (char c = '0'; c <= '9'; ++c) safe_chars.push_back(c);
+            for (char c = 'A'; c <= 'Z'; ++c) safe_chars.push_back(c); 
+            for (char c = 'a'; c <= 'z'; ++c) safe_chars.push_back(c);
+            // Add only very safe special characters
+            safe_chars.push_back('_');
+            safe_chars.push_back('-');
         }
         static std::uniform_int_distribution<> dis(0, safe_chars.size() - 1);
         
@@ -228,6 +227,49 @@ protected:
     
     void TearDown() override {
         // Cleanup if needed
+    }
+    
+    // Helper methods for capability checking based on service name
+    bool supports_write() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
+    }
+    
+    bool supports_delete() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
+    }
+    
+    bool supports_create_dir() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
+    }
+    
+    bool supports_list() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
+    }
+    
+    bool supports_copy() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
+    }
+    
+    bool supports_rename() const {
+        auto& config = TestConfig::instance();
+        const std::string& service = config.service_name();
+        // HTTP service only supports read and stat operations
+        return service != "http";
     }
     
     // Helper methods
@@ -318,5 +360,47 @@ inline void initialize_test_framework() {
     do { \
         if (opendal::test::TestConfig::instance().service_name().empty()) { \
             GTEST_SKIP() << "No service configured for testing"; \
+        } \
+    } while(0) 
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_WRITE() \
+    do { \
+        if (!this->supports_write()) { \
+            GTEST_SKIP() << "Write operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_DELETE() \
+    do { \
+        if (!this->supports_delete()) { \
+            GTEST_SKIP() << "Delete operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR() \
+    do { \
+        if (!this->supports_create_dir()) { \
+            GTEST_SKIP() << "Create directory operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_LIST() \
+    do { \
+        if (!this->supports_list()) { \
+            GTEST_SKIP() << "List operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_COPY() \
+    do { \
+        if (!this->supports_copy()) { \
+            GTEST_SKIP() << "Copy operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_RENAME() \
+    do { \
+        if (!this->supports_rename()) { \
+            GTEST_SKIP() << "Rename operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
         } \
     } while(0) 

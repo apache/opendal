@@ -33,6 +33,8 @@ protected:
 
 // Test listing empty directory
 OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     
     // Create empty directory
@@ -57,6 +59,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
 
 // Test listing directory with files
 OPENDAL_TEST_F(ListBehaviorTest, ListDirectoryWithFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     auto file1_path = dir_path + "file1.txt";
     auto file2_path = dir_path + "file2.txt";
@@ -93,6 +98,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListDirectoryWithFiles) {
 
 // Test listing nested directories
 OPENDAL_TEST_F(ListBehaviorTest, ListNestedDirectories) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto base_dir = random_dir_path();
     auto sub_dir = base_dir + "subdir/";
     auto file1 = base_dir + "file1.txt";
@@ -131,6 +139,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListNestedDirectories) {
 
 // Test listing non-existent directory
 OPENDAL_TEST_F(ListBehaviorTest, ListNonExistentDirectory) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     
     // Ensure directory doesn't exist
@@ -150,6 +159,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListNonExistentDirectory) {
 
 // Test listing with many files
 OPENDAL_TEST_F(ListBehaviorTest, ListManyFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     const int num_files = 100;
     std::vector<std::string> file_paths;
@@ -184,6 +196,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListManyFiles) {
 
 // Test listing with special character names
 OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     auto file1 = dir_path + "file-with.special_chars.txt";
     auto file2 = dir_path + "file with spaces.txt";
@@ -210,6 +225,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
 
 // Test using lister iterator
 OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     auto file1_path = dir_path + "file1.txt";
     auto file2_path = dir_path + "file2.txt";
@@ -241,6 +259,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
 
 // Test listing root directory
 OPENDAL_TEST_F(ListBehaviorTest, ListRootDirectory) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     // List root directory (empty path or "/")
     auto entries = op_.list("/");
     
@@ -252,6 +271,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListRootDirectory) {
 
 // Test metadata in list results
 OPENDAL_TEST_F(ListBehaviorTest, ListMetadata) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     auto file_path = dir_path + "test_file.txt";
     auto content = random_string(1000);
@@ -276,6 +298,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListMetadata) {
 
 // Test concurrent listing
 OPENDAL_TEST_F(ListBehaviorTest, ConcurrentListing) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
     auto dir_path = random_dir_path();
     
     // Create directory with some files

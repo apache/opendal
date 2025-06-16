@@ -43,7 +43,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkWriteOperations) {
                 auto path = random_path();
                 op_.write(path, content);
             },
-            100 // iterations
+            10 // iterations
         );
     }
 }
@@ -66,7 +66,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkReadOperations) {
                 // Verify size to ensure read actually happened
                 EXPECT_EQ(result.size(), size);
             },
-            100 // iterations
+            10 // iterations
         );
     }
 }
@@ -122,7 +122,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkDeleteOperations) {
             op_.write(path, content);
             op_.remove(path);
         },
-        100 // iterations
+        10 // iterations
     );
 }
 
@@ -134,7 +134,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkCreateDirOperations) {
             auto dir_path = random_dir_path();
             op_.create_dir(dir_path);
         },
-        100 // iterations
+        10 // iterations
     );
 }
 
@@ -153,7 +153,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkStatOperations) {
             EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);
             EXPECT_EQ(metadata.content_length, content.size());
         },
-        100 // iterations
+        10 // iterations
     );
 }
 

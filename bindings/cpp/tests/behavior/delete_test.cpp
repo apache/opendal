@@ -32,6 +32,8 @@ protected:
 
 // Test deleting existing file
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteExistingFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = random_path();
     auto content = random_string(100);
     
@@ -46,6 +48,7 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteExistingFile) {
 
 // Test deleting non-existent file (should not error)
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteNonExistentFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = random_path();
     
     // Ensure file doesn't exist
@@ -57,6 +60,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteNonExistentFile) {
 
 // Test deleting empty directory
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteEmptyDirectory) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto dir_path = random_dir_path();
     
     // Create the directory
@@ -70,6 +75,9 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteEmptyDirectory) {
 
 // Test removing all (recursive delete)
 OPENDAL_TEST_F(DeleteBehaviorTest, RemoveAllRecursive) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto base_dir = random_dir_path();
     auto sub_dir = base_dir + "subdir/";
     auto file1 = base_dir + "file1.txt";
@@ -99,6 +107,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, RemoveAllRecursive) {
 
 // Test deleting multiple files
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteMultipleFiles) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     std::vector<std::string> paths;
     
     // Create multiple files
@@ -120,6 +130,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteMultipleFiles) {
 
 // Test deleting files with special characters
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteSpecialCharFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = "test_with-special.chars_123/file-name_with.special.txt";
     auto content = random_string(100);
     
@@ -134,6 +146,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteSpecialCharFile) {
 
 // Test deleting large file
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteLargeFile) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = random_path();
     auto content = random_string(1024 * 1024); // 1MB
     
@@ -148,6 +162,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteLargeFile) {
 
 // Test concurrent deletes
 OPENDAL_TEST_F(DeleteBehaviorTest, ConcurrentDeletes) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     const int num_threads = 10;
     std::vector<std::thread> threads;
     std::vector<std::string> paths(num_threads);
@@ -185,6 +201,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, ConcurrentDeletes) {
 
 // Test delete after read
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAfterRead) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = random_path();
     auto content = random_string(100);
     
@@ -205,6 +223,8 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAfterRead) {
 
 // Test delete and recreate
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAndRecreate) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     auto path = random_path();
     auto original_content = random_string(100);
     auto new_content = random_string(200);
@@ -229,6 +249,9 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAndRecreate) {
 
 // Test deleting nested structure
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteNestedStructure) {
+    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
+    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
     std::string base_dir = "test_nested/";
     auto level1_dir = base_dir + "level1/";
     auto level2_dir = level1_dir + "level2/";

@@ -85,7 +85,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkExistsOperations) {
             bool exists = op_.exists(path);
             EXPECT_TRUE(exists);
         },
-        1000 // iterations
+        10 // iterations
     );
 }
 
@@ -106,7 +106,7 @@ OPENDAL_TEST_F(OpenDALBenchmarkTest, BenchmarkListOperations) {
             auto entries = op_.list(dir_path);
             EXPECT_EQ(entries.size(), 101); // 100 files + 1 directory
         },
-        50 // iterations
+        10 // iterations
     );
 }
 

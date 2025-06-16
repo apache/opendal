@@ -67,17 +67,18 @@ jobs:
             libboost-iostreams-dev \
             clang \
             libc++-dev \
-            libc++abi-dev
+            libc++abi-dev \
+            doxygen
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install cmake boost llvm
+          brew install cmake boost llvm doxygen
 
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
-          choco install cmake llvm
+          choco install cmake llvm doxygen.install
           # Add LLVM to PATH for this job
           echo "C:\Program Files\LLVM\bin" >> $GITHUB_PATH
 

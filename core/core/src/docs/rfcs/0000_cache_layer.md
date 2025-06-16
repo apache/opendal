@@ -16,7 +16,7 @@ In many applications, particularly those with read-heavy workloads or repeated a
 Currently, users who want to implement caching with OpenDAL must manually:
 
 1. Check if data exists in cache storage
-2. If cache miss, fetch from original storage and manually populate cache
+2. If cache misses, fetch from original storage and manually populate cache
 3. Handle cache invalidation and consistency manually
 
 By introducing a dedicated Cache Layer, we can:
@@ -31,7 +31,7 @@ By introducing a dedicated Cache Layer, we can:
 
 The Cache Layer allows you to wrap any existing storage with a caching mechanism.
 When data is accessed through this layer, it will automatically be cached in your specified cache storage.
-The cache layer is designed to be simple and delegates cache management policies (like TTL, eviction) to the underlying cache storage service.
+The cache layer is designed to be straightforward, and delegates cache management policies (like TTL, eviction policy) to the underlying cache storage service.
 
 ## Basic Usage
 
@@ -41,7 +41,7 @@ use opendal::{layers::CacheLayer, services::Memory, services::S3, Operator};
 #[tokio::main]
 async fn main() -> opendal::Result<()> {
     // Create a memory operator to use as cache
-    let memory = Operator::new(Memory::default()))?;
+    let memory = Operator::new(Memory::default())?;
 
     // Create a primary storage operator (e.g., S3)
     let s3 = Operator::new(
@@ -58,7 +58,7 @@ async fn main() -> opendal::Result<()> {
     // Use the operator as normal - caching is transparent
     let data = op.read("path/to/file").await?;
     
-    // Subsequent reads will be served from cache if available
+    // Later reads will be served from cache if available
     let cached_data = op.read("path/to/file").await?;
     
     Ok(())
@@ -287,7 +287,7 @@ where
         // For deletion operations, we should avoid performing any operations on cache storage 
         // at the layer level.
         // Instead, we should allow the cache storage to manage these operations itself, 
-        // such as expiring cache the through its own TTL (Time-To-Live) policy.
+        // such as expiring cache through its own TTL (Time-To-Live) policy.
         self.inner.delete().await
     }
 
@@ -332,7 +332,7 @@ pub enum CacheReader<R, C> {
 - Each `read()` call forwards to the underlying reader
 - If `cache_read_promotion` is enabled, data is accumulated in an internal `buffer`
 - When reading is complete (EOF reached), the accumulated data is stored in cache for future reads
-- This ensures that subsequent reads of the same file will be cache hits
+- This ensures that later reads of the same file will be cache hits
 
 ### CacheWriter
 
@@ -351,7 +351,7 @@ pub struct CacheWriter<W, C> {
 
 1. **Buffer Accumulation**: All written data is accumulated in an internal `buffer`
 2. **Primary Write**: Data is always written to the underlying storage first via `inner.write()`
-3. **Cache Write**: If `cache_write` is enabled and the write to underlying storage succeeds, the complete data is written to cache
+3. **Cache Write**: If `cache_write` is enabled and the writing to underlying storage succeeds, the complete data is written to cache
 4. **Atomic Caching**: Cache operations happen only after successful completion to ensure cache consistency
 
 ### Error Handling

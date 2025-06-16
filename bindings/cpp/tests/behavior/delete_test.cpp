@@ -18,6 +18,8 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include <thread>
+#include <atomic>
 
 namespace opendal::test {
 

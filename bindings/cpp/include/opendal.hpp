@@ -147,6 +147,13 @@ class Operator {
   void remove(std::string_view path);
 
   /**
+   * @brief Remove all files and directories recursively
+   *
+   * @param path The path of the directory to remove recursively
+   */
+  void remove_all(std::string_view path);
+
+  /**
    * @brief Get the metadata of a file or directory
    *
    * @param path The path of the file or directory

@@ -132,8 +132,12 @@ std::string Operator::read(std::string_view path) {
 }
 
 void Operator::write(std::string_view path, std::string_view data) {
-  operator_->write(utils::rust_str(path),
-                   utils::rust_slice<const uint8_t>(data));
+  rust::Vec<uint8_t> vec;
+  vec.reserve(data.size());
+  for (char c : data) {
+    vec.push_back(static_cast<uint8_t>(c));
+  }
+  operator_->write(utils::rust_str(path), std::move(vec));
 }
 
 bool Operator::exists(std::string_view path) {

@@ -130,12 +130,24 @@ public:
     static std::string random_string(size_t length = 100) {
         static std::random_device rd;
         static std::mt19937 gen(rd());
-        static std::uniform_int_distribution<> dis(32, 126); // printable ASCII
+        // Exclude '/' (47) and other problematic characters for file paths
+        static std::vector<char> safe_chars;
+        if (safe_chars.empty()) {
+            for (int i = 32; i <= 126; ++i) {
+                char c = static_cast<char>(i);
+                // Exclude characters that can cause issues in file paths
+                if (c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && 
+                    c != '"' && c != '<' && c != '>' && c != '|') {
+                    safe_chars.push_back(c);
+                }
+            }
+        }
+        static std::uniform_int_distribution<> dis(0, safe_chars.size() - 1);
         
         std::string result;
         result.reserve(length);
         for (size_t i = 0; i < length; ++i) {
-            result += static_cast<char>(dis(gen));
+            result += safe_chars[dis(gen)];
         }
         return result;
     }

@@ -161,6 +161,20 @@ jobs:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
 
+  test_binding_cpp:
+    name: binding_cpp / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.binding_cpp
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).binding_cpp }}
+    uses: ./.github/workflows/test_behavior_binding_cpp.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}
+
   test_bin_ofs:
     name: bin_ofs / ${{ matrix.os }}
     needs: [plan]

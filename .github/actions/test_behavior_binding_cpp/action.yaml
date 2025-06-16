@@ -48,30 +48,33 @@ runs:
                   -DCMAKE_BUILD_TYPE=Release \
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
+                  -DOPENDAL_ENABLE_ASYNC=ON \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..
                 cmake --build . --config Release
-                ./Release/opendal_cpp_test.exe --gtest_filter="*BehaviorTest*"
+                ./Release/opendal_cpp_test.exe --gtest_filter="*BehaviorTest*:*Async*"
               elif [[ "\${{ runner.os }}" == "macOS" ]]; then
                 cmake \
                   -DCMAKE_BUILD_TYPE=Release \
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
+                  -DOPENDAL_ENABLE_ASYNC=ON \
                   -DCMAKE_CXX_COMPILER=clang++ \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..
                 make -j\$(sysctl -n hw.ncpu) opendal_cpp_test
-                ./opendal_cpp_test --gtest_filter="*BehaviorTest*"
+                ./opendal_cpp_test --gtest_filter="*BehaviorTest*:*Async*"
               else
                 cmake \
                   -DCMAKE_BUILD_TYPE=Release \
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
+                  -DOPENDAL_ENABLE_ASYNC=ON \
                   -DCMAKE_CXX_COMPILER=clang++ \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..
                 make -j\$(nproc) opendal_cpp_test
-                ./opendal_cpp_test --gtest_filter="*BehaviorTest*"
+                ./opendal_cpp_test --gtest_filter="*BehaviorTest*:*Async*"
               fi
             env:
               OPENDAL_TEST: ${{ inputs.service }}

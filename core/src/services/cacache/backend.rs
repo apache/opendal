@@ -123,11 +123,24 @@ impl Access for CacacheAccessor {
         }
     }
 
-    async fn read(&self, path: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let data = self.core.get(path).await?;
 
         match data {
-            Some(bytes) => Ok((RpRead::new(), Buffer::from(bytes))),
+            Some(bytes) => {
+                let range = args.range();
+                let buffer = if range.is_full() {
+                    Buffer::from(bytes)
+                } else {
+                    let start = range.offset() as usize;
+                    let end = match range.size() {
+                        Some(size) => (range.offset() + size) as usize,
+                        None => bytes.len(),
+                    };
+                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
+                };
+                Ok((RpRead::new(), buffer))
+            }
             None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
         }
     }

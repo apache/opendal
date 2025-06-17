@@ -80,8 +80,7 @@ use crate::*;
 /// encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
 /// println!("## Prometheus Metrics");
 /// println!("{}", String::from_utf8(buffer.clone()).unwrap());
-///
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -129,6 +128,26 @@ impl PrometheusLayer {
 
     /// Return a shared global [`PrometheusLayer`] instance that registers metrics into the
     /// prometheus default (global) registry.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use log::debug;
+    /// # use opendal::layers::PrometheusLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    /// #
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<()> {
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let _ = Operator::new(builder)?
+    ///     .layer(PrometheusLayer::global().clone())
+    ///     .finish();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn global() -> &'static Self {
         static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
 
@@ -235,18 +254,14 @@ impl PrometheusLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
-    /// let registry = prometheus::default_registry();
-    ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
-    ///             .register(registry)
+    ///             .register(prometheus::default_registry())
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register(self, registry: &Registry) -> Result<PrometheusLayer> {
@@ -478,17 +493,14 @@ impl PrometheusLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
-    ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
     ///             .register_default()
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register_default(self) -> Result<PrometheusLayer> {

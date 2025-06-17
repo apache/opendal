@@ -74,8 +74,7 @@ use crate::*;
 /// prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
 /// println!("## Prometheus Metrics");
 /// println!("{}", buf);
-///
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -181,7 +180,7 @@ impl PrometheusClientLayerBuilder {
 
     /// Register the metrics into the registry and return a [`PrometheusClientLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
     /// # use log::debug;
@@ -196,12 +195,10 @@ impl PrometheusClientLayerBuilder {
     /// let builder = services::Memory::default();
     /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(PrometheusClientLayer::builder().register(&mut registry))
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {

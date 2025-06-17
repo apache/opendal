@@ -66,6 +66,24 @@ impl FastmetricsLayer {
 
     /// Return a shared global [`FastmetricsLayer`] instance that registers metrics into the
     /// fastmetrics global registry.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use opendal::layers::FastmetricsLayer;
+    /// # use opendal::services;
+    /// # use opendal::Operator;
+    /// # use opendal::Result;
+    ///
+    /// # fn main() -> Result<()> {
+    /// // Pick a builder and configure it.
+    /// let builder = services::Memory::default();
+    /// let _ = Operator::new(builder)?
+    ///     .layer(FastmetricsLayer::global().clone())
+    ///     .finish();
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn global() -> &'static Self {
         static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
 
@@ -168,7 +186,7 @@ impl FastmetricsLayerBuilder {
 
     /// Register the metrics into the registry and return a [`FastmetricsLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
     /// # use log::debug;
@@ -264,7 +282,7 @@ impl FastmetricsLayerBuilder {
 
     /// Register the metrics into the global registry and return a [`FastmetricsLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
     /// # use opendal::layers::FastmetricsLayer;

@@ -15,17 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-cacache")]
-mod backend;
-#[cfg(feature = "services-cacache")]
-mod core;
-#[cfg(feature = "services-cacache")]
-mod delete;
-#[cfg(feature = "services-cacache")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-cacache")]
-pub use backend::CacacheBuilder as Cacache;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::CacacheConfig;
+use super::core::CacacheCore;
+
+pub struct CacacheDeleter {
+    core: Arc<CacacheCore>,
+}
+
+impl CacacheDeleter {
+    pub fn new(core: Arc<CacacheCore>) -> Self {
+        Self { core }
+    }
+}
+
+impl oio::OneShotDelete for CacacheDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        self.core.delete(&path).await
+    }
+}

@@ -16,14 +16,17 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
 use log::debug;
 use moka::future::Cache;
 use moka::future::CacheBuilder;
 
-use crate::raw::adapters::typed_kv;
+use super::core::*;
+use super::delete::MokaDeleter;
+use super::lister::MokaLister;
+use super::writer::MokaWriter;
+use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
@@ -99,10 +102,18 @@ impl Builder for MokaBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
+
+        let mut builder: CacheBuilder<String, MokaValue, _> = Cache::builder();
 
         // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
+        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }
@@ -118,72 +129,151 @@ impl Builder for MokaBuilder {
 
         debug!("backend build finished: {:?}", &self);
 
-        let mut backend = MokaBackend::new(Adapter {
-            inner: builder.build(),
+        let core = MokaCore {
+            cache: builder.build(),
+        };
+
+        Ok(MokaAccessor::new(core).with_normalized_root(root))
+    }
+}
+
+/// MokaAccessor implements Access trait directly
+#[derive(Debug, Clone)]
+pub struct MokaAccessor {
+    core: std::sync::Arc<MokaCore>,
+    root: String,
+    info: std::sync::Arc<AccessorInfo>,
+}
+
+impl MokaAccessor {
+    fn new(core: MokaCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Moka);
+        info.set_name(core.cache.name().unwrap_or("moka"));
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            write: true,
+            write_can_empty: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
+            delete: true,
+            stat: true,
+            stat_has_cache_control: true,
+            stat_has_content_type: true,
+            stat_has_content_disposition: true,
+            stat_has_content_encoding: true,
+            stat_has_content_length: true,
+            list: true,
+            shared: false,
+            ..Default::default()
         });
-        if let Some(v) = self.config.root {
-            backend = backend.with_root(&v);
-        }
 
-        Ok(backend)
-    }
-}
-
-/// Backend is used to serve `Accessor` support in moka.
-pub type MokaBackend = typed_kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    inner: Cache<String, typed_kv::Value>,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("size", &self.inner.weighted_size())
-            .field("count", &self.inner.entry_count())
-            .finish()
-    }
-}
-
-impl typed_kv::Adapter for Adapter {
-    fn info(&self) -> typed_kv::Info {
-        typed_kv::Info::new(
-            Scheme::Moka,
-            self.inner.name().unwrap_or("moka"),
-            typed_kv::Capability {
-                get: true,
-                set: true,
-                delete: true,
-                scan: true,
-                shared: false,
-            },
-        )
-    }
-
-    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.get(path).await {
-            None => Ok(None),
-            Some(bs) => Ok(Some(bs)),
+        Self {
+            core: std::sync::Arc::new(core),
+            root: "/".to_string(),
+            info: std::sync::Arc::new(info),
         }
     }
 
-    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.insert(path.to_string(), value).await;
-        Ok(())
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
+
+impl Access for MokaAccessor {
+    type Reader = Buffer;
+    type Writer = MokaWriter;
+    type Lister = oio::HierarchyLister<MokaLister>;
+    type Deleter = oio::OneShotDeleter<MokaDeleter>;
+
+    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.inner.invalidate(path).await;
-        Ok(())
-    }
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let keys = self.inner.iter().map(|kv| kv.0.to_string());
-        if path.is_empty() {
-            Ok(keys.collect())
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            Ok(keys.filter(|k| k.starts_with(path)).collect())
+            // Check the exact path first
+            match self.core.get(&p).await? {
+                Some(value) => {
+                    // Use the stored metadata but override mode if necessary
+                    let mut metadata = value.metadata.clone();
+                    // If path ends with '/' but we found a file, return DIR
+                    // This is because CompleteLayer's create_dir creates empty files with '/' suffix
+                    if p.ends_with('/') && metadata.mode() != EntryMode::DIR {
+                        metadata.set_mode(EntryMode::DIR);
+                    }
+                    Ok(RpStat::new(metadata))
+                }
+                None => {
+                    // If path ends with '/', check if there are any children
+                    if p.ends_with('/') {
+                        let has_children = self
+                            .core
+                            .cache
+                            .iter()
+                            .any(|kv| kv.0.starts_with(&p) && kv.0.len() > p.len());
+
+                        if has_children {
+                            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                        } else {
+                            Err(Error::new(ErrorKind::NotFound, "key not found in moka"))
+                        }
+                    } else {
+                        Err(Error::new(ErrorKind::NotFound, "key not found in moka"))
+                    }
+                }
+            }
         }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+
+        match self.core.get(&p).await? {
+            Some(value) => {
+                let buffer = if args.range().is_full() {
+                    value.content
+                } else {
+                    let range = args.range();
+                    let start = range.offset() as usize;
+                    let end = match range.size() {
+                        Some(size) => (range.offset() + size) as usize,
+                        None => value.content.len(),
+                    };
+                    value.content.slice(start..end.min(value.content.len()))
+                };
+                Ok((RpRead::new(), buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "key not found in moka")),
+        }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p, args)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(MokaDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        // For moka, we don't distinguish between files and directories
+        // Just return the lister to iterate through all matching keys
+        let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+        Ok((RpList::default(), lister))
     }
 }

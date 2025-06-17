@@ -51,10 +51,10 @@ impl oio::Write for MemoryWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buf.take().unwrap_or_default();
         let content = buf.collect();
-        
+
         let mut metadata = Metadata::new(EntryMode::FILE);
         metadata.set_content_length(content.len() as u64);
-        
+
         if let Some(v) = self.op.cache_control() {
             metadata.set_cache_control(v);
         }
@@ -67,14 +67,14 @@ impl oio::Write for MemoryWriter {
         if let Some(v) = self.op.content_encoding() {
             metadata.set_content_encoding(v);
         }
-        
+
         let value = MemoryValue {
             metadata: metadata.clone(),
             content,
         };
-        
+
         self.core.set(&self.path, value)?;
-        
+
         Ok(metadata)
     }
 

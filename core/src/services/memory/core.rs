@@ -63,7 +63,7 @@ impl MemoryCore {
 
     pub fn scan(&self, prefix: &str) -> Result<Vec<String>> {
         let data = self.data.lock().unwrap();
-        
+
         if prefix.is_empty() {
             return Ok(data.keys().cloned().collect());
         }

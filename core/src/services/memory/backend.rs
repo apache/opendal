@@ -54,12 +54,7 @@ impl Builder for MemoryBuilder {
     type Config = MemoryConfig;
 
     fn build(self) -> Result<impl Access> {
-        let root = normalize_root(
-            self.config
-                .root
-                .as_deref()
-                .unwrap_or("/"),
-        );
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
         let core = MemoryCore::new();
         Ok(MemoryAccessor::new(core).with_normalized_root(root))
@@ -133,7 +128,10 @@ impl Access for MemoryAccessor {
         } else {
             match self.core.get(&p)? {
                 Some(value) => Ok(RpStat::new(value.metadata)),
-                None => Err(Error::new(ErrorKind::NotFound, "memory doesn't have this path")),
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                )),
             }
         }
     }
@@ -143,15 +141,26 @@ impl Access for MemoryAccessor {
 
         let value = match self.core.get(&p)? {
             Some(value) => value,
-            None => return Err(Error::new(ErrorKind::NotFound, "memory doesn't have this path")),
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                ))
+            }
         };
 
-        Ok((RpRead::new(), value.content.slice(args.range().to_range_as_usize())))
+        Ok((
+            RpRead::new(),
+            value.content.slice(args.range().to_range_as_usize()),
+        ))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), MemoryWriter::new(self.core.clone(), p, args)))
+        Ok((
+            RpWrite::new(),
+            MemoryWriter::new(self.core.clone(), p, args),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

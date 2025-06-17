@@ -22,9 +22,16 @@ use moka::future::Cache;
 
 use crate::*;
 
+/// Value stored in moka cache containing both metadata and content
+#[derive(Clone)]
+pub struct MokaValue {
+    pub metadata: Metadata,
+    pub content: Buffer,
+}
+
 #[derive(Clone)]
 pub struct MokaCore {
-    pub cache: Cache<String, Buffer>,
+    pub cache: Cache<String, MokaValue>,
 }
 
 impl Debug for MokaCore {
@@ -37,11 +44,11 @@ impl Debug for MokaCore {
 }
 
 impl MokaCore {
-    pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
+    pub async fn get(&self, key: &str) -> Result<Option<MokaValue>> {
         Ok(self.cache.get(key).await)
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: MokaValue) -> Result<()> {
         self.cache.insert(key.to_string(), value).await;
         Ok(())
     }

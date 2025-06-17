@@ -110,10 +110,10 @@ impl Builder for MokaBuilder {
                 .as_str(),
         );
 
-        let mut builder: CacheBuilder<String, Buffer, _> = Cache::builder();
+        let mut builder: CacheBuilder<String, MokaValue, _> = Cache::builder();
 
         // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.len()) as u32);
+        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }
@@ -154,10 +154,19 @@ impl MokaAccessor {
         info.set_native_capability(Capability {
             read: true,
             write: true,
+            write_can_empty: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
             delete: true,
             stat: true,
+            stat_has_cache_control: true,
+            stat_has_content_type: true,
+            stat_has_content_disposition: true,
+            stat_has_content_encoding: true,
+            stat_has_content_length: true,
             list: true,
-            write_can_empty: true,
             shared: false,
             ..Default::default()
         });
@@ -194,17 +203,15 @@ impl Access for MokaAccessor {
         } else {
             // Check the exact path first
             match self.core.get(&p).await? {
-                Some(bs) => {
+                Some(value) => {
+                    // Use the stored metadata but override mode if necessary
+                    let mut metadata = value.metadata.clone();
                     // If path ends with '/' but we found a file, return DIR
                     // This is because CompleteLayer's create_dir creates empty files with '/' suffix
-                    let mode = if p.ends_with('/') {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    };
-                    Ok(RpStat::new(
-                        Metadata::new(mode).with_content_length(bs.len() as u64),
-                    ))
+                    if p.ends_with('/') && metadata.mode() != EntryMode::DIR {
+                        metadata.set_mode(EntryMode::DIR);
+                    }
+                    Ok(RpStat::new(metadata))
                 }
                 None => {
                     // If path ends with '/', check if there are any children
@@ -232,17 +239,17 @@ impl Access for MokaAccessor {
         let p = build_abs_path(&self.root, path);
 
         match self.core.get(&p).await? {
-            Some(bs) => {
+            Some(value) => {
                 let buffer = if args.range().is_full() {
-                    bs
+                    value.content
                 } else {
                     let range = args.range();
                     let start = range.offset() as usize;
                     let end = match range.size() {
                         Some(size) => (range.offset() + size) as usize,
-                        None => bs.len(),
+                        None => value.content.len(),
                     };
-                    bs.slice(start..end.min(bs.len()))
+                    value.content.slice(start..end.min(value.content.len()))
                 };
                 Ok((RpRead::new(), buffer))
             }
@@ -250,9 +257,9 @@ impl Access for MokaAccessor {
         }
     }
 
-    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p)))
+        Ok((RpWrite::new(), MokaWriter::new(self.core.clone(), p, args)))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

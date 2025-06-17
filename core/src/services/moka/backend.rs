@@ -103,7 +103,7 @@ impl MokaBuilder {
 
     /// Configure the cache builder with a closure.
     ///
-    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html)
+    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
     ///
     /// # Example
     ///

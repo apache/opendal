@@ -72,12 +72,12 @@ impl MokaBuilder {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use std::time::Duration;
+    /// # use log::debug;
     /// # use moka::notification::RemovalCause;
     /// # use opendal::services::Moka;
     /// # use opendal::services::MokaCacheBuilder;
     /// # use opendal::services::MokaValue;
     /// # use opendal::Configurator;
-    /// # use log::debug;
     /// let moka = Moka::new(
     ///     MokaCacheBuilder::<String, MokaValue>::default()
     ///         .name("demo")
@@ -89,7 +89,7 @@ impl MokaBuilder {
     ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
     ///                 k.as_str(), v.content.to_vec(), cause
     ///             );
-    ///     })
+    ///         })
     /// );
     /// ```
     pub fn new(builder: MokaCacheBuilder<String, MokaValue>) -> Self {

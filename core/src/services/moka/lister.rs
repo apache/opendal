@@ -28,10 +28,8 @@ pub struct MokaLister {
 impl MokaLister {
     pub fn new(core: std::sync::Arc<MokaCore>, root: String, _path: String) -> Self {
         // Get all keys from the cache
-        let keys: Vec<String> = core.cache.iter()
-            .map(|kv| kv.0.to_string())
-            .collect();
-            
+        let keys: Vec<String> = core.cache.iter().map(|kv| kv.0.to_string()).collect();
+
         Self {
             root,
             keys: keys.into_iter(),
@@ -48,14 +46,14 @@ impl oio::List for MokaLister {
                 if path.is_empty() {
                     path = "/".to_string();
                 }
-                
+
                 // Determine if it's a file or directory based on trailing slash
                 let mode = if key.ends_with('/') {
                     EntryMode::DIR
                 } else {
                     EntryMode::FILE
                 };
-                
+
                 Ok(Some(oio::Entry::new(&path, Metadata::new(mode))))
             }
             None => Ok(None),

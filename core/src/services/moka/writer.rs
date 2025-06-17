@@ -47,11 +47,11 @@ impl oio::Write for MokaWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
-        
+
         // Build metadata with write options
-        let mut metadata = Metadata::new(EntryMode::from_path(&self.path))
-            .with_content_length(length);
-        
+        let mut metadata =
+            Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+
         if let Some(content_type) = self.op.content_type() {
             metadata.set_content_type(content_type);
         }
@@ -64,12 +64,12 @@ impl oio::Write for MokaWriter {
         if let Some(content_encoding) = self.op.content_encoding() {
             metadata.set_content_encoding(content_encoding);
         }
-        
+
         let value = MokaValue {
             metadata: metadata.clone(),
             content: buf,
         };
-        
+
         self.core.set(&self.path, value).await?;
         Ok(metadata)
     }

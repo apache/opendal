@@ -211,6 +211,7 @@ impl RedisCore {
 
         let mut cmd = redis::cmd("SCAN");
 
+        // not using `Cmd::cursor_arg` because Lister will track pages (cursors)
         cmd.arg(cursor).arg("MATCH").arg(pattern);
 
         if let Some(count) = count {

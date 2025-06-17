@@ -2,9 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+While working on OpenDAL, please remember:
+
+- Always use English in code and comments.
+- Only add meaningful comments when the code's behavior is difficult to understand.
+- Only add meaningful tests when they actually verify internal behaviors; otherwise, don't create them unless requested.
+
 ## Build and Development Commands
 
 ### Core Rust Development
+
+- All cargo commands must be executed within the `core` directory.
+- All changes to `core` must pass the clippy check and behavior tests.
+- Don't change public API or behavior tests unless requested.
+
 ```bash
 # Check code
 cargo check
@@ -12,11 +23,17 @@ cargo check
 # Build
 cargo build
 
-# Run linter
+# Run linter for all services.
 cargo clippy --all-targets --all-features -- -D warnings
+
+# Run linter for specific services.
+cargo clippy --all-targets --features=services-s3 -- -D warnings
 
 # Run tests (requires test features)
 cargo test --features tests
+
+# Run behavior tests
+OPENDAL_TEST=s3 cargo test --features services-s3,tests behavior
 
 # Run specific test
 cargo test tests::it::services::fs

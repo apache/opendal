@@ -575,18 +575,19 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "await-tree"
-version = "0.2.1"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c2d7aec54383fa38ac2f9c28435a02f7312f7174e470c7d5566d2b7e17f9a8d"
+checksum = "4aec83d33c078452a764b777d1e8d6c17d8c999213ccfb7914740293f1e0fa9a"
 dependencies = [
  "coarsetime",
  "derive_builder",
+ "easy-ext",
  "flexstr",
  "indextree",
  "itertools 0.12.1",
  "parking_lot 0.12.3",
  "pin-project",
- "tokio",
+ "task-local",
  "tracing",
  "weak-table",
 ]
@@ -2685,6 +2686,12 @@ dependencies = [
  "itertools 0.11.0",
  "num-traits",
 ]
+
+[[package]]
+name = "easy-ext"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cc5d6d6a8504f8caedd7de14576464383900cd3840b7033a7a3dce5ac00121ca"
 
 [[package]]
 name = "ecdsa"
@@ -8462,6 +8469,15 @@ name = "tap"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
+name = "task-local"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2c821daee0efdf6414970c8185a1c22e259a7ed87b2fd9f7d3c5f5503fd2863"
+dependencies = [
+ "pin-project-lite",
+]
 
 [[package]]
 name = "tempfile"

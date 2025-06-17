@@ -73,7 +73,7 @@
     "prettier": "^2.8.4",
     "typedoc": "^0.28",
     "typescript": "^5.0.2",
-    "vitest": "^3.0.8"
+    "vitest": "^3.2.3"
   },
   "engines": {
     "node": ">= 10"

@@ -27,8 +27,10 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
+use opendal::options::StatOptions;
 
 mod capability;
+mod options;
 
 #[napi]
 pub struct Operator {
@@ -93,8 +95,17 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub async fn stat(&self, path: String) -> Result<Metadata> {
-        let meta = self.async_op.stat(&path).await.map_err(format_napi_error)?;
+    pub async fn stat(
+        &self,
+        path: String,
+        options: Option<options::StatOptions>,
+    ) -> Result<Metadata> {
+        let options = options.map_or_else(StatOptions::default, StatOptions::from);
+        let meta = self
+            .async_op
+            .stat_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
@@ -109,8 +120,16 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub fn stat_sync(&self, path: String) -> Result<Metadata> {
-        let meta = self.blocking_op.stat(&path).map_err(format_napi_error)?;
+    pub fn stat_sync(
+        &self,
+        path: String,
+        options: Option<options::StatOptions>,
+    ) -> Result<Metadata> {
+        let options = options.map_or_else(StatOptions::default, StatOptions::from);
+        let meta = self
+            .blocking_op
+            .stat_options(&path, options)
+            .map_err(format_napi_error)?;
 
         Ok(Metadata(meta))
     }
@@ -644,6 +663,26 @@ impl Entry {
     }
 }
 
+#[napi]
+pub enum EntryMode {
+    /// FILE means the path has data to read.
+    FILE,
+    /// DIR means the path can be listed.
+    DIR,
+    /// Unknown means we don't know what we can do on this path.
+    Unknown,
+}
+
+impl From<opendal::EntryMode> for EntryMode {
+    fn from(mode: opendal::EntryMode) -> Self {
+        match mode {
+            opendal::EntryMode::FILE => EntryMode::FILE,
+            opendal::EntryMode::DIR => EntryMode::DIR,
+            opendal::EntryMode::Unknown => EntryMode::Unknown,
+        }
+    }
+}
+
 /// Metadata carries all metadata associated with a path.
 #[napi]
 pub struct Metadata(opendal::Metadata);
@@ -698,6 +737,18 @@ impl Metadata {
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
         self.0.last_modified().map(|ta| ta.to_rfc3339())
+    }
+
+    /// mode represent this entry's mode.
+    #[napi(getter)]
+    pub fn mode(&self) -> Option<EntryMode> {
+        Some(self.0.mode().into())
+    }
+
+    /// Retrieves the `version` of the file, if available.
+    #[napi(getter)]
+    pub fn version(&self) -> Option<String> {
+        self.0.version().map(|v| v.to_string())
     }
 }
 

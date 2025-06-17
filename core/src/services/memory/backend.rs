@@ -15,13 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::Mutex;
 
-use crate::raw::adapters::typed_kv;
-use crate::raw::Access;
+use super::core::*;
+use super::delete::MemoryDeleter;
+use super::lister::MemoryLister;
+use super::writer::MemoryWriter;
+use crate::raw::oio;
+use crate::raw::*;
 use crate::services::MemoryConfig;
 use crate::*;
 
@@ -52,77 +54,129 @@ impl Builder for MemoryBuilder {
     type Config = MemoryConfig;
 
     fn build(self) -> Result<impl Access> {
-        let adapter = Adapter {
-            inner: Arc::new(Mutex::new(BTreeMap::default())),
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
+
+        let core = MemoryCore::new();
+        Ok(MemoryAccessor::new(core).with_normalized_root(root))
+    }
+}
+
+/// MemoryAccessor implements Access trait directly
+#[derive(Debug, Clone)]
+pub struct MemoryAccessor {
+    core: Arc<MemoryCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
+}
+
+impl MemoryAccessor {
+    fn new(core: MemoryCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Memory);
+        info.set_name(&format!("{:p}", Arc::as_ptr(&core.data)));
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            write: true,
+            write_can_empty: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
+            delete: true,
+            stat: true,
+            stat_has_cache_control: true,
+            stat_has_content_type: true,
+            stat_has_content_disposition: true,
+            stat_has_content_encoding: true,
+            stat_has_content_length: true,
+            list: true,
+            list_with_recursive: true,
+            shared: false,
+            ..Default::default()
+        });
+
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
+
+impl Access for MemoryAccessor {
+    type Reader = Buffer;
+    type Writer = MemoryWriter;
+    type Lister = oio::HierarchyLister<MemoryLister>;
+    type Deleter = oio::OneShotDeleter<MemoryDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            match self.core.get(&p)? {
+                Some(value) => Ok(RpStat::new(value.metadata)),
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                )),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+
+        let value = match self.core.get(&p)? {
+            Some(value) => value,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "memory doesn't have this path",
+                ))
+            }
         };
 
-        Ok(MemoryBackend::new(adapter).with_root(self.config.root.as_deref().unwrap_or_default()))
-    }
-}
-
-/// Backend is used to serve `Accessor` support in memory.
-pub type MemoryBackend = typed_kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    inner: Arc<Mutex<BTreeMap<String, typed_kv::Value>>>,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MemoryBackend").finish_non_exhaustive()
-    }
-}
-
-impl typed_kv::Adapter for Adapter {
-    fn info(&self) -> typed_kv::Info {
-        typed_kv::Info::new(
-            Scheme::Memory,
-            &format!("{:p}", Arc::as_ptr(&self.inner)),
-            typed_kv::Capability {
-                get: true,
-                set: true,
-                delete: true,
-                scan: true,
-                shared: false,
-            },
-        )
+        Ok((
+            RpRead::new(),
+            value.content.slice(args.range().to_range_as_usize()),
+        ))
     }
 
-    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.lock().unwrap().get(path) {
-            None => Ok(None),
-            Some(bs) => Ok(Some(bs.to_owned())),
-        }
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((
+            RpWrite::new(),
+            MemoryWriter::new(self.core.clone(), p, args),
+        ))
     }
 
-    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.lock().unwrap().insert(path.to_string(), value);
-
-        Ok(())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(MemoryDeleter::new(self.core.clone(), self.root.clone())),
+        ))
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.inner.lock().unwrap().remove(path);
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_abs_path(&self.root, path);
+        let keys = self.core.scan(&p)?;
+        let lister = MemoryLister::new(&self.root, keys);
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
-        Ok(())
-    }
-
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let inner = self.inner.lock().unwrap();
-
-        if path.is_empty() {
-            return Ok(inner.keys().cloned().collect());
-        }
-
-        let mut keys = Vec::new();
-        for (key, _) in inner.range(path.to_string()..) {
-            if !key.starts_with(path) {
-                break;
-            }
-            keys.push(key.to_string());
-        }
-        Ok(keys)
+        Ok((RpList::default(), lister))
     }
 }
 

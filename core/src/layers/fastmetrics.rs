@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fmt, time::Duration};
+use std::fmt;
+use std::sync::OnceLock;
+use std::time::Duration;
 
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;
@@ -60,6 +62,18 @@ impl FastmetricsLayer {
     /// Create a [`FastmetricsLayerBuilder`] to set the configuration of metrics.
     pub fn builder() -> FastmetricsLayerBuilder {
         FastmetricsLayerBuilder::default()
+    }
+
+    /// Return a shared global [`FastmetricsLayer`] instance that registers metrics into the
+    /// fastmetrics global registry.
+    pub fn global() -> &'static Self {
+        static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
+
+        GLOBAL.get_or_init(|| {
+            Self::builder()
+                .register_global()
+                .expect("Failed to register to global registry")
+        })
     }
 }
 
@@ -176,55 +190,48 @@ impl FastmetricsLayerBuilder {
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> Result<FastmetricsLayer> {
-        let operation_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let operation_bytes_rate = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_bytes_rate = Family::new(HistogramFactory {
             buckets: self.bytes_rate_buckets.clone(),
         });
-        let operation_entries = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_entries = Family::new(HistogramFactory {
             buckets: self.entries_buckets.clone(),
         });
-        let operation_entries_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.entries_rate_buckets.clone(),
-            });
-        let operation_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let operation_errors_total = Family::<OperationLabels, Counter>::default();
-        let operation_executing = Family::<OperationLabels, Gauge>::default();
-        let operation_ttfb_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.ttfb_buckets.clone(),
-            });
+        let operation_entries_rate = Family::new(HistogramFactory {
+            buckets: self.entries_rate_buckets.clone(),
+        });
+        let operation_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let operation_errors_total = Family::default();
+        let operation_executing = Family::default();
+        let operation_ttfb_seconds = Family::new(HistogramFactory {
+            buckets: self.ttfb_buckets.clone(),
+        });
 
-        let http_executing = Family::<OperationLabels, Gauge>::default();
-        let http_request_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let http_executing = Family::default();
+        let http_request_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let http_request_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_request_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_response_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let http_request_bytes_rate = Family::new(HistogramFactory {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_request_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_response_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let http_response_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_response_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_connection_errors_total = Family::<OperationLabels, Counter>::default();
-        let http_status_errors_total = Family::<OperationLabels, Counter>::default();
+        let http_response_bytes_rate = Family::new(HistogramFactory {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_response_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_connection_errors_total = Family::default();
+        let http_status_errors_total = Family::default();
 
         let interceptor = FastmetricsInterceptor {
             operation_bytes,

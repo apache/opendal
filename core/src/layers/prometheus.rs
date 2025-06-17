@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use prometheus::core::AtomicI64;
@@ -124,6 +125,18 @@ impl PrometheusLayer {
     /// ```
     pub fn builder() -> PrometheusLayerBuilder {
         PrometheusLayerBuilder::default()
+    }
+
+    /// Return a shared global [`PrometheusLayer`] instance that registers metrics into the
+    /// prometheus default (global) registry.
+    pub fn global() -> &'static Self {
+        static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
+
+        GLOBAL.get_or_init(|| {
+            Self::builder()
+                .register_default()
+                .expect("Failed to register to global registry")
+        })
     }
 }
 

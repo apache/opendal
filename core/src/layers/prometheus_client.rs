@@ -26,7 +26,6 @@ use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::family::MetricConstructor;
 use prometheus_client::metrics::gauge::Gauge;
 use prometheus_client::metrics::histogram::Histogram;
-use prometheus_client::registry::Metric;
 use prometheus_client::registry::Registry;
 use prometheus_client::registry::Unit;
 
@@ -206,147 +205,86 @@ impl PrometheusClientLayerBuilder {
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {
-        let operation_bytes =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_buckets.clone(),
-            });
-        let operation_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let operation_entries =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.entries_buckets.clone(),
-            });
-        let operation_entries_rate =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.entries_rate_buckets.clone(),
-            });
-        let operation_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let operation_errors_total = Family::<OperationLabels, Counter>::default();
-        let operation_executing = Family::<OperationLabels, Gauge>::default();
-        let operation_ttfb_seconds =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.ttfb_buckets.clone(),
-            });
+        let operation_bytes = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_buckets.clone(),
+        });
+        let operation_bytes_rate = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let operation_entries = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.entries_buckets.clone(),
+        });
+        let operation_entries_rate = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.entries_rate_buckets.clone(),
+        });
+        let operation_duration_seconds = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let operation_errors_total = Family::default();
+        let operation_executing = Family::default();
+        let operation_ttfb_seconds = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.ttfb_buckets.clone(),
+        });
 
-        let http_executing = Family::<OperationLabels, Gauge>::default();
-        let http_request_bytes =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_buckets.clone(),
-            });
-        let http_request_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_request_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_response_bytes =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_buckets.clone(),
-            });
-        let http_response_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_response_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new_with_constructor(HistogramConstructor {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_connection_errors_total = Family::<OperationLabels, Counter>::default();
-        let http_status_errors_total = Family::<OperationLabels, Counter>::default();
+        let http_executing = Family::default();
+        let http_request_bytes = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_buckets.clone(),
+        });
+        let http_request_bytes_rate = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_request_duration_seconds = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_response_bytes = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_buckets.clone(),
+        });
+        let http_response_bytes_rate = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_response_duration_seconds = Family::new_with_constructor(HistogramConstructor {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_connection_errors_total = Family::default();
+        let http_status_errors_total = Family::default();
 
-        register_metric(
-            registry,
-            operation_bytes.clone(),
-            observe::MetricValue::OperationBytes(0),
-        );
-        register_metric(
-            registry,
-            operation_bytes_rate.clone(),
-            observe::MetricValue::OperationBytesRate(0.0),
-        );
-        register_metric(
-            registry,
-            operation_entries.clone(),
-            observe::MetricValue::OperationEntries(0),
-        );
-        register_metric(
-            registry,
-            operation_entries_rate.clone(),
-            observe::MetricValue::OperationEntriesRate(0.0),
-        );
-        register_metric(
-            registry,
-            operation_duration_seconds.clone(),
-            observe::MetricValue::OperationDurationSeconds(Duration::default()),
-        );
-        register_metric(
-            registry,
-            operation_errors_total.clone(),
-            observe::MetricValue::OperationErrorsTotal,
-        );
-        register_metric(
-            registry,
-            operation_executing.clone(),
-            observe::MetricValue::OperationExecuting(0),
-        );
-        register_metric(
-            registry,
-            operation_ttfb_seconds.clone(),
-            observe::MetricValue::OperationTtfbSeconds(Duration::default()),
-        );
+        macro_rules! register_metrics {
+            ($($field:ident => $value:expr),* $(,)?) => {
+                $(
+                    {
+                        let ((name, unit), help) = ($value.name_with_unit(), $value.help());
+                        if let Some(unit) = unit {
+                            registry.register_with_unit(name, help, Unit::Other(unit.to_string()), $field.clone());
+                        } else {
+                            registry.register(name, help, $field.clone());
+                        }
+                    }
+                )*
+            };
+        }
 
-        register_metric(
-            registry,
-            http_executing.clone(),
-            observe::MetricValue::HttpExecuting(0),
-        );
-        register_metric(
-            registry,
-            http_request_bytes.clone(),
-            observe::MetricValue::HttpRequestBytes(0),
-        );
-        register_metric(
-            registry,
-            http_request_bytes_rate.clone(),
-            observe::MetricValue::HttpRequestBytesRate(0.0),
-        );
-        register_metric(
-            registry,
-            http_request_duration_seconds.clone(),
-            observe::MetricValue::HttpRequestDurationSeconds(Duration::default()),
-        );
-        register_metric(
-            registry,
-            http_response_bytes.clone(),
-            observe::MetricValue::HttpResponseBytes(0),
-        );
-        register_metric(
-            registry,
-            http_response_bytes_rate.clone(),
-            observe::MetricValue::HttpResponseBytesRate(0.0),
-        );
-        register_metric(
-            registry,
-            http_response_duration_seconds.clone(),
-            observe::MetricValue::HttpResponseDurationSeconds(Duration::default()),
-        );
-        register_metric(
-            registry,
-            http_connection_errors_total.clone(),
-            observe::MetricValue::HttpConnectionErrorsTotal,
-        );
-        register_metric(
-            registry,
-            http_status_errors_total.clone(),
-            observe::MetricValue::HttpStatusErrorsTotal,
-        );
+        register_metrics! {
+            // Operation metrics
+            operation_bytes => observe::MetricValue::OperationBytes(0),
+            operation_bytes_rate => observe::MetricValue::OperationBytesRate(0.0),
+            operation_entries => observe::MetricValue::OperationEntries(0),
+            operation_entries_rate => observe::MetricValue::OperationEntriesRate(0.0),
+            operation_duration_seconds => observe::MetricValue::OperationDurationSeconds(Duration::default()),
+            operation_errors_total => observe::MetricValue::OperationErrorsTotal,
+            operation_executing => observe::MetricValue::OperationExecuting(0),
+            operation_ttfb_seconds => observe::MetricValue::OperationTtfbSeconds(Duration::default()),
+
+            // HTTP metrics
+            http_executing => observe::MetricValue::HttpExecuting(0),
+            http_request_bytes => observe::MetricValue::HttpRequestBytes(0),
+            http_request_bytes_rate => observe::MetricValue::HttpRequestBytesRate(0.0),
+            http_request_duration_seconds => observe::MetricValue::HttpRequestDurationSeconds(Duration::default()),
+            http_response_bytes => observe::MetricValue::HttpResponseBytes(0),
+            http_response_bytes_rate => observe::MetricValue::HttpResponseBytesRate(0.0),
+            http_response_duration_seconds => observe::MetricValue::HttpResponseDurationSeconds(Duration::default()),
+            http_connection_errors_total => observe::MetricValue::HttpConnectionErrorsTotal,
+            http_status_errors_total => observe::MetricValue::HttpStatusErrorsTotal,
+        }
 
         PrometheusClientLayer {
             interceptor: PrometheusClientInterceptor {
@@ -511,15 +449,5 @@ impl EncodeLabelSet for OperationLabels {
             (observe::LABEL_STATUS_CODE, code.as_str()).encode(encoder.encode_label())?;
         }
         Ok(())
-    }
-}
-
-fn register_metric(registry: &mut Registry, metric: impl Metric, value: observe::MetricValue) {
-    let ((name, unit), help) = (value.name_with_unit(), value.help());
-
-    if let Some(unit) = unit {
-        registry.register_with_unit(name, help, Unit::Other(unit.to_string()), metric);
-    } else {
-        registry.register(name, help, metric);
     }
 }

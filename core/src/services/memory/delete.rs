@@ -15,19 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-memory")]
-mod backend;
-#[cfg(feature = "services-memory")]
-pub use backend::MemoryBuilder as Memory;
+use std::sync::Arc;
 
-mod config;
-pub use config::MemoryConfig;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-#[cfg(feature = "services-memory")]
-mod core;
-#[cfg(feature = "services-memory")]
-mod delete;
-#[cfg(feature = "services-memory")]
-mod lister;
-#[cfg(feature = "services-memory")]
-mod writer;
+pub struct MemoryDeleter {
+    core: Arc<MemoryCore>,
+    root: String,
+}
+
+impl MemoryDeleter {
+    pub fn new(core: Arc<MemoryCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MemoryDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p)?;
+        Ok(())
+    }
+}

@@ -15,20 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use super::core::{MokaCore, MokaValue};
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
 
 pub struct MokaWriter {
-    core: std::sync::Arc<MokaCore>,
+    core: Arc<MokaCore>,
     path: String,
     op: OpWrite,
     buffer: oio::QueueBuf,
 }
 
 impl MokaWriter {
-    pub fn new(core: std::sync::Arc<MokaCore>, path: String, op: OpWrite) -> Self {
+    pub fn new(core: Arc<MokaCore>, path: String, op: OpWrite) -> Self {
         Self {
             core,
             path,

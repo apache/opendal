@@ -50,8 +50,7 @@ impl oio::Write for CacacheWriter {
 
         self.core.set(&self.path, buf.to_bytes()).await?;
 
-        let meta = Metadata::new(EntryMode::from_path(&self.path))
-            .with_content_length(length);
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
         Ok(meta)
     }
 

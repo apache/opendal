@@ -42,11 +42,9 @@ impl CacacheCore {
         match data {
             Ok(bs) => Ok(Some(bytes::Bytes::from(bs))),
             Err(cacache::Error::EntryNotFound(_, _)) => Ok(None),
-            Err(err) => Err(
-                Error::new(ErrorKind::Unexpected, "cacache get failed")
-                    .with_operation("CacacheCore::get")
-                    .set_source(err),
-            ),
+            Err(err) => Err(Error::new(ErrorKind::Unexpected, "cacache get failed")
+                .with_operation("CacacheCore::get")
+                .set_source(err)),
         }
     }
 
@@ -90,11 +88,9 @@ impl CacacheCore {
             Ok(Some(md)) => Ok(Some(md)),
             Ok(None) => Ok(None),
             Err(cacache::Error::EntryNotFound(_, _)) => Ok(None),
-            Err(err) => Err(
-                Error::new(ErrorKind::Unexpected, "cacache metadata failed")
-                    .with_operation("CacacheCore::metadata")
-                    .set_source(err),
-            ),
+            Err(err) => Err(Error::new(ErrorKind::Unexpected, "cacache metadata failed")
+                .with_operation("CacacheCore::metadata")
+                .set_source(err)),
         }
     }
 }

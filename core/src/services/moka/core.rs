@@ -25,7 +25,9 @@ use crate::*;
 /// Value stored in moka cache containing both metadata and content
 #[derive(Clone)]
 pub struct MokaValue {
+    /// Stored metadata in moka cache.
     pub metadata: Metadata,
+    /// Stored content in moka cache.
     pub content: Buffer,
 }
 

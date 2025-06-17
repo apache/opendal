@@ -15,18 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use super::core::MokaCore;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
 
 pub struct MokaDeleter {
-    core: std::sync::Arc<MokaCore>,
+    core: Arc<MokaCore>,
     root: String,
 }
 
 impl MokaDeleter {
-    pub fn new(core: std::sync::Arc<MokaCore>, root: String) -> Self {
+    pub fn new(core: Arc<MokaCore>, root: String) -> Self {
         Self { core, root }
     }
 }

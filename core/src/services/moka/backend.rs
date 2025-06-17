@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::debug;
-use moka::future::Cache;
-use moka::future::CacheBuilder;
 
 use super::core::*;
 use super::delete::MokaDeleter;
@@ -34,19 +34,74 @@ use crate::*;
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
     fn into_builder(self) -> Self::Builder {
-        MokaBuilder { config: self }
+        MokaBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }
 
+/// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
+pub type MokaCache<K, V> = moka::future::Cache<K, V>;
+/// Type alias of [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
+pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
+
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MokaBuilder {
     config: MokaConfig,
+    builder: MokaCacheBuilder<String, MokaValue>,
+}
+
+impl Debug for MokaBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MokaBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl MokaBuilder {
-    /// Name for this cache instance.
+    /// Create a [`MokaBuilder`] with the given [`moka::future::CacheBuilder`].
+    ///
+    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use std::time::Duration;
+    /// # use log::debug;
+    /// # use moka::notification::RemovalCause;
+    /// # use opendal::services::Moka;
+    /// # use opendal::services::MokaCacheBuilder;
+    /// # use opendal::services::MokaValue;
+    /// # use opendal::Configurator;
+    /// let moka = Moka::new(
+    ///     MokaCacheBuilder::<String, MokaValue>::default()
+    ///         .name("demo")
+    ///         .max_capacity(1000)
+    ///         .time_to_live(Duration::from_secs(300))
+    ///         .weigher(|k, v| (k.len() + v.content.len()) as u32)
+    ///         .eviction_listener(|k: Arc<String>, v: MokaValue, cause: RemovalCause| {
+    ///             debug!(
+    ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
+    ///                 k.as_str(), v.content.to_vec(), cause
+    ///             );
+    ///         })
+    /// );
+    /// ```
+    pub fn new(builder: MokaCacheBuilder<String, MokaValue>) -> Self {
+        Self {
+            builder,
+            ..Default::default()
+        }
+    }
+
+    /// Sets the name of the cache.
+    ///
+    /// Refer to [`moka::future::CacheBuilder::name`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.name)
     pub fn name(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.name = Some(v.to_owned());
@@ -56,7 +111,7 @@ impl MokaBuilder {
 
     /// Sets the max capacity of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.max_capacity)
+    /// Refer to [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
     pub fn max_capacity(mut self, v: u64) -> Self {
         if v != 0 {
             self.config.max_capacity = Some(v);
@@ -66,7 +121,7 @@ impl MokaBuilder {
 
     /// Sets the time to live of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_live)
+    /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_live = Some(v);
@@ -76,7 +131,7 @@ impl MokaBuilder {
 
     /// Sets the time to idle of the cache.
     ///
-    /// Refer to [`moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+    /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
@@ -84,7 +139,7 @@ impl MokaBuilder {
         self
     }
 
-    /// Set root path of this backend
+    /// Set the root path of this backend
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = if path.is_empty() {
             None
@@ -110,7 +165,7 @@ impl Builder for MokaBuilder {
                 .as_str(),
         );
 
-        let mut builder: CacheBuilder<String, MokaValue, _> = Cache::builder();
+        let mut builder = self.builder;
 
         // Use entries' bytes as capacity weigher.
         builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
@@ -118,16 +173,16 @@ impl Builder for MokaBuilder {
             builder = builder.name(v);
         }
         if let Some(v) = self.config.max_capacity {
-            builder = builder.max_capacity(v)
+            builder = builder.max_capacity(v);
         }
         if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v)
+            builder = builder.time_to_live(v);
         }
         if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v)
+            builder = builder.time_to_idle(v);
         }
 
-        debug!("backend build finished: {:?}", &self);
+        debug!("backend build finished: {:?}", self.config);
 
         let core = MokaCore {
             cache: builder.build(),
@@ -140,9 +195,9 @@ impl Builder for MokaBuilder {
 /// MokaAccessor implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct MokaAccessor {
-    core: std::sync::Arc<MokaCore>,
+    core: Arc<MokaCore>,
     root: String,
-    info: std::sync::Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
 }
 
 impl MokaAccessor {
@@ -172,9 +227,9 @@ impl MokaAccessor {
         });
 
         Self {
-            core: std::sync::Arc::new(core),
+            core: Arc::new(core),
             root: "/".to_string(),
-            info: std::sync::Arc::new(info),
+            info: Arc::new(info),
         }
     }
 
@@ -191,7 +246,7 @@ impl Access for MokaAccessor {
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
     }
 

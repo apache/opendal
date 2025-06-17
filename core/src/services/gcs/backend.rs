@@ -231,6 +231,13 @@ impl GcsBuilder {
         self.config.allow_anonymous = true;
         self
     }
+
+    /// Set bucket versioning status for this backend
+    pub fn enable_versioning(mut self, enabled: bool) -> Self {
+        self.config.enable_versioning = enabled;
+
+        self
+    }
 }
 
 impl Builder for GcsBuilder {
@@ -315,6 +322,7 @@ impl Builder for GcsBuilder {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
+                            stat_with_version: self.config.enable_versioning,
                             stat_has_etag: true,
                             stat_has_content_md5: true,
                             stat_has_content_length: true,
@@ -323,11 +331,13 @@ impl Builder for GcsBuilder {
                             stat_has_last_modified: true,
                             stat_has_user_metadata: true,
                             stat_has_cache_control: true,
+                            stat_has_version: self.config.enable_versioning,
 
                             read: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,
+                            read_with_version: self.config.enable_versioning,
 
                             write: true,
                             write_can_empty: true,
@@ -352,6 +362,7 @@ impl Builder for GcsBuilder {
                             },
 
                             delete: true,
+                            delete_with_version: self.config.enable_versioning,
                             delete_max_size: Some(100),
                             copy: true,
 
@@ -364,6 +375,8 @@ impl Builder for GcsBuilder {
                             list_has_content_length: true,
                             list_has_content_type: true,
                             list_has_last_modified: true,
+                            list_with_versions: self.config.enable_versioning,
+                            list_with_deleted: self.config.enable_versioning,
 
                             presign: true,
                             presign_stat: true,
@@ -463,15 +476,10 @@ impl Access for GcsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GcsLister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
-
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        Ok((
+            RpList::default(),
+            oio::PageLister::new(GcsLister::new(self.core.clone(), path, args)),
+        ))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

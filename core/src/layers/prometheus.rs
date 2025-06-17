@@ -94,7 +94,6 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -108,7 +107,7 @@ impl PrometheusLayer {
     ///
     /// let duration_seconds_buckets = prometheus::exponential_buckets(0.01, 2.0, 16).unwrap();
     /// let bytes_buckets = prometheus::exponential_buckets(1.0, 2.0, 16).unwrap();
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
     ///             .duration_seconds_buckets(duration_seconds_buckets)
@@ -117,9 +116,7 @@ impl PrometheusLayer {
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn builder() -> PrometheusLayerBuilder {
@@ -132,7 +129,6 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -154,7 +150,7 @@ impl PrometheusLayer {
         GLOBAL.get_or_init(|| {
             Self::builder()
                 .register_default()
-                .expect("Failed to register to global registry")
+                .expect("Failed to register metrics into the global registry")
         })
     }
 }
@@ -244,7 +240,6 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -483,7 +478,6 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;

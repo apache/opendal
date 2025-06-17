@@ -90,7 +90,7 @@ impl FastmetricsLayer {
         GLOBAL.get_or_init(|| {
             Self::builder()
                 .register_global()
-                .expect("Failed to register to global registry")
+                .expect("Failed to register metrics into the global registry")
         })
     }
 }
@@ -189,7 +189,6 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::FastmetricsLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;

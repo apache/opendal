@@ -183,7 +183,6 @@ impl PrometheusClientLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusClientLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;

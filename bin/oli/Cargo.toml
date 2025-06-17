@@ -58,6 +58,7 @@ opendal = { version = "0.53.0", path = "../../core", features = [
 parse-size = { version = "1.1" }
 pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
+tempfile = { version = "3.14" }
 tokio = { version = "1.42", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
@@ -69,5 +70,4 @@ comfy-table = "7"
 insta = { version = "1.43", features = ["filters"] }
 insta-cmd = { version = "0.6" }
 regex = "1"
-tempfile = { version = "3.14" }
 walkdir = "2.5.0"

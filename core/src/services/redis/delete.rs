@@ -15,18 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The entry point to combine all integration tests into a single binary.
-//!
-//! See [this post](https://matklad.github.io/2021/02/27/delete-cargo-integration-tests.html)
-//! for the rationale behind this approach.
+use super::core::RedisCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod cat;
-mod cp;
-mod edit;
-mod ls;
-mod mv;
-mod rm;
-mod stat;
-mod tee;
+pub struct RedisDeleter {
+    core: std::sync::Arc<RedisCore>,
+    root: String,
+}
 
-pub mod test_utils;
+impl RedisDeleter {
+    pub fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for RedisDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

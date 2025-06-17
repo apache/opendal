@@ -41,8 +41,10 @@ impl Configurator for MokaConfig {
     }
 }
 
-type MokaCache<K, V> = moka::future::Cache<K, V>;
-type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
+/// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
+pub type MokaCache<K, V> = moka::future::Cache<K, V>;
+/// Type alias of [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
+pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, V>>;
 
 /// [moka](https://github.com/moka-rs/moka) backend support.
 #[doc = include_str!("docs.md")]
@@ -61,6 +63,42 @@ impl Debug for MokaBuilder {
 }
 
 impl MokaBuilder {
+    /// Create a [`MokaBuilder`] with the given [`moka::future::CacheBuilder`].
+    ///
+    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use std::sync::Arc;
+    /// # use std::time::Duration;
+    /// # use moka::notification::RemovalCause;
+    /// # use opendal::services::Moka;
+    /// # use opendal::services::MokaCacheBuilder;
+    /// # use opendal::services::MokaValue;
+    /// # use opendal::Configurator;
+    /// # use log::debug;
+    /// let moka = Moka::new(
+    ///     MokaCacheBuilder::<String, MokaValue>::default()
+    ///         .name("demo")
+    ///         .max_capacity(1000)
+    ///         .time_to_live(Duration::from_secs(300))
+    ///         .weigher(|k, v| (k.len() + v.content.len()) as u32)
+    ///         .eviction_listener(|k: Arc<String>, v: MokaValue, cause: RemovalCause| {
+    ///             debug!(
+    ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
+    ///                 k.as_str(), v.content.to_vec(), cause
+    ///             );
+    ///     })
+    /// );
+    /// ```
+    pub fn new(builder: MokaCacheBuilder<String, MokaValue>) -> Self {
+        Self {
+            builder,
+            ..Default::default()
+        }
+    }
+
     /// Sets the name of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::name`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.name)
@@ -98,43 +136,6 @@ impl MokaBuilder {
         if !v.is_zero() {
             self.config.time_to_idle = Some(v);
         }
-        self
-    }
-
-    /// Configure the cache builder with a closure.
-    ///
-    /// Refer to [`moka::future::CacheBuilder`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html)
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use std::sync::Arc;
-    /// # use std::time::Duration;
-    /// # use moka::notification::RemovalCause;
-    /// # use opendal::services::MokaConfig;
-    /// # use opendal::services::MokaValue;
-    /// # use opendal::Configurator;
-    /// # use log::debug;
-    /// let builder = MokaConfig::default().into_builder();
-    /// let moka = builder.configure(|builder| {
-    ///     builder
-    ///         .name("demo")
-    ///         .max_capacity(1000)
-    ///         .time_to_live(Duration::from_secs(300))
-    ///         .weigher(|k, v| (k.len() + v.content.len()) as u32)
-    ///         .eviction_listener(|k: Arc<String>, v: MokaValue, cause: RemovalCause| {
-    ///             debug!(
-    ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
-    ///                 k.as_str(), v.content.to_vec(), cause
-    ///             );
-    ///         })
-    /// });
-    /// ```
-    pub fn configure<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(MokaCacheBuilder<String, MokaValue>) -> MokaCacheBuilder<String, MokaValue>,
-    {
-        self.builder = f(self.builder);
         self
     }
 

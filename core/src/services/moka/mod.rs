@@ -28,6 +28,8 @@ mod writer;
 
 #[cfg(feature = "services-moka")]
 pub use backend::MokaBuilder as Moka;
+#[cfg(feature = "services-moka")]
+pub use backend::MokaCacheBuilder;
 
 #[cfg(feature = "services-moka")]
 pub use core::MokaValue;

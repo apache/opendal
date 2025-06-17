@@ -19,7 +19,6 @@ This service can be used to:
 - `max_capacity`: Set the max capacity of the cache.
 - `time_to_live`: Set the time to live of the cache.
 - `time_to_idle`: Set the time to idle of the cache.
-- `configure`: Configure the moka cache builder with a closure.
 
 You can refer to [`MokaBuilder`]'s docs for more information
 

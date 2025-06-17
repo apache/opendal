@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use prometheus::core::AtomicI64;
@@ -42,6 +41,8 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Basic Usage
+///
 /// ```no_run
 /// # use log::debug;
 /// # use log::info;
@@ -67,6 +68,62 @@ use crate::*;
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
 /// // Read data from object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut buffer = Vec::<u8>::new();
+/// let encoder = prometheus::TextEncoder::new();
+/// encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+/// println!("## Prometheus Metrics");
+/// println!("{}", String::from_utf8(buffer.clone()).unwrap());
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Global Instance
+///
+/// `PrometheusLayer` needs to be registered before instantiation.
+///
+/// If there are multiple operators in an application that need the `PrometheusLayer`, we could
+/// instantiate it once and pass it to multiple operators. But we cannot directly call
+/// `.layer(PrometheusLayer::builder().register(&registry)?)` for different services, because
+/// registering the same metrics multiple times to the same registry will cause register errors.
+/// Therefore, we can provide a global instance for the `PrometheusLayer`.
+///
+/// ```no_run
+/// # use std::sync::OnceLock;
+/// # use log::debug;
+/// # use log::info;
+/// # use opendal::layers::PrometheusLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use prometheus::Encoder;
+///
+/// fn global_prometheus_layer() -> &'static PrometheusLayer {
+///     static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
+///     GLOBAL.get_or_init(|| {
+///         PrometheusLayer::builder()
+///             .register_default()
+///             .expect("Failed to register with the global registry")
+///     })
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(global_prometheus_layer().clone())
+///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
 /// let bs = op.read("test").await?;
 /// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
 ///
@@ -121,37 +178,6 @@ impl PrometheusLayer {
     /// ```
     pub fn builder() -> PrometheusLayerBuilder {
         PrometheusLayerBuilder::default()
-    }
-
-    /// Return a shared global [`PrometheusLayer`] instance that registers metrics into the
-    /// prometheus default (global) registry.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use opendal::layers::PrometheusLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    /// #
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
-    /// // Pick a builder and configure it.
-    /// let builder = services::Memory::default();
-    /// let _ = Operator::new(builder)?
-    ///     .layer(PrometheusLayer::global().clone())
-    ///     .finish();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn global() -> &'static Self {
-        static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
-
-        GLOBAL.get_or_init(|| {
-            Self::builder()
-                .register_default()
-                .expect("Failed to register metrics into the global registry")
-        })
     }
 }
 

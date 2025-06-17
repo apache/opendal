@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 use fastmetrics::encoder::EncodeLabelSet;
@@ -39,17 +38,92 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Basic Usage
+///
 /// ```no_run
+/// # use fastmetrics::format::text;
+/// # use log::info;
 /// # use opendal::layers::FastmetricsLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
 ///
-/// # fn main() -> Result<()> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let mut registry = fastmetrics::registry::Registry::default();
-/// let _ = Operator::new(services::Memory::default())?
+/// let op = Operator::new(services::Memory::default())?
 ///     .layer(FastmetricsLayer::builder().register(&mut registry)?)
 ///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut output = String::new();
+/// text::encode(&mut output, &registry).unwrap();
+/// println!("{}", output);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Global Instance
+///
+/// `FastmetricsLayer` needs to be registered before instantiation.
+///
+/// If there are multiple operators in an application that need the `FastmetricsLayer`, we could
+/// instantiate it once and pass it to multiple operators. But we cannot directly call
+/// `.layer(FastmetricsLayer::builder().register(&mut registry)?)` for different services, because
+/// registering the same metrics multiple times to the same registry will cause register errors.
+/// Therefore, we can provide a global instance for the `FastmetricsLayer`.
+///
+/// ```no_run
+/// # use std::sync::OnceLock;
+/// # use fastmetrics::format::text;
+/// # use fastmetrics::registry::with_global_registry;
+/// # use log::info;
+/// # use opendal::layers::FastmetricsLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+///
+/// fn global_fastmetrics_layer() -> &'static FastmetricsLayer {
+///     static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
+///     GLOBAL.get_or_init(|| {
+///         FastmetricsLayer::builder()
+///             .register_global()
+///             .expect("Failed to register with the global registry")
+///     })
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(global_fastmetrics_layer().clone())
+///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut output = String::new();
+/// with_global_registry(|registry| text::encode(&mut output, &registry).unwrap());
+/// println!("{}", output);
 /// # Ok(())
 /// # }
 /// ```
@@ -62,36 +136,6 @@ impl FastmetricsLayer {
     /// Create a [`FastmetricsLayerBuilder`] to set the configuration of metrics.
     pub fn builder() -> FastmetricsLayerBuilder {
         FastmetricsLayerBuilder::default()
-    }
-
-    /// Return a shared global [`FastmetricsLayer`] instance that registers metrics into the
-    /// fastmetrics global registry.
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// # use opendal::layers::FastmetricsLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
-    ///
-    /// # fn main() -> Result<()> {
-    /// // Pick a builder and configure it.
-    /// let builder = services::Memory::default();
-    /// let _ = Operator::new(builder)?
-    ///     .layer(FastmetricsLayer::global().clone())
-    ///     .finish();
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn global() -> &'static Self {
-        static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
-
-        GLOBAL.get_or_init(|| {
-            Self::builder()
-                .register_global()
-                .expect("Failed to register metrics into the global registry")
-        })
     }
 }
 

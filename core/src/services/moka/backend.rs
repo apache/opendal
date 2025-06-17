@@ -111,8 +111,8 @@ impl MokaBuilder {
     /// # use std::sync::Arc;
     /// # use std::time::Duration;
     /// # use moka::notification::RemovalCause;
-    /// # use opendal::raw::adapters::typed_kv;
     /// # use opendal::services::MokaConfig;
+    /// # use opendal::services::MokaValue;
     /// # use opendal::Configurator;
     /// # use log::debug;
     /// let builder = MokaConfig::default().into_builder();
@@ -121,11 +121,11 @@ impl MokaBuilder {
     ///         .name("demo")
     ///         .max_capacity(1000)
     ///         .time_to_live(Duration::from_secs(300))
-    ///         .weigher(|k, v| (k.len() + v.size()) as u32)
-    ///         .eviction_listener(|k: Arc<String>, v: typed_kv::Value, cause: RemovalCause| {
+    ///         .weigher(|k, v| (k.len() + v.content.len()) as u32)
+    ///         .eviction_listener(|k: Arc<String>, v: MokaValue, cause: RemovalCause| {
     ///             debug!(
     ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
-    ///                 k.as_str(), v.value.to_vec(), cause
+    ///                 k.as_str(), v.content.to_vec(), cause
     ///             );
     ///         })
     /// });

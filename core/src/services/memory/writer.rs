@@ -17,67 +17,69 @@
 
 use std::sync::Arc;
 
-use super::core::{MokaCore, MokaValue};
+use super::core::*;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
 
-pub struct MokaWriter {
-    core: Arc<MokaCore>,
+pub struct MemoryWriter {
+    core: Arc<MemoryCore>,
     path: String,
     op: OpWrite,
-    buffer: oio::QueueBuf,
+    buf: Option<oio::QueueBuf>,
 }
 
-impl MokaWriter {
-    pub fn new(core: Arc<MokaCore>, path: String, op: OpWrite) -> Self {
+impl MemoryWriter {
+    pub fn new(core: Arc<MemoryCore>, path: String, op: OpWrite) -> Self {
         Self {
             core,
             path,
             op,
-            buffer: oio::QueueBuf::new(),
+            buf: None,
         }
     }
 }
 
-impl oio::Write for MokaWriter {
+impl oio::Write for MemoryWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.buffer.push(bs);
+        let mut buf = self.buf.take().unwrap_or_default();
+        buf.push(bs);
+        self.buf = Some(buf);
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let buf = self.buffer.clone().collect();
-        let length = buf.len() as u64;
+        let buf = self.buf.take().unwrap_or_default();
+        let content = buf.collect();
 
-        // Build metadata with write options
-        let mut metadata =
-            Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        let mut metadata = Metadata::new(EntryMode::FILE);
+        metadata.set_content_length(content.len() as u64);
 
-        if let Some(content_type) = self.op.content_type() {
-            metadata.set_content_type(content_type);
+        if let Some(v) = self.op.cache_control() {
+            metadata.set_cache_control(v);
         }
-        if let Some(content_disposition) = self.op.content_disposition() {
-            metadata.set_content_disposition(content_disposition);
+        if let Some(v) = self.op.content_disposition() {
+            metadata.set_content_disposition(v);
         }
-        if let Some(cache_control) = self.op.cache_control() {
-            metadata.set_cache_control(cache_control);
+        if let Some(v) = self.op.content_type() {
+            metadata.set_content_type(v);
         }
-        if let Some(content_encoding) = self.op.content_encoding() {
-            metadata.set_content_encoding(content_encoding);
+        if let Some(v) = self.op.content_encoding() {
+            metadata.set_content_encoding(v);
         }
 
-        let value = MokaValue {
+        let value = MemoryValue {
             metadata: metadata.clone(),
-            content: buf,
+            content,
         };
 
-        self.core.set(&self.path, value).await?;
+        self.core.set(&self.path, value)?;
+
         Ok(metadata)
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.buffer.clear();
+        self.buf = None;
         Ok(())
     }
 }

@@ -15,24 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-moka")]
-mod backend;
-#[cfg(feature = "services-moka")]
-mod core;
-#[cfg(feature = "services-moka")]
-mod delete;
-#[cfg(feature = "services-moka")]
-mod lister;
-#[cfg(feature = "services-moka")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-moka")]
-pub use backend::MokaBuilder as Moka;
-#[cfg(feature = "services-moka")]
-pub use backend::MokaCacheBuilder;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-#[cfg(feature = "services-moka")]
-pub use core::MokaValue;
+pub struct MemoryDeleter {
+    core: Arc<MemoryCore>,
+    root: String,
+}
 
-mod config;
-pub use config::MokaConfig;
+impl MemoryDeleter {
+    pub fn new(core: Arc<MemoryCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MemoryDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p)?;
+        Ok(())
+    }
+}

@@ -15,28 +15,42 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+use std::vec::IntoIter;
 
-use super::core::MokaCore;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
 
-pub struct MokaDeleter {
-    core: Arc<MokaCore>,
+pub struct MemoryLister {
     root: String,
+    keys: IntoIter<String>,
 }
 
-impl MokaDeleter {
-    pub fn new(core: Arc<MokaCore>, root: String) -> Self {
-        Self { core, root }
+impl MemoryLister {
+    pub fn new(root: &str, keys: Vec<String>) -> Self {
+        Self {
+            root: root.to_string(),
+            keys: keys.into_iter(),
+        }
     }
 }
 
-impl oio::OneShotDelete for MokaDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p).await?;
-        Ok(())
+impl oio::List for MemoryLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self.keys.next() {
+            Some(key) => {
+                let mode = if key.ends_with('/') {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::FILE
+                };
+                let mut path = build_rel_path(&self.root, &key);
+                if path.is_empty() {
+                    path = "/".to_string();
+                }
+                Ok(Some(oio::Entry::new(&path, Metadata::new(mode))))
+            }
+            None => Ok(None),
+        }
     }
 }

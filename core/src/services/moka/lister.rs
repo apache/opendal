@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+use std::vec::IntoIter;
+
 use super::core::MokaCore;
 use crate::raw::oio;
 use crate::raw::*;
@@ -22,11 +25,11 @@ use crate::*;
 
 pub struct MokaLister {
     root: String,
-    keys: std::vec::IntoIter<String>,
+    keys: IntoIter<String>,
 }
 
 impl MokaLister {
-    pub fn new(core: std::sync::Arc<MokaCore>, root: String, _path: String) -> Self {
+    pub fn new(core: Arc<MokaCore>, root: String, _path: String) -> Self {
         // Get all keys from the cache
         let keys: Vec<String> = core.cache.iter().map(|kv| kv.0.to_string()).collect();
 

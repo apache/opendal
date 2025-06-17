@@ -131,29 +131,28 @@ export function run(op) {
       await op.delete(filename)
     })
 
-    // Disable test until https://github.com/apache/opendal/issues/6305 fixed.
-    // test.skipIf(!capability.statWithVersion)('stat with version', async () => {
-    //   const size = 5 * 1024 * 1024
-    //   const filename = `random_file_${randomUUID()}`
-    //   const content = generateFixedBytes(size)
+    test.skipIf(!capability.statWithVersion)('stat with version', async () => {
+      const size = 5 * 1024 * 1024
+      const filename = `random_file_${randomUUID()}`
+      const content = generateFixedBytes(size)
 
-    //   await op.write(filename, content)
-    //   const first_meta = await op.stat(filename)
-    //   const first_version = first_meta.version
+      await op.write(filename, content)
+      const first_meta = await op.stat(filename)
+      const first_version = first_meta.version
 
-    //   const first_versioning_meta = await op.stat(filename, { version: first_version })
-    //   expect(first_versioning_meta).toBe(first_meta)
+      const first_versioning_meta = await op.stat(filename, { version: first_version })
+      expect(first_versioning_meta).toStrictEqual(first_meta)
 
-    //   await op.write(filename, content)
-    //   const second_meta = await op.stat(filename)
-    //   const second_version = second_meta.version
-    //   expect(second_version).not.toBe(first_version)
+      await op.write(filename, content)
+      const second_meta = await op.stat(filename)
+      const second_version = second_meta.version
+      expect(second_version).not.toBe(first_version)
 
-    //   const meta = await op.stat(filename, { version: first_version })
-    //   expect(meta).toBe(first_meta)
+      const meta = await op.stat(filename, { version: first_version })
+      expect(meta).toStrictEqual(first_meta)
 
-    //   await op.delete(filename)
-    // })
+      await op.delete(filename)
+    })
 
     test.skipIf(!capability.statWithVersion)('stat with not existing version', async () => {
       const size = 5 * 1024 * 1024

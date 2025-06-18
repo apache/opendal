@@ -43,14 +43,24 @@ pub struct ReadOptions {
 
 impl ReadOptions {
     pub fn make_range(&self) -> (RangeBound<u64>, RangeBound<u64>) {
-        let start_bound = self
-            .offset
-            .map_or(RangeBound::Unbounded, |s| RangeBound::Included(s as u64));
-        let end_bound = self
-            .size
-            .map_or(RangeBound::Unbounded, |e| RangeBound::Excluded(e as u64));
-
-        (start_bound, end_bound)
+        match (self.offset, self.size) {
+            (Some(offset), Some(size)) => {
+                let start = offset as u64;
+                let len = size as u64;
+                // prevent overflow
+                let end = start.checked_add(len).expect("offset + size overflow");
+                (RangeBound::Included(start), RangeBound::Excluded(end))
+            }
+            (Some(offset), None) => {
+                let start = offset as u64;
+                (RangeBound::Included(start), RangeBound::Unbounded)
+            }
+            (None, Some(size)) => {
+                let len = size as u64;
+                (RangeBound::Included(0), RangeBound::Excluded(len))
+            }
+            (None, None) => (RangeBound::Unbounded, RangeBound::Unbounded),
+        }
     }
 }
 

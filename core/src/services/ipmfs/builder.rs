@@ -142,7 +142,6 @@ impl Builder for IpmfsBuilder {
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
 
                 read: true,
 
@@ -150,7 +149,6 @@ impl Builder for IpmfsBuilder {
                 delete: true,
 
                 list: true,
-                list_has_content_length: true,
 
                 shared: true,
 

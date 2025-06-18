@@ -95,7 +95,6 @@ impl Builder for CompfsBuilder {
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
-                        stat_has_last_modified: true,
 
                         read: true,
 

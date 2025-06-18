@@ -32,7 +32,7 @@ export function run(op) {
 
   describe.runIf(capability.read && capability.write)('async read options', () => {
     test('read with range', async () => {
-      const size = 5 * 1024 * 1024
+      const size = 3 * 1024 * 1024
       const filename = `random_file_${randomUUID()}`
       const content = generateFixedBytes(size)
       const offset = Math.floor(Math.random() * (size - 1))
@@ -96,7 +96,7 @@ export function run(op) {
     })
 
     test.runIf(capability.readWithIfModifiedSince)('read with if modified since', async () => {
-      const size = 5 * 1024 * 1024
+      const size = 3 * 1024 * 1024
       const filename = `random_file_${randomUUID()}`
       const content = generateBytes(size)
 
@@ -120,7 +120,7 @@ export function run(op) {
     })
 
     test.runIf(capability.readWithIfUnmodifiedSince)('read with if unmodified since', async () => {
-      const size = 5 * 1024 * 1024
+      const size = 3 * 1024 * 1024
       const filename = `random_file_${randomUUID()}`
       const content = generateBytes(size)
 

@@ -60,23 +60,22 @@ async fn test_ls_tree() -> Result<()> {
     fs::write(&file_b, content)?;
 
     let current_dir = dir.path().to_string_lossy().to_string() + "/";
-    let t = oli()
-        .arg("ls")
-        .arg("--tree")
-        .arg(current_dir)
-        .assert()
-        .success();
+    let mut cmd = oli();
+    cmd.arg("ls").arg("--tree").arg(current_dir);
 
-    let output = String::from_utf8(t.get_output().stdout.clone())?;
-    let expected = r#".
+    assert_cmd_snapshot!(cmd, @r#"
+success: true
+exit_code: 0
+----- stdout -----
+.
 ├── a/
 │   ├── b/
 │   │   └── file_b
 │   └── file_a
 └── file_root
-"#;
 
-    assert_eq!(output.trim(), expected.trim());
+----- stderr -----
+"#);
 
     Ok(())
 }

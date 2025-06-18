@@ -96,6 +96,24 @@ impl Capability {
         self.0.read
     }
 
+    /// If operator supports read with version.
+    #[napi(getter)]
+    pub fn read_with_version(&self) -> bool {
+        self.0.read_with_version
+    }
+
+    /// If operator supports read with range.
+    #[napi(getter)]
+    pub fn read_with_if_modified_since(&self) -> bool {
+        self.0.read_with_if_modified_since
+    }
+
+    /// If operator supports read with if unmodified since.
+    #[napi(getter)]
+    pub fn read_with_if_unmodified_since(&self) -> bool {
+        self.0.read_with_if_unmodified_since
+    }
+
     /// If operator supports read with if matched.
     #[napi(getter)]
     pub fn read_with_if_match(&self) -> bool {

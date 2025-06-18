@@ -56,6 +56,12 @@ pub struct AzdlsConfig {
     /// - required for client_credentials authentication
     /// - default value: `https://login.microsoftonline.com`
     pub authority_host: Option<String>,
+    /// enable_list_start_after
+    /// If true, when performing a list operation, the `start_after` argument will be used
+    /// as a continuation token to list entries after the specified entry. This saves time
+    /// by avoiding listing the full directory and filtering in memory. This is an
+    /// undocumented feature of Azdls and should be thoroughly tested before use.
+    pub enable_list_start_after: bool,
 }
 
 impl Debug for AzdlsConfig {

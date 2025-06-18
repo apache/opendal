@@ -206,6 +206,16 @@ impl AzdlsBuilder {
         self
     }
 
+    /// If enabled, the list operation's, `start_after` argument will be used as a continuation token
+    /// to list entries after the specified entry.
+    ///
+    /// This saves time by avoiding listing the full directory and filtering in memory.
+    /// This is an undocumented feature of Azdls and should be thoroughly tested before use.
+    pub fn enable_list_start_after(mut self, enable: bool) -> Self {
+        self.config.enable_list_start_after = enable;
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -326,6 +336,7 @@ impl Builder for AzdlsBuilder {
                             list_has_etag: true,
                             list_has_content_length: true,
                             list_has_last_modified: true,
+                            list_with_start_after: self.config.enable_list_start_after,
 
                             shared: true,
 
@@ -422,7 +433,7 @@ impl Access for AzdlsBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args.limit());
+        let l = AzdlsLister::new(self.core.clone(), path.to_string(), args);
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

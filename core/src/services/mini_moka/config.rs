@@ -16,16 +16,19 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
 
 /// Config for mini-moka support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MiniMokaConfig {
+    /// Name for this cache instance.
+    pub name: Option<String>,
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
@@ -41,4 +44,16 @@ pub struct MiniMokaConfig {
 
     /// root path of this backend
     pub root: Option<String>,
+}
+
+impl Debug for MiniMokaConfig {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MiniMokaConfig")
+            .field("name", &self.name)
+            .field("max_capacity", &self.max_capacity)
+            .field("time_to_live", &self.time_to_live)
+            .field("time_to_idle", &self.time_to_idle)
+            .field("root", &self.root)
+            .finish()
+    }
 }

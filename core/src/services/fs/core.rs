@@ -24,12 +24,16 @@ use uuid::Uuid;
 use crate::raw::*;
 use crate::*;
 
+#[cfg(all(feature = "services-fs-direct-io", target_family = "unix"))]
+const O_DIRECT: i32 = 0x4000;
+
 #[derive(Debug)]
 pub struct FsCore {
     pub info: Arc<AccessorInfo>,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
     pub buf_pool: oio::PooledBuf,
+    pub direct_io: bool,
 }
 
 impl FsCore {
@@ -59,6 +63,62 @@ impl FsCore {
             .map_err(new_std_io_error)?;
 
         Ok(p)
+    }
+
+    /// Open file for reading with optional direct IO
+    pub async fn open_read(&self, path: &Path) -> Result<tokio::fs::File> {
+        let mut open_options = tokio::fs::OpenOptions::new();
+        open_options.read(true);
+
+        self.apply_direct_io_flags(&mut open_options);
+
+        open_options.open(path).await.map_err(new_std_io_error)
+    }
+
+    /// Open file for writing with optional direct IO
+    pub async fn open_write(
+        &self,
+        path: &Path,
+        create: bool,
+        append: bool,
+        if_not_exists: bool,
+    ) -> Result<tokio::fs::File> {
+        let mut open_options = tokio::fs::OpenOptions::new();
+        open_options.write(true);
+
+        if if_not_exists {
+            open_options.create_new(true);
+        } else if create {
+            open_options.create(true);
+        }
+
+        if append {
+            open_options.append(true);
+        } else {
+            open_options.truncate(true);
+        }
+
+        self.apply_direct_io_flags(&mut open_options);
+
+        open_options.open(path).await.map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => Error::new(
+                ErrorKind::ConditionNotMatch,
+                "The file already exists in the filesystem",
+            )
+            .set_source(e),
+            _ => new_std_io_error(e),
+        })
+    }
+
+    /// Apply direct IO flags to OpenOptions if enabled and supported
+    fn apply_direct_io_flags(&self, open_options: &mut tokio::fs::OpenOptions) {
+        if self.direct_io {
+            #[cfg(all(feature = "services-fs-direct-io", target_family = "unix"))]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                open_options.custom_flags(O_DIRECT);
+            }
+        }
     }
 }
 

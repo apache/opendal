@@ -49,6 +49,9 @@ version = "0.53.0"
 [features]
 default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
 
+# Enable direct IO support for fs service
+services-fs-direct-io = []
+
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 

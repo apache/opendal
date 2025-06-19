@@ -71,6 +71,20 @@ impl FsBuilder {
 
         self
     }
+
+    /// Enable direct IO mode.
+    ///
+    /// # Notes
+    ///
+    /// - Direct IO bypasses page cache for better control over memory usage
+    /// - Useful for database management systems and applications that need
+    ///   precise control over buffer cache
+    /// - Requires aligned memory access and may have performance implications
+    /// - Not supported on all filesystems and platforms
+    pub fn direct_io(mut self, enabled: bool) -> Self {
+        self.config.direct_io = enabled;
+        self
+    }
 }
 
 impl Builder for FsBuilder {
@@ -114,6 +128,17 @@ impl Builder for FsBuilder {
                             .set_source(e)
                     })?;
                 }
+            }
+        }
+
+        // Check direct IO support
+        if self.config.direct_io {
+            #[cfg(not(all(feature = "services-fs-direct-io", target_family = "unix")))]
+            {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "Direct IO requires the 'services-fs-direct-io' feature and Unix platform",
+                ));
             }
         }
 
@@ -180,6 +205,7 @@ impl Builder for FsBuilder {
                 root,
                 atomic_write_dir,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
+                direct_io: self.config.direct_io,
             }),
         })
     }
@@ -246,11 +272,7 @@ impl Access for FsBackend {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = self.core.root.join(path.trim_end_matches('/'));
 
-        let mut f = tokio::fs::OpenOptions::new()
-            .read(true)
-            .open(&p)
-            .await
-            .map_err(new_std_io_error)?;
+        let mut f = self.core.open_read(&p).await?;
 
         if args.range().offset() != 0 {
             use tokio::io::AsyncSeekExt;
@@ -298,37 +320,15 @@ impl Access for FsBackend {
             (p, None)
         };
 
-        let mut open_options = tokio::fs::OpenOptions::new();
-        if op.if_not_exists() {
-            open_options.create_new(true);
-        } else {
-            open_options.create(true);
-        }
-
-        open_options.write(true);
-
-        if op.append() {
-            open_options.append(true);
-        } else {
-            open_options.truncate(true);
-        }
-
-        let f = open_options
-            .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .await
-            .map_err(|e| {
-                match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => {
-                        // Map io AlreadyExists to opendal ConditionNotMatch
-                        Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "The file already exists in the filesystem",
-                        )
-                        .set_source(e)
-                    }
-                    _ => new_std_io_error(e),
-                }
-            })?;
+        let f = self
+            .core
+            .open_write(
+                tmp_path.as_ref().unwrap_or(&target_path),
+                true, // create
+                op.append(),
+                op.if_not_exists(),
+            )
+            .await?;
 
         let w = FsWriter::new(target_path, tmp_path, f);
 
@@ -445,5 +445,23 @@ mod tests {
             assert!(tmp_file.len() > expected_prefix.len());
             assert!(tmp_file.starts_with(expected_prefix));
         }
+    }
+
+    #[test]
+    fn test_fs_builder_direct_io() {
+        let builder = FsBuilder::default().root("/tmp").direct_io(true);
+        assert_eq!(builder.config.direct_io, true);
+
+        let builder = FsBuilder::default().root("/tmp").direct_io(false);
+        assert_eq!(builder.config.direct_io, false);
+    }
+
+    #[test]
+    #[cfg(not(all(feature = "services-fs-direct-io", target_family = "unix")))]
+    fn test_fs_builder_direct_io_unsupported() {
+        let builder = FsBuilder::default().root("/tmp").direct_io(true);
+        let result = builder.build();
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::Unsupported);
     }
 }

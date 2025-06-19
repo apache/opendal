@@ -30,4 +30,7 @@ pub struct FsConfig {
 
     /// tmp dir for atomic write
     pub atomic_write_dir: Option<String>,
+
+    /// enable direct IO mode
+    pub direct_io: bool,
 }

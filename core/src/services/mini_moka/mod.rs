@@ -29,8 +29,5 @@ mod writer;
 #[cfg(feature = "services-mini-moka")]
 pub use backend::MiniMokaBuilder as MiniMoka;
 
-#[cfg(feature = "services-mini-moka")]
-pub use core::MiniMokaValue;
-
 mod config;
 pub use config::MiniMokaConfig;

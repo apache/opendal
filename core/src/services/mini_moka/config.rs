@@ -27,8 +27,6 @@ use serde::Serialize;
 #[serde(default)]
 #[non_exhaustive]
 pub struct MiniMokaConfig {
-    /// Name for this cache instance.
-    pub name: Option<String>,
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
@@ -49,7 +47,6 @@ pub struct MiniMokaConfig {
 impl Debug for MiniMokaConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MiniMokaConfig")
-            .field("name", &self.name)
             .field("max_capacity", &self.max_capacity)
             .field("time_to_live", &self.time_to_live)
             .field("time_to_idle", &self.time_to_idle)

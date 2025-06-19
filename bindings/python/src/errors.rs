@@ -17,6 +17,7 @@
 
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
+use pyo3::exceptions::PyIOError;
 
 use crate::*;
 
@@ -57,7 +58,7 @@ create_exception!(
     "Condition not match"
 );
 
-pub fn format_pyerr(err: ocore::Error) -> PyErr {
+fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
     let e = format!("{err:?}");
     match err.kind() {
         ocore::ErrorKind::Unexpected => Unexpected::new_err(e),
@@ -71,5 +72,21 @@ pub fn format_pyerr(err: ocore::Error) -> PyErr {
         ocore::ErrorKind::IsSameFile => IsSameFile::new_err(e),
         ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(e),
         _ => Unexpected::new_err(e),
+    }
+}
+
+pub fn format_pyerr(err: ocore::Error) -> PyErr {
+    format_pyerr_impl(&err)
+}
+
+/// Format a std::io::Error into a PyErr, checking if it wraps an OpenDAL error
+pub fn format_pyerr_from_io_error(err: std::io::Error) -> PyErr {
+    // Check if this io::Error wraps an OpenDAL error
+    if let Some(opendal_err) = err.get_ref().and_then(|e| e.downcast_ref::<ocore::Error>()) {
+        // If it does, format it as an OpenDAL error to preserve the error type
+        format_pyerr_impl(opendal_err)
+    } else {
+        // Otherwise, format it as a regular IO error
+        PyIOError::new_err(err.to_string())
     }
 }

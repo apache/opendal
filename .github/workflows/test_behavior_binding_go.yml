@@ -45,7 +45,7 @@ jobs:
           repository: "apache/opendal-go-services"
           path: "opendal-go-services"
       - name: Setup Rust toolchain
-        uses: ./opendal/.github/actions/setup
+        uses: ./.github/actions/setup
         with:
           need-nextest: true
           need-protoc: true
@@ -65,8 +65,8 @@ jobs:
         with:
           go-version: stable
           cache-dependency-path: |
-            opendal/bindings/go/go.sum
-            opendal/bindings/go/tests/behavior_tests/go.sum
+            bindings/go/go.sum
+            bindings/go/tests/behavior_tests/go.sum
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: sudo apt install zstd
@@ -84,7 +84,7 @@ jobs:
           go work use ./opendal/bindings/go
           go work use ./opendal/bindings/go/tests/behavior_tests
       - name: Test Core
-        uses: ./opendal/.github/actions/test_behavior_binding_go
+        uses: ./.github/actions/test_behavior_binding_go
         with:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}

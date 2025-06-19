@@ -37,7 +37,7 @@ runs:
           using: composite
           steps:
           - name: Setup Test
-            uses: ./opendal/.github/services/${{ inputs.service }}/${{ inputs.setup }}
+            uses: ./.github/services/${{ inputs.service }}/${{ inputs.setup }}
           - name: Run Test Binding Go
             shell: bash
             run: |
@@ -45,7 +45,7 @@ runs:
                 # https://github.com/ilammy/msvc-dev-cmd/issues/25
                 rm /usr/bin/link.exe
               fi
-              cp opendal/bindings/go/Makefile .
+              cp bindings/go/Makefile .
               make tests
             env:
               OPENDAL_TEST: ${{ inputs.service }}

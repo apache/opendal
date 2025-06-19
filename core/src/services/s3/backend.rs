@@ -909,7 +909,6 @@ impl Builder for S3Builder {
                         .set_name(bucket)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_encoding: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
                             stat_with_if_modified_since: true,
@@ -924,16 +923,6 @@ impl Builder for S3Builder {
                                 .config
                                 .disable_stat_with_override,
                             stat_with_version: self.config.enable_versioning,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-                            stat_has_user_metadata: true,
-                            stat_has_version: true,
 
                             read: true,
                             read_with_if_match: true,
@@ -982,10 +971,6 @@ impl Builder for S3Builder {
                             list_with_recursive: true,
                             list_with_versions: self.config.enable_versioning,
                             list_with_deleted: self.config.enable_versioning,
-                            list_has_etag: true,
-                            list_has_content_md5: true,
-                            list_has_content_length: true,
-                            list_has_last_modified: true,
 
                             presign: true,
                             presign_stat: true,

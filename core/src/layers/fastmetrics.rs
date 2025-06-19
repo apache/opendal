@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::{fmt, time::Duration};
+use std::fmt;
+use std::time::Duration;
 
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;
@@ -37,20 +38,93 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Basic Usage
+///
 /// ```no_run
+/// # use fastmetrics::format::text;
+/// # use log::info;
 /// # use opendal::layers::FastmetricsLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
 ///
-/// # fn main() -> Result<()> {
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
 /// let mut registry = fastmetrics::registry::Registry::default();
-/// let _ = Operator::new(services::Memory::default())?
+/// let op = Operator::new(services::Memory::default())?
 ///     .layer(FastmetricsLayer::builder().register(&mut registry)?)
 ///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut output = String::new();
+/// text::encode(&mut output, &registry).unwrap();
+/// println!("{}", output);
 /// # Ok(())
 /// # }
 /// ```
+/// ## Global Instance
+///
+/// `FastmetricsLayer` needs to be registered before instantiation.
+///
+/// If there are multiple operators in an application that need the `FastmetricsLayer`, we could
+/// instantiate it once and pass it to multiple operators. But we cannot directly call
+/// `.layer(FastmetricsLayer::builder().register(&mut registry)?)` for different services, because
+/// registering the same metrics multiple times to the same registry will cause register errors.
+/// Therefore, we can provide a global instance for the `FastmetricsLayer`.
+///
+/// ```no_run
+/// # use std::sync::OnceLock;
+/// # use fastmetrics::format::text;
+/// # use fastmetrics::registry::with_global_registry;
+/// # use log::info;
+/// # use opendal::layers::FastmetricsLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+///
+/// fn global_fastmetrics_layer() -> &'static FastmetricsLayer {
+///     static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
+///     GLOBAL.get_or_init(|| {
+///         FastmetricsLayer::builder()
+///             .register_global()
+///             .expect("Failed to register with the global registry")
+///     })
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(global_fastmetrics_layer().clone())
+///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut output = String::new();
+/// with_global_registry(|registry| text::encode(&mut output, &registry).unwrap());
+/// println!("{}", output);
+/// # Ok(())
+/// # }
 #[derive(Clone, Debug)]
 pub struct FastmetricsLayer {
     interceptor: FastmetricsInterceptor,
@@ -154,10 +228,9 @@ impl FastmetricsLayerBuilder {
 
     /// Register the metrics into the registry and return a [`FastmetricsLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::FastmetricsLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -176,55 +249,48 @@ impl FastmetricsLayerBuilder {
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> Result<FastmetricsLayer> {
-        let operation_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let operation_bytes_rate = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_bytes_rate = Family::new(HistogramFactory {
             buckets: self.bytes_rate_buckets.clone(),
         });
-        let operation_entries = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let operation_entries = Family::new(HistogramFactory {
             buckets: self.entries_buckets.clone(),
         });
-        let operation_entries_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.entries_rate_buckets.clone(),
-            });
-        let operation_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let operation_errors_total = Family::<OperationLabels, Counter>::default();
-        let operation_executing = Family::<OperationLabels, Gauge>::default();
-        let operation_ttfb_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.ttfb_buckets.clone(),
-            });
+        let operation_entries_rate = Family::new(HistogramFactory {
+            buckets: self.entries_rate_buckets.clone(),
+        });
+        let operation_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let operation_errors_total = Family::default();
+        let operation_executing = Family::default();
+        let operation_ttfb_seconds = Family::new(HistogramFactory {
+            buckets: self.ttfb_buckets.clone(),
+        });
 
-        let http_executing = Family::<OperationLabels, Gauge>::default();
-        let http_request_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let http_executing = Family::default();
+        let http_request_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let http_request_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_request_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_response_bytes = Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
+        let http_request_bytes_rate = Family::new(HistogramFactory {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_request_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_response_bytes = Family::new(HistogramFactory {
             buckets: self.bytes_buckets.clone(),
         });
-        let http_response_bytes_rate =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.bytes_rate_buckets.clone(),
-            });
-        let http_response_duration_seconds =
-            Family::<OperationLabels, Histogram, _>::new(HistogramFactory {
-                buckets: self.duration_seconds_buckets.clone(),
-            });
-        let http_connection_errors_total = Family::<OperationLabels, Counter>::default();
-        let http_status_errors_total = Family::<OperationLabels, Counter>::default();
+        let http_response_bytes_rate = Family::new(HistogramFactory {
+            buckets: self.bytes_rate_buckets.clone(),
+        });
+        let http_response_duration_seconds = Family::new(HistogramFactory {
+            buckets: self.duration_seconds_buckets.clone(),
+        });
+        let http_connection_errors_total = Family::default();
+        let http_status_errors_total = Family::default();
 
         let interceptor = FastmetricsInterceptor {
             operation_bytes,
@@ -257,7 +323,7 @@ impl FastmetricsLayerBuilder {
 
     /// Register the metrics into the global registry and return a [`FastmetricsLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
     /// # use opendal::layers::FastmetricsLayer;

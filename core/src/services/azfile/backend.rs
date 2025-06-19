@@ -230,15 +230,6 @@ impl Builder for AzfileBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
 
                             read: true,
 
@@ -248,9 +239,6 @@ impl Builder for AzfileBuilder {
                             rename: true,
 
                             list: true,
-                            list_has_etag: true,
-                            list_has_last_modified: true,
-                            list_has_content_length: true,
 
                             shared: true,
 

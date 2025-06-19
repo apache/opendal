@@ -184,8 +184,6 @@ impl Builder for SftpBuilder {
             .set_scheme(Scheme::Sftp)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -197,8 +195,6 @@ impl Builder for SftpBuilder {
 
                 list: true,
                 list_with_limit: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 copy: self.config.enable_copy,
                 rename: true,

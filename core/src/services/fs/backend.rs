@@ -153,8 +153,6 @@ impl Builder for FsBuilder {
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_last_modified: true,
 
                             read: true,
 

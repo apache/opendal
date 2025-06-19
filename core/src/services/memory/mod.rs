@@ -22,3 +22,12 @@ pub use backend::MemoryBuilder as Memory;
 
 mod config;
 pub use config::MemoryConfig;
+
+#[cfg(feature = "services-memory")]
+mod core;
+#[cfg(feature = "services-memory")]
+mod delete;
+#[cfg(feature = "services-memory")]
+mod lister;
+#[cfg(feature = "services-memory")]
+mod writer;

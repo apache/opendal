@@ -18,6 +18,13 @@
 #[cfg(feature = "services-cacache")]
 mod backend;
 #[cfg(feature = "services-cacache")]
+mod core;
+#[cfg(feature = "services-cacache")]
+mod delete;
+#[cfg(feature = "services-cacache")]
+mod writer;
+
+#[cfg(feature = "services-cacache")]
 pub use backend::CacacheBuilder as Cacache;
 
 mod config;

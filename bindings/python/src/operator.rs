@@ -125,7 +125,9 @@ impl Operator {
                 .reader_options(&path, reader_opts.into())
                 .map_err(format_pyerr)?;
 
-            let r = reader.into_std_read(range.to_range()).map_err(format_pyerr)?;
+            let r = reader
+                .into_std_read(range.to_range())
+                .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
             let writer = this

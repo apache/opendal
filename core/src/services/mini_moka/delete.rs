@@ -15,19 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-mini-moka")]
-mod backend;
-#[cfg(feature = "services-mini-moka")]
-mod core;
-#[cfg(feature = "services-mini-moka")]
-mod delete;
-#[cfg(feature = "services-mini-moka")]
-mod lister;
-#[cfg(feature = "services-mini-moka")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-mini-moka")]
-pub use backend::MiniMokaBuilder as MiniMoka;
+use super::core::MiniMokaCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::MiniMokaConfig;
+pub struct MiniMokaDeleter {
+    core: Arc<MiniMokaCore>,
+    root: String,
+}
+
+impl MiniMokaDeleter {
+    pub fn new(core: Arc<MiniMokaCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MiniMokaDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.cache.invalidate(&p);
+        Ok(())
+    }
+}

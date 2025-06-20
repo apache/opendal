@@ -147,6 +147,7 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
+services-compfs = ["opendal/services-compfs"]
 
 [dependencies]
 anyhow = "1.0.71"

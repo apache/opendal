@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::raw::parse_datetime_from_rfc3339;
+use napi::bindgen_prelude::BigInt;
+use opendal::raw::{parse_datetime_from_rfc3339, BytesRange};
 
 #[napi(object)]
 #[derive(Debug)]
@@ -91,6 +92,240 @@ impl From<StatOptions> for opendal::options::StatOptions {
             override_content_type: value.override_content_type,
             override_cache_control: value.override_cache_control,
             override_content_disposition: value.override_content_disposition,
+        }
+    }
+}
+
+#[napi(object)]
+#[derive(Default, Debug)]
+pub struct ReadOptions {
+    /**
+     * Set `version` for this operation.
+     *
+     * This option can be used to retrieve the data of a specified version of the given path.
+     */
+    pub version: Option<String>,
+
+    /**
+     * Set `concurrent` for the operation.
+     *
+     * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
+     * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+     * on support storage services.
+     *
+     * By setting `concurrent`, opendal will fetch chunks concurrently with
+     * the give chunk size.
+     */
+    pub concurrent: Option<u32>,
+
+    /**
+     * Sets the chunk size for this operation.
+     *
+     * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     */
+    pub chunk: Option<u32>,
+
+    /**
+     * Controls the optimization strategy for range reads in [`Reader::fetch`].
+     *
+     * When performing range reads, if the gap between two requested ranges is smaller than
+     * the configured `gap` size, OpenDAL will merge these ranges into a single read request
+     * and discard the unrequested data in between. This helps reduce the number of API calls
+     * to remote storage services.
+     *
+     * This optimization is particularly useful when performing multiple small range reads
+     * that are close to each other, as it reduces the overhead of multiple network requests
+     * at the cost of transferring some additional data.
+     */
+    pub gap: Option<BigInt>,
+
+    /**
+     * Sets the offset (starting position) for range read operations.
+     * The read will start from this position in the file.
+     */
+    pub offset: Option<BigInt>,
+
+    /**
+     * Sets the size (length) for range read operations.
+     * The read will continue for this many bytes after the offset.
+     */
+    pub size: Option<BigInt>,
+
+    /**
+     * Sets if-match condition for this operation.
+     * If file exists and its etag doesn't match, an error will be returned.
+     */
+    pub if_match: Option<String>,
+
+    /**
+     * Sets if-none-match condition for this operation.
+     * If file exists and its etag matches, an error will be returned.
+     */
+    pub if_none_match: Option<String>,
+
+    /**
+     * Sets if-modified-since condition for this operation.
+     * If file exists and hasn't been modified since the specified time, an error will be returned.
+     * ISO 8601 formatted date string
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+     */
+    pub if_modified_since: Option<String>,
+
+    /**
+     * Sets if-unmodified-since condition for this operation.
+     * If file exists and has been modified since the specified time, an error will be returned.
+     * ISO 8601 formatted date string
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+     */
+    pub if_unmodified_since: Option<String>,
+
+    /**
+     * Specify the `content-type` header that should be sent back by the operation.
+     *
+     * This option is only meaningful when used along with presign.
+     */
+    pub content_type: Option<String>,
+
+    /**
+     * Specify the `cache-control` header that should be sent back by the operation.
+     *
+     * This option is only meaningful when used along with presign.
+     */
+    pub cache_control: Option<String>,
+
+    /**
+     * Specify the `content-disposition` header that should be sent back by the operation.
+     *
+     * This option is only meaningful when used along with presign.
+     */
+    pub content_disposition: Option<String>,
+}
+
+impl ReadOptions {
+    pub fn make_range(&self) -> BytesRange {
+        let offset = self.offset.clone().map(|offset| offset.get_u64().1);
+        let size = self.size.clone().map(|size| size.get_u64().1);
+        BytesRange::new(offset.unwrap_or_default(), size)
+    }
+}
+
+impl From<ReadOptions> for opendal::options::ReadOptions {
+    fn from(value: ReadOptions) -> Self {
+        let range = value.make_range();
+        let if_modified_since = value
+            .if_modified_since
+            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+        let if_unmodified_since = value
+            .if_unmodified_since
+            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+
+        Self {
+            version: value.version,
+            concurrent: value.concurrent.unwrap_or_default() as usize,
+            chunk: value.chunk.map(|chunk| chunk as usize),
+            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            range,
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            override_content_type: value.content_type,
+            override_cache_control: value.cache_control,
+            override_content_disposition: value.content_disposition,
+        }
+    }
+}
+
+#[napi(object)]
+#[derive(Default)]
+pub struct ReaderOptions {
+    /**
+     * Set `version` for this operation.
+     *
+     * This option can be used to retrieve the data of a specified version of the given path.
+     */
+    pub version: Option<String>,
+
+    /**
+     * Set `concurrent` for the operation.
+     *
+     * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
+     * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+     * on support storage services.
+     *
+     * By setting `concurrent`, opendal will fetch chunks concurrently with
+     * the give chunk size.
+     */
+    pub concurrent: Option<u32>,
+
+    /**
+     * Sets the chunk size for this operation.
+     *
+     * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     */
+    pub chunk: Option<u32>,
+
+    /**
+     * Controls the optimization strategy for range reads in [`Reader::fetch`].
+     *
+     * When performing range reads, if the gap between two requested ranges is smaller than
+     * the configured `gap` size, OpenDAL will merge these ranges into a single read request
+     * and discard the unrequested data in between. This helps reduce the number of API calls
+     * to remote storage services.
+     *
+     * This optimization is particularly useful when performing multiple small range reads
+     * that are close to each other, as it reduces the overhead of multiple network requests
+     * at the cost of transferring some additional data.
+     */
+    pub gap: Option<BigInt>,
+
+    /**
+     * Sets if-match condition for this operation.
+     * If file exists and its etag doesn't match, an error will be returned.
+     */
+    pub if_match: Option<String>,
+
+    /**
+     * Sets if-none-match condition for this operation.
+     * If file exists and its etag matches, an error will be returned.
+     */
+    pub if_none_match: Option<String>,
+
+    /**
+     * Sets if-modified-since condition for this operation.
+     * If file exists and hasn't been modified since the specified time, an error will be returned.
+     * ISO 8601 formatted date string
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+     */
+    pub if_modified_since: Option<String>,
+
+    /**
+     * Sets if-unmodified-since condition for this operation.
+     * If file exists and has been modified since the specified time, an error will be returned.
+     * ISO 8601 formatted date string
+     * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+     */
+    pub if_unmodified_since: Option<String>,
+}
+
+impl From<ReaderOptions> for opendal::options::ReaderOptions {
+    fn from(value: ReaderOptions) -> Self {
+        let if_modified_since = value
+            .if_modified_since
+            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+        let if_unmodified_since = value
+            .if_unmodified_since
+            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+
+        Self {
+            version: value.version,
+            concurrent: value.concurrent.unwrap_or_default() as usize,
+            chunk: value.chunk.map(|chunk| chunk as usize),
+            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_modified_since,
+            if_unmodified_since,
         }
     }
 }

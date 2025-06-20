@@ -74,6 +74,158 @@ export interface StatOptions {
   */
   overrideContentDisposition?: string
 }
+export interface ReadOptions {
+  /**
+  * Set `version` for this operation.
+  *
+  * This option can be used to retrieve the data of a specified version of the given path.
+  */
+  version?: string
+  /**
+  * Set `concurrent` for the operation.
+  *
+  * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
+  * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+  * on support storage services.
+  *
+  * By setting `concurrent`, opendal will fetch chunks concurrently with
+  * the give chunk size.
+  */
+  concurrent?: number
+  /**
+  * Sets the chunk size for this operation.
+  *
+  * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+  */
+  chunk?: number
+  /**
+  * Controls the optimization strategy for range reads in [`Reader::fetch`].
+  *
+  * When performing range reads, if the gap between two requested ranges is smaller than
+  * the configured `gap` size, OpenDAL will merge these ranges into a single read request
+  * and discard the unrequested data in between. This helps reduce the number of API calls
+  * to remote storage services.
+  *
+  * This optimization is particularly useful when performing multiple small range reads
+  * that are close to each other, as it reduces the overhead of multiple network requests
+  * at the cost of transferring some additional data.
+  */
+  gap?: bigint
+  /**
+  * Sets the offset (starting position) for range read operations.
+  * The read will start from this position in the file.
+  */
+  offset?: bigint
+  /**
+  * Sets the size (length) for range read operations.
+  * The read will continue for this many bytes after the offset.
+  */
+  size?: bigint
+  /**
+  * Sets if-match condition for this operation.
+  * If file exists and its etag doesn't match, an error will be returned.
+  */
+  ifMatch?: string
+  /**
+  * Sets if-none-match condition for this operation.
+  * If file exists and its etag matches, an error will be returned.
+  */
+  ifNoneMatch?: string
+  /**
+  * Sets if-modified-since condition for this operation.
+  * If file exists and hasn't been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifModifiedSince?: string
+  /**
+  * Sets if-unmodified-since condition for this operation.
+  * If file exists and has been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifUnmodifiedSince?: string
+  /**
+  * Specify the `content-type` header that should be sent back by the operation.
+  *
+  * This option is only meaningful when used along with presign.
+  */
+  contentType?: string
+  /**
+  * Specify the `cache-control` header that should be sent back by the operation.
+  *
+  * This option is only meaningful when used along with presign.
+  */
+  cacheControl?: string
+  /**
+  * Specify the `content-disposition` header that should be sent back by the operation.
+  *
+  * This option is only meaningful when used along with presign.
+  */
+  contentDisposition?: string
+}
+export interface ReaderOptions {
+  /**
+  * Set `version` for this operation.
+  *
+  * This option can be used to retrieve the data of a specified version of the given path.
+  */
+  version?: string
+  /**
+  * Set `concurrent` for the operation.
+  *
+  * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
+  * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
+  * on support storage services.
+  *
+  * By setting `concurrent`, opendal will fetch chunks concurrently with
+  * the give chunk size.
+  */
+  concurrent?: number
+  /**
+  * Sets the chunk size for this operation.
+  *
+  * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+  */
+  chunk?: number
+  /**
+  * Controls the optimization strategy for range reads in [`Reader::fetch`].
+  *
+  * When performing range reads, if the gap between two requested ranges is smaller than
+  * the configured `gap` size, OpenDAL will merge these ranges into a single read request
+  * and discard the unrequested data in between. This helps reduce the number of API calls
+  * to remote storage services.
+  *
+  * This optimization is particularly useful when performing multiple small range reads
+  * that are close to each other, as it reduces the overhead of multiple network requests
+  * at the cost of transferring some additional data.
+  */
+  gap?: bigint
+  /**
+  * Sets if-match condition for this operation.
+  * If file exists and its etag doesn't match, an error will be returned.
+  */
+  ifMatch?: string
+  /**
+  * Sets if-none-match condition for this operation.
+  * If file exists and its etag matches, an error will be returned.
+  */
+  ifNoneMatch?: string
+  /**
+  * Sets if-modified-since condition for this operation.
+  * If file exists and hasn't been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifModifiedSince?: string
+  /**
+  * Sets if-unmodified-since condition for this operation.
+  * If file exists and has been modified since the specified time, an error will be returned.
+  * ISO 8601 formatted date string
+  * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
+  */
+  ifUnmodifiedSince?: string
+}
 export const enum EntryMode {
   /** FILE means the path has data to read. */
   FILE = 0,
@@ -157,6 +309,12 @@ export class Capability {
   get statWithOverrideContentDisposition(): boolean
   /** If operator supports read. */
   get read(): boolean
+  /** If operator supports read with version. */
+  get readWithVersion(): boolean
+  /** If operator supports read with range. */
+  get readWithIfModifiedSince(): boolean
+  /** If operator supports read with if unmodified since. */
+  get readWithIfUnmodifiedSince(): boolean
   /** If operator supports read with if matched. */
   get readWithIfMatch(): boolean
   /** If operator supports read with if not match. */
@@ -332,13 +490,13 @@ export class Operator {
    * const buf = await op.read("path/to/file");
    * ```
    */
-  read(path: string): Promise<Buffer>
+  read(path: string, options?: ReadOptions | undefined | null): Promise<Buffer>
   /**
    * Create a reader to read the given path.
    *
    * It could be used to read large file in a streaming way.
    */
-  reader(path: string): Promise<Reader>
+  reader(path: string, options?: ReaderOptions | undefined | null): Promise<Reader>
   /**
    * Read the whole path into a buffer synchronously.
    *
@@ -347,13 +505,13 @@ export class Operator {
    * const buf = op.readSync("path/to/file");
    * ```
    */
-  readSync(path: string): Buffer
+  readSync(path: string, options?: ReadOptions | undefined | null): Buffer
   /**
    * Create a reader to read the given path synchronously.
    *
    * It could be used to read large file in a streaming way.
    */
-  readerSync(path: string): BlockingReader
+  readerSync(path: string, options?: ReaderOptions | undefined | null): BlockingReader
   /**
    * Write bytes into a path.
    *

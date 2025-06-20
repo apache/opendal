@@ -16,8 +16,7 @@
 // under the License.
 
 use napi::bindgen_prelude::BigInt;
-use opendal::raw::parse_datetime_from_rfc3339;
-use std::ops::Bound as RangeBound;
+use opendal::raw::{parse_datetime_from_rfc3339, BytesRange};
 
 #[napi(object)]
 #[derive(Debug)]
@@ -203,31 +202,16 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    pub fn make_range(&self) -> (RangeBound<u64>, RangeBound<u64>) {
-        match (self.offset.clone(), self.size.clone()) {
-            (Some(offset), Some(size)) => {
-                let start = offset.get_u64().1;
-                let len = size.get_u64().1;
-                // prevent overflow
-                let end = start.checked_add(len).expect("offset + size overflow");
-                (RangeBound::Included(start), RangeBound::Excluded(end))
-            }
-            (Some(offset), None) => {
-                let start = offset.get_u64().1;
-                (RangeBound::Included(start), RangeBound::Unbounded)
-            }
-            (None, Some(size)) => {
-                let len = size.get_u64().1;
-                (RangeBound::Included(0), RangeBound::Excluded(len))
-            }
-            (None, None) => (RangeBound::Unbounded, RangeBound::Unbounded),
-        }
+    pub fn make_range(&self) -> BytesRange {
+        let offset = self.offset.clone().map(|offset| offset.get_u64().1);
+        let size = self.size.clone().map(|size| size.get_u64().1);
+        BytesRange::new(offset.unwrap_or_default(), size)
     }
 }
 
 impl From<ReadOptions> for opendal::options::ReadOptions {
     fn from(value: ReadOptions) -> Self {
-        let r = value.make_range();
+        let range = value.make_range();
         let if_modified_since = value
             .if_modified_since
             .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
@@ -240,7 +224,7 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
             concurrent: value.concurrent.unwrap_or_default() as usize,
             chunk: value.chunk.map(|chunk| chunk as usize),
             gap: value.gap.map(|gap| gap.get_u64().1 as usize),
-            range: r.into(),
+            range,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,

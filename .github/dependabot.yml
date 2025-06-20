@@ -76,3 +76,9 @@ updates:
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+
+  - package-ecosystem: "npm"
+    directory: "/website"
+    open-pull-requests-limit: 1
+    schedule:
+      interval: "monthly"

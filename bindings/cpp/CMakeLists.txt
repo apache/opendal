@@ -206,13 +206,34 @@ if (OPENDAL_ENABLE_TESTING)
         FetchContent_MakeAvailable(cppcoro)
     endif()
 
+    # Test framework and main runner
+    list(APPEND TEST_SOURCE_FILE tests/test_main.cpp)
+    
+    # Legacy tests for compatibility
     list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()
+    
+    # Behavior tests
+    list(APPEND TEST_SOURCE_FILE tests/behavior/read_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/write_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/delete_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/list_test.cpp)
+    
+    # Async behavior tests (only if async is enabled)
+    if (OPENDAL_ENABLE_ASYNC)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_read_test.cpp)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_write_test.cpp)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_list_test.cpp)
+    endif()
+    
+    # Benchmark tests
+    list(APPEND TEST_SOURCE_FILE tests/benchmark/benchmark_test.cpp)
+    
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
-    target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
-    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
+    target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS} tests)
+    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest opendal_cpp)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
     if (OPENDAL_ENABLE_ASYNC)
         target_link_libraries(opendal_cpp_test cppcoro)

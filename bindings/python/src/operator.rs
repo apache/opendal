@@ -125,7 +125,7 @@ impl Operator {
                 .reader_options(&path, reader_opts.into())
                 .map_err(format_pyerr)?;
 
-            let r = reader.into_std_read(range).map_err(format_pyerr)?;
+            let r = reader.into_std_read(range.to_range()).map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
             let writer = this
@@ -389,7 +389,7 @@ impl AsyncOperator {
                     .map_err(format_pyerr)?;
 
                 let r = reader
-                    .into_futures_async_read(range)
+                    .into_futures_async_read(range.to_range())
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
@@ -425,7 +425,7 @@ impl AsyncOperator {
                 .reader_options(&path, kwargs.into())
                 .await
                 .map_err(format_pyerr)?
-                .read(range)
+                .read(range.to_range())
                 .await
                 .map_err(format_pyerr)?
                 .to_vec();

@@ -16,12 +16,11 @@
 // under the License.
 
 use dict_derive::FromPyObject;
-use opendal as ocore;
+use opendal::{self as ocore, raw::BytesRange};
 use pyo3::pyclass;
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
-use std::ops::Bound as RangeBound;
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
@@ -42,25 +41,11 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    pub fn make_range(&self) -> (RangeBound<u64>, RangeBound<u64>) {
-        match (self.offset, self.size) {
-            (Some(offset), Some(size)) => {
-                let start = offset as u64;
-                let len = size as u64;
-                // prevent overflow
-                let end = start.checked_add(len).expect("offset + size overflow");
-                (RangeBound::Included(start), RangeBound::Excluded(end))
-            }
-            (Some(offset), None) => {
-                let start = offset as u64;
-                (RangeBound::Included(start), RangeBound::Unbounded)
-            }
-            (None, Some(size)) => {
-                let len = size as u64;
-                (RangeBound::Included(0), RangeBound::Excluded(len))
-            }
-            (None, None) => (RangeBound::Unbounded, RangeBound::Unbounded),
-        }
+    pub fn make_range(&self) -> BytesRange {
+        let offset = self.offset.unwrap_or_default() as u64;
+        let size = self.size.map(|v| v as u64);
+
+        BytesRange::new(offset, size)
     }
 }
 
@@ -82,9 +67,8 @@ pub struct WriteOptions {
 
 impl From<ReadOptions> for ocore::options::ReadOptions {
     fn from(opts: ReadOptions) -> Self {
-        let r = opts.make_range();
         Self {
-            range: r.into(),
+            range: opts.make_range(),
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,

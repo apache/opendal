@@ -257,6 +257,18 @@ impl Capability {
         self.0.list_with_recursive
     }
 
+    /// If backend supports list with versions.
+    #[napi(getter)]
+    pub fn list_with_versions(&self) -> bool {
+        self.0.list_with_versions
+    }
+
+    /// If backend supports list with deleted.
+    #[napi(getter)]
+    pub fn list_with_deleted(&self) -> bool {
+        self.0.list_with_deleted
+    }
+
     /// If operator supports presign.
     #[napi(getter)]
     pub fn presign(&self) -> bool {

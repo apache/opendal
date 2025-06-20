@@ -28,6 +28,8 @@ import { run as AsyncStatOptionsTestRun } from './asyncStatOptions.suite.mjs'
 import { run as SyncStatOptionsTestRun } from './syncStatOptions.suite.mjs'
 import { run as AsyncReadOptionsTestRun } from './asyncReadOptions.suite.mjs'
 import { run as SyncReadOptionsTestRun } from './syncReadOptions.suite.mjs'
+import { run as AsyncListOptionsTestRun } from './asyncListOptions.suite.mjs'
+import { run as SyncListOptionsTestRun } from './syncListOptions.suite.mjs'
 
 export function runner(testName, scheme) {
   if (!scheme) {
@@ -61,5 +63,7 @@ export function runner(testName, scheme) {
     SyncStatOptionsTestRun(operator)
     AsyncReadOptionsTestRun(operator)
     SyncReadOptionsTestRun(operator)
+    AsyncListOptionsTestRun(operator)
+    SyncListOptionsTestRun(operator)
   })
 }

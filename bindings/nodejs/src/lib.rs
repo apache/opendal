@@ -753,7 +753,7 @@ impl Metadata {
     /// User Metadata of this object.
     #[napi(getter)]
     pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
-        self.0.user_metadata().map(|m| m.clone())
+        self.0.user_metadata().cloned()
     }
 
     /// ETag of this object.

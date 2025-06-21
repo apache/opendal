@@ -204,7 +204,7 @@ export function run(op) {
       const contentOne = generateBytes()
       const contentTwo = generateBytes()
 
-      op.writeSync(filename, contentOne)
+      op.writeSync(filename, contentOne, { append: true })
       const meta = op.writeSync(filename, contentTwo, { append: true })
       const statMeta = op.statSync(filename)
       expect(meta).toStrictEqual(statMeta)

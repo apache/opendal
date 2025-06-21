@@ -275,23 +275,3 @@ impl Access for FsBackend {
         Ok(RpRename::default())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tmp_file_of() {
-        let cases = vec![
-            ("hello.txt", "hello.txt"),
-            ("/tmp/opendal.log", "opendal.log"),
-            ("/abc/def/hello.parquet", "hello.parquet"),
-        ];
-
-        for (path, expected_prefix) in cases {
-            let tmp_file = tmp_file_of(path);
-            assert!(tmp_file.len() > expected_prefix.len());
-            assert!(tmp_file.starts_with(expected_prefix));
-        }
-    }
-}

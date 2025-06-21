@@ -21,7 +21,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::DateTime;
-use uuid::Uuid;
 
 use super::error::*;
 use crate::raw::*;
@@ -118,28 +117,24 @@ impl FsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<(PathBuf, Option<PathBuf>)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.atomic_write_dir {
+        if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = self.ensure_write_abs_path(&self.root, path).await?;
             let tmp_path = self
-                .ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))
+                .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
                 .await?;
 
             // If the target file exists, we should append to the end of it directly.
-            if op.append()
+            let should_append = op.append()
                 && tokio::fs::try_exists(&target_path)
                     .await
-                    .map_err(new_std_io_error)?
-            {
-                (target_path, None)
-            } else {
-                (target_path, Some(tmp_path))
-            }
+                    .map_err(new_std_io_error)?;
+            let tmp_path = should_append.then_some(tmp_path);
+
+            Ok((target_path, tmp_path))
         } else {
             let p = self.ensure_write_abs_path(&self.root, path).await?;
-            (p, None)
-        };
-
-        Ok((target_path, tmp_path))
+            Ok((p, None))
+        }
     }
 
     pub async fn fs_write(
@@ -235,12 +230,4 @@ impl FsCore {
             .map_err(new_std_io_error)?;
         Ok(())
     }
-}
-
-#[inline]
-pub fn tmp_file_of(path: &str) -> String {
-    let name = get_basename(path);
-    let uuid = Uuid::new_v4().to_string();
-
-    format!("{name}.{uuid}")
 }

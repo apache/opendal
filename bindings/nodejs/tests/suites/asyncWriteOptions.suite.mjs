@@ -192,9 +192,9 @@ export function run(op) {
       await op.write(filename, contentTwo, { append: true })
 
       const ds = await op.read(filename)
-      expect(contentOne.length + contentTwo.length).toBe(BigInt(ds.length))
-      expect(contentOne.length).toEqual(BigInt(ds.subarray(0, contentOne.length).length))
-      expect(contentTwo.length).toEqual(BigInt(ds.subarray(contentOne.length).length))
+      expect(contentOne.length + contentTwo.length).toBe(ds.length)
+      expect(contentOne.length).toEqual(ds.subarray(0, contentOne.length).length)
+      expect(contentTwo.length).toEqual(ds.subarray(contentOne.length).length)
 
       await op.delete(filename)
     })

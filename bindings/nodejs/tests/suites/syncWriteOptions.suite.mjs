@@ -29,7 +29,7 @@ import { generateBytes, generateFixedBytes } from '../utils.mjs'
 export function run(op) {
   const capability = op.capability()
 
-  describe.runIf(capability.read && capability.write && capability.stat)('async writeOptions test', () => {
+  describe.runIf(capability.read && capability.write && capability.stat)('sync writeOptions test', () => {
     test.runIf(capability.writeCanMulti)('write with concurrent', () => {
       const size = 3 * 1024 * 1024
       const filename = `random_file_${randomUUID()}`
@@ -192,9 +192,9 @@ export function run(op) {
       op.writeSync(filename, contentTwo, { append: true })
 
       const ds = op.readSync(filename)
-      expect(contentOne.length + contentTwo.length).toBe(BigInt(ds.length))
-      expect(contentOne.length).toEqual(BigInt(ds.subarray(0, contentOne.length).length))
-      expect(contentTwo.length).toEqual(BigInt(ds.subarray(contentOne.length).length))
+      expect(contentOne.length + contentTwo.length).toBe(ds.length)
+      expect(contentOne.length).toEqual(ds.subarray(0, contentOne.length).length)
+      expect(contentTwo.length).toEqual(ds.subarray(contentOne.length).length)
 
       op.deleteSync(filename)
     })

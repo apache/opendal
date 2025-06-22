@@ -300,7 +300,7 @@ impl Access for HdfsBackend {
         let should_append = op.append() && target_exists;
         let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
             // If the target file exists, we should append to the end of it directly.
-            should_append.then_some(build_rooted_abs_path(
+            (!should_append).then_some(build_rooted_abs_path(
                 atomic_write_dir,
                 &build_tmp_path_of(path),
             ))

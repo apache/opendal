@@ -124,9 +124,7 @@ impl FsCore {
             } else {
                 build_tmp_path_of(path)
             };
-            let tmp_path = self
-                .ensure_write_abs_path(atomic_write_dir, &path)
-                .await?;
+            let tmp_path = self.ensure_write_abs_path(atomic_write_dir, &path).await?;
 
             // If the target file exists, we should append to the end of it directly.
             let should_append = op.append()

@@ -29,7 +29,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
-use uuid::Uuid;
 
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
@@ -300,13 +299,7 @@ impl Access for FtpBackend {
             }
         }
 
-        let tmp_path = if op.append() {
-            None
-        } else {
-            let uuid = Uuid::new_v4().to_string();
-            Some(format!("{}.{}", path, uuid))
-        };
-
+        let tmp_path = op.append().then_some(build_tmp_path_of(path));
         let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))

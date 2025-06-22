@@ -23,7 +23,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
-use uuid::Uuid;
 
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
@@ -207,14 +206,6 @@ impl Builder for HdfsBuilder {
     }
 }
 
-#[inline]
-fn tmp_file_of(path: &str) -> String {
-    let name = get_basename(path);
-    let uuid = Uuid::new_v4().to_string();
-
-    format!("{name}.{uuid}")
-}
-
 /// Backend for hdfs services.
 #[derive(Debug, Clone)]
 pub struct HdfsBackend {
@@ -309,11 +300,10 @@ impl Access for HdfsBackend {
         let should_append = op.append() && target_exists;
         let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
             // If the target file exists, we should append to the end of it directly.
-            if should_append {
-                None
-            } else {
-                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
-            }
+            should_append.then_some(build_rooted_abs_path(
+                atomic_write_dir,
+                &build_tmp_path_of(path),
+            ))
         });
 
         if !target_exists {

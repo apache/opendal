@@ -128,7 +128,7 @@ impl FsCore {
                 && tokio::fs::try_exists(&target_path)
                     .await
                     .map_err(new_std_io_error)?;
-            let tmp_path = should_append.then_some(tmp_path);
+            let tmp_path = (!should_append).then_some(tmp_path);
 
             Ok((target_path, tmp_path))
         } else {

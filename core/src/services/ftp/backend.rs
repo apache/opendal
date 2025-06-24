@@ -299,7 +299,7 @@ impl Access for FtpBackend {
             }
         }
 
-        let tmp_path = op.append().then_some(build_tmp_path_of(path));
+        let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
         let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))

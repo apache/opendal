@@ -17,37 +17,45 @@
 
 use std::sync::Arc;
 
-use super::core::*;
 use crate::raw::*;
 use crate::*;
 
-pub struct FsDeleter {
-    core: Arc<FsCore>,
+use super::core::CacacheCore;
+
+pub struct CacacheWriter {
+    core: Arc<CacacheCore>,
+    path: String,
+    buffer: oio::QueueBuf,
 }
 
-impl FsDeleter {
-    pub fn new(core: Arc<FsCore>) -> Self {
-        Self { core }
+impl CacacheWriter {
+    pub fn new(core: Arc<CacacheCore>, path: String) -> Self {
+        Self {
+            core,
+            path,
+            buffer: oio::QueueBuf::new(),
+        }
     }
 }
 
-impl oio::OneShotDelete for FsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
+impl oio::Write for CacacheWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.buffer.push(bs);
+        Ok(())
+    }
 
-        let meta = tokio::fs::metadata(&p).await;
+    async fn close(&mut self) -> Result<Metadata> {
+        let buf = self.buffer.clone().collect();
+        let length = buf.len() as u64;
 
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
-                } else {
-                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
-                }
-                Ok(())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(new_std_io_error(err)),
-        }
+        self.core.set(&self.path, buf.to_bytes()).await?;
+
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        Ok(meta)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.buffer.clear();
+        Ok(())
     }
 }

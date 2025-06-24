@@ -174,11 +174,6 @@ impl Builder for UpyunBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_md5: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_disposition: true,
 
                             create_dir: true,
 
@@ -200,9 +195,6 @@ impl Builder for UpyunBuilder {
 
                             list: true,
                             list_with_limit: true,
-                            list_has_content_length: true,
-                            list_has_content_type: true,
-                            list_has_last_modified: true,
 
                             shared: true,
 

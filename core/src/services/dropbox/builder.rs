@@ -186,8 +186,6 @@ impl Builder for DropboxBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_length: true,
 
                             read: true,
 
@@ -199,8 +197,6 @@ impl Builder for DropboxBuilder {
 
                             list: true,
                             list_with_recursive: true,
-                            list_has_last_modified: true,
-                            list_has_content_length: true,
 
                             copy: true,
 

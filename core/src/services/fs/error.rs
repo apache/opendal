@@ -15,17 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-cacache")]
-mod backend;
-#[cfg(feature = "services-cacache")]
-mod core;
-#[cfg(feature = "services-cacache")]
-mod delete;
-#[cfg(feature = "services-cacache")]
-mod writer;
+use crate::raw::*;
+use crate::*;
 
-#[cfg(feature = "services-cacache")]
-pub use backend::CacacheBuilder as Cacache;
-
-mod config;
-pub use config::CacacheConfig;
+/// Parse error response into Error.
+pub(super) fn parse_error(e: std::io::Error) -> Error {
+    match e.kind() {
+        std::io::ErrorKind::AlreadyExists => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The file already exists in the filesystem",
+        )
+        .set_source(e),
+        _ => new_std_io_error(e),
+    }
+}

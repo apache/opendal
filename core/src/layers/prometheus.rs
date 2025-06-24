@@ -41,8 +41,9 @@ use crate::*;
 ///
 /// # Examples
 ///
+/// ## Basic Usage
+///
 /// ```no_run
-/// # use log::debug;
 /// # use log::info;
 /// # use opendal::layers::PrometheusLayer;
 /// # use opendal::services;
@@ -61,11 +62,10 @@ use crate::*;
 ///             .expect("register metrics successfully"),
 ///     )
 ///     .finish();
-/// debug!("operator: {op:?}");
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
-/// // Read data from object.
+/// // Read data from the object.
 /// let bs = op.read("test").await?;
 /// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
 ///
@@ -79,8 +79,62 @@ use crate::*;
 /// encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
 /// println!("## Prometheus Metrics");
 /// println!("{}", String::from_utf8(buffer.clone()).unwrap());
+/// # Ok(())
+/// # }
+/// ```
 ///
-/// Ok(())
+/// ## Global Instance
+///
+/// `PrometheusLayer` needs to be registered before instantiation.
+///
+/// If there are multiple operators in an application that need the `PrometheusLayer`, we could
+/// instantiate it once and pass it to multiple operators. But we cannot directly call
+/// `.layer(PrometheusLayer::builder().register(&registry)?)` for different services, because
+/// registering the same metrics multiple times to the same registry will cause register errors.
+/// Therefore, we can provide a global instance for the `PrometheusLayer`.
+///
+/// ```no_run
+/// # use std::sync::OnceLock;
+/// # use log::info;
+/// # use opendal::layers::PrometheusLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
+/// # use prometheus::Encoder;
+///
+/// fn global_prometheus_layer() -> &'static PrometheusLayer {
+///     static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
+///     GLOBAL.get_or_init(|| {
+///         PrometheusLayer::builder()
+///             .register_default()
+///             .expect("Failed to register with the global registry")
+///     })
+/// }
+///
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let op = Operator::new(services::Memory::default())?
+///     .layer(global_prometheus_layer().clone())
+///     .finish();
+///
+/// // Write data into object test.
+/// op.write("test", "Hello, World!").await?;
+///
+/// // Read data from the object.
+/// let bs = op.read("test").await?;
+/// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
+///
+/// // Get object metadata.
+/// let meta = op.stat("test").await?;
+/// info!("meta: {:?}", meta);
+///
+/// // Export prometheus metrics.
+/// let mut buffer = Vec::<u8>::new();
+/// let encoder = prometheus::TextEncoder::new();
+/// encoder.encode(&prometheus::gather(), &mut buffer).unwrap();
+/// println!("## Prometheus Metrics");
+/// println!("{}", String::from_utf8(buffer.clone()).unwrap());
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -94,7 +148,6 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -108,7 +161,7 @@ impl PrometheusLayer {
     ///
     /// let duration_seconds_buckets = prometheus::exponential_buckets(0.01, 2.0, 16).unwrap();
     /// let bytes_buckets = prometheus::exponential_buckets(1.0, 2.0, 16).unwrap();
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
     ///             .duration_seconds_buckets(duration_seconds_buckets)
@@ -117,9 +170,7 @@ impl PrometheusLayer {
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn builder() -> PrometheusLayerBuilder {
@@ -212,7 +263,6 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -222,18 +272,14 @@ impl PrometheusLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
-    /// let registry = prometheus::default_registry();
-    ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
-    ///             .register(registry)
+    ///             .register(prometheus::default_registry())
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register(self, registry: &Registry) -> Result<PrometheusLayer> {
@@ -455,7 +501,6 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -465,17 +510,14 @@ impl PrometheusLayerBuilder {
     /// # async fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
-    ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(
     ///         PrometheusLayer::builder()
     ///             .register_default()
     ///             .expect("register metrics successfully"),
     ///     )
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register_default(self) -> Result<PrometheusLayer> {

@@ -216,11 +216,6 @@ impl MokaAccessor {
             write_with_content_encoding: true,
             delete: true,
             stat: true,
-            stat_has_cache_control: true,
-            stat_has_content_type: true,
-            stat_has_content_disposition: true,
-            stat_has_content_encoding: true,
-            stat_has_content_length: true,
             list: true,
             shared: false,
             ..Default::default()

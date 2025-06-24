@@ -182,15 +182,6 @@ impl Builder for GhacBuilder {
                     .set_name(&version)
                     .set_native_capability(Capability {
                         stat: true,
-                        stat_has_cache_control: true,
-                        stat_has_content_length: true,
-                        stat_has_content_type: true,
-                        stat_has_content_encoding: true,
-                        stat_has_content_range: true,
-                        stat_has_etag: true,
-                        stat_has_content_md5: true,
-                        stat_has_last_modified: true,
-                        stat_has_content_disposition: true,
 
                         read: true,
 

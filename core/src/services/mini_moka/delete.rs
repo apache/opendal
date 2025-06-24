@@ -15,17 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-cacache")]
-mod backend;
-#[cfg(feature = "services-cacache")]
-mod core;
-#[cfg(feature = "services-cacache")]
-mod delete;
-#[cfg(feature = "services-cacache")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-cacache")]
-pub use backend::CacacheBuilder as Cacache;
+use super::core::MiniMokaCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::CacacheConfig;
+pub struct MiniMokaDeleter {
+    core: Arc<MiniMokaCore>,
+    root: String,
+}
+
+impl MiniMokaDeleter {
+    pub fn new(core: Arc<MiniMokaCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MiniMokaDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.cache.invalidate(&p);
+        Ok(())
+    }
+}

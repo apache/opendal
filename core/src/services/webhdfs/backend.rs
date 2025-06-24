@@ -185,8 +185,6 @@ impl Builder for WebhdfsBuilder {
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -198,8 +196,6 @@ impl Builder for WebhdfsBuilder {
                 delete: true,
 
                 list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 shared: true,
 

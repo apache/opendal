@@ -141,7 +141,7 @@ export function run(op) {
       const first_version = first_meta.version
 
       const first_versioning_meta = await op.stat(filename, { version: first_version })
-      expect(first_versioning_meta).toBe(first_meta)
+      expect(first_versioning_meta).toStrictEqual(first_meta)
 
       await op.write(filename, content)
       const second_meta = await op.stat(filename)
@@ -149,7 +149,7 @@ export function run(op) {
       expect(second_version).not.toBe(first_version)
 
       const meta = await op.stat(filename, { version: first_version })
-      expect(meta).toBe(first_meta)
+      expect(meta).toStrictEqual(first_meta)
 
       await op.delete(filename)
     })

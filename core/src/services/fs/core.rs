@@ -119,15 +119,12 @@ impl FsCore {
     ) -> Result<(PathBuf, Option<PathBuf>)> {
         if let Some(atomic_write_dir) = &self.atomic_write_dir {
             let target_path = self.ensure_write_abs_path(&self.root, path).await?;
-            let path = if op.if_not_exists() {
-                target_path.to_string_lossy().to_string()
-            } else {
-                build_tmp_path_of(path)
-            };
-            let tmp_path = self.ensure_write_abs_path(atomic_write_dir, &path).await?;
+            let tmp_path = self
+                .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
+                .await?;
 
             // If the target file exists, we should append to the end of it directly.
-            let should_append = op.append()
+            let should_append = (op.append() || op.if_not_exists())
                 && tokio::fs::try_exists(&target_path)
                     .await
                     .map_err(new_std_io_error)?;

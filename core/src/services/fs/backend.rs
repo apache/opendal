@@ -227,21 +227,18 @@ impl Access for FsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (target_path, tmp_path) = self.core.prepare_write(path, &op).await?;
-        let file = self
-            .core
-            .fs_write(&target_path, tmp_path.as_ref(), &op)
-            .await?;
+        let is_append = op.append();
+        let concurrent = op.concurrent();
 
-        let writer = FsWriter::new(target_path, tmp_path, file);
+        let writer = FsWriter::create(self.core.clone(), path, op).await?;
 
-        let writer = if op.append() {
+        let writer = if is_append {
             FsWriters::One(writer)
         } else {
             FsWriters::Two(oio::PositionWriter::new(
                 self.info().clone(),
                 writer,
-                op.concurrent(),
+                concurrent,
             ))
         };
 
@@ -273,25 +270,5 @@ impl Access for FsBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tmp_file_of() {
-        let cases = vec![
-            ("hello.txt", "hello.txt"),
-            ("/tmp/opendal.log", "opendal.log"),
-            ("/abc/def/hello.parquet", "hello.parquet"),
-        ];
-
-        for (path, expected_prefix) in cases {
-            let tmp_file = tmp_file_of(path);
-            assert!(tmp_file.len() > expected_prefix.len());
-            assert!(tmp_file.starts_with(expected_prefix));
-        }
     }
 }

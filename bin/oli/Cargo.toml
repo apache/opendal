@@ -32,7 +32,7 @@ version = "0.41.21"
 [dependencies]
 anyhow = { version = "1.0" }
 clap = { version = "4.5", features = ["cargo", "string", "derive"] }
-dirs = { version = "5.0" }
+dirs = { version = "6.0" }
 futures = { version = "0.3" }
 humansize = { version = "2.1" }
 humantime = { version = "2.2" }

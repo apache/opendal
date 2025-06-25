@@ -329,3 +329,65 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
         }
     }
 }
+
+#[napi(object)]
+#[derive(Debug, Default)]
+pub struct ListOptions {
+    /**
+     * The limit passed to underlying service to specify the max results
+     * that could return per-request.
+     *
+     * Users could use this to control the memory usage of list operation.
+     */
+    pub limit: Option<u32>,
+
+    /**
+     * The start_after passed to underlying service to specify the specified key
+     * to start listing from.
+     */
+    pub start_after: Option<String>,
+
+    /**
+     * The recursive is used to control whether the list operation is recursive.
+     *
+     * - If `false`, list operation will only list the entries under the given path.
+     * - If `true`, list operation will list all entries that starts with given path.
+     *
+     * Default to `false`.
+     */
+    pub recursive: Option<bool>,
+
+    /**
+     * The versions is used to control whether the object versions should be returned.
+     *
+     * - If `false`, list operation will not return with object versions
+     * - If `true`, list operation will return with object versions if object versioning is supported
+     *   by the underlying service
+     *
+     * Default to `false`
+     */
+    pub versions: Option<bool>,
+
+    /**
+     * The deleted is used to control whether the deleted objects should be returned.
+     *
+     * - If `false`, list operation will not return with deleted objects
+     * - If `true`, list operation will return with deleted objects if object versioning is supported
+     *   by the underlying service
+     *
+     * Default to `false`
+     */
+    pub deleted: Option<bool>,
+}
+
+impl From<ListOptions> for opendal::options::ListOptions {
+    fn from(value: ListOptions) -> Self {
+        Self {
+            limit: value.limit.map(|v| v as usize),
+            start_after: value.start_after,
+            recursive: value.recursive.unwrap_or_default(),
+            versions: value.versions.unwrap_or_default(),
+            deleted: value.deleted.unwrap_or_default(),
+        }
+    }
+}

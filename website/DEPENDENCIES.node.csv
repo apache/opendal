@@ -1,5 +1,5 @@
 "module name","license","repository"
-"@docusaurus/core@3.6.1","MIT","https://github.com/facebook/docusaurus"
+"@docusaurus/core@3.8.1","MIT","https://github.com/facebook/docusaurus"
 "@docusaurus/plugin-client-redirects@3.6.1","MIT","https://github.com/facebook/docusaurus"
 "@docusaurus/preset-classic@3.6.1","MIT","https://github.com/facebook/docusaurus"
 "@mdx-js/react@3.1.0","MIT","https://github.com/mdx-js/mdx"

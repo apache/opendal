@@ -16,8 +16,8 @@
   },
   "dependencies": {
     "@docusaurus/core": "^3.8.1",
-    "@docusaurus/plugin-client-redirects": "^3.4.0",
-    "@docusaurus/preset-classic": "^3.4.0",
+    "@docusaurus/plugin-client-redirects": "^3.8.1",
+    "@docusaurus/preset-classic": "^3.8.1",
     "@mdx-js/react": "^3.0.1",
     "axios": "^1.8.2",
     "clsx": "^1.2.1",

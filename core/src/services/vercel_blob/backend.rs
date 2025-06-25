@@ -27,6 +27,7 @@ use log::debug;
 use super::core::parse_blob;
 use super::core::Blob;
 use super::core::VercelBlobCore;
+use super::delete::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
@@ -144,6 +145,8 @@ impl Builder for VercelBlobBuilder {
                             list: true,
                             list_with_limit: true,
 
+                            delete: true,
+
                             shared: true,
 
                             ..Default::default()
@@ -174,7 +177,7 @@ impl Access for VercelBlobBackend {
     type Reader = HttpBody;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
-    type Deleter = ();
+    type Deleter = oio::OneShotDeleter<VercelBlobDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -238,5 +241,12 @@ impl Access for VercelBlobBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = VercelBlobLister::new(self.core.clone(), path, args.limit());
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(VercelBlobDeleter::new(self.core.clone())),
+        ))
     }
 }

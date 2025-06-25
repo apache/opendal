@@ -249,6 +249,42 @@ impl VercelBlobCore {
         Ok(resp)
     }
 
+    pub async fn vercel_delete_blob(&self, path: &str) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
+
+        let resp = self.list(&p, Some(1)).await?;
+
+        let url = resolve_blob(resp.blobs, p);
+
+        if url.is_empty() {
+            return Ok(());
+        }
+
+        let req = Request::post("https://blob.vercel-storage.com/delete");
+
+        let req = self.sign(req);
+
+        let req_body = &json!({
+            "urls": vec![url]
+        });
+
+        // Set body
+        let req = req
+            .extension(Operation::Delete)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Buffer::from(Bytes::from(req_body.to_string())))
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     pub async fn initiate_multipart_upload(
         &self,
         path: &str,

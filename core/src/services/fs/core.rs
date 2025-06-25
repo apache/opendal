@@ -112,37 +112,7 @@ impl FsCore {
         Ok(f)
     }
 
-    pub async fn prepare_write(
-        &self,
-        path: &str,
-        op: &OpWrite,
-    ) -> Result<(PathBuf, Option<PathBuf>)> {
-        if let Some(atomic_write_dir) = &self.atomic_write_dir {
-            let target_path = self.ensure_write_abs_path(&self.root, path).await?;
-            let tmp_path = self
-                .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
-                .await?;
-
-            // If the target file exists, we should append to the end of it directly.
-            let should_append = (op.append() || op.if_not_exists())
-                && tokio::fs::try_exists(&target_path)
-                    .await
-                    .map_err(new_std_io_error)?;
-            let tmp_path = (!should_append).then_some(tmp_path);
-
-            Ok((target_path, tmp_path))
-        } else {
-            let p = self.ensure_write_abs_path(&self.root, path).await?;
-            Ok((p, None))
-        }
-    }
-
-    pub async fn fs_write(
-        &self,
-        target_path: &PathBuf,
-        tmp_path: Option<&PathBuf>,
-        op: &OpWrite,
-    ) -> Result<tokio::fs::File> {
+    pub async fn fs_write(&self, path: &PathBuf, op: &OpWrite) -> Result<tokio::fs::File> {
         let mut open_options = tokio::fs::OpenOptions::new();
         if op.if_not_exists() {
             open_options.create_new(true);
@@ -158,12 +128,36 @@ impl FsCore {
             open_options.truncate(true);
         }
 
-        let f = open_options
-            .open(tmp_path.unwrap_or(target_path))
-            .await
-            .map_err(parse_error)?;
+        let f = open_options.open(path).await.map_err(parse_error)?;
 
         Ok(f)
+    }
+
+    /// This function is used to build a tempfile for writing.
+    ///
+    /// We don't care about the OpWrite since every check should be performed on target path directly.
+    pub async fn fs_tempfile_write(
+        &self,
+        path: &str,
+    ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
+        let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
+            return Err(Error::new(ErrorKind::Unexpected, "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug."));
+        };
+
+        let tmp_path = self
+            .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
+            .await?;
+
+        let mut open_options = tokio::fs::OpenOptions::new();
+
+        // tempfile should always be new file.
+        open_options.create_new(true);
+        open_options.write(true);
+        open_options.truncate(true);
+
+        let f = open_options.open(&tmp_path).await.map_err(parse_error)?;
+
+        Ok((f, Some(tmp_path)))
     }
 
     pub async fn fs_list(&self, path: &str) -> Result<Option<tokio::fs::ReadDir>> {

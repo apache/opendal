@@ -14,6 +14,7 @@ mod lister;
 mod reader;
 mod writer;
 
+
 use deleter::ObjectStoreDeleter;
 use error::parse_error;
 use lister::ObjectStoreLister;
@@ -129,5 +130,105 @@ impl Access for ObjectStoreBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let lister = ObjectStoreLister::new(self.store.clone(), path, args).await?;
         Ok((RpList::default(), lister))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use object_store::memory::InMemory;
+
+    #[tokio::test]
+    async fn test_object_store_backend_builder() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let builder = ObjectStoreBuilder::default().store(store);
+        
+        let backend = builder.build().expect("build should succeed");
+        assert!(backend.info().scheme() == Scheme::Custom("object_store"));
+    }
+
+    #[tokio::test]
+    async fn test_object_store_backend_info() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::default()
+            .store(store)
+            .build()
+            .expect("build should succeed");
+        
+        let info = backend.info();
+        assert_eq!(info.scheme(), Scheme::Custom("object_store"));
+        assert_eq!(info.name(), "object_store");
+        assert_eq!(info.root(), "/");
+        
+        let cap = info.native_capability();
+        assert!(cap.stat);
+        assert!(cap.read);
+        assert!(cap.write);
+        assert!(cap.delete);
+        assert!(cap.list);
+    }
+
+    #[tokio::test]
+    async fn test_object_store_backend_basic_operations() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::default()
+            .store(store.clone())
+            .build()
+            .expect("build should succeed");
+        
+        let path = "test_file.txt";
+        let content = b"Hello, world!";
+        
+        // Test write
+        let (_, mut writer) = backend
+            .write(path, OpWrite::default())
+            .await
+            .expect("write should succeed");
+        
+        writer.write(content.into()).await.expect("write content should succeed");
+        writer.close().await.expect("close should succeed");
+        
+        // Test stat
+        let stat_result = backend
+            .stat(path, OpStat::default())
+            .await
+            .expect("stat should succeed");
+        
+        assert_eq!(stat_result.metadata().content_length(), content.len() as u64);
+        
+        // Test read
+        let (_, mut reader) = backend
+            .read(path, OpRead::default())
+            .await
+            .expect("read should succeed");
+        
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await.expect("read should succeed");
+        assert_eq!(buf, content);
+    }
+
+    #[tokio::test]
+    async fn test_object_store_backend_with_operator() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let op = Operator::new(ObjectStoreBuilder::default().store(store))
+            .expect("operator creation should succeed")
+            .finish();
+        
+        let path = "test_operator.txt";
+        let content = "Hello from operator!";
+        
+        // Write using operator
+        op.write(path, content)
+            .await
+            .expect("write should succeed");
+        
+        // Read using operator
+        let result = op.read(path).await.expect("read should succeed");
+        assert_eq!(result, content.as_bytes());
+        
+        // Check metadata
+        let meta = op.stat(path).await.expect("stat should succeed");
+        assert_eq!(meta.content_length(), content.len() as u64);
+        assert!(meta.is_file());
     }
 }

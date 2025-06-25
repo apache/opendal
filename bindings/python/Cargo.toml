@@ -166,7 +166,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-mime-guess"
 ] }
-pyo3 = { version = "0.24.1", features = ["generate-import-lib", "chrono"] }
+pyo3 = { version = "0.25.1", features = ["generate-import-lib", "chrono"] }
 pyo3-async-runtimes = { version = "0.24.0", features = ["tokio-runtime"] }
 tokio = "1"
 

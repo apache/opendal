@@ -170,6 +170,8 @@ impl Operator {
             Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv => Self::from_iter::<services::CloudflareKv>(iter)?.finish(),
             #[cfg(feature = "services-compfs")]
             Scheme::Compfs => Self::from_iter::<services::Compfs>(iter)?.finish(),
             #[cfg(feature = "services-upyun")]

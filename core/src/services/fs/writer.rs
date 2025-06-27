@@ -40,24 +40,36 @@ impl FsWriter {
     pub async fn create(core: Arc<FsCore>, path: &str, op: OpWrite) -> Result<Self> {
         let target_path = core.ensure_write_abs_path(&core.root, path).await?;
 
-        // Create a target file using our OpWrite to check for permissions and existence.
-        //
-        // If target check passed, we can go decide which path we should go for writing.
-        let target_file = core.fs_write(&target_path, &op).await?;
+        // Quick path while atomic_write_dir is not set.
+        if core.atomic_write_dir.is_none() {
+            let target_file = core.fs_write(&target_path, &op).await?;
 
-        // file is created success with append.
-        let is_append = op.append();
-        // file is created success with if_not_exists.
-        let is_exist = !op.if_not_exists();
-
-        let (mut f, mut temp_path) = (target_file, None);
-        if core.atomic_write_dir.is_some() {
-            // The only case we allow write in place is the file
-            // exists and users request for append writing.
-            if !(is_append && is_exist) {
-                (f, temp_path) = core.fs_tempfile_write(path).await?;
-            }
+            return Ok(Self {
+                target_path,
+                temp_path: None,
+                f: target_file,
+            });
         }
+
+        let is_append = op.append();
+        let is_exist = tokio::fs::try_exists(&target_path)
+            .await
+            .map_err(new_std_io_error)?;
+        if op.if_not_exists() && is_exist {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "file already exists, doesn't match the condition if_not_exists",
+            ));
+        }
+
+        // The only case we allow write in place is the file
+        // exists and users request for append writing.
+        let (f, temp_path) = if !(is_append && is_exist) {
+            core.fs_tempfile_write(path).await?
+        } else {
+            let f = core.fs_write(&target_path, &op).await?;
+            (f, None)
+        };
 
         Ok(Self {
             target_path,

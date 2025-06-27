@@ -158,13 +158,14 @@ export function run(op) {
       const filePath = path.join(dirname, `random_file_${randomUUID()}`)
       op.writeSync(filePath, '1')
 
-      const lists = op.listSync(dirname, { deleted: true })
+      const lists = op.listSync(filePath, { deleted: true })
       expect(lists.length).toBe(1)
 
       op.writeSync(filePath, '2')
-      op.removeSync(filePath)
+      op.deleteSync(filePath)
 
-      const actual = lists.filter((item) => item.path() === filePath && item.metadata().isDeleted())
+      const ds = op.listSync(filePath, { deleted: true })
+      const actual = ds.filter((item) => item.path() === filePath && item.metadata().isDeleted())
       expect(actual.length).toBe(1)
 
       op.removeAllSync(dirname)

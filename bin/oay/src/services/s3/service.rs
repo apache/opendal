@@ -80,7 +80,7 @@ async fn handle_list_objects(
     state: State<S3State>,
     params: Query<ListObjectsV2Params>,
 ) -> Result<OkResponse, ErrorResponse> {
-    log::debug!("got params: {:?}", params);
+    log::debug!("got params: {params:?}");
 
     if !state.op.info().full_capability().list_with_start_after {
         return Err(ErrorResponse {

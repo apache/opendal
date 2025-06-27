@@ -117,7 +117,7 @@ impl std::fmt::Display for DirectorySnapshot {
             }
             table.add_row(row);
         }
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }
 

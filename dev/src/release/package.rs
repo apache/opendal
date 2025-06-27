@@ -126,7 +126,7 @@ pub fn update_package_version(package: &Package) -> bool {
         "bindings/java" => update_maven_version(&package.path, &package.version),
         "bindings/nodejs" => update_nodejs_version(&package.path, &package.version),
 
-        name => panic!("unknown package: {}", name),
+        name => panic!("unknown package: {name}"),
     }
 }
 

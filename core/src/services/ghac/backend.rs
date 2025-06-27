@@ -41,10 +41,7 @@ fn value_or_env(
     }
 
     env::var(env_var_name).map_err(|err| {
-        let text = format!(
-            "{} not found, maybe not in github action environment?",
-            env_var_name
-        );
+        let text = format!("{env_var_name} not found, maybe not in github action environment?");
         Error::new(ErrorKind::ConfigInvalid, text)
             .with_operation(operation)
             .set_source(err)
@@ -143,13 +140,13 @@ impl Builder for GhacBuilder {
     type Config = GhacConfig;
 
     fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", self);
+        debug!("backend build started: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let service_version = get_cache_service_version();
-        debug!("backend use service version {:?}", service_version);
+        debug!("backend use service version {service_version:?}");
 
         let mut version = self
             .config
@@ -160,7 +157,7 @@ impl Builder for GhacBuilder {
         // ghac requires to use hex digest of Sha256 as version.
         if matches!(service_version, GhacVersion::V2) {
             let hash = sha2::Sha256::digest(&version);
-            version = format!("{:x}", hash);
+            version = format!("{hash:x}");
         }
 
         let cache_url = self

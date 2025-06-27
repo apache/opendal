@@ -60,14 +60,13 @@ impl GdriveCore {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            format!("path not found: {}", path),
+            format!("path not found: {path}"),
         ))?;
 
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
-            "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,size,modifiedTime",
-            file_id
+            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
         ))
             .extension(Operation::Stat)
             .body(Buffer::new())
@@ -81,13 +80,10 @@ impl GdriveCore {
         let path = build_abs_path(&self.root, path);
         let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            format!("path not found: {}", path),
+            format!("path not found: {path}"),
         ))?;
 
-        let url: String = format!(
-            "https://www.googleapis.com/drive/v3/files/{}?alt=media",
-            path_id
-        );
+        let url: String = format!("https://www.googleapis.com/drive/v3/files/{path_id}?alt=media");
 
         let mut req = Request::get(&url)
             .extension(Operation::Read)
@@ -105,7 +101,7 @@ impl GdriveCore {
         page_size: i32,
         next_page_token: &str,
     ) -> Result<Response<Buffer>> {
-        let q = format!("'{}' in parents and trashed = false", file_id);
+        let q = format!("'{file_id}' in parents and trashed = false");
         let url = "https://www.googleapis.com/drive/v3/files";
         let mut url = QueryPairsWriter::new(url);
         url = url.push("pageSize", &page_size.to_string());
@@ -131,7 +127,7 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
-            format!("source path not found: {}", source),
+            format!("source path not found: {source}"),
         ))?;
         let source_parent = get_parent(source);
         let source_parent_id = self
@@ -149,10 +145,7 @@ impl GdriveCore {
             "addParents": [target_parent_id],
         });
 
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files/{}",
-            source_file_id
-        );
+        let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
             .body(Buffer::from(Bytes::from(metadata.to_string())))
@@ -164,7 +157,7 @@ impl GdriveCore {
     }
 
     pub async fn gdrive_trash(&self, file_id: &str) -> Result<Response<Buffer>> {
-        let url = format!("https://www.googleapis.com/drive/v3/files/{}", file_id);
+        let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}");
 
         let body = serde_json::to_vec(&json!({
             "trashed": true
@@ -240,10 +233,8 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let url = format!(
-            "https://www.googleapis.com/upload/drive/v3/files/{}?uploadType=media",
-            file_id
-        );
+        let url =
+            format!("https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media");
 
         let mut req = Request::patch(url)
             .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -286,10 +277,7 @@ impl GdriveCore {
             self.path_cache.remove(&to_path).await;
         }
 
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files/{}/copy",
-            from_file_id
-        );
+        let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
 
         let request_body = &json!({
             "name": to_name,

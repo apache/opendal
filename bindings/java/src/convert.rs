@@ -117,7 +117,7 @@ pub(crate) fn read_jlong_field_to_usize(
         v if v > 0 => Ok(Some(v as usize)),
         v => Err(Error::new(
             ErrorKind::Unexpected,
-            format!("{} must be positive, instead got: {}", field_name, v),
+            format!("{field_name} must be positive, instead got: {v}"),
         )
         .into()),
     }
@@ -143,8 +143,7 @@ pub(crate) fn read_instant_field_to_date_time(
             Error::new(
                 ErrorKind::Unexpected,
                 format!(
-                    "Invalid timestamp: seconds={}, nanos={}",
-                    epoch_second, nano
+                    "Invalid timestamp: seconds={epoch_second}, nanos={nano}"
                 ),
             )
             .into()

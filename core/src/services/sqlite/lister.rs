@@ -38,7 +38,7 @@ impl SqliteLister {
             iter: Box::new(
                 sqlx::query_scalar(&format!(
                     r#"SELECT `{}` FROM `{}` 
-                   WHERE `{}` (LIKE $1 OR LIKE $5)
+                   WHERE `{}` LIKE $1
                    AND (
                        `{}` NOT LIKE $2 OR  -- Not nested content
                        (`{}` LIKE $3 AND `{}` NOT LIKE $4)  -- Or is a direct subdirectory
@@ -54,7 +54,7 @@ impl SqliteLister {
                 .bind(format!("{}/%/%", folder_path_clean)) // Exclude nested content
                 .bind(format!("{}/%/", folder_path_clean)) // But allow direct subdirs
                 .bind(format!("{}/%/%/", folder_path_clean))
-                .bind(format!("{}/", folder_path_clean))
+                // .bind(format!("{}/", folder_path_clean))
                 .fetch(core.get_client().await?)
                 .map(|v| v.map_err(crate::services::sqlite::backend::parse_sqlite_error))
                 .collect::<Vec<_>>()

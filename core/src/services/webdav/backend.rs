@@ -160,7 +160,7 @@ impl Builder for WebdavBuilder {
             .to_string();
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut authorization = None;
         if let Some(username) = &self.config.username {

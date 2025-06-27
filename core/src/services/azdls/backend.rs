@@ -256,7 +256,7 @@ impl Builder for AzdlsBuilder {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         // Handle endpoint, region and container name.
         let filesystem = match self.config.filesystem.is_empty() {

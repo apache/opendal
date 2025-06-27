@@ -293,7 +293,7 @@ impl WebhdfsCore {
             percent_encode_path(&p),
         );
         if !start_after.is_empty() {
-            url += format!("&startAfter={}", start_after).as_str();
+            url += format!("&startAfter={start_after}").as_str();
         }
         if let Some(user) = &self.user_name {
             url += format!("&user.name={user}").as_str();

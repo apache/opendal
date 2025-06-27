@@ -65,7 +65,7 @@ impl MoveCmd {
                 actual_dst_path.push_str(file_name);
             }
 
-            println!("Moving: {}", src_path);
+            println!("Moving: {src_path}");
             self.cp_file(
                 &src_op,
                 &src_path,
@@ -91,7 +91,7 @@ impl MoveCmd {
             let suffix = path.strip_prefix(prefix).expect("invalid path");
             let depath = dst_root.join(suffix);
 
-            println!("Moving: {}", path);
+            println!("Moving: {path}");
             let meta = entry.metadata();
             if meta.is_dir() {
                 dst_op.create_dir(&depath.to_string_lossy()).await?;

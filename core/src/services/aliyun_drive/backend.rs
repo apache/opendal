@@ -171,7 +171,7 @@ impl Builder for AliyunDriveBuilder {
                 ))
             }
         };
-        debug!("backend use drive_type {:?}", drive_type);
+        debug!("backend use drive_type {drive_type:?}");
 
         Ok(AliyunDriveBackend {
             core: Arc::new(AliyunDriveCore {

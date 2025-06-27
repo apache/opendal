@@ -280,7 +280,7 @@ impl GhacCore {
                             ErrorKind::Unexpected,
                             "create cache entry returns non-ok",
                         )
-                        .with_context("parts", format!("{:?}", parts)));
+                        .with_context("parts", format!("{parts:?}")));
                     }
                     query_resp.signed_upload_url
                 } else {

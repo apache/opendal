@@ -220,7 +220,7 @@ impl VercelBlobCore {
         );
 
         if let Some(limit) = limit {
-            url.push_str(&format!("&limit={}", limit))
+            url.push_str(&format!("&limit={limit}"))
         }
 
         let req = Request::get(&url);

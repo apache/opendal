@@ -296,7 +296,7 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        debug!("current files: {:?}", map);
+        debug!("current files: {map:?}");
 
         assert_eq!(map["file"], EntryMode::FILE);
         assert_eq!(map["dir/"], EntryMode::DIR);
@@ -398,7 +398,7 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        debug!("current files: {:?}", map);
+        debug!("current files: {map:?}");
 
         assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
         assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);

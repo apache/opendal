@@ -67,7 +67,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         let resp = self
             .core
             .webhdfs_create_object(
-                &format!("{}{}", atomic_write_dir, block_id),
+                &format!("{atomic_write_dir}{block_id}"),
                 Some(size),
                 &self.op,
                 body,
@@ -92,7 +92,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         if block_ids.len() >= 2 {
             let sources: Vec<String> = block_ids[1..]
                 .iter()
-                .map(|s| format!("{}{}", atomic_write_dir, s))
+                .map(|s| format!("{atomic_write_dir}{s}"))
                 .collect();
             // concat blocks
             let resp = self.core.webhdfs_concat(&first_block_id, sources).await?;

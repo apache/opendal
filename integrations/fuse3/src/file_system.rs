@@ -229,9 +229,7 @@ impl PathFilesystem for Filesystem {
         fh: Option<u64>,
         set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
-        log::debug!(
-            "setattr(path={path:?}, fh={fh:?}, set_attr={set_attr:?})"
-        );
+        log::debug!("setattr(path={path:?}, fh={fh:?}, set_attr={set_attr:?})");
 
         self.getattr(_req, path, fh, 0).await
     }
@@ -243,9 +241,7 @@ impl PathFilesystem for Filesystem {
         name: &OsStr,
         link_path: &OsStr,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "symlink(parent={parent:?}, name={name:?}, link_path={link_path:?})"
-        );
+        log::debug!("symlink(parent={parent:?}, name={name:?}, link_path={link_path:?})");
         Err(libc::EOPNOTSUPP.into())
     }
 
@@ -257,9 +253,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         _rdev: u32,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "mknod(parent={parent:?}, name={name:?}, mode=0o{mode:o})"
-        );
+        log::debug!("mknod(parent={parent:?}, name={name:?}, mode=0o{mode:o})");
         Err(libc::EOPNOTSUPP.into())
     }
 
@@ -271,9 +265,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "mkdir(parent={parent:?}, name={name:?}, mode=0o{mode:o})"
-        );
+        log::debug!("mkdir(parent={parent:?}, name={name:?}, mode=0o{mode:o})");
 
         let mut path = PathBuf::from(parent).join(name);
         path.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
@@ -346,9 +338,7 @@ impl PathFilesystem for Filesystem {
         new_parent: &OsStr,
         new_name: &OsStr,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "link(path={path:?}, new_parent={new_parent:?}, new_name={new_name:?})"
-        );
+        log::debug!("link(path={path:?}, new_parent={new_parent:?}, new_name={new_name:?})");
         Err(libc::EOPNOTSUPP.into())
     }
 
@@ -412,9 +402,7 @@ impl PathFilesystem for Filesystem {
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
-        log::debug!(
-            "read(path={path:?}, fh={fh}, offset={offset}, size={size})"
-        );
+        log::debug!("read(path={path:?}, fh={fh}, offset={offset}, size={size})");
 
         let file_path = {
             let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
@@ -510,9 +498,7 @@ impl PathFilesystem for Filesystem {
         fh: u64,
         lock_owner: u64,
     ) -> Result<()> {
-        log::debug!(
-            "flush(path={path:?}, fh={fh}, lock_owner={lock_owner})",
-        );
+        log::debug!("flush(path={path:?}, fh={fh}, lock_owner={lock_owner})");
 
         let file = self
             .opened_files
@@ -608,9 +594,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         flags: u32,
     ) -> Result<ReplyCreated> {
-        log::debug!(
-            "create(parent={parent:?}, name={name:?}, mode=0o{mode:o}, flags=0x{flags:x})"
-        );
+        log::debug!("create(parent={parent:?}, name={name:?}, mode=0o{mode:o}, flags=0x{flags:x})");
 
         let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
 
@@ -660,9 +644,7 @@ impl PathFilesystem for Filesystem {
         offset: u64,
         _lock_owner: u64,
     ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'a>>> {
-        log::debug!(
-            "readdirplus(parent={parent:?}, fh={fh}, offset={offset})"
-        );
+        log::debug!("readdirplus(parent={parent:?}, fh={fh}, offset={offset})");
 
         let now = SystemTime::now();
         let mut current_dir = PathBuf::from(parent);

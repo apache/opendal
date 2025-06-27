@@ -142,9 +142,7 @@ pub(crate) fn read_instant_field_to_date_time(
         .ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
-                format!(
-                    "Invalid timestamp: seconds={epoch_second}, nanos={nano}"
-                ),
+                format!("Invalid timestamp: seconds={epoch_second}, nanos={nano}"),
             )
             .into()
         })

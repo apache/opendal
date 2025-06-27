@@ -479,18 +479,18 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_deserialize_scan_json_response() {
+    fn test_deserialize_get_json_response() {
         let json_str = r#"{
 			"errors": [],
 			"messages": [],
 			"result": {
-                values: {
+                "values": {
                     "key1": {
                         "expiration": 1577836800,
                         "metadata": {
-                            etag: "xxxx",
-                            last_modified: "xx",
-                            content_length: 0,
+                            "etag": "xxxx",
+                            "last_modified": "xx",
+                            "content_length": 0
                         },
                         "value": "My-Key"
                     }

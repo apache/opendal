@@ -47,6 +47,9 @@ runs:
               fi
               cp bindings/go/Makefile .
               make tests
+              if [ "${{ inputs.setup }}" == "0_minio_s3" ]; then
+                make bench
+              fi
             env:
               OPENDAL_TEST: ${{ inputs.service }}
               CGO_ENABLE: 0

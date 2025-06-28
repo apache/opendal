@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -23,14 +22,13 @@ use std::time::Duration;
 
 use bytes::Buf;
 use http::StatusCode;
-use serde::Deserialize;
-use serde::Serialize;
 
 use crate::raw::*;
 use crate::services::cloudflare_kv::core::CloudflareKvCore;
 use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
 use crate::services::cloudflare_kv::error::parse_error;
 use crate::services::cloudflare_kv::lister::CloudflareKvLister;
+use crate::services::cloudflare_kv::model::*;
 use crate::services::cloudflare_kv::writer::CloudflareWriter;
 use crate::services::CloudflareKvConfig;
 use crate::ErrorKind;
@@ -293,7 +291,7 @@ impl Access for CloudflareKvAccessor {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.batch_get(&[path.to_string()]).await?;
+        let resp = self.core.get(path).await?;
 
         let status = resp.status();
 
@@ -302,67 +300,147 @@ impl Access for CloudflareKvAccessor {
         }
 
         let resp_body = resp.into_body();
-        let cf_response: CfKvGetResponse =
-            serde_json::from_reader(resp_body.reader()).map_err(new_json_deserialize_error)?;
 
-        if !cf_response.success {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "cloudflare_kv read this key failed for reason we don't know",
-            ));
-        }
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_modified_since().is_some()
+            || args.if_unmodified_since().is_some()
+        {
+            let meta_resp = self.core.metadata(path).await?;
 
-        // Extract data from response and handle not found cases
-        let data = cf_response
-            .result
-            .and_then(|result| result.values)
-            .and_then(|values| values.into_iter().next())
-            .and_then(|(_, data)| data)
-            .ok_or_else(|| Error::new(ErrorKind::NotFound, "key not found in CloudFlare KV"))?;
-
-        // Check if_match condition
-        if let Some(if_match) = &args.if_match() {
-            if if_match != &data.metadata.etag {
-                return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+            if meta_resp.status() != StatusCode::OK {
+                return Err(parse_error(meta_resp));
             }
-        }
 
-        // Check if_none_match condition
-        if let Some(if_none_match) = &args.if_none_match() {
-            if if_none_match == &data.metadata.etag {
+            let cf_response: CfKvStatResponse =
+                serde_json::from_reader(meta_resp.into_body().reader())
+                    .map_err(new_json_deserialize_error)?;
+
+            if !cf_response.success && cf_response.result.is_some() {
                 return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "etag match when expected none match",
+                    ErrorKind::Unexpected,
+                    "cloudflare_kv read this key failed for reason we don't know",
                 ));
             }
-        }
 
-        // Parse since time once for both time-based conditions
-        let last_modified = chrono::DateTime::parse_from_rfc3339(&data.metadata.last_modified)
-            .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+            let metadata = cf_response.result.unwrap();
 
-        // Check modified_since condition
-        if let Some(modified_since) = &args.if_modified_since() {
-            if !last_modified.gt(modified_since) {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "not modified since specified time",
-                ));
+            // Check if_match condition
+            if let Some(if_match) = &args.if_match() {
+                if if_match != &metadata.etag {
+                    return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+                }
+            }
+
+            // Check if_none_match condition
+            if let Some(if_none_match) = &args.if_none_match() {
+                if if_none_match == &metadata.etag {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "etag match when expected none match",
+                    ));
+                }
+            }
+
+            // Parse since time once for both time-based conditions
+            let last_modified = chrono::DateTime::parse_from_rfc3339(&metadata.last_modified)
+                .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+
+            // Check modified_since condition
+            if let Some(modified_since) = &args.if_modified_since() {
+                if !last_modified.gt(modified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "not modified since specified time",
+                    ));
+                }
+            }
+
+            // Check unmodified_since condition
+            if let Some(unmodified_since) = &args.if_unmodified_since() {
+                if !last_modified.le(unmodified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "modified since specified time",
+                    ));
+                }
             }
         }
 
-        // Check unmodified_since condition
-        if let Some(unmodified_since) = &args.if_unmodified_since() {
-            if !last_modified.le(unmodified_since) {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "modified since specified time",
-                ));
-            }
-        }
-
-        Ok((RpRead::new(), Buffer::from(data.value.clone())))
+        Ok((RpRead::new(), resp_body))
     }
+
+    // async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    //     let resp = self.core.batch_get(&[path.to_string()]).await?;
+
+    //     let status = resp.status();
+
+    //     if status != StatusCode::OK {
+    //         return Err(parse_error(resp));
+    //     }
+
+    //     let resp_body = resp.into_body();
+    //     let cf_response: CfKvGetResponse =
+    //         serde_json::from_reader(resp_body.reader()).map_err(new_json_deserialize_error)?;
+
+    //     if !cf_response.success {
+    //         return Err(Error::new(
+    //             ErrorKind::Unexpected,
+    //             "cloudflare_kv read this key failed for reason we don't know",
+    //         ));
+    //     }
+
+    //     // Extract data from response and handle not found cases
+    //     let data = cf_response
+    //         .result
+    //         .and_then(|result| result.values)
+    //         .and_then(|values| values.into_iter().next())
+    //         .and_then(|(_, data)| data)
+    //         .ok_or_else(|| Error::new(ErrorKind::NotFound, "key not found in CloudFlare KV"))?;
+
+    //     // Check if_match condition
+    //     if let Some(if_match) = &args.if_match() {
+    //         if if_match != &data.metadata.etag {
+    //             return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+    //         }
+    //     }
+
+    //     // Check if_none_match condition
+    //     if let Some(if_none_match) = &args.if_none_match() {
+    //         if if_none_match == &data.metadata.etag {
+    //             return Err(Error::new(
+    //                 ErrorKind::ConditionNotMatch,
+    //                 "etag match when expected none match",
+    //             ));
+    //         }
+    //     }
+
+    //     // Parse since time once for both time-based conditions
+    //     let last_modified = chrono::DateTime::parse_from_rfc3339(&data.metadata.last_modified)
+    //         .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+
+    //     // Check modified_since condition
+    //     if let Some(modified_since) = &args.if_modified_since() {
+    //         if !last_modified.gt(modified_since) {
+    //             return Err(Error::new(
+    //                 ErrorKind::ConditionNotMatch,
+    //                 "not modified since specified time",
+    //             ));
+    //         }
+    //     }
+
+    //     // Check unmodified_since condition
+    //     if let Some(unmodified_since) = &args.if_unmodified_since() {
+    //         if !last_modified.le(unmodified_since) {
+    //             return Err(Error::new(
+    //                 ErrorKind::ConditionNotMatch,
+    //                 "modified since specified time",
+    //             ));
+    //         }
+    //     }
+
+    //     Ok((RpRead::new(), Buffer::from(data.value.clone())))
+    // }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = CloudflareWriter::new(self.core.clone(), path.to_string());
@@ -391,136 +469,5 @@ impl Access for CloudflareKvAccessor {
         let l = CloudflareKvLister::new(self.core.clone(), path, args.limit());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvResponse {
-    pub(super) errors: Vec<CfKvError>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvGetResponse {
-    success: bool,
-    result: Option<CfKvGetResult>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CfKvMetadata {
-    pub etag: String,
-    pub last_modified: String,
-    pub content_length: usize,
-}
-
-#[derive(Debug, Deserialize)]
-struct CfKvGetResultData {
-    value: String,
-    metadata: CfKvMetadata,
-    // expiration: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CfKvGetResult {
-    values: Option<HashMap<String, Option<CfKvGetResultData>>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvError {
-    pub(super) code: i32,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CfKvSetData {
-    pub key: String,
-    pub value: String,
-    pub metadata: CfKvMetadata,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvDeleteResult {
-    pub successful_key_count: usize,
-    pub unsuccessful_keys: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvDeleteResponse {
-    pub success: bool,
-    pub result: Option<CfKvDeleteResult>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvListKey {
-    pub name: String,
-    pub metadata: CfKvMetadata,
-    // expiration: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvListResultInfo {
-    // pub count: Option<usize>,
-    pub cursor: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvListResponse {
-    pub success: bool,
-    pub result_info: Option<CfKvListResultInfo>,
-    pub result: Option<Vec<CfKvListKey>>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CfKvStatResponse {
-    pub success: bool,
-    pub result: Option<CfKvMetadata>,
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_deserialize_get_json_response() {
-        let json_str = r#"{
-			"errors": [],
-			"messages": [],
-			"result": {
-                "values": {
-                    "key1": {
-                        "expiration": 1577836800,
-                        "metadata": {
-                            "etag": "xxxx",
-                            "last_modified": "xx",
-                            "content_length": 0
-                        },
-                        "value": "My-Key"
-                    }
-                }
-            },
-			"success": true
-		}"#;
-
-        let response: CfKvGetResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
-
-        assert!(response.success);
-        let values = response.result.unwrap().values.unwrap();
-        assert_eq!(values.len(), 1);
-        assert_eq!(
-            values.get("key1").as_ref().unwrap().as_ref().unwrap().value,
-            "My-Key"
-        );
-    }
-
-    #[test]
-    fn test_deserialize_json_response() {
-        let json_str = r#"{
-			"errors": [],
-			"messages": [],
-			"result": {},
-			"success": true
-		}"#;
-
-        let response: CfKvResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
-
-        assert_eq!(response.errors.len(), 0);
     }
 }

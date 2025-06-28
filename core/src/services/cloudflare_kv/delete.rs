@@ -24,7 +24,7 @@ use super::core::*;
 use super::error::parse_error;
 use crate::raw::oio::BatchDeleteResult;
 use crate::raw::*;
-use crate::services::cloudflare_kv::backend::CfKvDeleteResponse;
+use crate::services::cloudflare_kv::model::CfKvDeleteResponse;
 use crate::*;
 
 pub struct CloudflareKvDeleter {

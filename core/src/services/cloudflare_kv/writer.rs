@@ -22,7 +22,7 @@ use http::StatusCode;
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::cloudflare_kv::backend::CfKvMetadata;
+use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::*;
 
 pub struct CloudflareWriter {

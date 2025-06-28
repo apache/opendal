@@ -18,7 +18,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use bytes::Bytes;
 use http::header;
 use http::request;
 use http::Request;
@@ -30,7 +29,9 @@ use crate::raw::percent_encode_path;
 use crate::raw::Operation;
 use crate::raw::QueryPairsWriter;
 use crate::raw::{new_request_build_error, AccessorInfo, FormDataPart, Multipart};
-use crate::services::cloudflare_kv::backend::CfKvMetadata;
+// use crate::services::cloudflare_kv::model::CfKvGetPayload;
+// use crate::services::cloudflare_kv::model::CfKvGetPayloadType;
+use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::{Buffer, Result};
 
 #[derive(Debug, Clone)]
@@ -80,32 +81,49 @@ impl CloudflareKvCore {
         self.send(req).await
     }
 
-    pub async fn batch_get(&self, paths: &[String]) -> Result<Response<Buffer>> {
-        let url = format!("{}/bulk/get", self.url_prefix());
-        let mut req = Request::post(url);
-
-        req = req.header(header::CONTENT_TYPE, "application/json");
+    pub async fn get(&self, path: &str) -> Result<Response<Buffer>> {
+        let url = format!("{}/values/{}", self.url_prefix(), percent_encode_path(path));
+        let req = Request::get(url);
 
         let req = self.sign(req);
 
-        let paths = paths
-            .iter()
-            .map(|p| percent_encode_path(p))
-            .collect::<Vec<String>>();
-
-        let req_body = &json!({
-            "keys": paths,
-            "type": "json",
-            "withMetadata": true
-        });
-
         let req = req
             .extension(Operation::Read)
-            .body(Buffer::from(Bytes::from(req_body.to_string())))
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
     }
+
+    // // The batch_get operation is currently disabled due to response 400 error
+    // pub async fn batch_get(&self, paths: &[String]) -> Result<Response<Buffer>> {
+    //     let url = format!("{}/bulk/get", self.url_prefix());
+    //     let req = Request::post(url);
+
+    //     let req = self.sign(req);
+
+    //     // let paths = paths
+    //     //     .iter()
+    //     //     .map(|p| percent_encode_path(p))
+    //     //     .collect::<Vec<String>>();
+
+    //     let payload = CfKvGetPayload {
+    //         keys: paths.to_vec(),
+    //         get_type: Some(CfKvGetPayloadType::Json),
+    //         with_metadata: Some(true),
+    //     };
+
+    //     let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
+    //     let body = Buffer::from(body_bytes);
+
+    //     let req = req
+    //         .extension(Operation::Read)
+    //         .header(header::CONTENT_TYPE, "application/json")
+    //         .body(body)
+    //         .map_err(new_request_build_error)?;
+
+    //     self.send(req).await
+    // }
 
     pub async fn set(
         &self,
@@ -147,7 +165,7 @@ impl CloudflareKvCore {
         let req = req
             .extension(Operation::Delete)
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(Bytes::from(req_body.to_string())))
+            .body(Buffer::from(req_body.to_string()))
             .map_err(new_request_build_error)?;
 
         self.send(req).await

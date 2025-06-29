@@ -9,6 +9,30 @@ This service can be used to:
 - [x] delete
 - [x] copy
 - [x] rename
-- [ ] list
+- [x] list
 - [ ] presign
-- [ ] blocking
+
+## Configuration
+
+- `root`: Set the root path for this dashmap instance.
+
+You can refer to [`DashmapBuilder`]'s docs for more information
+
+## Example
+
+### Via Builder
+
+```rust,no_run
+use anyhow::Result;
+use opendal::services::Dashmap;
+use opendal::Operator;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut builder = Dashmap::default()
+        .root("/");
+
+    let op: Operator = Operator::new(builder)?.finish();
+    Ok(())
+}
+```

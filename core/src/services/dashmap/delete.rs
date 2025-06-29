@@ -15,19 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-dashmap")]
-mod backend;
-#[cfg(feature = "services-dashmap")]
-mod core;
-#[cfg(feature = "services-dashmap")]
-mod delete;
-#[cfg(feature = "services-dashmap")]
-mod lister;
-#[cfg(feature = "services-dashmap")]
-mod writer;
+use std::sync::Arc;
 
-#[cfg(feature = "services-dashmap")]
-pub use backend::DashmapBuilder as Dashmap;
+use super::core::DashmapCore;
+use crate::raw::{build_abs_path, oio, OpDelete};
+use crate::*;
 
-mod config;
-pub use config::DashmapConfig;
+pub struct DashmapDeleter {
+    core: Arc<DashmapCore>,
+    root: String,
+}
+
+impl DashmapDeleter {
+    pub fn new(core: Arc<DashmapCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for DashmapDeleter {
+    async fn delete_once(&self, path: String, _op: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p)
+    }
+}

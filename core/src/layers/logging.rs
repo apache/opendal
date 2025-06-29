@@ -541,7 +541,6 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 }
 
-/// `LoggingReader` is a wrapper of `BytesReader`, with logging functionality.
 pub struct LoggingReader<R, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,
@@ -566,17 +565,8 @@ impl<R, I: LoggingInterceptor> LoggingReader<R, I> {
 
 impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
-        self.logger.log(
-            &self.info,
-            Operation::Read,
-            &[("path", &self.path), ("read", &self.read.to_string())],
-            "started",
-            None,
-        );
-
         match self.inner.read().await {
-            Ok(bs) => {
-                self.read += bs.len() as u64;
+            Ok(bs) if bs.is_empty() => {
                 self.logger.log(
                     &self.info,
                     Operation::Read,
@@ -585,13 +575,13 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
                         ("read", &self.read.to_string()),
                         ("size", &bs.len().to_string()),
                     ],
-                    if bs.is_empty() {
-                        "finished"
-                    } else {
-                        "succeeded"
-                    },
+                    "finished",
                     None,
                 );
+                Ok(bs)
+            }
+            Ok(bs) => {
+                self.read += bs.len() as u64;
                 Ok(bs)
             }
             Err(err) => {
@@ -634,32 +624,9 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let size = bs.len();
 
-        self.logger.log(
-            &self.info,
-            Operation::Write,
-            &[
-                ("path", &self.path),
-                ("written", &self.written.to_string()),
-                ("size", &size.to_string()),
-            ],
-            "started",
-            None,
-        );
-
         match self.inner.write(bs).await {
             Ok(_) => {
                 self.written += size as u64;
-                self.logger.log(
-                    &self.info,
-                    Operation::Write,
-                    &[
-                        ("path", &self.path),
-                        ("written", &self.written.to_string()),
-                        ("size", &size.to_string()),
-                    ],
-                    "succeeded",
-                    None,
-                );
                 Ok(())
             }
             Err(err) => {
@@ -680,21 +647,13 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.logger.log(
-            &self.info,
-            Operation::Write,
-            &[("path", &self.path), ("written", &self.written.to_string())],
-            "started",
-            None,
-        );
-
         match self.inner.abort().await {
             Ok(_) => {
                 self.logger.log(
                     &self.info,
                     Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
-                    "succeeded",
+                    "abort succeeded",
                     None,
                 );
                 Ok(())
@@ -704,7 +663,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
                     &self.info,
                     Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
-                    "failed",
+                    "abort failed",
                     Some(&err),
                 );
                 Err(err)
@@ -713,21 +672,13 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.logger.log(
-            &self.info,
-            Operation::Write,
-            &[("path", &self.path), ("written", &self.written.to_string())],
-            "started",
-            None,
-        );
-
         match self.inner.close().await {
             Ok(meta) => {
                 self.logger.log(
                     &self.info,
                     Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
-                    "succeeded",
+                    "close succeeded",
                     None,
                 );
                 Ok(meta)
@@ -737,7 +688,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
                     &self.info,
                     Operation::Write,
                     &[("path", &self.path), ("written", &self.written.to_string())],
-                    "failed",
+                    "close failed",
                     Some(&err),
                 );
                 Err(err)
@@ -770,30 +721,11 @@ impl<P, I: LoggingInterceptor> LoggingLister<P, I> {
 
 impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        self.logger.log(
-            &self.info,
-            Operation::List,
-            &[("path", &self.path), ("listed", &self.listed.to_string())],
-            "started",
-            None,
-        );
-
         let res = self.inner.next().await;
 
         match &res {
-            Ok(Some(de)) => {
+            Ok(Some(_)) => {
                 self.listed += 1;
-                self.logger.log(
-                    &self.info,
-                    Operation::List,
-                    &[
-                        ("path", &self.path),
-                        ("listed", &self.listed.to_string()),
-                        ("entry", de.path()),
-                    ],
-                    "succeeded",
-                    None,
-                );
             }
             Ok(None) => {
                 self.logger.log(
@@ -848,31 +780,11 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
             .map(|v| v.to_string())
             .unwrap_or_else(|| "<latest>".to_string());
 
-        self.logger.log(
-            &self.info,
-            Operation::Delete,
-            &[("path", path), ("version", &version)],
-            "started",
-            None,
-        );
-
         let res = self.inner.delete(path, args);
 
         match &res {
             Ok(_) => {
                 self.queued += 1;
-                self.logger.log(
-                    &self.info,
-                    Operation::Delete,
-                    &[
-                        ("path", path),
-                        ("version", &version),
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
-                    "succeeded",
-                    None,
-                );
             }
             Err(err) => {
                 self.logger.log(
@@ -894,17 +806,6 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
     }
 
     async fn flush(&mut self) -> Result<usize> {
-        self.logger.log(
-            &self.info,
-            Operation::Delete,
-            &[
-                ("queued", &self.queued.to_string()),
-                ("deleted", &self.deleted.to_string()),
-            ],
-            "started",
-            None,
-        );
-
         let res = self.inner.flush().await;
 
         match &res {

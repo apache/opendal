@@ -172,7 +172,7 @@ impl Builder for SftpBuilder {
                 } else {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
-                        format!("unknown known_hosts strategy: {}", v).as_str(),
+                        format!("unknown known_hosts strategy: {v}").as_str(),
                     ));
                 }
             }
@@ -339,7 +339,7 @@ impl Access for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let file_path = format!("./{}", path);
+        let file_path = format!("./{path}");
 
         let dir = match fs.open_dir(&file_path).await {
             Ok(dir) => dir,

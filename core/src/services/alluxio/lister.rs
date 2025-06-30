@@ -49,7 +49,7 @@ impl oio::PageList for AlluxioLister {
                 for file_info in file_infos {
                     let path: String = file_info.path.clone();
                     let path = if file_info.folder {
-                        format!("{}/", path)
+                        format!("{path}/")
                     } else {
                         path
                     };

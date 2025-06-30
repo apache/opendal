@@ -1232,5 +1232,5 @@ impl RetryLayer {
 ///
 /// FIXME: handle error correctly.
 fn format_napi_error(err: impl Display) -> Error {
-    Error::from_reason(format!("{}", err))
+    Error::from_reason(format!("{err}"))
 }

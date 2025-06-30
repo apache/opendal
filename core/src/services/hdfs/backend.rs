@@ -140,7 +140,7 @@ impl Builder for HdfsBuilder {
         };
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut builder = hdrs::ClientBuilder::new(name_node);
         if let Some(ticket_cache_path) = &self.config.kerberos_ticket_cache_path {
@@ -155,7 +155,7 @@ impl Builder for HdfsBuilder {
         // Create root dir if not exist.
         if let Err(e) = client.metadata(&root) {
             if e.kind() == io::ErrorKind::NotFound {
-                debug!("root {} is not exist, creating now", root);
+                debug!("root {root} is not exist, creating now");
 
                 client.create_dir(&root).map_err(new_std_io_error)?
             }

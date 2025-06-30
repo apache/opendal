@@ -229,7 +229,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
@@ -256,8 +256,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     }
     assert!(
         found,
-        "dir should be found in list, but only got: {:?}",
-        entries
+        "dir should be found in list, but only got: {entries:?}"
     );
 
     op.delete(&path).await.expect("delete must succeed");
@@ -310,7 +309,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 3, "dir should only got 3 objects");
 
@@ -412,7 +411,7 @@ pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> 
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
@@ -598,7 +597,7 @@ pub async fn test_list_files_with_versions(op: Operator) -> Result<()> {
 
     let parent = TEST_FIXTURE.new_dir_path();
     let file_name = TEST_FIXTURE.new_file_path();
-    let file_path = format!("{}{}", parent, file_name);
+    let file_path = format!("{parent}{file_name}");
     op.write(file_path.as_str(), "1").await?;
     op.write(file_path.as_str(), "2").await?;
 
@@ -623,7 +622,7 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
 
     let parent = TEST_FIXTURE.new_dir_path();
     let file_name = TEST_FIXTURE.new_file_path();
-    let file_path = format!("{}{}", parent, file_name);
+    let file_path = format!("{parent}{file_name}");
     op.write(file_path.as_str(), "1").await?;
 
     // List with deleted should include self too.

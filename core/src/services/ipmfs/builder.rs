@@ -129,7 +129,7 @@ impl Builder for IpmfsBuilder {
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let endpoint = self
             .config

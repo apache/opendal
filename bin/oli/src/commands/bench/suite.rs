@@ -143,7 +143,7 @@ impl BenchSuite {
             rt.block_on(async {
                 println!("Deleting object at path: {path}");
                 if let Err(err) = op.delete(&path).await {
-                    eprintln!("failed to delete object: {}", err);
+                    eprintln!("failed to delete object: {err}");
                 }
             });
         }

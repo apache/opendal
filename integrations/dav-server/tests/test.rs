@@ -206,7 +206,7 @@ async fn test_read_dir() {
         .iter()
         .map(|entry| String::from_utf8(entry.as_ref().unwrap().name()).unwrap())
         .collect::<Vec<_>>();
-    println!("{:?}", entries);
+    println!("{entries:?}");
     assert_eq!(entries.len(), 2);
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_1}/")));
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));

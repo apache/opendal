@@ -127,15 +127,15 @@ impl LakefsCore {
         }
 
         if !delimiter.is_empty() {
-            url.push_str(&format!("&delimiter={}", delimiter));
+            url.push_str(&format!("&delimiter={delimiter}"));
         }
 
         if let Some(amount) = amount {
-            url.push_str(&format!("&amount={}", amount));
+            url.push_str(&format!("&amount={amount}"));
         }
 
         if let Some(after) = after {
-            url.push_str(&format!("&after={}", after));
+            url.push_str(&format!("&after={after}"));
         }
 
         let mut req = Request::get(&url);

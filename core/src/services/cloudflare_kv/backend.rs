@@ -137,8 +137,7 @@ impl Builder for CloudflareKvBuilder {
         );
 
         let url_prefix = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{}/storage/kv/namespaces/{}",
-            account_id, namespace_id
+            r"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{namespace_id}"
         );
 
         Ok(CloudflareKvBackend::new(Adapter {
@@ -246,7 +245,7 @@ impl kv::Adapter for Adapter {
     async fn scan(&self, path: &str) -> Result<Self::Scanner> {
         let mut url = format!("{}/keys", self.url_prefix);
         if !path.is_empty() {
-            url = format!("{}?prefix={}", url, path);
+            url = format!("{url}?prefix={path}");
         }
         let mut req = Request::get(&url);
         req = req.header(header::CONTENT_TYPE, "application/json");
@@ -261,7 +260,7 @@ impl kv::Adapter for Adapter {
                     serde_json::from_reader(body.reader()).map_err(|e| {
                         Error::new(
                             ErrorKind::Unexpected,
-                            format!("failed to parse error response: {}", e),
+                            format!("failed to parse error response: {e}"),
                         )
                     })?;
                 Ok(Box::new(kv::ScanStdIter::new(

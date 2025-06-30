@@ -163,8 +163,7 @@ impl CopyCmd {
             let entry_path = Path::new(depath);
             let relative_path = entry_path.strip_prefix(src_root_path).with_context(|| {
                 format!(
-                    "Internal error: Lister path '{}' does not start with source path '{}'",
-                    depath, src_path
+                    "Internal error: Lister path '{depath}' does not start with source path '{src_path}'"
                 )
             })?; // relative_path is a &Path
 
@@ -182,10 +181,7 @@ impl CopyCmd {
 
             // Explicitly stat the source file to get fresh metadata
             let fresh_meta = src_op.stat(depath).await.with_context(|| {
-                format!(
-                    "Failed to stat source file '{}' before recursive copy",
-                    depath
-                )
+                format!("Failed to stat source file '{depath}' before recursive copy")
             })?;
 
             // Use the Path object `current_dst_path_path` to check parent

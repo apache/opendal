@@ -671,7 +671,7 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
     }
     let mut expected: Vec<String> = expected
         .into_iter()
-        .flat_map(|v| std::iter::repeat(v).take(2))
+        .flat_map(|v| std::iter::repeat_n(v, 2))
         .collect();
     expected.push(parent.to_string());
 
@@ -726,7 +726,7 @@ pub async fn test_list_with_versions_and_start_after(op: Operator) -> Result<()>
     let expected: Vec<String> = given.into_iter().skip(3).collect();
     let mut expected: Vec<String> = expected
         .into_iter()
-        .flat_map(|v| std::iter::repeat(v).take(2))
+        .flat_map(|v| std::iter::repeat_n(v, 2))
         .collect();
 
     expected.sort_unstable();

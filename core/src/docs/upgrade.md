@@ -26,9 +26,9 @@ In opendal v0.53, we introduced a new concept of `Context` which is used to stor
 
 All services `http_client` API has been deprecated and replaced by `Operator::update_http_client` API.
 
-### OpenDAL MSRV bumped to `1.80`
+### OpenDAL MSRV bumped to `1.82`
 
-Since v0.53, OpenDAL will require Rust 1.80.0 or later to build.
+Since v0.53, OpenDAL will require Rust 1.82.0 or later to build.
 
 ## Raw API
 

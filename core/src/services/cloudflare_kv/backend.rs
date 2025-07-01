@@ -24,6 +24,7 @@ use bytes::Buf;
 use http::StatusCode;
 
 use crate::raw::*;
+use crate::services::cloudflare_kv::core::constants;
 use crate::services::cloudflare_kv::core::CloudflareKvCore;
 use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
 use crate::services::cloudflare_kv::error::parse_error;
@@ -145,7 +146,13 @@ impl Builder for CloudflareKvBuilder {
             }
         }
 
-        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
 
         Ok(CloudflareKvAccessor {
             core: Arc::new(CloudflareKvCore {
@@ -171,6 +178,7 @@ impl Builder for CloudflareKvBuilder {
                             read_with_if_unmodified_since: true,
 
                             write: true,
+                            write_can_empty: true,
                             write_total_max_size: Some(25 * 1024 * 1024),
 
                             list: true,
@@ -180,7 +188,7 @@ impl Builder for CloudflareKvBuilder {
                             delete: true,
                             delete_max_size: Some(10000),
 
-                            shared: true,
+                            shared: false,
 
                             ..Default::default()
                         });
@@ -213,8 +221,50 @@ impl Access for CloudflareKvAccessor {
         self.core.info.clone()
     }
 
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let path = build_abs_path(&self.core.info.root(), path);
+        self.core.set(&path, Buffer::new(), None).await?;
+
+        Ok(RpCreateDir::default())
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.metadata(path).await?;
+        let path = build_abs_path(&self.core.info.root(), path);
+        let path = path.replace('/', constants::CLOUDFLARE_KV_DIR);
+
+        if path.ends_with(constants::CLOUDFLARE_KV_DIR) {
+            let resp = self.core.list(&path, None, None).await?;
+
+            if resp.status() != http::StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            let bs = resp.into_body();
+            let res: CfKvListResponse =
+                serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+            if !res.success {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "cloudflare_kv list operation failed",
+                ));
+            }
+
+            match res.result {
+                Some(result) if !result.is_empty() => {
+                    let metadata = Metadata::new(EntryMode::DIR);
+                    return Ok(RpStat::new(metadata));
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "key not found in cloudflare_kv",
+                    ))
+                }
+            }
+        }
+
+        let resp = self.core.metadata(&path).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
@@ -291,7 +341,9 @@ impl Access for CloudflareKvAccessor {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.get(path).await?;
+        let path = build_abs_path(&self.core.info.root(), path);
+        let path = path.replace('/', constants::CLOUDFLARE_KV_DIR);
+        let resp = self.core.get(&path).await?;
 
         let status = resp.status();
 
@@ -306,7 +358,7 @@ impl Access for CloudflareKvAccessor {
             || args.if_modified_since().is_some()
             || args.if_unmodified_since().is_some()
         {
-            let meta_resp = self.core.metadata(path).await?;
+            let meta_resp = self.core.metadata(&path).await?;
 
             if meta_resp.status() != StatusCode::OK {
                 return Err(parse_error(meta_resp));
@@ -443,7 +495,9 @@ impl Access for CloudflareKvAccessor {
     // }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = CloudflareWriter::new(self.core.clone(), path.to_string());
+        let path = build_abs_path(&self.core.info.root(), path);
+        let path = path.replace('/', constants::CLOUDFLARE_KV_DIR);
+        let writer = CloudflareWriter::new(self.core.clone(), path);
 
         let w = oio::OneShotWriter::new(writer);
 
@@ -458,15 +512,28 @@ impl Access for CloudflareKvAccessor {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        if let Some(limit) = args.limit() {
-            if !(10..=1000).contains(&limit) {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "limit must be between 10 and 1000, default 1000.",
-                ));
+        let path = build_abs_path(&self.core.info.root(), path);
+        let path = path.replace('/', constants::CLOUDFLARE_KV_DIR);
+
+        let limit = match args.limit() {
+            Some(limit) => {
+                if limit == 1 {
+                    1000
+                } else {
+                    if !(10..=1000).contains(&limit) {
+                        return Err(Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "limit must be between 10 and 1000, default 1000.",
+                        ));
+                    } else {
+                        limit
+                    }
+                }
             }
-        }
-        let l = CloudflareKvLister::new(self.core.clone(), path, args.limit());
+            None => 1000,
+        };
+
+        let l = CloudflareKvLister::new(self.core.clone(), &path, Some(limit));
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

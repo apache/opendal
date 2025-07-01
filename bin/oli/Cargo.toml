@@ -59,7 +59,7 @@ parse-size = { version = "1.1" }
 pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 tempfile = { version = "3.14" }
-tokio = { version = "1.42", features = ["full"] }
+tokio = { version = "1.45", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
 uuid = { version = "1.17" }

@@ -226,6 +226,49 @@ export interface ReaderOptions {
   */
   ifUnmodifiedSince?: string
 }
+export interface ListOptions {
+  /**
+  * The limit passed to underlying service to specify the max results
+  * that could return per-request.
+  *
+  * Users could use this to control the memory usage of list operation.
+  */
+  limit?: number
+  /**
+  * The start_after passed to underlying service to specify the specified key
+  * to start listing from.
+  */
+  startAfter?: string
+  /**
+  * The recursive is used to control whether the list operation is recursive.
+  *
+  * - If `false`, list operation will only list the entries under the given path.
+  * - If `true`, list operation will list all entries that starts with given path.
+  *
+  * Default to `false`.
+  */
+  recursive?: boolean
+  /**
+  * The versions is used to control whether the object versions should be returned.
+  *
+  * - If `false`, list operation will not return with object versions
+  * - If `true`, list operation will return with object versions if object versioning is supported
+  *   by the underlying service
+  *
+  * Default to `false`
+  */
+  versions?: boolean
+  /**
+  * The deleted is used to control whether the deleted objects should be returned.
+  *
+  * - If `false`, list operation will not return with deleted objects
+  * - If `true`, list operation will return with deleted objects if object versioning is supported
+  *   by the underlying service
+  *
+  * Default to `false`
+  */
+  deleted?: boolean
+}
 export const enum EntryMode {
   /** FILE means the path has data to read. */
   FILE = 0,
@@ -233,10 +276,6 @@ export const enum EntryMode {
   DIR = 1,
   /** Unknown means we don't know what we can do on this path. */
   Unknown = 2
-}
-export interface ListOptions {
-  limit?: number
-  recursive?: boolean
 }
 export interface WriteOptions {
   /**
@@ -373,6 +412,10 @@ export class Capability {
   get listWithStartAfter(): boolean
   /** If backend supports list with recursive. */
   get listWithRecursive(): boolean
+  /** If backend supports list with versions. */
+  get listWithVersions(): boolean
+  /** If backend supports list with deleted. */
+  get listWithDeleted(): boolean
   /** If operator supports presign. */
   get presign(): boolean
   /** If operator supports presign read. */
@@ -624,6 +667,18 @@ export class Operator {
    */
   remove(paths: Array<string>): Promise<void>
   /**
+   * Remove given paths.
+   *
+   * ### Notes
+   * If underlying services support delete in batch, we will use batch delete instead.
+   *
+   * ### Examples
+   * ```javascript
+   * op.removeSync(["abc", "def"]);
+   * ```
+   */
+  removeSync(paths: Array<string>): void
+  /**
    * Remove the path and all nested dirs and files recursively.
    *
    * ### Notes
@@ -635,6 +690,18 @@ export class Operator {
    * ```
    */
   removeAll(path: string): Promise<void>
+  /**
+   * Remove the path and all nested dirs and files recursively.
+   *
+   * ### Notes
+   * If underlying services support delete in batch, we will use batch delete instead.
+   *
+   * ### Examples
+   * ```javascript
+   * op.removeAllSync("path/to/dir/");
+   * ```
+   */
+  removeAllSync(path: string): void
   /**
    * List the given path.
    *
@@ -695,7 +762,8 @@ export class Operator {
    * ```javascript
    * const list = op.listSync("path/to/dir/", { recursive: true });
    * for (let entry of list) {
-   *   let meta = op.statSync(entry.path);
+   *   let path = entry.path();
+   *   let meta = entry.metadata();
    *   if (meta.isFile) {
    *     // do something
    *   }
@@ -758,6 +826,8 @@ export class Operator {
 export class Entry {
   /** Return the path of this entry. */
   path(): string
+  /** Return the metadata of this entry. */
+  metadata(): Metadata
 }
 /** Metadata carries all metadata associated with a path. */
 export class Metadata {
@@ -765,6 +835,11 @@ export class Metadata {
   isDirectory(): boolean
   /** Returns true if the <op.stat> object describes a regular file. */
   isFile(): boolean
+  /**
+   * This function returns `true` if the file represented by this metadata has been marked for
+   * deletion or has been permanently deleted.
+   */
+  isDeleted(): boolean
   /** Content-Disposition of this object */
   get contentDisposition(): string | null
   /** Content Length of this object */

@@ -83,7 +83,7 @@ impl oio::PageList for UpyunLister {
             let path = build_abs_path(&normalize_root(&self.path), &file.name);
 
             let entry = if file.type_field == "folder" {
-                let path = format!("{}/", path);
+                let path = format!("{path}/");
                 Entry::new(&path, Metadata::new(EntryMode::DIR))
             } else {
                 let m = Metadata::new(EntryMode::FILE)

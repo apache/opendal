@@ -27,11 +27,11 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
+rust-version = "1.82"
 
 [dependencies]
 anyhow = { version = "1" }
-clap = { version = "4.5.21", features = ["derive", "env"] }
+clap = { version = "4.5.40", features = ["derive", "env"] }
 log = { version = "0.4.22" }
 logforth = { version = "0.24.0", default-features = false }
 opendal = { version = "0.53.0", path = "../../core" }

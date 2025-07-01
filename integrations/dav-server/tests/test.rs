@@ -44,6 +44,25 @@ async fn test() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_create_dir_nested() {
+    let builder = opendal::services::Memory::default();
+    let op = Operator::new(builder).unwrap().finish();
+    let webdavfs = OpendalFs::new(op.clone());
+
+    webdavfs
+        .create_dir(&DavPath::new("/a/").unwrap())
+        .await
+        .unwrap();
+    webdavfs
+        .create_dir(&DavPath::new("/a/b/").unwrap())
+        .await
+        .unwrap();
+
+    assert!(op.exists("/a/").await.unwrap());
+    assert!(op.exists("/a/b/").await.unwrap());
+}
+
 fn setup_temp(path: &str) -> Box<OpendalFs> {
     let _ = fs::remove_dir_all(path);
     let builder = Fs::default().root(path);
@@ -187,7 +206,7 @@ async fn test_read_dir() {
         .iter()
         .map(|entry| String::from_utf8(entry.as_ref().unwrap().name()).unwrap())
         .collect::<Vec<_>>();
-    println!("{:?}", entries);
+    println!("{entries:?}");
     assert_eq!(entries.len(), 2);
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_1}/")));
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));

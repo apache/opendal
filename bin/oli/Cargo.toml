@@ -26,13 +26,13 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
+rust-version = "1.82"
 version = "0.41.21"
 
 [dependencies]
 anyhow = { version = "1.0" }
 clap = { version = "4.5", features = ["cargo", "string", "derive"] }
-dirs = { version = "5.0" }
+dirs = { version = "6.0" }
 futures = { version = "0.3" }
 humansize = { version = "2.1" }
 humantime = { version = "2.2" }
@@ -59,7 +59,7 @@ parse-size = { version = "1.1" }
 pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 tempfile = { version = "3.14" }
-tokio = { version = "1.42", features = ["full"] }
+tokio = { version = "1.45", features = ["full"] }
 toml = { version = "0.8" }
 url = { version = "2.5" }
 uuid = { version = "1.17" }

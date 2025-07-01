@@ -27,7 +27,7 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::options::{ReadOptions, ReaderOptions, StatOptions};
+use opendal::options::{ListOptions, ReadOptions, ReaderOptions, StatOptions};
 
 mod capability;
 mod options;
@@ -490,6 +490,22 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
+    /// Remove given paths.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// op.removeSync(["abc", "def"]);
+    /// ```
+    #[napi]
+    pub fn remove_sync(&self, paths: Vec<String>) -> Result<()> {
+        self.blocking_op
+            .delete_iter(paths)
+            .map_err(format_napi_error)
+    }
+
     /// Remove the path and all nested dirs and files recursively.
     ///
     /// ### Notes
@@ -504,6 +520,22 @@ impl Operator {
         self.async_op
             .remove_all(&path)
             .await
+            .map_err(format_napi_error)
+    }
+
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// op.removeAllSync("path/to/dir/");
+    /// ```
+    #[napi]
+    pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        self.blocking_op
+            .remove_all(&path)
             .map_err(format_napi_error)
     }
 
@@ -539,22 +571,19 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let mut l = self.async_op.list_with(&path);
-        if let Some(options) = options {
-            if let Some(limit) = options.limit {
-                l = l.limit(limit as usize);
-            }
-            if let Some(recursive) = options.recursive {
-                l = l.recursive(recursive);
-            }
-        }
+    pub async fn list(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Vec<Entry>> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .list_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
 
-        Ok(l.await
-            .map_err(format_napi_error)?
-            .iter()
-            .map(|e| Entry(e.to_owned()))
-            .collect())
+        Ok(l.into_iter().map(Entry).collect())
     }
 
     /// List the given path synchronously.
@@ -582,18 +611,23 @@ impl Operator {
     /// ```javascript
     /// const list = op.listSync("path/to/dir/", { recursive: true });
     /// for (let entry of list) {
-    ///   let meta = op.statSync(entry.path);
+    ///   let path = entry.path();
+    ///   let meta = entry.metadata();
     ///   if (meta.isFile) {
     ///     // do something
     ///   }
     /// }
     /// ```
     #[napi]
-    pub fn list_sync(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let options = options.unwrap_or_default();
+    pub fn list_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Vec<Entry>> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .blocking_op
-            .list_options(&path, options.into())
+            .list_options(&path, options)
             .map_err(format_napi_error)?;
 
         Ok(l.into_iter().map(Entry).collect())
@@ -680,6 +714,12 @@ impl Entry {
     pub fn path(&self) -> String {
         self.0.path().to_string()
     }
+
+    /// Return the metadata of this entry.
+    #[napi]
+    pub fn metadata(&self) -> Metadata {
+        Metadata(self.0.metadata().clone())
+    }
 }
 
 #[napi]
@@ -718,6 +758,13 @@ impl Metadata {
     #[napi]
     pub fn is_file(&self) -> bool {
         self.0.is_file()
+    }
+
+    /// This function returns `true` if the file represented by this metadata has been marked for
+    /// deletion or has been permanently deleted.
+    #[napi]
+    pub fn is_deleted(&self) -> bool {
+        self.0.is_deleted()
     }
 
     /// Content-Disposition of this object
@@ -768,23 +815,6 @@ impl Metadata {
     #[napi(getter)]
     pub fn version(&self) -> Option<String> {
         self.0.version().map(|v| v.to_string())
-    }
-}
-
-#[napi(object)]
-#[derive(Default)]
-pub struct ListOptions {
-    pub limit: Option<u32>,
-    pub recursive: Option<bool>,
-}
-
-impl From<ListOptions> for opendal::options::ListOptions {
-    fn from(value: ListOptions) -> Self {
-        Self {
-            limit: value.limit.map(|v| v as usize),
-            recursive: value.recursive.unwrap_or_default(),
-            ..Default::default()
-        }
     }
 }
 
@@ -1202,5 +1232,5 @@ impl RetryLayer {
 ///
 /// FIXME: handle error correctly.
 fn format_napi_error(err: impl Display) -> Error {
-    Error::from_reason(format!("{}", err))
+    Error::from_reason(format!("{err}"))
 }

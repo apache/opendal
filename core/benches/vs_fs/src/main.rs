@@ -76,7 +76,7 @@ fn prepare() -> String {
     rng.fill_bytes(&mut content);
 
     let name = uuid::Uuid::new_v4();
-    let path = format!("/tmp/opendal/{}", name);
+    let path = format!("/tmp/opendal/{name}");
     let _ = std::fs::write(path, content);
 
     name.to_string()

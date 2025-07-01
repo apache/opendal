@@ -27,7 +27,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
+rust-version = "1.82"
 version = "0.53.3"
 
 [lints.clippy]
@@ -43,7 +43,7 @@ members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 [workspace.package]
 edition = "2021"
 license = "Apache-2.0"
-rust-version = "1.80"
+rust-version = "1.82"
 version = "0.53.0"
 
 [features]
@@ -347,7 +347,7 @@ hdfs-native = { version = "0.10", optional = true }
 # for services-surrealdb
 surrealdb = { version = "2", optional = true, features = ["protocol-http"] }
 # for services-compfs
-compio = { version = "0.14.0", optional = true, features = [
+compio = { version = "0.15.0", optional = true, features = [
   "runtime",
   "bytes",
   "polling",

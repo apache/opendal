@@ -147,11 +147,11 @@ fn print_tree(node: &TreeNode, prefix: &str) {
             TREE_MIDDLE_ITEM
         };
         let display_name = if child_node.is_dir {
-            format!("{}/", name)
+            format!("{name}/")
         } else {
             name.to_string()
         };
-        println!("{}{}{}", prefix, connector, display_name);
+        println!("{prefix}{connector}{display_name}");
 
         if !child_node.children.is_empty() {
             let new_prefix = if is_last {
@@ -159,7 +159,7 @@ fn print_tree(node: &TreeNode, prefix: &str) {
             } else {
                 TREE_VERTICAL_LINE
             };
-            print_tree(child_node, &format!("{}{}", prefix, new_prefix));
+            print_tree(child_node, &format!("{prefix}{new_prefix}"));
         }
     }
 }

@@ -182,7 +182,7 @@ impl FormDataPart {
         let mut headers = HeaderMap::new();
         headers.insert(
             CONTENT_DISPOSITION,
-            format!("form-data; name=\"{}\"", name).parse().unwrap(),
+            format!("form-data; name=\"{name}\"").parse().unwrap(),
         );
 
         Self {

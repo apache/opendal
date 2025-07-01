@@ -53,7 +53,7 @@ opendal = { version = "0.53.0", path = "../../core", features = [
 ] }
 quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1.39", features = [
+tokio = { version = "1.45", features = [
   "fs",
   "macros",
   "rt-multi-thread",

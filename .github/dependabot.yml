@@ -76,6 +76,11 @@ updates:
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    groups:
+      pyo3-dependencies:
+        patterns:
+          - "pyo3"
+          - "pyo3-*"
 
   - package-ecosystem: "npm"
     directory: "/website"

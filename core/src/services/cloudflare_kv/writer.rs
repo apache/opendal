@@ -46,7 +46,7 @@ impl oio::OneShotWrite for CloudflareWriter {
 
         let resp = self
             .core
-            .set(&self.path, bs, cf_kv_metadata.clone())
+            .set(&self.path, bs, Some(cf_kv_metadata.clone()))
             .await?;
 
         let status = resp.status();

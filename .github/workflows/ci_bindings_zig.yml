@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mlugg/setup-zig@7dccf5e6d09267c55f815f2db29495f30ba2ebca # v2.0.1
+      - uses: mlugg/setup-zig@5eb0fc8bb8c4d1b027f8bd47b62fcda641d0608d # v2.0.3
         with:
           version: 0.14.0
 

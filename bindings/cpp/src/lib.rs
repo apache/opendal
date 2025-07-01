@@ -92,12 +92,13 @@ mod ffi {
         unsafe fn delete_operator(op: *mut Operator);
 
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
-        fn write(self: &Operator, path: &str, bs: &'static [u8]) -> Result<()>;
+        fn write(self: &Operator, path: &str, bs: Vec<u8>) -> Result<()>;
         fn exists(self: &Operator, path: &str) -> Result<bool>;
         fn create_dir(self: &Operator, path: &str) -> Result<()>;
         fn copy(self: &Operator, src: &str, dst: &str) -> Result<()>;
         fn rename(self: &Operator, src: &str, dst: &str) -> Result<()>;
         fn remove(self: &Operator, path: &str) -> Result<()>;
+        fn remove_all(self: &Operator, path: &str) -> Result<()>;
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<*mut Reader>;
@@ -157,11 +158,7 @@ impl Operator {
         Ok(self.0.read(path)?.to_vec())
     }
 
-    // To avoid copying the bytes, we use &'static [u8] here.
-    //
-    // Safety: The bytes created from bs will be dropped after the function call.
-    // So it's safe to declare its lifetime as 'static.
-    fn write(&self, path: &str, bs: &'static [u8]) -> Result<()> {
+    fn write(&self, path: &str, bs: Vec<u8>) -> Result<()> {
         Ok(self.0.write(path, bs).map(|_| ())?)
     }
 
@@ -184,6 +181,10 @@ impl Operator {
     // We can't name it to delete because it's a keyword in C++
     fn remove(&self, path: &str) -> Result<()> {
         Ok(self.0.delete(path)?)
+    }
+
+    fn remove_all(&self, path: &str) -> Result<()> {
+        Ok(self.0.remove_all(path)?)
     }
 
     fn stat(&self, path: &str) -> Result<ffi::Metadata> {

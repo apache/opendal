@@ -239,9 +239,36 @@ impl Access for CloudflareKvAccessor {
         let path = build_abs_path(&self.core.info.root(), path);
         let new_path = path.trim_end_matches('/');
 
-        let resp = self.core.metadata(&new_path).await?;
+        let resp = self.core.metadata(new_path).await?;
 
+        // Handle non-OK response
         if resp.status() != StatusCode::OK {
+            // Special handling for potential directory paths
+            if path.ends_with('/') && resp.status() == StatusCode::NOT_FOUND {
+                // Try listing the path to check if it's a directory
+                let list_resp = self.core.list(&path, None, None).await?;
+
+                if list_resp.status() == StatusCode::OK {
+                    let list_body = list_resp.into_body();
+                    let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                    // If listing returns results, treat as directory
+                    if let Some(entries) = list_result.result {
+                        if !entries.is_empty() {
+                            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+                        }
+                    }
+
+                    // Empty or no results means not found
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "key not found in CloudFlare KV",
+                    ));
+                }
+            }
+
+            // For all other error cases, parse the error response
             return Err(parse_error(resp));
         }
 
@@ -271,7 +298,7 @@ impl Access for CloudflareKvAccessor {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "key not found in CloudFlare KV",
-                ))
+                ));
             }
         };
 
@@ -504,15 +531,13 @@ impl Access for CloudflareKvAccessor {
             Some(limit) => {
                 if limit == 1 {
                     1000
+                } else if !(10..=1000).contains(&limit) {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "limit must be between 10 and 1000, default 1000.",
+                    ));
                 } else {
-                    if !(10..=1000).contains(&limit) {
-                        return Err(Error::new(
-                            ErrorKind::ConfigInvalid,
-                            "limit must be between 10 and 1000, default 1000.",
-                        ));
-                    } else {
-                        limit
-                    }
+                    limit
                 }
             }
             None => 1000,

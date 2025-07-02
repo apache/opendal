@@ -42,11 +42,16 @@ impl oio::OneShotWrite for CloudflareWriter {
             etag: build_tmp_path_of(&self.path),
             last_modified: chrono::Local::now().to_rfc3339(),
             content_length: bs.len(),
+            is_dir: if self.path.ends_with('/') {
+                true
+            } else {
+                false
+            },
         };
 
         let resp = self
             .core
-            .set(&self.path, bs, Some(cf_kv_metadata.clone()))
+            .set(&self.path, bs, cf_kv_metadata.clone())
             .await?;
 
         let status = resp.status();

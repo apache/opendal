@@ -45,9 +45,10 @@ impl CloudflareKvLister {
 
 impl oio::PageList for CloudflareKvLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        let new_path = self.path.trim_end_matches('/');
         let resp = self
             .core
-            .list(&self.path, self.limit, Some(ctx.token.clone()))
+            .list(new_path, self.limit, Some(ctx.token.clone()))
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -78,22 +79,18 @@ impl oio::PageList for CloudflareKvLister {
                 let metadata = item.metadata;
 
                 let mut name = item.name;
-                if metadata.is_dir {
-                    if !name.ends_with('/') {
-                        name += "/";
-                    }
+                if metadata.is_dir && !name.ends_with('/') {
+                    name += "/";
                 }
+                let root = self.core.info.root().as_ref().to_string();
+                name = name.replace(root.trim_start_matches('/'), "");
 
                 let de = oio::Entry::new(
                     &name,
-                    Metadata::new(if metadata.is_dir {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    })
-                    .with_etag(metadata.etag)
-                    .with_content_length(metadata.content_length as u64)
-                    .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?),
+                    Metadata::new(EntryMode::from_path(&name))
+                        .with_etag(metadata.etag)
+                        .with_content_length(metadata.content_length as u64)
+                        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?),
                 );
                 ctx.entries.push_back(de);
             }

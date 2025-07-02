@@ -42,11 +42,7 @@ impl oio::OneShotWrite for CloudflareWriter {
             etag: build_tmp_path_of(&self.path),
             last_modified: chrono::Local::now().to_rfc3339(),
             content_length: bs.len(),
-            is_dir: if self.path.ends_with('/') {
-                true
-            } else {
-                false
-            },
+            is_dir: self.path.ends_with('/'),
         };
 
         let resp = self

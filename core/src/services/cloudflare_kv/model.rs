@@ -35,6 +35,7 @@ pub struct CfKvMetadata {
     pub etag: String,
     pub last_modified: String,
     pub content_length: usize,
+    pub is_dir: bool,
 }
 
 // #[derive(Debug, Serialize)]

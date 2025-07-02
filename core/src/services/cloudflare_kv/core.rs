@@ -34,11 +34,6 @@ use crate::raw::{new_request_build_error, AccessorInfo, FormDataPart, Multipart}
 use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::{Buffer, Result};
 
-pub mod constants {
-    // Replace trailing "/" with "__DIR__" since Cloudflare KV will trim trailing slashes in keys
-    pub(crate) const CLOUDFLARE_KV_DIR: &str = "__DIR__";
-}
-
 #[derive(Debug, Clone)]
 pub struct CloudflareKvCore {
     pub api_token: String,
@@ -134,27 +129,20 @@ impl CloudflareKvCore {
         &self,
         path: &str,
         value: Buffer,
-        metadata: Option<CfKvMetadata>,
+        metadata: CfKvMetadata,
     ) -> Result<Response<Buffer>> {
-        let url = format!(
-            "{}/values/{}",
-            self.url_prefix(),
-            percent_encode_path(&path.replace('/', constants::CLOUDFLARE_KV_DIR))
-        );
+        let url = format!("{}/values/{}", self.url_prefix(), percent_encode_path(path));
 
         let req = Request::put(url);
         let req = self.sign(req);
         let req = req.extension(Operation::Write);
 
-        let mut multipart = Multipart::new().part(FormDataPart::new("value").content(value));
-
-        multipart = match metadata {
-            Some(metadata) => multipart.part(
+        let mut multipart = Multipart::new()
+            .part(FormDataPart::new("value").content(value))
+            .part(
                 FormDataPart::new("metadata")
                     .content(serde_json::to_string(&metadata).map_err(new_json_serialize_error)?),
-            ),
-            None => multipart,
-        };
+            );
 
         if let Some(expiration_ttl) = self.expiration_ttl {
             multipart = multipart.part(
@@ -164,9 +152,11 @@ impl CloudflareKvCore {
 
         let req = multipart.apply(req)?;
 
-        let resp = self.send(req).await?;
+        // let resp = self.send(req).await?;
+        // println!("QAQ resp {:?}", String::from_utf8_lossy(&resp.body().to_bytes()));
 
-        Ok(Response::new(Buffer::new()))
+        // Ok(Response::new(Buffer::new()))
+        self.send(req).await
     }
 
     pub async fn delete(&self, paths: &[String]) -> Result<Response<Buffer>> {
@@ -199,7 +189,7 @@ impl CloudflareKvCore {
             }
         }
         url = url.push("limit", &limit.unwrap_or(1000).to_string());
-        url = url.push("prefix", &percent_encode_path(&prefix.replace('/', constants::CLOUDFLARE_KV_DIR)));
+        url = url.push("prefix", &percent_encode_path(prefix));
 
         let req = Request::get(url.finish());
 

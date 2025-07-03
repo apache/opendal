@@ -113,6 +113,9 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {
@@ -145,6 +148,10 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
 /// List empty dir should return itself.
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&dir).await.expect("write must succeed");
@@ -237,6 +244,10 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 
 /// List dir should return correct sub dir.
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("create must succeed");
@@ -265,6 +276,10 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let parent = format!("{}/", uuid::Uuid::new_v4());
     op.create_dir(&parent)
         .await
@@ -362,6 +377,10 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
 /// List with start after should start listing after the specified key
 pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     if !op.info().full_capability().list_with_start_after {
         return Ok(());
     }
@@ -418,6 +437,10 @@ pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> 
 }
 
 pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     op.create_dir("/").await?;
 
     let w = op.lister_with("").recursive(true).await?;
@@ -435,6 +458,10 @@ pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
 
 // Walk top down should output as expected
 pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let paths = [
@@ -473,6 +500,10 @@ pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
 
 // same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
 pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let paths = [
@@ -508,6 +539,10 @@ pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Res
 }
 
 pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let paths = ["y", "yy"];
@@ -542,6 +577,10 @@ pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
 
 // Remove all should remove all in this path.
 pub async fn test_remove_all(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
 
     let expected = [
@@ -651,6 +690,10 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
 
 // listing a directory with version, which contains more object versions than a page can take
 pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
+    if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {

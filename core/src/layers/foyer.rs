@@ -75,17 +75,47 @@ impl Code for Value {
     }
 }
 
+/// Hybrid cache layer for OpenDAL that uses [foyer](https://github.com/foyer-rs/foyer) for caching.
+///
+/// # Operation Behavior
+/// - `write`: [`FoyerLayer`] will write to the foyer hybrid cache after the service's write operation is completed.
+/// - `read`: [`FoyerLayer`] will first check the foyer hybrid cache for the data. If the data is not found, it will perform the read operation on the service and cache the result.
+/// - `delete`: [`FoyerLayer`] will remove the data from the foyer hybrid cache regardless of whether the service's delete operation is successful.
+/// - Other operations: [`FoyerLayer`] will not cache the results of other operations, such as `list`, `copy`, `rename`, etc. They will be passed through to the underlying accessor without caching.
+///
+/// # Examples
+///
+/// ```rust
+/// use opendal::layers::FoyerLayer;
+/// use opendal::services::S3;
+///
+/// ```
 #[derive(Debug)]
-pub struct FoyerLayerBuilder {}
+pub struct FoyerLayer {
+    cache: HybridCache<String, Value>,
+}
 
-#[derive(Debug)]
-pub struct FoyerLayer {}
+impl FoyerLayer {
+    /// Creates a new `FoyerLayer` with the given foyer hybrid cache.
+    pub fn new(cache: HybridCache<String, Value>) -> Self {
+        FoyerLayer { cache }
+    }
+}
+
+impl From<HybridCache<String, Value>> for FoyerLayer {
+    fn from(cache: HybridCache<String, Value>) -> Self {
+        Self::new(cache)
+    }
+}
 
 impl<A: Access> Layer<A> for FoyerLayer {
     type LayeredAccess = FoyerAccessor<A>;
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        todo!()
+    fn layer(&self, accessor: A) -> Self::LayeredAccess {
+        let cache = self.cache.clone();
+        FoyerAccessor {
+            inner: Arc::new(Inner { accessor, cache }),
+        }
     }
 }
 
@@ -299,6 +329,87 @@ impl<A: Access> oio::Delete for Deleter<A> {
             }
             let res = self.d.flush().await;
             res
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use foyer::{
+        DirectFsDeviceOptions, Engine, HybridCacheBuilder, LargeEngineOptions, RecoverMode,
+    };
+    use size::consts::MiB;
+
+    use crate::{services::Dashmap, Operator};
+
+    use super::*;
+
+    fn key(i: u8) -> String {
+        format!("obj-{i}")
+    }
+
+    fn value(i: u8) -> Vec<u8> {
+        // ~ 64KiB with metadata
+        vec![i; 63 * 1024]
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn test() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(10)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(1 * MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Dashmap::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()))
+            .finish();
+
+        assert!(op.list("/").await.unwrap().is_empty());
+
+        for i in 0..64 {
+            op.write(&key(i), value(i)).await.unwrap();
+        }
+
+        assert_eq!(op.list("/").await.unwrap().len(), 64);
+
+        for i in 0..64 {
+            let buf = op.read(&key(i)).await.unwrap();
+            assert_eq!(buf.to_vec(), value(i));
+        }
+
+        cache.clear().await.unwrap();
+
+        for i in 0..64 {
+            let buf = op.read(&key(i)).await.unwrap();
+            assert_eq!(buf.to_vec(), value(i));
+        }
+
+        for i in 0..64 {
+            op.delete(&key(i)).await.unwrap();
+        }
+
+        assert!(op.list("/").await.unwrap().is_empty());
+
+        for i in 0..64 {
+            let res = op.read(&key(i)).await;
+            // FIXME(MrCroxx): Fix foyer `remove()` when entry in disk cache write buffer.
+            let _ = res.unwrap_err();
+            // TODO(MrCroxx): Uncomment this assertion after the exposion of internal opendal error from foyer.
+            // Currently, the error is [`ErrorKind::Unexpected`].
+            // assert_eq!(e.kind(), ErrorKind::NotFound);
         }
     }
 }

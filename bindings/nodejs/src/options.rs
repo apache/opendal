@@ -391,3 +391,17 @@ impl From<ListOptions> for opendal::options::ListOptions {
         }
     }
 }
+
+#[napi(object)]
+#[derive(Default)]
+pub struct DeleteOptions {
+    pub version: Option<String>,
+}
+
+impl From<DeleteOptions> for opendal::options::DeleteOptions {
+    fn from(value: DeleteOptions) -> Self {
+        Self {
+            version: value.version,
+        }
+    }
+}

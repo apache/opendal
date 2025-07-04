@@ -221,6 +221,12 @@ impl Capability {
         self.0.delete
     }
 
+    /// If operator supports delete by version.
+    #[napi(getter)]
+    pub fn delete_with_version(&self) -> bool {
+        self.0.delete_with_version
+    }
+
     /// If operator supports copy.
     #[napi(getter)]
     pub fn copy(&self) -> bool {

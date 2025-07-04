@@ -354,7 +354,7 @@ impl OneDriveCore {
     ) -> Result<Response<Buffer>> {
         let mut request = Request::put(url);
 
-        let range = format!("bytes {}-{}/{}", offset, chunk_end, total_len);
+        let range = format!("bytes {offset}-{chunk_end}/{total_len}");
         request = request.header(header::CONTENT_RANGE, range);
 
         let size = chunk_end - offset + 1;

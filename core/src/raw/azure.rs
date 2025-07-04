@@ -116,10 +116,7 @@ fn parse_connection_string(conn_str: &str) -> Result<HashMap<String, String>> {
         .map(|field| {
             let (key, value) = field.trim().split_once('=').ok_or(Error::new(
                 ErrorKind::ConfigInvalid,
-                format!(
-                    "Invalid connection string, expected '=' in field: {}",
-                    field
-                ),
+                format!("Invalid connection string, expected '=' in field: {field}"),
             ))?;
             Ok((key.to_string(), value.to_string()))
         })
@@ -265,7 +262,7 @@ fn collect_endpoint_from_parts(
     if protocol != "http" && protocol != "https" {
         return Err(Error::new(
             ErrorKind::ConfigInvalid,
-            format!("Invalid DefaultEndpointsProtocol: {}", protocol),
+            format!("Invalid DefaultEndpointsProtocol: {protocol}"),
         ));
     }
 
@@ -430,7 +427,7 @@ mod tests {
             if let Some(expected) = expected {
                 assert_azure_storage_config_eq(&actual.expect(name), &expected, name);
             } else {
-                assert!(actual.is_err(), "Expected error for case: {}", name);
+                assert!(actual.is_err(), "Expected error for case: {name}");
             }
         }
     }
@@ -457,8 +454,7 @@ mod tests {
             assert_eq!(
                 account_name,
                 expected_account_name.map(|s| s.to_string()),
-                "Endpoint: {}",
-                endpoint
+                "Endpoint: {endpoint}"
             );
         }
     }
@@ -471,23 +467,19 @@ mod tests {
     ) {
         assert_eq!(
             actual.account_name, expected.account_name,
-            "account_name mismatch: {}",
-            name
+            "account_name mismatch: {name}"
         );
         assert_eq!(
             actual.account_key, expected.account_key,
-            "account_key mismatch: {}",
-            name
+            "account_key mismatch: {name}"
         );
         assert_eq!(
             actual.endpoint, expected.endpoint,
-            "endpoint mismatch: {}",
-            name
+            "endpoint mismatch: {name}"
         );
         assert_eq!(
             actual.sas_token, expected.sas_token,
-            "sas_token mismatch: {}",
-            name
+            "sas_token mismatch: {name}"
         );
     }
 }

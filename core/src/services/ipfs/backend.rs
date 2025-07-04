@@ -121,7 +121,7 @@ impl Builder for IpfsBuilder {
             .with_context("service", Scheme::Ipfs)
             .with_context("root", &root));
         }
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),

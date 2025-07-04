@@ -211,7 +211,7 @@ impl Access for GithubBackend {
 
         let resp = self
             .core
-            .upload(&format!("{}.gitkeep", path), empty_bytes)
+            .upload(&format!("{path}.gitkeep"), empty_bytes)
             .await?;
 
         let status = resp.status();

@@ -131,7 +131,7 @@ impl Builder for MiniMokaBuilder {
 
         let core = Arc::new(MiniMokaCore { cache });
 
-        debug!("backend build finished: {}", root);
+        debug!("backend build finished: {root}");
         Ok(MiniMokaBackend::new(core, root))
     }
 }

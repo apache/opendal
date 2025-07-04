@@ -144,7 +144,7 @@ impl Builder for HttpBuilder {
         };
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut auth = None;
         if let Some(username) = &self.config.username {

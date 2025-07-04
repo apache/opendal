@@ -48,8 +48,7 @@ fn create_modifying_editor(
 ) -> Result<std::path::PathBuf> {
     let editor_path = dir.join("modifying_editor.sh");
     let script_content = format!(
-        "#!/bin/bash\n# Mock editor that adds content to the file\necho '{}' >> \"$1\"\nexit 0\n",
-        content_to_add
+        "#!/bin/bash\n# Mock editor that adds content to the file\necho '{content_to_add}' >> \"$1\"\nexit 0\n"
     );
     fs::write(&editor_path, script_content)?;
 
@@ -69,8 +68,7 @@ fn create_modifying_editor(
 fn create_replacing_editor(dir: &std::path::Path, new_content: &str) -> Result<std::path::PathBuf> {
     let editor_path = dir.join("replacing_editor.sh");
     let script_content = format!(
-        "#!/bin/bash\n# Mock editor that replaces file content\necho '{}' > \"$1\"\nexit 0\n",
-        new_content
+        "#!/bin/bash\n# Mock editor that replaces file content\necho '{new_content}' > \"$1\"\nexit 0\n"
     );
     fs::write(&editor_path, script_content)?;
 

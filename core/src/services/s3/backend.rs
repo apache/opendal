@@ -643,7 +643,7 @@ impl S3Builder {
             endpoint.to_string()
         } else {
             // Prefix https if endpoint doesn't start with scheme.
-            format!("https://{}", endpoint)
+            format!("https://{endpoint}")
         };
 
         // Remove bucket name from endpoint.
@@ -789,7 +789,7 @@ impl Builder for S3Builder {
             v => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!("{:?} is not a supported checksum_algorithm.", v),
+                    format!("{v:?} is not a supported checksum_algorithm."),
                 ))
             }
         };
@@ -1261,7 +1261,7 @@ mod tests {
 
         for (name, endpoint, bucket, expected) in cases {
             let region = S3Builder::detect_region(endpoint, bucket).await;
-            assert_eq!(region.as_deref(), expected, "{}", name);
+            assert_eq!(region.as_deref(), expected, "{name}");
         }
     }
 }

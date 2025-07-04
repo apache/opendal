@@ -171,7 +171,7 @@ refactor(core): Simplify error handling
 4. Verify credentials and endpoint configuration
 
 ## Important Notes
-- Minimum Rust version: 1.80 (MSRV)
+- Minimum Rust version: 1.82 (MSRV)
 - All services implement the same `Accessor` trait
 - Use `just` for common development tasks
 - Check CI workflows for platform-specific requirements

@@ -109,7 +109,7 @@ impl Builder for HdfsNativeBuilder {
         };
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let client = hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?;
 

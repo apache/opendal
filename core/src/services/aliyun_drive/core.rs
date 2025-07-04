@@ -85,7 +85,7 @@ impl AliyunDriveCore {
         // AliyunDrive raise NullPointerException if you haven't set a user-agent.
         req.headers_mut().insert(
             header::USER_AGENT,
-            HeaderValue::from_str(&format!("opendal/{}", VERSION))
+            HeaderValue::from_str(&format!("opendal/{VERSION}"))
                 .expect("user agent must be valid header value"),
         );
         if req.method() == Method::POST {

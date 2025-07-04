@@ -238,10 +238,10 @@ impl Builder for GcsBuilder {
     type Config = GcsConfig;
 
     fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", self);
+        debug!("backend build started: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         // Handle endpoint and bucket name
         let bucket = match self.config.bucket.is_empty() {

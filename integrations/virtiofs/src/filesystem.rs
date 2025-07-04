@@ -329,7 +329,7 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        let path = format!("{}/{}", parent_path, name);
+        let path = format!("{parent_path}/{name}");
         let metadata = match self.rt.block_on(self.do_get_metadata(&path)) {
             Ok(metadata) => metadata,
             Err(_) => return Filesystem::reply_error(in_header.unique, w),
@@ -406,7 +406,7 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        let path = format!("{}/{}", parent_path, name);
+        let path = format!("{parent_path}/{name}");
         let mut attr = OpenedFile::new(FileType::File, &path, self.uid, self.gid);
         let inode = self
             .opened_files
@@ -463,7 +463,7 @@ impl Filesystem {
             None => return Filesystem::reply_error(in_header.unique, w),
         };
 
-        let path = format!("{}/{}", parent_path, name);
+        let path = format!("{parent_path}/{name}");
         if self.rt.block_on(self.do_delete(&path)).is_err() {
             return Filesystem::reply_error(in_header.unique, w);
         }

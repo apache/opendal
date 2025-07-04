@@ -158,13 +158,14 @@ export function run(op) {
       const filePath = path.join(dirname, `random_file_${randomUUID()}`)
       await op.write(filePath, '1')
 
-      const lists = await op.list(dirname, { deleted: true })
+      const lists = await op.list(filePath, { deleted: true })
       expect(lists.length).toBe(1)
 
       await op.write(filePath, '2')
-      await op.remove(filePath)
+      await op.delete(filePath)
 
-      const actual = lists.filter((item) => item.path() === filePath && item.metadata().isDeleted())
+      const ds = await op.list(filePath, { deleted: true })
+      const actual = ds.filter((item) => item.path() === filePath && item.metadata().isDeleted())
       expect(actual.length).toBe(1)
 
       await op.removeAll(dirname)

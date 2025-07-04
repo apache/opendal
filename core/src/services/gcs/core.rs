@@ -293,7 +293,7 @@ impl GcsCore {
         );
 
         if let Some(acl) = &self.predefined_acl {
-            write!(&mut url, "&predefinedAcl={}", acl).unwrap();
+            write!(&mut url, "&predefinedAcl={acl}").unwrap();
         }
 
         // Makes the operation conditional on whether the object's current generation

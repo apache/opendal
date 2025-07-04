@@ -64,7 +64,7 @@ fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error>
     let html = markdown::to_html(&field.comments);
     writeln!(w, "/**")?;
     for line in html.lines() {
-        writeln!(w, " * {}", line)?;
+        writeln!(w, " * {line}")?;
     }
     if let Some(deprecated) = &field.deprecated {
         writeln!(w, " *")?;
@@ -138,10 +138,10 @@ fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja:
 
     if field.optional {
         writeln!(w, "if ({} != null) {{", case_java_field_name(&field.name))?;
-        writeln!(w, "    {}", populate)?;
+        writeln!(w, "    {populate}")?;
         writeln!(w, "}}")?;
     } else {
-        writeln!(w, "{}", populate)?;
+        writeln!(w, "{populate}")?;
     }
 
     Ok(result)

@@ -15,14 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use serde::Deserialize;
 use serde::Serialize;
+use std::fmt::Debug;
 
-/// [dashmap](https://github.com/xacrimon/dashmap) backend support.
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+/// Config for Dashmap services support.
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
 pub struct DashmapConfig {
-    /// The root path for dashmap.
+    /// root path of this backend
     pub root: Option<String>,
+}
+
+impl Debug for DashmapConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashmapConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
 }

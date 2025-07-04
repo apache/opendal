@@ -118,12 +118,12 @@ impl EditCmd {
             // Try to upload the modified content
             match op.write(&path, new_content_vec.clone()).await {
                 Ok(_) => {
-                    println!("File uploaded successfully to {}", path);
+                    println!("File uploaded successfully to {path}");
                     // Successfully uploaded, temp_file_persister can be dropped, deleting the temp file.
                 }
                 Err(e) => {
                     // Upload failed, offer to save temp file
-                    eprintln!("Error uploading file: {}", e);
+                    eprintln!("Error uploading file: {e}");
                     let kept_path = temp_file_persister
                         .keep()
                         .context("Failed to preserve temporary file after upload error")?;

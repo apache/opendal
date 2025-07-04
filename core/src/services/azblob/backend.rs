@@ -308,7 +308,7 @@ impl Builder for AzblobBuilder {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         // Handle endpoint, region and container name.
         let container = match self.config.container.is_empty() {

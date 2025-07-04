@@ -161,7 +161,7 @@ impl Builder for ObsBuilder {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),

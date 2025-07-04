@@ -128,7 +128,7 @@ impl Filter for CloudFilter {
         log::debug!("fetch_data: {}", request.path().display());
 
         let _blob = bincode::deserialize::<FileBlob>(request.file_blob()).map_err(|e| {
-            log::warn!("failed to deserialize file blob: {}", e);
+            log::warn!("failed to deserialize file blob: {e}");
             CloudErrorKind::ValidationFailed
         })?;
 
@@ -143,7 +143,7 @@ impl Filter for CloudFilter {
             .reader_with(&remote_path.to_string_lossy().replace('\\', "/"))
             .await
             .map_err(|e| {
-                log::warn!("failed to open file: {}", e);
+                log::warn!("failed to open file: {e}");
                 CloudErrorKind::Unsuccessful
             })?;
 
@@ -158,7 +158,7 @@ impl Filter for CloudFilter {
                 )
                 .await
                 .map_err(|e| {
-                    log::warn!("failed to read file: {}", e);
+                    log::warn!("failed to read file: {e}");
                     CloudErrorKind::Unsuccessful
                 })?;
 
@@ -170,7 +170,7 @@ impl Filter for CloudFilter {
             ticket
                 .write_at(&buffer[..bytes_read], position)
                 .map_err(|e| {
-                    log::warn!("failed to write file: {}", e);
+                    log::warn!("failed to write file: {e}");
                     CloudErrorKind::Unsuccessful
                 })?;
             position += bytes_read as u64;
@@ -182,7 +182,7 @@ impl Filter for CloudFilter {
             buffer.clear();
 
             ticket.report_progress(range.end, position).map_err(|e| {
-                log::warn!("failed to report progress: {}", e);
+                log::warn!("failed to report progress: {e}");
                 CloudErrorKind::Unsuccessful
             })?;
         }
@@ -211,7 +211,7 @@ impl Filter for CloudFilter {
             .lister_with(&remote_path.to_string_lossy().replace('\\', "/"))
             .await
             .map_err(|e| {
-                log::warn!("failed to list files: {}", e);
+                log::warn!("failed to list files: {e}");
                 CloudErrorKind::Unsuccessful
             })?
             .filter_map(|e| async {

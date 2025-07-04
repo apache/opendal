@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-.PHONY: tests clean help check-env generate-services run-tests
+.PHONY: tests bench clean help check-env generate-services run-tests run-bench
 
 # Detect current OS and architecture
 OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -139,9 +139,18 @@ run-tests: generate-services
 	@echo "Running behavior tests..."
 	go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
 
+# Run benchmarks
+run-bench: generate-services
+	@echo "Running benchmark tests..."
+	go test ./opendal/bindings/go/tests/behavior_tests -v -bench=. -run=^$$ -count=6 -benchmem
+
 # Main target: run all tests
 tests: check-env run-tests
 	@echo "All tests completed successfully!"
+
+# Main target: run benchmarks only
+bench: check-env run-bench
+	@echo "All benchmarks completed successfully!"
 
 # Clean all generated files
 clean:
@@ -157,6 +166,7 @@ clean:
 help:
 	@echo "Available targets:"
 	@echo "  tests        - Run all tests (requires OPENDAL_TEST environment variable)"
+	@echo "  bench        - Run benchmarks only (requires OPENDAL_TEST environment variable)"
 	@echo "  clean        - Clean all generated files"
 	@echo "  help         - Show this help message"
 	@echo ""
@@ -165,4 +175,5 @@ help:
 	@echo ""
 	@echo "Example usage:"
 	@echo "  OPENDAL_TEST=fs make tests"
+	@echo "  OPENDAL_TEST=fs make bench"
 

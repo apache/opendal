@@ -124,7 +124,7 @@ impl SwiftCore {
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (k, v) in user_metadata {
-                req = req.header(format!("X-Object-Meta-{}", k), v);
+                req = req.header(format!("X-Object-Meta-{k}"), v);
             }
         }
 

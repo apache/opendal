@@ -142,7 +142,7 @@ impl Builder for HuggingfaceBuilder {
             )),
             Some(repo_type) => Err(Error::new(
                 ErrorKind::ConfigInvalid,
-                format!("unknown repo_type: {}", repo_type).as_str(),
+                format!("unknown repo_type: {repo_type}").as_str(),
             )
             .with_operation("Builder::build")
             .with_context("service", Scheme::Huggingface)),

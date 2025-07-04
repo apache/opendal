@@ -140,7 +140,7 @@ impl Builder for GdriveBuilder {
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Gdrive)

@@ -298,7 +298,7 @@ impl Debug for Error {
         if let Some(backtrace) = &self.backtrace {
             writeln!(f)?;
             writeln!(f, "Backtrace:")?;
-            writeln!(f, "{}", backtrace)?;
+            writeln!(f, "{backtrace}")?;
         }
 
         Ok(())

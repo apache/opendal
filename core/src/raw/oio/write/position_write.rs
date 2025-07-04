@@ -254,7 +254,7 @@ mod tests {
                 match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(e) => {
-                        println!("write error: {:?}", e);
+                        println!("write error: {e:?}");
                         continue;
                     }
                 }
@@ -264,11 +264,11 @@ mod tests {
         loop {
             match w.close().await {
                 Ok(n) => {
-                    println!("close: {:?}", n);
+                    println!("close: {n:?}");
                     break;
                 }
                 Err(e) => {
-                    println!("close error: {:?}", e);
+                    println!("close error: {e:?}");
                     continue;
                 }
             }

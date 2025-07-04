@@ -217,7 +217,7 @@ fn make_write_options<'a>(
         v => {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                format!("Concurrent must be positive, instead got: {}", v),
+                format!("Concurrent must be positive, instead got: {v}"),
             )
             .into())
         }

@@ -142,10 +142,7 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
-    if !cap.presign_delete {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, presign_delete);
 
     let path = uuid::Uuid::new_v4().to_string();
     debug!("Generate a random file: {}", &path);

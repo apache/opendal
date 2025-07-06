@@ -185,9 +185,7 @@ pub async fn test_read_not_exist(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_match);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -215,9 +213,7 @@ pub async fn test_reader_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_match);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -244,9 +240,7 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_none_match);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -277,9 +271,7 @@ pub async fn test_reader_with_if_none_match(op: Operator) -> anyhow::Result<()> 
 
 /// Reader with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_modified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -306,9 +298,7 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
 
 /// Reader with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_unmodified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -335,9 +325,7 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_none_match);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -367,9 +355,7 @@ pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
 
 /// Read with dir path should return an error.
 pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let path = TEST_FIXTURE.new_dir_path();
 
@@ -410,11 +396,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with override-cache-control should succeed.
 pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_cache_control
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_override_cache_control, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -455,14 +437,7 @@ pub async fn test_read_with_override_cache_control(op: Operator) -> anyhow::Resu
 
 /// Read file with override_content_disposition should succeed.
 pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow::Result<()> {
-    if !(op
-        .info()
-        .full_capability()
-        .read_with_override_content_disposition
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_override_content_disposition, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -505,11 +480,7 @@ pub async fn test_read_with_override_content_disposition(op: Operator) -> anyhow
 
 /// Read file with override_content_type should succeed.
 pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Result<()> {
-    if !(op.info().full_capability().read_with_override_content_type
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_override_content_type, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -552,9 +523,7 @@ pub async fn test_read_with_override_content_type(op: Operator) -> anyhow::Resul
 
 /// Read with if_modified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_modified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_modified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -583,9 +552,7 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
 
 /// Read with if_unmodified_since should match, otherwise, a ConditionNotMatch error will be returned.
 pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_unmodified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_unmodified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -682,9 +649,7 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_match);
 
     let path = "normal_file.txt";
 
@@ -714,9 +679,7 @@ pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result
 
 /// Read with if_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_match);
 
     let path = "normal_file.txt";
 
@@ -744,9 +707,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
 
 /// Reader with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_none_match);
 
     let path = "normal_file.txt";
 
@@ -776,9 +737,7 @@ pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::R
 
 /// Read with if_none_match should match, else get a ConditionNotMatch error.
 pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_if_none_match);
 
     let path = "normal_file.txt";
 
@@ -808,9 +767,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
 }
 
 pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_version);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
     op.write(path.as_str(), content.clone())
@@ -842,9 +799,7 @@ pub async fn test_read_with_version(op: Operator) -> anyhow::Result<()> {
 }
 
 pub async fn test_read_with_not_existing_version(op: Operator) -> anyhow::Result<()> {
-    if !op.info().full_capability().read_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, read_with_version);
 
     // retrieve a valid version
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());

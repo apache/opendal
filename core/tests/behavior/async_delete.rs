@@ -65,9 +65,7 @@ pub async fn test_delete_file(op: Operator) -> Result<()> {
 
 /// Delete empty dir should succeed.
 pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let path = TEST_FIXTURE.new_dir_path();
 
@@ -135,9 +133,7 @@ pub async fn test_remove_one_file(op: Operator) -> Result<()> {
 
 /// Delete via stream.
 pub async fn test_delete_stream(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {
@@ -216,9 +212,7 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, delete_with_version);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -252,9 +246,7 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().delete_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, delete_with_version);
 
     // retrieve a valid version
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
@@ -314,10 +306,10 @@ pub async fn test_batch_delete(op: Operator) -> Result<()> {
 }
 
 pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
+    skip_if_no_capabilities!(op, delete_with_version);
+
     let mut cap = op.info().full_capability();
-    if !cap.delete_with_version {
-        return Ok(());
-    }
+
     if cap.delete_max_size.unwrap_or(1) <= 1 {
         return Ok(());
     }

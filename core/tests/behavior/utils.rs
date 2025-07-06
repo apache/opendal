@@ -185,3 +185,15 @@ impl Fixture {
         let _ = op.delete_iter(paths).await;
     }
 }
+
+#[macro_export]
+macro_rules! skip_if_no_capabilities {
+    ($op:expr, $($cap:ident),+ $(,)?) => {
+        {
+            let caps = $op.info().full_capability();
+            if false $(|| !caps.$cap)+ {
+                return Ok(());
+            }
+        }
+    };
+}

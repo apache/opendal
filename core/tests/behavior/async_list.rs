@@ -113,9 +113,7 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 
 /// listing a directory, which contains more objects than a single page can take.
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     if op.info().scheme() == Scheme::Gdrive {
@@ -148,9 +146,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
 /// List empty dir should return itself.
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let dir = format!("{}/", uuid::Uuid::new_v4());
 
@@ -244,9 +240,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
 
 /// List dir should return correct sub dir.
 pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let path = format!("{}/", uuid::Uuid::new_v4());
 
@@ -276,9 +270,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let parent = format!("{}/", uuid::Uuid::new_v4());
     op.create_dir(&parent)
@@ -377,13 +369,7 @@ pub async fn test_list_dir_with_file_path(op: Operator) -> Result<()> {
 
 /// List with start after should start listing after the specified key
 pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
-
-    if !op.info().full_capability().list_with_start_after {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir, list_with_start_after);
 
     let dir = &format!("{}/", uuid::Uuid::new_v4());
     op.create_dir(dir).await?;
@@ -437,9 +423,7 @@ pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> 
 }
 
 pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     op.create_dir("/").await?;
 

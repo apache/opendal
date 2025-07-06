@@ -87,9 +87,7 @@ pub async fn test_stat_file(op: Operator) -> Result<()> {
 
 /// Stat existing file should return metadata
 pub async fn test_stat_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let path = TEST_FIXTURE.new_dir_path();
 
@@ -110,9 +108,7 @@ pub async fn test_stat_dir(op: Operator) -> Result<()> {
 
 /// Stat the parent dir of existing dir should return metadata
 pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, create_dir);
 
     let parent = format!("{}", uuid::Uuid::new_v4());
     let file = format!("{}", uuid::Uuid::new_v4());
@@ -183,9 +179,7 @@ pub async fn test_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_match);
 
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
@@ -212,9 +206,7 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
 pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_none_match);
 
     let (path, content, size) = TEST_FIXTURE.new_file(op.clone());
 
@@ -245,9 +237,7 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
 
 /// Stat file with if_modified_since should succeed, otherwise get a ConditionNotMatch error.
 pub async fn test_stat_with_if_modified_since(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_modified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_modified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -275,9 +265,7 @@ pub async fn test_stat_with_if_modified_since(op: Operator) -> Result<()> {
 
 /// Stat file with if_unmodified_since should succeed, otherwise get a ConditionNotMatch error.
 pub async fn test_stat_with_if_unmodified_since(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_unmodified_since {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_unmodified_since);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -305,11 +293,7 @@ pub async fn test_stat_with_if_unmodified_since(op: Operator) -> Result<()> {
 
 /// Stat file with override-cache-control should succeed.
 pub async fn test_stat_with_override_cache_control(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().stat_with_override_cache_control
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_override_cache_control, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -350,14 +334,7 @@ pub async fn test_stat_with_override_cache_control(op: Operator) -> Result<()> {
 
 /// Stat file with override_content_disposition should succeed.
 pub async fn test_stat_with_override_content_disposition(op: Operator) -> Result<()> {
-    if !(op
-        .info()
-        .full_capability()
-        .stat_with_override_content_disposition
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_override_content_disposition, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -399,11 +376,7 @@ pub async fn test_stat_with_override_content_disposition(op: Operator) -> Result
 
 /// Stat file with override_content_type should succeed.
 pub async fn test_stat_with_override_content_type(op: Operator) -> Result<()> {
-    if !(op.info().full_capability().stat_with_override_content_type
-        && op.info().full_capability().presign)
-    {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_override_content_type, presign);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -500,9 +473,7 @@ pub async fn test_read_only_stat_not_exist(op: Operator) -> Result<()> {
 
 /// Stat with if_match should succeed, else get a ConditionNotMatch error.
 pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_match);
 
     let path = "normal_file.txt";
 
@@ -525,9 +496,7 @@ pub async fn test_read_only_stat_with_if_match(op: Operator) -> Result<()> {
 
 /// Stat with if_none_match should succeed, else get a ConditionNotMatch.
 pub async fn test_read_only_stat_with_if_none_match(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_if_none_match {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_if_none_match);
 
     let path = "normal_file.txt";
 
@@ -561,9 +530,7 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 }
 
 pub async fn test_stat_with_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_version);
 
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
 
@@ -599,9 +566,7 @@ pub async fn test_stat_with_version(op: Operator) -> Result<()> {
 }
 
 pub async fn stat_with_not_existing_version(op: Operator) -> Result<()> {
-    if !op.info().full_capability().stat_with_version {
-        return Ok(());
-    }
+    skip_if_no_capabilities!(op, stat_with_version);
 
     // retrieve a valid version
     let (path, content, _) = TEST_FIXTURE.new_file(op.clone());

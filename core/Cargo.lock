@@ -3204,7 +3204,7 @@ dependencies = [
 [[package]]
 name = "foyer"
 version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=88ac58b5893dc06dfda79f361eefc75c3c60d75a#88ac58b5893dc06dfda79f361eefc75c3c60d75a"
+source = "git+https://github.com/foyer-rs/foyer?rev=80a48d5aa243e92582823cd7594e2958063e3f3c#80a48d5aa243e92582823cd7594e2958063e3f3c"
 dependencies = [
  "anyhow",
  "equivalent",
@@ -3222,7 +3222,7 @@ dependencies = [
 [[package]]
 name = "foyer-common"
 version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=88ac58b5893dc06dfda79f361eefc75c3c60d75a#88ac58b5893dc06dfda79f361eefc75c3c60d75a"
+source = "git+https://github.com/foyer-rs/foyer?rev=80a48d5aa243e92582823cd7594e2958063e3f3c#80a48d5aa243e92582823cd7594e2958063e3f3c"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -3248,7 +3248,7 @@ dependencies = [
 [[package]]
 name = "foyer-memory"
 version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=88ac58b5893dc06dfda79f361eefc75c3c60d75a#88ac58b5893dc06dfda79f361eefc75c3c60d75a"
+source = "git+https://github.com/foyer-rs/foyer?rev=80a48d5aa243e92582823cd7594e2958063e3f3c#80a48d5aa243e92582823cd7594e2958063e3f3c"
 dependencies = [
  "arc-swap",
  "bitflags 2.9.1",
@@ -3271,7 +3271,7 @@ dependencies = [
 [[package]]
 name = "foyer-storage"
 version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=88ac58b5893dc06dfda79f361eefc75c3c60d75a#88ac58b5893dc06dfda79f361eefc75c3c60d75a"
+source = "git+https://github.com/foyer-rs/foyer?rev=80a48d5aa243e92582823cd7594e2958063e3f3c#80a48d5aa243e92582823cd7594e2958063e3f3c"
 dependencies = [
  "allocator-api2",
  "anyhow",

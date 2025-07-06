@@ -405,7 +405,6 @@ mod tests {
 
         for i in 0..64 {
             let res = op.read(&key(i)).await;
-            // FIXME(MrCroxx): Fix foyer `remove()` when entry in disk cache write buffer.
             let _ = res.unwrap_err();
             // TODO(MrCroxx): Uncomment this assertion after the exposion of internal opendal error from foyer.
             // Currently, the error is [`ErrorKind::Unexpected`].

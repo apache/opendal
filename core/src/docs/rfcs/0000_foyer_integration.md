@@ -1,7 +1,7 @@
 - Proposal Name: `foyer_integration`
-- Start Date: (fill me in with today's date, 2025-07-07)
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Start Date: 2025-07-07
+- RFC PR: [apache/opendal#6370](https://github.com/apache/opendal/pull/6370)
+- Tracking Issue: [apache/opendal#6372](https://github.com/apache/opendal/issues/6372)
 
 # Summary
 

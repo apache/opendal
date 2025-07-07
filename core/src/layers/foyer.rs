@@ -406,7 +406,7 @@ mod tests {
         for i in 0..64 {
             let res = op.read(&key(i)).await;
             let _ = res.unwrap_err();
-            // TODO(MrCroxx): Uncomment this assertion after the exposion of internal opendal error from foyer.
+            // TODO(MrCroxx): Uncomment this assertion after the explosion of internal opendal error from foyer.
             // Currently, the error is [`ErrorKind::Unexpected`].
             // assert_eq!(e.kind(), ErrorKind::NotFound);
         }

@@ -20,9 +20,9 @@ By introducing *foyer* integration, the users will be benefited in to following 
 - Performance boost and cost reduction by caching with both memory and disk.
 - A completely transparent implementation, using the same operation APIs as before.
 
-[RFC#6297](https://github.com/apache/opendal/pull/6297) has mentioned a general cahce layer design, and *foyer* can be integrated into OpenDAL as a general cache in this way. However, this may not fully leverage *foyer*'s capabilities:
+[RFC#6297](https://github.com/apache/opendal/pull/6297) has mentioned a general cache layer design, and *foyer* can be integrated into OpenDAL as a general cache in this way. However, this may not fully leverage *foyer*'s capabilities:
 
-- *Foyer* support automatic cache refilling on cache miss. The behavior differs based on the reason of cahce miss and the statistics of the entry (e.g. entry not in cahce, disk operation throttled, age of entry, etc). All of the abilities are supported by a non-standard API `fetch()`, which other cache libraries don't have.
+- *Foyer* support automatic cache refilling on cache miss. The behavior differs based on the reason of cache miss and the statistics of the entry (e.g. entry not in cache, disk operation throttled, age of entry, etc). All of the abilities are supported by a non-standard API `fetch()`, which other cache libraries don't have.
 - *Foyer* support requests deduplication on the same key. *Foyer* ensures that for concurrent access to the same key, only one request will actually access the disk cache or remote storage, while other requests will wait for this request to return and directly reuse the result, in order to minimize overhead as much as possible.
 
 These capabilities overlap with some of the functionalities provided by a general cache Layer, while others are orthogonal. An independent *foyer* integration (e.g. `FoyerLayer`) can fully leverage Foyer's capabilities. At the same time, this will not affect future integration with Foyer and other cache libraries through the general cache layer.
@@ -95,7 +95,7 @@ Since we cannot perceive whether other users have updated the data in the underl
 
 # Rationale and alternatives
 
-[RFC#6297](https://github.com/apache/opendal/pull/6297) has mentioned a general cahce layer design, but cannot fully leverage *foyer*'s capabilities. However, the two are not in conflict.  At the same time, because #6297 has not yet been finalized, I prefer to implement a layer specifically for the *foyer* first. This does not affect the future implementation of a general cache layer and can also help quickly identify potential user needs and issues.
+[RFC#6297](https://github.com/apache/opendal/pull/6297) has mentioned a general cache layer design, but cannot fully leverage *foyer*'s capabilities. However, the two are not in conflict.  At the same time, because #6297 has not yet been finalized, I prefer to implement a layer specifically for the *foyer* first. This does not affect the future implementation of a general cache layer and can also help quickly identify potential user needs and issues.
 
 # Prior art
 

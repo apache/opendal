@@ -30,7 +30,7 @@ use crate::{
         OpCopy, OpCreateDir, OpDelete, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite,
         RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpRename, RpStat, RpWrite,
     },
-    Buffer, Error, ErrorKind, Result,
+    Buffer, Error, ErrorKind, Metadata, Result,
 };
 
 fn extract_err(e: FoyerError) -> Error {
@@ -294,24 +294,20 @@ pub struct Writer<A: Access> {
 }
 
 impl<A: Access> oio::Write for Writer<A> {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
-        async {
-            self.q.as_mut().unwrap().push(bs.clone());
-            self.w.write(bs).await
-        }
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.q.as_mut().unwrap().push(bs.clone());
+        self.w.write(bs).await
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<crate::Metadata>> + MaybeSend {
-        async {
-            let buffer = self.q.take().unwrap().collect();
-            let res = self.w.close().await;
-            self.inner.cache.insert(self.path.clone(), buffer.into());
-            res
-        }
+    async fn close(&mut self) -> Result<Metadata> {
+        let buffer = self.q.take().unwrap().collect();
+        let res = self.w.close().await;
+        self.inner.cache.insert(self.path.clone(), buffer.into());
+        res
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        self.w.abort()
+    async fn abort(&mut self) -> Result<()> {
+        self.w.abort().await
     }
 }
 
@@ -328,14 +324,12 @@ impl<A: Access> oio::Delete for Deleter<A> {
         Ok(())
     }
 
-    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend {
-        async {
-            for key in &self.keys {
-                self.inner.cache.remove(key);
-            }
-            let res = self.d.flush().await;
-            res
+    async fn flush(&mut self) -> Result<usize> {
+        for key in &self.keys {
+            self.inner.cache.remove(key);
         }
+        let res = self.d.flush().await;
+        res
     }
 }
 
@@ -371,7 +365,7 @@ mod tests {
             .with_device_options(
                 DirectFsDeviceOptions::new(dir.path())
                     .with_capacity(16 * MiB as usize)
-                    .with_file_size(1 * MiB as usize),
+                    .with_file_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()

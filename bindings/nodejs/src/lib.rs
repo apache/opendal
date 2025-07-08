@@ -1180,6 +1180,7 @@ impl RetryLayer {
     /// This function will panic if the input factor is smaller than `1.0`.
     #[napi(setter)]
     pub fn factor(&mut self, v: f64) {
+        assert!(v >= 1.0);
         self.factor = Some(v);
     }
 

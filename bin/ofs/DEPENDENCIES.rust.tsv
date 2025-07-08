@@ -25,9 +25,9 @@ cc@1.2.23		X								X
 cfg-if@1.0.0		X								X			
 cfg_aliases@0.2.1										X			
 chrono@0.4.41		X								X			
-clap@4.5.38		X								X			
-clap_builder@4.5.38		X								X			
-clap_derive@4.5.32		X								X			
+clap@4.5.40		X								X			
+clap_builder@4.5.40		X								X			
+clap_derive@4.5.40		X								X			
 clap_lex@0.7.4		X								X			
 cloud-filter@0.0.5										X			
 cloud_filter_opendal@0.0.10		X											
@@ -101,7 +101,7 @@ libc@0.2.172		X								X
 linux-raw-sys@0.4.15		X	X							X			
 litemap@0.8.0											X		
 log@0.4.27		X								X			
-logforth@0.24.0		X											
+logforth@0.26.1		X											
 md-5@0.10.6		X								X			
 memchr@2.7.4										X		X	
 memoffset@0.9.1										X			
@@ -170,7 +170,7 @@ time@0.3.41		X								X
 time-core@0.1.4		X								X			
 time-macros@0.2.22		X								X			
 tinystr@0.8.1											X		
-tokio@1.45.0										X			
+tokio@1.45.1										X			
 tokio-macros@2.5.0										X			
 tokio-rustls@0.26.2		X								X			
 tokio-util@0.7.15										X			

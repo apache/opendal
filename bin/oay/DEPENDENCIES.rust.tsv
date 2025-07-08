@@ -115,7 +115,6 @@ portable-atomic-util@0.2.4		X							X
 potential_utf@0.1.2											X		
 powerfmt@0.2.0		X							X				
 proc-macro2@1.0.95		X							X				
-quick-xml@0.36.2									X				
 quick-xml@0.37.5									X				
 quote@1.0.40		X							X				
 r-efi@5.2.0		X						X	X				
@@ -156,7 +155,7 @@ time@0.3.41		X							X
 time-core@0.1.4		X							X				
 time-macros@0.2.22		X							X				
 tinystr@0.8.1											X		
-tokio@1.45.0									X				
+tokio@1.45.1									X				
 tokio-macros@2.5.0									X				
 tokio-rustls@0.26.2		X							X				
 tokio-util@0.7.15									X				

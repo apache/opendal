@@ -21,7 +21,7 @@ use std::{
     sync::Arc,
 };
 
-use foyer::{Code, CodeError, HybridCache};
+use foyer::{Code, CodeError, Error as FoyerError, HybridCache};
 
 use crate::{
     raw::{
@@ -32,6 +32,14 @@ use crate::{
     },
     Buffer, Error, ErrorKind, Result,
 };
+
+fn extract_err(e: FoyerError) -> Error {
+    let e = match e.downcast::<Error>() {
+        Ok(e) => return e,
+        Err(e) => e,
+    };
+    Error::new(ErrorKind::Unexpected, e.to_string())
+}
 
 #[derive(Debug)]
 pub struct Value(Buffer);
@@ -158,16 +166,14 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
                         let (_, mut reader) = inner
                             .accessor
                             .read(&path, args.with_range(BytesRange::new(0, None)))
-                            .await?;
-                        let buffer = reader.read_all().await?;
+                            .await
+                            .map_err(FoyerError::other)?;
+                        let buffer = reader.read_all().await.map_err(FoyerError::other)?;
                         Ok(buffer.into())
                     }
                 })
                 .await
-                .map_err(|e| {
-                    // TODO(MrCroxx): Expose internal opendal error from foyer.
-                    Error::new(ErrorKind::Unexpected, e.to_string())
-                })?;
+                .map_err(extract_err)?;
 
             let r = r.to_range();
             let start = match r.start_bound() {
@@ -405,10 +411,16 @@ mod tests {
 
         for i in 0..64 {
             let res = op.read(&key(i)).await;
-            let _ = res.unwrap_err();
-            // TODO(MrCroxx): Uncomment this assertion after the explosion of internal opendal error from foyer.
-            // Currently, the error is [`ErrorKind::Unexpected`].
-            // assert_eq!(e.kind(), ErrorKind::NotFound);
+            let e = res.unwrap_err();
+            assert_eq!(e.kind(), ErrorKind::NotFound);
         }
+    }
+
+    #[test]
+    fn test_error() {
+        let e = Error::new(ErrorKind::NotFound, "not found");
+        let fe = FoyerError::other(e);
+        let oe = extract_err(fe);
+        assert_eq!(oe.kind(), ErrorKind::NotFound);
     }
 }

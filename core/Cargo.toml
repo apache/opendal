@@ -382,7 +382,7 @@ web-sys = { version = "0.3.77", optional = true, features = [
 ] }
 # for services-foyer
 # TODO(MrCroxx): Switch to a released version after testing with OpenDAL integration.
-foyer = { git = "https://github.com/foyer-rs/foyer", rev = "03cb77aaf807964937c2f18286668cd4c19798d1", features = [
+foyer = { git = "https://github.com/foyer-rs/foyer", rev = "4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4", features = [
 ], optional = true }
 
 # Layers

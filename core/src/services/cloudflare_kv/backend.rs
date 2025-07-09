@@ -564,7 +564,7 @@ impl Access for CloudflareKvAccessor {
             None => 1000,
         };
 
-        let l = CloudflareKvLister::new(self.core.clone(), &path, Some(limit));
+        let l = CloudflareKvLister::new(self.core.clone(), &path, args.recursive(), Some(limit));
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }

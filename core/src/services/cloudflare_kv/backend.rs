@@ -224,13 +224,32 @@ impl Access for CloudflareKvAccessor {
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.info.root(), path);
-        let cf_kv_metadata = CfKvMetadata {
-            etag: build_tmp_path_of(&path),
-            last_modified: chrono::Local::now().to_rfc3339(),
-            content_length: 0,
-            is_dir: true,
-        };
-        self.core.set(&path, Buffer::new(), cf_kv_metadata).await?;
+        // Split path into segments and create directories for each level
+        let segments: Vec<&str> = path.trim_start_matches('/').trim_end_matches('/').split('/').collect();
+
+        // Create each directory level
+        let mut current_path = String::from("/");
+        for segment in segments {
+            // Build the current directory path
+            if !current_path.ends_with('/') {
+                current_path.push('/');
+            }
+            current_path.push_str(segment);
+            current_path.push('/');
+
+            // Create metadata for current directory
+            let cf_kv_metadata = CfKvMetadata {
+                etag: build_tmp_path_of(&current_path),
+                last_modified: chrono::Local::now().to_rfc3339(),
+                content_length: 0,
+                is_dir: true,
+            };
+
+            // Set the directory entry
+            self.core
+                .set(&current_path, Buffer::new(), cf_kv_metadata)
+                .await?;
+        }
 
         Ok(RpCreateDir::default())
     }
@@ -529,13 +548,15 @@ impl Access for CloudflareKvAccessor {
 
         let limit = match args.limit() {
             Some(limit) => {
-                if limit == 1 {
-                    1000
-                } else if !(10..=1000).contains(&limit) {
-                    return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "limit must be between 10 and 1000, default 1000.",
-                    ));
+                if !(10..=1000).contains(&limit) {
+                    10
+                // if limit == 1 {
+                //     1000
+                // } else if !(10..=1000).contains(&limit) {
+                //     return Err(Error::new(
+                //         ErrorKind::ConfigInvalid,
+                //         "limit must be between 10 and 1000, default 1000.",
+                //     ));
                 } else {
                     limit
                 }

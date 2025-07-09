@@ -30,15 +30,22 @@ pub struct CloudflareKvLister {
 
     path: String,
     limit: Option<usize>,
+    recursive: bool,
 }
 
 impl CloudflareKvLister {
-    pub fn new(core: Arc<CloudflareKvCore>, path: &str, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<CloudflareKvCore>,
+        path: &str,
+        recursive: bool,
+        limit: Option<usize>,
+    ) -> Self {
         Self {
             core,
 
             path: path.to_string(),
             limit,
+            recursive,
         }
     }
 }
@@ -84,7 +91,12 @@ impl oio::PageList for CloudflareKvLister {
                 if metadata.is_dir && !name.ends_with('/') {
                     name += "/";
                 }
-                if name.replace(&self.path, "").trim_end_matches('/').contains('/') {
+                if !self.recursive
+                    && name
+                        .replace(&self.path, "")
+                        .trim_end_matches('/')
+                        .contains('/')
+                {
                     continue;
                 }
 

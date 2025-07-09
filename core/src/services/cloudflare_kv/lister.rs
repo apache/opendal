@@ -66,13 +66,15 @@ impl oio::PageList for CloudflareKvLister {
             ));
         }
 
-        ctx.done = !res
+        let (token, done) = res
             .result_info
             .and_then(|info| info.cursor)
-            .map_or(true, |cursor| {
-                ctx.token = cursor;
-                false
+            .map_or((String::new(), true), |cursor| {
+                (cursor.clone(), cursor.is_empty())
             });
+
+        ctx.token = token;
+        ctx.done = done;
 
         if let Some(result) = res.result {
             for item in result {

@@ -84,6 +84,10 @@ impl oio::PageList for CloudflareKvLister {
                 if metadata.is_dir && !name.ends_with('/') {
                     name += "/";
                 }
+                if name.replace(&self.path, "").trim_end_matches('/').contains('/') {
+                    continue;
+                }
+
                 let root = self.core.info.root().as_ref().to_string();
                 name = name.replace(root.trim_start_matches('/'), "");
 

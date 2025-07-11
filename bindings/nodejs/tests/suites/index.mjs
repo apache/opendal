@@ -32,6 +32,8 @@ import { run as AsyncListOptionsTestRun } from './asyncListOptions.suite.mjs'
 import { run as SyncListOptionsTestRun } from './syncListOptions.suite.mjs'
 import { run as AsyncDeleteOptionsTestRun } from './asyncDeleteOptions.suite.mjs'
 import { run as SyncDeleteOptionsTestRun } from './syncDeleteOptions.suite.mjs'
+import { run as AsyncWriteOptionsTestRun } from './asyncWriteOptions.suite.mjs'
+import { run as SyncWriteOptionsTestRun } from './syncWriteOptions.suite.mjs'
 
 export function runner(testName, scheme) {
   if (!scheme) {
@@ -69,5 +71,7 @@ export function runner(testName, scheme) {
     SyncListOptionsTestRun(operator)
     AsyncDeleteOptionsTestRun(operator)
     SyncDeleteOptionsTestRun(operator)
+    AsyncWriteOptionsTestRun(operator)
+    SyncWriteOptionsTestRun(operator)
   })
 }

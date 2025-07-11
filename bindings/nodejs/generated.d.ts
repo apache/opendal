@@ -269,17 +269,6 @@ export interface ListOptions {
   */
   deleted?: boolean
 }
-export interface DeleteOptions {
-  version?: string
-}
-export const enum EntryMode {
-  /** FILE means the path has data to read. */
-  FILE = 0,
-  /** DIR means the path can be listed. */
-  DIR = 1,
-  /** Unknown means we don't know what we can do on this path. */
-  Unknown = 2
-}
 export interface WriteOptions {
   /**
    * Append bytes into a path.
@@ -308,6 +297,65 @@ export interface WriteOptions {
   contentDisposition?: string
   /** Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op. */
   cacheControl?: string
+  /** Set the [Content-Encoding] https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding of op. */
+  contentEncoding?: string
+  /**
+   * Sets user metadata of op.
+   *
+   * If chunk is set, the user metadata will be attached to the object during write.
+   *
+   * ## NOTE
+   *
+   * - Services may have limitations for user metadata, for example:
+   *   - Key length is typically limited (e.g., 1024 bytes)
+   *   - Value length is typically limited (e.g., 4096 bytes)
+   *   - Total metadata size might be limited
+   *   - Some characters might be forbidden in keys
+   */
+  userMetadata?: Record<string, string>
+  /**
+   * Sets if-match condition of op.
+   *
+   * This operation provides conditional write functionality based on ETag matching,
+   * helping prevent unintended overwrites in concurrent scenarios.
+   */
+  ifMatch?: string
+  /**
+   * Sets if-none-match condition of op.
+   *
+   * This operation provides conditional write functionality based on ETag non-matching,
+   * useful for preventing overwriting existing resources or ensuring unique writes.
+   */
+  ifNoneMatch?: string
+  /**
+   * Sets if_not_exists condition of op.
+   *
+   * This operation provides a way to ensure write operations only create new resources
+   * without overwriting existing ones, useful for implementing "create if not exists" logic.
+   */
+  ifNotExists?: boolean
+  /**
+   * Sets concurrent of op.
+   *
+   * - By default, OpenDAL writes files sequentially
+   * - When concurrent is set:
+   *   - Multiple write operations can execute in parallel
+   *   - Write operations return immediately without waiting if tasks space are available
+   *   - Close operation ensures all writes complete in order
+   *   - Memory usage increases with concurrency level
+   */
+  concurrent?: number
+}
+export interface DeleteOptions {
+  version?: string
+}
+export const enum EntryMode {
+  /** FILE means the path has data to read. */
+  FILE = 0,
+  /** DIR means the path can be listed. */
+  DIR = 1,
+  /** Unknown means we don't know what we can do on this path. */
+  Unknown = 2
 }
 /** PresignedRequest is a presigned request return by `presign`. */
 export interface PresignedRequest {
@@ -381,6 +429,16 @@ export class Capability {
   get writeWithContentDisposition(): boolean
   /** If operator supports write with cache control. */
   get writeWithCacheControl(): boolean
+  /** If operator supports write with content encoding. */
+  get writeWithContentEncoding(): boolean
+  /** If operator supports write with user metadata. */
+  get writeWithUserMetadata(): boolean
+  /** If operator supports write with if match. */
+  get writeWithIfMatch(): boolean
+  /** If operator supports write with if none match. */
+  get writeWithIfNoneMatch(): boolean
+  /** If operator supports write with if not exists. */
+  get writeWithIfNotExists(): boolean
   /**
    * write_multi_max_size is the max size that services support in write_multi.
    *
@@ -572,7 +630,7 @@ export class Operator {
    * await op.write("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
    * ```
    */
-  write(path: string, content: Buffer | string, options?: WriteOptions | undefined | null): Promise<void>
+  write(path: string, content: Buffer | string, options?: WriteOptions | undefined | null): Promise<Metadata>
   /**
    * Write multiple bytes into a path.
    *
@@ -597,7 +655,7 @@ export class Operator {
    * op.writeSync("path/to/file", Buffer.from("hello world"), { contentType: "text/plain" });
    * ```
    */
-  writeSync(path: string, content: Buffer | string, options?: WriteOptions | undefined | null): void
+  writeSync(path: string, content: Buffer | string, options?: WriteOptions | undefined | null): Metadata
   /**
    * Copy file according to given `from` and `to` path.
    *
@@ -845,14 +903,20 @@ export class Metadata {
    * deletion or has been permanently deleted.
    */
   isDeleted(): boolean
+  /** Cache-Control of this object. */
+  get cacheControl(): string | null
   /** Content-Disposition of this object */
   get contentDisposition(): string | null
   /** Content Length of this object */
   get contentLength(): bigint | null
+  /** Content Encoding of this object */
+  get contentEncoding(): string | null
   /** Content MD5 of this object. */
   get contentMd5(): string | null
   /** Content Type of this object. */
   get contentType(): string | null
+  /** User Metadata of this object. */
+  get userMetadata(): Record<string, string> | null
   /** ETag of this object. */
   get etag(): string | null
   /**

@@ -19,11 +19,10 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
-
-#include "boost/date_time/posix_time/ptime.hpp"
 
 namespace opendal {
 
@@ -50,7 +49,7 @@ class Metadata {
   std::optional<std::string> content_md5;
   std::optional<std::string> content_type;
   std::optional<std::string> etag;
-  std::optional<boost::posix_time::ptime> last_modified;
+  std::optional<std::chrono::system_clock::time_point> last_modified;
 };
 
 /**

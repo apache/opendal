@@ -19,13 +19,14 @@
 
 #pragma once
 
+#include <cstring>
+#include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "boost/iostreams/concepts.hpp"
-#include "boost/iostreams/stream.hpp"
 #include "data_structure.hpp"
 
 namespace opendal {
@@ -174,14 +175,13 @@ class Operator {
 /**
  * @class Reader
  * @brief Reader is designed to read data from the operator.
- * @details It provides basic read and seek operations. If you want to use it
- * like a stream, you can use `ReaderStream` instead.
+ * @details It provides basic read and seek operations with a stream-like
+ * interface.
  * @code{.cpp}
  * opendal::ReaderStream stream(operator.reader("path"));
  * @endcode
  */
-class Reader
-    : public boost::iostreams::device<boost::iostreams::input_seekable> {
+class Reader {
  public:
   Reader(Reader &&other) noexcept;
 
@@ -201,26 +201,98 @@ class Reader
   ffi::Reader *reader_{nullptr};
 };
 
-// Boost IOStreams requires it to be copyable. So we need to use
-// `reference_wrapper` in ReaderStream. More details can be seen at
-// https://lists.boost.org/Archives/boost/2005/10/95939.php
-
 /**
  * @class ReaderStream
- * @brief ReaderStream is a stream wrapper of Reader which can provide
- * `iostream` interface. It will keep a Reader inside so that you can ignore the
- * lifetime of original Reader.
+ * @brief ReaderStream is a stream wrapper of Reader which provides
+ * `iostream` interface. It wraps the Reader to provide standard stream
+ * operations.
  */
-class ReaderStream
-    : public boost::iostreams::stream<boost::reference_wrapper<Reader>> {
+class ReaderStream : public std::istream {
  public:
+  class ReaderStreamBuf : public std::streambuf {
+   public:
+    ReaderStreamBuf(Reader &&reader)
+        : reader_(std::move(reader)), buffer_start_pos_(0) {
+      setg(buffer_, buffer_, buffer_);
+    }
+
+   protected:
+    std::streamsize xsgetn(char *s, std::streamsize count) override {
+      std::streamsize total_read = 0;
+
+      while (total_read < count) {
+        if (gptr() < egptr()) {
+          std::streamsize available = egptr() - gptr();
+          std::streamsize to_copy = std::min(available, count - total_read);
+          std::memcpy(s + total_read, gptr(), to_copy);
+          gbump(to_copy);
+          total_read += to_copy;
+          continue;
+        }
+
+        if (underflow() == traits_type::eof()) break;
+      }
+
+      return total_read;
+    }
+
+    int_type underflow() override {
+      if (gptr() < egptr()) {
+        return traits_type::to_int_type(*gptr());
+      }
+
+      // Update the buffer start position to current reader position
+      buffer_start_pos_ += (egptr() - eback());
+
+      std::streamsize n = reader_.read(buffer_, sizeof(buffer_));
+      if (n <= 0) {
+        return traits_type::eof();
+      }
+
+      setg(buffer_, buffer_, buffer_ + n);
+      return traits_type::to_int_type(*gptr());
+    }
+
+    int_type uflow() override {
+      int_type result = underflow();
+      if (result != traits_type::eof()) {
+        gbump(1);
+      }
+      return result;
+    }
+
+    std::streampos seekoff(std::streamoff off, std::ios_base::seekdir dir,
+                           std::ios_base::openmode which) override {
+      if (dir == std::ios_base::cur && off == 0) {
+        // tellg() case - return current position
+        return buffer_start_pos_ + (gptr() - eback());
+      }
+
+      // Actual seek operation
+      std::streampos new_pos = reader_.seek(off, dir);
+      if (new_pos != std::streampos(-1)) {
+        buffer_start_pos_ = new_pos;
+        setg(buffer_, buffer_, buffer_);
+      }
+      return new_pos;
+    }
+
+    std::streampos seekpos(std::streampos pos,
+                           std::ios_base::openmode which) override {
+      return seekoff(pos, std::ios_base::beg, which);
+    }
+
+   private:
+    Reader reader_;
+    char buffer_[8192];
+    std::streampos buffer_start_pos_;
+  };
+
   ReaderStream(Reader &&reader)
-      : boost::iostreams::stream<boost::reference_wrapper<Reader>>(
-            boost::ref(reader_)),
-        reader_(std::move(reader)) {}
+      : std::istream(&buf_), buf_(std::move(reader)) {}
 
  private:
-  Reader reader_;
+  ReaderStreamBuf buf_;
 };
 
 /**

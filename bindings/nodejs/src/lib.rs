@@ -27,7 +27,9 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::options::{ListOptions, ReadOptions, ReaderOptions, StatOptions};
+use opendal::options::{
+    DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
+};
 
 mod capability;
 mod options;
@@ -304,31 +306,19 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<WriteOptions>,
-    ) -> Result<()> {
+        options: Option<options::WriteOptions>,
+    ) -> Result<Metadata> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let mut writer = self.async_op.write_with(&path, c);
-        if let Some(options) = options {
-            if let Some(append) = options.append {
-                writer = writer.append(append);
-            }
-            if let Some(chunk) = options.chunk {
-                writer = writer.chunk(chunk.get_u64().1 as usize);
-            }
-            if let Some(ref content_type) = options.content_type {
-                writer = writer.content_type(content_type);
-            }
-            if let Some(ref content_disposition) = options.content_disposition {
-                writer = writer.content_disposition(content_disposition);
-            }
-            if let Some(ref cache_control) = options.cache_control {
-                writer = writer.cache_control(cache_control);
-            }
-        }
-        writer.await.map(|_| ()).map_err(format_napi_error)
+        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let metadata = self
+            .async_op
+            .write_options(&path, c, options)
+            .await
+            .map_err(format_napi_error)?;
+        Ok(Metadata(metadata))
     }
 
     //noinspection DuplicatedCode
@@ -336,7 +326,11 @@ impl Operator {
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String, options: Option<WriteOptions>) -> Result<Writer> {
+    pub async fn writer(
+        &self,
+        path: String,
+        options: Option<options::WriteOptions>,
+    ) -> Result<Writer> {
         let options = options.unwrap_or_default();
         let writer = self
             .async_op
@@ -353,7 +347,7 @@ impl Operator {
     pub fn writer_sync(
         &self,
         path: String,
-        options: Option<WriteOptions>,
+        options: Option<options::WriteOptions>,
     ) -> Result<BlockingWriter> {
         let options = options.unwrap_or_default();
         let writer = self
@@ -379,17 +373,18 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<WriteOptions>,
-    ) -> Result<()> {
+        options: Option<options::WriteOptions>,
+    ) -> Result<Metadata> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.unwrap_or_default();
-        self.blocking_op
-            .write_options(&path, c, options.into())
+        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let metadata = self
+            .blocking_op
+            .write_options(&path, c, options)
             .map_err(format_napi_error)?;
-        Ok(())
+        Ok(Metadata(metadata))
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -458,8 +453,16 @@ impl Operator {
     /// await op.delete("test");
     /// ```
     #[napi]
-    pub async fn delete(&self, path: String) -> Result<()> {
-        self.async_op.delete(&path).await.map_err(format_napi_error)
+    pub async fn delete(
+        &self,
+        path: String,
+        options: Option<options::DeleteOptions>,
+    ) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.async_op
+            .delete_options(&path, options)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Delete the given path synchronously.
@@ -469,8 +472,11 @@ impl Operator {
     /// op.deleteSync("test");
     /// ```
     #[napi]
-    pub fn delete_sync(&self, path: String) -> Result<()> {
-        self.blocking_op.delete(&path).map_err(format_napi_error)
+    pub fn delete_sync(&self, path: String, options: Option<options::DeleteOptions>) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.blocking_op
+            .delete_options(&path, options)
+            .map_err(format_napi_error)
     }
 
     /// Remove given paths.
@@ -767,6 +773,12 @@ impl Metadata {
         self.0.is_deleted()
     }
 
+    /// Cache-Control of this object.
+    #[napi(getter)]
+    pub fn cache_control(&self) -> Option<String> {
+        self.0.cache_control().map(|s| s.to_string())
+    }
+
     /// Content-Disposition of this object
     #[napi(getter)]
     pub fn content_disposition(&self) -> Option<String> {
@@ -779,6 +791,12 @@ impl Metadata {
         self.0.content_length().into()
     }
 
+    /// Content Encoding of this object
+    #[napi(getter)]
+    pub fn content_encoding(&self) -> Option<String> {
+        self.0.content_encoding().map(|s| s.to_string())
+    }
+
     /// Content MD5 of this object.
     #[napi(getter)]
     pub fn content_md5(&self) -> Option<String> {
@@ -789,6 +807,12 @@ impl Metadata {
     #[napi(getter)]
     pub fn content_type(&self) -> Option<String> {
         self.0.content_type().map(|s| s.to_string())
+    }
+
+    /// User Metadata of this object.
+    #[napi(getter)]
+    pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
+        self.0.user_metadata().cloned()
     }
 
     /// ETag of this object.
@@ -947,51 +971,6 @@ impl Writer {
     #[napi]
     pub async unsafe fn close(&mut self) -> Result<()> {
         self.0.close().await.map(|_| ()).map_err(format_napi_error)
-    }
-}
-
-#[napi(object)]
-#[derive(Default)]
-pub struct WriteOptions {
-    /// Append bytes into a path.
-    ///
-    /// ### Notes
-    ///
-    /// - It always appends content to the end of the file.
-    /// - It will create file if the path does not exist.
-    pub append: Option<bool>,
-
-    /// Set the chunk of op.
-    ///
-    /// If chunk is set, the data will be chunked by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// A service could have their own minimum chunk size while perform write
-    /// operations like multipart uploads. So the chunk size may be larger than
-    /// the given buffer size.
-    pub chunk: Option<BigInt>,
-
-    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
-    pub content_type: Option<String>,
-
-    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
-    pub content_disposition: Option<String>,
-
-    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
-    pub cache_control: Option<String>,
-}
-
-impl From<WriteOptions> for opendal::options::WriteOptions {
-    fn from(value: WriteOptions) -> Self {
-        Self {
-            append: value.append.unwrap_or_default(),
-            chunk: value.chunk.map(|v| v.get_u64().1 as usize),
-            content_type: value.content_type,
-            content_disposition: value.content_disposition,
-            cache_control: value.cache_control,
-            ..Default::default()
-        }
     }
 }
 

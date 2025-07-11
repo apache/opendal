@@ -84,7 +84,8 @@ class Operator {
 
 /**
  * @class Reader
- * @brief Async Reader is designed to read data from a specific path in an asynchronous manner.
+ * @brief Async Reader is designed to read data from a specific path in an
+ * asynchronous manner.
  * @details It provides streaming read operations with range support.
  */
 class Reader {
@@ -102,7 +103,7 @@ class Reader {
   explicit Reader(size_t reader_id) noexcept;
 
   using ReadFuture = opendal::ffi::async::RustFutureRead;
-  
+
   /**
    * @brief Read data from the specified range
    * @param start Start offset in bytes
@@ -113,7 +114,7 @@ class Reader {
 
  private:
   friend class Operator;
-  
+
   void destroy() noexcept;
 
   size_t reader_id_{0};
@@ -121,12 +122,13 @@ class Reader {
 
 /**
  * @class Lister
- * @brief Async Lister is designed to list entries at a specified path in an asynchronous manner.
+ * @brief Async Lister is designed to list entries at a specified path in an
+ * asynchronous manner.
  * @details It provides streaming iteration over directory entries.
  */
 class Lister {
  public:
-  // Disable copy and assign  
+  // Disable copy and assign
   Lister(const Lister &) = delete;
   Lister &operator=(const Lister &) = delete;
 
@@ -139,16 +141,17 @@ class Lister {
   explicit Lister(size_t lister_id) noexcept;
 
   using NextFuture = opendal::ffi::async::RustFutureEntryOption;
-  
+
   /**
    * @brief Get the next entry in the listing
-   * @return Future that resolves to the next entry path, or empty string if no more entries
+   * @return Future that resolves to the next entry path, or empty string if no
+   * more entries
    */
   NextFuture next();
 
  private:
   friend class Operator;
-  
+
   void destroy() noexcept;
 
   size_t lister_id_{0};

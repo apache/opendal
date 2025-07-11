@@ -27,7 +27,7 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::options::{ListOptions, ReadOptions, ReaderOptions, StatOptions};
+use opendal::options::{DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions};
 
 mod capability;
 mod options;
@@ -458,8 +458,16 @@ impl Operator {
     /// await op.delete("test");
     /// ```
     #[napi]
-    pub async fn delete(&self, path: String) -> Result<()> {
-        self.async_op.delete(&path).await.map_err(format_napi_error)
+    pub async fn delete(
+        &self,
+        path: String,
+        options: Option<options::DeleteOptions>,
+    ) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.async_op
+            .delete_options(&path, options)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Delete the given path synchronously.
@@ -469,8 +477,11 @@ impl Operator {
     /// op.deleteSync("test");
     /// ```
     #[napi]
-    pub fn delete_sync(&self, path: String) -> Result<()> {
-        self.blocking_op.delete(&path).map_err(format_napi_error)
+    pub fn delete_sync(&self, path: String, options: Option<options::DeleteOptions>) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.blocking_op
+            .delete_options(&path, options)
+            .map_err(format_napi_error)
     }
 
     /// Remove given paths.

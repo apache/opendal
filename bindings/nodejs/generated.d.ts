@@ -269,6 +269,9 @@ export interface ListOptions {
   */
   deleted?: boolean
 }
+export interface DeleteOptions {
+  version?: string
+}
 export const enum EntryMode {
   /** FILE means the path has data to read. */
   FILE = 0,
@@ -400,6 +403,8 @@ export class Capability {
   get createDir(): boolean
   /** If operator supports delete. */
   get delete(): boolean
+  /** If operator supports delete by version. */
+  get deleteWithVersion(): boolean
   /** If operator supports copy. */
   get copy(): boolean
   /** If operator supports rename. */
@@ -644,7 +649,7 @@ export class Operator {
    * await op.delete("test");
    * ```
    */
-  delete(path: string): Promise<void>
+  delete(path: string, options?: DeleteOptions | undefined | null): Promise<void>
   /**
    * Delete the given path synchronously.
    *
@@ -653,7 +658,7 @@ export class Operator {
    * op.deleteSync("test");
    * ```
    */
-  deleteSync(path: string): void
+  deleteSync(path: string, options?: DeleteOptions | undefined | null): void
   /**
    * Remove given paths.
    *

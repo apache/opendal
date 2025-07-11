@@ -269,9 +269,6 @@ export interface ListOptions {
   */
   deleted?: boolean
 }
-export interface DeleteOptions {
-  version?: string
-}
 export interface WriteOptions {
   /**
    * Append bytes into a path.
@@ -348,6 +345,9 @@ export interface WriteOptions {
    *   - Memory usage increases with concurrency level
    */
   concurrent?: number
+}
+export interface DeleteOptions {
+  version?: string
 }
 export const enum EntryMode {
   /** FILE means the path has data to read. */

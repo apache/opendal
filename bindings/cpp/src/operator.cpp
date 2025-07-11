@@ -17,7 +17,10 @@
  * under the License.
  */
 
-#include "boost/date_time/posix_time/time_parsers.hpp"
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+
 #include "lib.rs.h"
 #include "opendal.hpp"
 #include "utils/ffi_converter.hpp"
@@ -47,37 +50,27 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
 
   auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
   if (last_modified_str.has_value()) {
-    try {
-      // RFC3339 format from Rust needs to be converted to boost::posix_time
-      // Try parsing as ISO extended string first (supports RFC3339 format)
-      std::string timestamp = last_modified_str.value();
-      
-      // Convert RFC3339 'T' separator to space for boost parsing
-      size_t t_pos = timestamp.find('T');
-      if (t_pos != std::string::npos) {
-        timestamp[t_pos] = ' ';
+    // Parse ISO 8601 string to time_point using strptime to avoid locale lock
+    std::tm tm = {};
+    const char *str = last_modified_str.value().c_str();
+
+    // Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS
+    int year, month, day, hour, minute, second;
+    if (sscanf(str, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute,
+               &second) == 6) {
+      tm.tm_year = year - 1900;  // years since 1900
+      tm.tm_mon = month - 1;     // months since January (0-11)
+      tm.tm_mday = day;
+      tm.tm_hour = hour;
+      tm.tm_min = minute;
+      tm.tm_sec = second;
+      tm.tm_isdst = -1;  // let mktime determine DST
+
+      std::time_t time_t_value = std::mktime(&tm);
+      if (time_t_value != -1) {
+        metadata.last_modified =
+            std::chrono::system_clock::from_time_t(time_t_value);
       }
-      
-      // Remove timezone suffix (Z or +HH:MM) for boost parsing
-      size_t z_pos = timestamp.find('Z');
-      if (z_pos != std::string::npos) {
-        timestamp = timestamp.substr(0, z_pos);
-      } else {
-        size_t plus_pos = timestamp.find('+');
-        if (plus_pos != std::string::npos) {
-          timestamp = timestamp.substr(0, plus_pos);
-        } else {
-          size_t minus_pos = timestamp.rfind('-');
-          if (minus_pos != std::string::npos && minus_pos > 10) { // Make sure it's not part of date
-            timestamp = timestamp.substr(0, minus_pos);
-          }
-        }
-      }
-      
-      metadata.last_modified = boost::posix_time::time_from_string(timestamp);
-    } catch (const std::exception& e) {
-      // If parsing fails, leave last_modified unset
-      metadata.last_modified = std::nullopt;
     }
   }
 

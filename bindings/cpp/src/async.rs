@@ -61,7 +61,6 @@ mod ffi {
         unsafe fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
         unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
         unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
         unsafe fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
         unsafe fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
 
@@ -240,14 +239,6 @@ unsafe fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> Rus
 unsafe fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
         op.0.delete(&path)
-            .await
-            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
-}
-
-unsafe fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
-    RustFutureWrite::fallible(async move {
-        op.0.remove_all(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })

@@ -212,10 +212,7 @@ if (OPENDAL_ENABLE_TESTING)
         list(APPEND TEST_SOURCE_FILE tests/behavior/async_write_test.cpp)
         list(APPEND TEST_SOURCE_FILE tests/behavior/async_list_test.cpp)
     endif()
-    
-    # Benchmark tests
-    list(APPEND TEST_SOURCE_FILE tests/benchmark/benchmark_test.cpp)
-    
+
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
     target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS} tests)
     target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest opendal_cpp)

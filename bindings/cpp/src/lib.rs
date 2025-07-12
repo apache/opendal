@@ -98,7 +98,6 @@ mod ffi {
         fn copy(self: &Operator, src: &str, dst: &str) -> Result<()>;
         fn rename(self: &Operator, src: &str, dst: &str) -> Result<()>;
         fn remove(self: &Operator, path: &str) -> Result<()>;
-        fn remove_all(self: &Operator, path: &str) -> Result<()>;
         fn stat(self: &Operator, path: &str) -> Result<Metadata>;
         fn list(self: &Operator, path: &str) -> Result<Vec<Entry>>;
         fn reader(self: &Operator, path: &str) -> Result<*mut Reader>;
@@ -181,10 +180,6 @@ impl Operator {
     // We can't name it to delete because it's a keyword in C++
     fn remove(&self, path: &str) -> Result<()> {
         Ok(self.0.delete(path)?)
-    }
-
-    fn remove_all(&self, path: &str) -> Result<()> {
-        Ok(self.0.remove_all(path)?)
     }
 
     fn stat(&self, path: &str) -> Result<ffi::Metadata> {

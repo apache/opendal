@@ -91,11 +91,6 @@ Operator::DeleteFuture Operator::delete_path(std::string_view path) {
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
-Operator::RemoveAllFuture Operator::remove_all(std::string_view path) {
-  return opendal::ffi::async::operator_remove_all(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
-}
-
 Operator::ReaderFuture Operator::reader(std::string_view path) {
   return opendal::ffi::async::operator_reader(
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));

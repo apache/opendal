@@ -155,10 +155,6 @@ void Operator::remove(std::string_view path) {
   operator_->remove(utils::rust_str(path));
 }
 
-void Operator::remove_all(std::string_view path) {
-  operator_->remove_all(utils::rust_str(path));
-}
-
 Metadata Operator::stat(std::string_view path) {
   return parse_meta_data(operator_->stat(utils::rust_str(path)));
 }

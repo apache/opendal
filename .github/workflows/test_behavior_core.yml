@@ -49,7 +49,7 @@ jobs:
       # Waiting for https://github.com/1Password/load-secrets-action/issues/46
       - name: Setup 1Password Connect
         if: runner.os == 'Linux'
-        uses: 1password/load-secrets-action/configure@v1
+        uses: 1password/load-secrets-action/configure@v2
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}

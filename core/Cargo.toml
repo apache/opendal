@@ -109,6 +109,8 @@ layers-await-tree = ["dep:await-tree"]
 layers-async-backtrace = ["dep:async-backtrace"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
+# Enable foyer support.
+layers-foyer = ["dep:foyer"]
 
 services-aliyun-drive = []
 services-alluxio = []
@@ -379,6 +381,10 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "StorageManager",
   "FileSystemGetFileOptions",
 ] }
+# for services-foyer
+# TODO(MrCroxx): Switch to a released version after testing with OpenDAL integration.
+foyer = { git = "https://github.com/foyer-rs/foyer", rev = "4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4", features = [
+], optional = true }
 
 # Layers
 # for layers-async-backtrace
@@ -428,6 +434,8 @@ pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
+tempfile = "3"
+test-log = { version = "0.2", features = ["trace", "color"] }
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.31.0"
 tracing-subscriber = { version = "0.3", features = [

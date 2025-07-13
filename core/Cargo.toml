@@ -266,7 +266,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
 dotenvy = { version = "0.15", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9", optional = true }
 
 # Optional dependencies
 
@@ -425,7 +425,7 @@ opentelemetry = { version = "0.30.0", default-features = false, features = [
 opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
-rand = "0.8"
+rand = "0.9"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }

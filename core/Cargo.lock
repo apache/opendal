@@ -2715,7 +2715,7 @@ version = "0.53.0"
 dependencies = [
  "futures",
  "opendal",
- "rand 0.8.5",
+ "rand 0.9.1",
  "tokio",
 ]
 
@@ -5422,7 +5422,7 @@ dependencies = [
  "prometheus-client",
  "prost 0.13.5",
  "quick-xml",
- "rand 0.8.5",
+ "rand 0.9.1",
  "redb",
  "redis",
  "reqsign",
@@ -5455,7 +5455,7 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "opendal",
- "rand 0.8.5",
+ "rand 0.9.1",
  "tokio",
  "uuid",
 ]
@@ -5471,7 +5471,7 @@ dependencies = [
  "dotenvy",
  "logforth",
  "opendal",
- "rand 0.8.5",
+ "rand 0.9.1",
  "tokio",
 ]
 

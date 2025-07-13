@@ -463,14 +463,14 @@ impl Access for CloudflareKvAccessor {
 
         let range = args.range();
         let buffer = if range.is_full() {
-            Buffer::from(resp_body)
+            resp_body
         } else {
             let start = range.offset() as usize;
             let end = match range.size() {
                 Some(size) => (range.offset() + size) as usize,
                 None => resp_body.len(),
             };
-            Buffer::from(resp_body.slice(start..end.min(resp_body.len())))
+            resp_body.slice(start..end.min(resp_body.len()))
         };
         Ok((RpRead::new(), buffer))
     }

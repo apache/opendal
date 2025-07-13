@@ -434,7 +434,6 @@ rand = "0.8"
 sha2 = "0.10"
 size = "0.4"
 tempfile = "3"
-test-log = { version = "0.2", features = ["trace", "color"] }
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.31.0"
 tracing-subscriber = { version = "0.3", features = [

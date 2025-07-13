@@ -122,7 +122,7 @@ pub use self::dtrace::DtraceLayer;
 #[cfg(feature = "layers-foyer")]
 mod foyer;
 #[cfg(feature = "layers-foyer")]
-pub use self::foyer::FoyerLayer;
+pub use self::foyer::{FoyerLayer, FoyerValue};
 
 pub mod observe;
 

@@ -239,7 +239,7 @@ required-features = ["tests"]
 [dependencies]
 # Required dependencies
 anyhow = { version = "1.0.30", features = ["std"] }
-backon = { version = "1.2", features = ["tokio-sleep"] }
+backon = { version = "1.5", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
 chrono = { version = "0.4.28", default-features = false, features = [
@@ -255,8 +255,8 @@ http-body = "1"
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
-quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
-reqwest = { version = "0.12.8", features = [
+quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
+reqwest = { version = "0.12.22", features = [
   "stream",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
@@ -266,7 +266,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
 dotenvy = { version = "0.15", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9", optional = true }
 
 # Optional dependencies
 
@@ -281,7 +281,7 @@ sqlx = { version = "0.8.0", features = [
 ], optional = true }
 
 # For http based services.
-reqsign = { version = "0.16.3", default-features = false, optional = true }
+reqsign = { version = "0.16.5", default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }
@@ -396,7 +396,7 @@ fastrace = { version = "0.7.1", optional = true }
 # for layers-opentelemetry
 opentelemetry = { version = "0.30.0", optional = true }
 # for layers-prometheus
-prometheus = { version = "0.13", features = ["process"], optional = true }
+prometheus = { version = "0.14", features = ["process"], optional = true }
 # for layers-prometheus-client
 prometheus-client = { version = "0.23.1", optional = true }
 # for fastmetrics
@@ -410,7 +410,7 @@ probe = { version = "0.5.1", optional = true }
 backon = { version = "1.2", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
 tokio = { version = "1.46", features = ["time"] }
-uuid = { version = "1.14", features = ["serde", "v4", "js"] }
+uuid = { version = "1.17", features = ["serde", "v4", "js"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["async", "async_tokio"] }
@@ -425,7 +425,7 @@ opentelemetry = { version = "0.30.0", default-features = false, features = [
 opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
-rand = "0.8"
+rand = "0.9"
 sha2 = "0.10"
 size = "0.4"
 tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }

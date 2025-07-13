@@ -95,36 +95,6 @@ impl CloudflareKvCore {
         self.send(req).await
     }
 
-    // // The batch_get operation is currently disabled due to response 400 error
-    // pub async fn batch_get(&self, paths: &[String]) -> Result<Response<Buffer>> {
-    //     let url = format!("{}/bulk/get", self.url_prefix());
-    //     let req = Request::post(url);
-
-    //     let req = self.sign(req);
-
-    //     // let paths = paths
-    //     //     .iter()
-    //     //     .map(|p| percent_encode_path(p))
-    //     //     .collect::<Vec<String>>();
-
-    //     let payload = CfKvGetPayload {
-    //         keys: paths.to_vec(),
-    //         get_type: Some(CfKvGetPayloadType::Json),
-    //         with_metadata: Some(true),
-    //     };
-
-    //     let body_bytes = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
-    //     let body = Buffer::from(body_bytes);
-
-    //     let req = req
-    //         .extension(Operation::Read)
-    //         .header(header::CONTENT_TYPE, "application/json")
-    //         .body(body)
-    //         .map_err(new_request_build_error)?;
-
-    //     self.send(req).await
-    // }
-
     pub async fn set(
         &self,
         path: &str,

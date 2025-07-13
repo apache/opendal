@@ -29,8 +29,6 @@ use crate::raw::percent_encode_path;
 use crate::raw::Operation;
 use crate::raw::QueryPairsWriter;
 use crate::raw::{new_request_build_error, AccessorInfo, FormDataPart, Multipart};
-// use crate::services::cloudflare_kv::model::CfKvGetPayload;
-// use crate::services::cloudflare_kv::model::CfKvGetPayloadType;
 use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::{Buffer, Result};
 

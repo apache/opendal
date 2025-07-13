@@ -24,12 +24,6 @@ pub struct CfKvResponse {
     pub errors: Vec<CfKvError>,
 }
 
-// #[derive(Debug, Deserialize)]
-// pub struct CfKvGetResponse {
-//     pub success: bool,
-//     pub result: Option<CfKvGetResult>,
-// }
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CfKvMetadata {
     pub etag: String,
@@ -37,35 +31,6 @@ pub struct CfKvMetadata {
     pub content_length: usize,
     pub is_dir: bool,
 }
-
-// #[derive(Debug, Serialize)]
-// pub enum CfKvGetPayloadType {
-//     #[serde(rename = "json")]
-//     Json,
-//     #[serde(rename = "text")]
-//     Text,
-// }
-
-// #[derive(Debug, Serialize)]
-// pub struct CfKvGetPayload {
-//     pub keys: Vec<String>,
-//     #[serde(rename = "type")]
-//     pub get_type: Option<CfKvGetPayloadType>,
-//     #[serde(rename = "withMetadata")]
-//     pub with_metadata: Option<bool>,
-// }
-
-// #[derive(Debug, Deserialize)]
-// pub struct CfKvGetResultData {
-//     pub value: String,
-//     pub metadata: CfKvMetadata,
-//     // expiration: Option<u32>,
-// }
-
-// #[derive(Debug, Deserialize)]
-// pub struct CfKvGetResult {
-//     pub values: Option<HashMap<String, Option<CfKvGetResultData>>>,
-// }
 
 #[derive(Debug, Deserialize)]
 pub struct CfKvError {

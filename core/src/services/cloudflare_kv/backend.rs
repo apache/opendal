@@ -224,8 +224,17 @@ impl Access for CloudflareKvAccessor {
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.info.root(), path);
+
+        if path == build_abs_path(&self.core.info.root(), "") {
+            return Ok(RpCreateDir::default());
+        }
+
         // Split path into segments and create directories for each level
-        let segments: Vec<&str> = path.trim_start_matches('/').trim_end_matches('/').split('/').collect();
+        let segments: Vec<&str> = path
+            .trim_start_matches('/')
+            .trim_end_matches('/')
+            .split('/')
+            .collect();
 
         // Create each directory level
         let mut current_path = String::from("/");

@@ -22,7 +22,7 @@ use bytes::Buf;
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::cloudflare_kv::model::CfKvListResponse;
+use crate::services::cloudflare_kv::model::{CfKvListKey, CfKvListResponse};
 use crate::*;
 
 pub struct CloudflareKvLister {
@@ -47,6 +47,58 @@ impl CloudflareKvLister {
             limit,
             recursive,
         }
+    }
+
+    fn build_entry_for_item(&self, item: &CfKvListKey, root: &str) -> Result<oio::Entry> {
+        let metadata = item.metadata.clone();
+        let mut name = item.name.clone();
+
+        if metadata.is_dir && !name.ends_with('/') {
+            name += "/";
+        }
+
+        let mut name = name.replace(root.trim_start_matches('/'), "");
+
+        // If it is the root directory, it needs to be processed as /
+        if name.is_empty() {
+            name = "/".to_string();
+        }
+
+        let entry_metadata = if name.ends_with('/') {
+            Metadata::new(EntryMode::DIR)
+                .with_etag(build_tmp_path_of(&name))
+                .with_content_length(0)
+        } else {
+            Metadata::new(EntryMode::FILE)
+                .with_etag(metadata.etag)
+                .with_content_length(metadata.content_length as u64)
+                .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?)
+        };
+
+        Ok(oio::Entry::new(&name, entry_metadata))
+    }
+
+    fn handle_non_recursive_file_list(
+        &self,
+        ctx: &mut oio::PageContext,
+        result: &[CfKvListKey],
+        root: &str,
+    ) -> Result<()> {
+        if let Some(item) = result.iter().find(|item| item.name == self.path) {
+            let entry = self.build_entry_for_item(item, root)?;
+            ctx.entries.push_back(entry);
+        } else if !result.is_empty() {
+            let path_name = self.path.replace(root.trim_start_matches('/'), "");
+            let entry = oio::Entry::new(
+                &format!("{path_name}/"),
+                Metadata::new(EntryMode::DIR)
+                    .with_etag(build_tmp_path_of(&path_name))
+                    .with_content_length(0),
+            );
+            ctx.entries.push_back(entry);
+        }
+        ctx.done = true;
+        Ok(())
     }
 }
 
@@ -84,33 +136,32 @@ impl oio::PageList for CloudflareKvLister {
         ctx.done = done;
 
         if let Some(result) = res.result {
-            for item in result {
-                let metadata = item.metadata;
+            let root = self.core.info.root().to_string();
 
-                let mut name = item.name;
-                if metadata.is_dir && !name.ends_with('/') {
+            if !self.path.ends_with('/') && !self.recursive {
+                self.handle_non_recursive_file_list(ctx, &result, &root)?;
+                return Ok(());
+            }
+
+            for item in result {
+                let mut name = item.name.clone();
+                if item.metadata.is_dir && !name.ends_with('/') {
                     name += "/";
                 }
-                if !self.recursive
-                    && name
-                        .replace(&self.path, "")
-                        .trim_end_matches('/')
-                        .contains('/')
-                {
-                    continue;
+
+                // For non-recursive listing, filter out entries not in the current directory.
+                if !self.recursive {
+                    if let Some(relative_path) = name.strip_prefix(&self.path) {
+                        if relative_path.trim_end_matches('/').contains('/') {
+                            continue;
+                        }
+                    } else if self.path != name {
+                        continue;
+                    }
                 }
 
-                let root = self.core.info.root().as_ref().to_string();
-                name = name.replace(root.trim_start_matches('/'), "");
-
-                let de = oio::Entry::new(
-                    &name,
-                    Metadata::new(EntryMode::from_path(&name))
-                        .with_etag(metadata.etag)
-                        .with_content_length(metadata.content_length as u64)
-                        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?),
-                );
-                ctx.entries.push_back(de);
+                let entry = self.build_entry_for_item(&item, &root)?;
+                ctx.entries.push_back(entry);
             }
         }
 

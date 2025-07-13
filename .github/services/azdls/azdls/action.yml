@@ -26,10 +26,14 @@ runs:
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_AZDLS_FILESYSTEM: op://services/azdls/filesystem
         OPENDAL_AZDLS_ENDPOINT: op://services/azdls/endpoint
         OPENDAL_AZDLS_ACCOUNT_NAME: op://services/azdls/account_name
         OPENDAL_AZDLS_ACCOUNT_KEY: op://services/azdls/account_key
+
     - name: Add extra settings
       shell: bash
       run: |

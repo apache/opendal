@@ -45,7 +45,7 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-    # TODO: 1password is only supported on linux
+      # TODO: 1password is only supported on linux
       #
       # Waiting for https://github.com/1Password/load-secrets-action/issues/46
       - name: Setup 1Password Connect

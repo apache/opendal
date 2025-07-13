@@ -26,6 +26,9 @@ runs:
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_S3_BUCKET: op://services/r2/bucket
         OPENDAL_S3_ENDPOINT: op://services/r2/endpoint
         OPENDAL_S3_ACCESS_KEY_ID: op://services/r2/access_key_id

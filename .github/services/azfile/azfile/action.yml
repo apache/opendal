@@ -26,6 +26,9 @@ runs:
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_AZFILE_ACCOUNT_NAME: op://services/azfile/account_name
         OPENDAL_AZFILE_ENDPOINT: op://services/azfile/endpoint
         OPENDAL_AZFILE_ACCOUNT_KEY: op://services/azfile/account_key

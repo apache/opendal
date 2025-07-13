@@ -26,6 +26,9 @@ runs:
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_B2_BUCKET: op://services/b2/bucket
         OPENDAL_B2_BUCKET_ID: op://services/b2/bucket_id
         OPENDAL_B2_APPLICATION_KEY_ID: op://services/b2/application_key_id

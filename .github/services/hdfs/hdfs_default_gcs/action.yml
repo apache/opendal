@@ -26,14 +26,19 @@ runs:
       with:
         distribution: temurin
         java-version: "11"
+
     - name: Load secrets
       uses: 1password/load-secrets-action@v1
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_GCS_ROOT: op://services/gcs/root
         OPENDAL_GCS_BUCKET: op://services/gcs/bucket
         OPENDAL_GCS_CREDENTIAL: op://services/gcs/credential
+
     - name: Setup
       shell: bash
       run: |

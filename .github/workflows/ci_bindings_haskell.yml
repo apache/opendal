@@ -126,6 +126,9 @@ jobs:
 #        with:
 #          export-env: true
 #        env:
+#          # set the connect token for authentication
+#          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+#          # loading credentials into environment variables
 #          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 #          OPENDAL_HACKAGE_TOKEN: op://services/hackage/token
 #      - name: Publish to Hackage

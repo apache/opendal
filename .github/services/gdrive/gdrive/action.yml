@@ -26,6 +26,9 @@ runs:
       with:
         export-env: true
       env:
+        # set the connect token for authentication
+        OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        # loading credentials into environment variables
         OPENDAL_GDRIVE_ROOT: op://services/gdrive/root
         OPENDAL_GDRIVE_REFRESH_TOKEN: op://services/gdrive/refresh_token
         OPENDAL_GDRIVE_CLIENT_ID: op://services/gdrive/client_id

@@ -62,6 +62,9 @@ jobs:
         with:
           export-env: true
         env:
+          # set the connect token for authentication
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+          # loading credentials into environment variables
           OPENAI_API_BASE: op://services/openai/api_base
           OPENAI_API_KEY: op://services/openai/api_key
           OPENAI_MODEL: op://services/openai/model

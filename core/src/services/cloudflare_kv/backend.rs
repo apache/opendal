@@ -461,80 +461,19 @@ impl Access for CloudflareKvAccessor {
             }
         }
 
-        Ok((RpRead::new(), resp_body))
+        let range = args.range();
+        let buffer = if range.is_full() {
+            Buffer::from(resp_body)
+        } else {
+            let start = range.offset() as usize;
+            let end = match range.size() {
+                Some(size) => (range.offset() + size) as usize,
+                None => resp_body.len(),
+            };
+            Buffer::from(resp_body.slice(start..end.min(resp_body.len())))
+        };
+        Ok((RpRead::new(), buffer))
     }
-
-    // async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-    //     let resp = self.core.batch_get(&[path.to_string()]).await?;
-
-    //     let status = resp.status();
-
-    //     if status != StatusCode::OK {
-    //         return Err(parse_error(resp));
-    //     }
-
-    //     let resp_body = resp.into_body();
-    //     let cf_response: CfKvGetResponse =
-    //         serde_json::from_reader(resp_body.reader()).map_err(new_json_deserialize_error)?;
-
-    //     if !cf_response.success {
-    //         return Err(Error::new(
-    //             ErrorKind::Unexpected,
-    //             "cloudflare_kv read this key failed for reason we don't know",
-    //         ));
-    //     }
-
-    //     // Extract data from response and handle not found cases
-    //     let data = cf_response
-    //         .result
-    //         .and_then(|result| result.values)
-    //         .and_then(|values| values.into_iter().next())
-    //         .and_then(|(_, data)| data)
-    //         .ok_or_else(|| Error::new(ErrorKind::NotFound, "key not found in CloudFlare KV"))?;
-
-    //     // Check if_match condition
-    //     if let Some(if_match) = &args.if_match() {
-    //         if if_match != &data.metadata.etag {
-    //             return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
-    //         }
-    //     }
-
-    //     // Check if_none_match condition
-    //     if let Some(if_none_match) = &args.if_none_match() {
-    //         if if_none_match == &data.metadata.etag {
-    //             return Err(Error::new(
-    //                 ErrorKind::ConditionNotMatch,
-    //                 "etag match when expected none match",
-    //             ));
-    //         }
-    //     }
-
-    //     // Parse since time once for both time-based conditions
-    //     let last_modified = chrono::DateTime::parse_from_rfc3339(&data.metadata.last_modified)
-    //         .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
-
-    //     // Check modified_since condition
-    //     if let Some(modified_since) = &args.if_modified_since() {
-    //         if !last_modified.gt(modified_since) {
-    //             return Err(Error::new(
-    //                 ErrorKind::ConditionNotMatch,
-    //                 "not modified since specified time",
-    //             ));
-    //         }
-    //     }
-
-    //     // Check unmodified_since condition
-    //     if let Some(unmodified_since) = &args.if_unmodified_since() {
-    //         if !last_modified.le(unmodified_since) {
-    //             return Err(Error::new(
-    //                 ErrorKind::ConditionNotMatch,
-    //                 "modified since specified time",
-    //             ));
-    //         }
-    //     }
-
-    //     Ok((RpRead::new(), Buffer::from(data.value.clone())))
-    // }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let path = build_abs_path(&self.core.info.root(), path);
@@ -557,15 +496,9 @@ impl Access for CloudflareKvAccessor {
 
         let limit = match args.limit() {
             Some(limit) => {
+                // The list limit of cloudflare_kv is limited to 10..1000.
                 if !(10..=1000).contains(&limit) {
-                    10
-                // if limit == 1 {
-                //     1000
-                // } else if !(10..=1000).contains(&limit) {
-                //     return Err(Error::new(
-                //         ErrorKind::ConfigInvalid,
-                //         "limit must be between 10 and 1000, default 1000.",
-                //     ));
+                    1000
                 } else {
                     limit
                 }

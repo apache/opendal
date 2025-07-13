@@ -120,10 +120,6 @@ impl CloudflareKvCore {
 
         let req = multipart.apply(req)?;
 
-        // let resp = self.send(req).await?;
-        // println!("QAQ resp {:?}", String::from_utf8_lossy(&resp.body().to_bytes()));
-
-        // Ok(Response::new(Buffer::new()))
         self.send(req).await
     }
 

@@ -17,25 +17,22 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::vec;
+use std::sync::Arc;
 
-use bb8::PooledConnection;
-use bb8::RunError;
 use etcd_client::Certificate;
-use etcd_client::Client;
 use etcd_client::ConnectOptions;
-use etcd_client::Error as EtcdError;
-use etcd_client::GetOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
 use crate::raw::*;
+use crate::services::etcd::core::constants::DEFAULT_ETCD_ENDPOINTS;
+use crate::services::etcd::core::EtcdCore;
+use crate::services::etcd::deleter::EtcdDeleter;
+use crate::services::etcd::lister::EtcdLister;
+use crate::services::etcd::writer::EtcdWriter;
 use crate::services::EtcdConfig;
 use crate::*;
-
-const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
 
 impl Configurator for EtcdConfig {
     type Builder = EtcdBuilder;
@@ -179,12 +176,14 @@ impl Builder for EtcdBuilder {
         );
 
         let client = OnceCell::new();
-        Ok(EtcdBackend::new(Adapter {
+
+        let core = EtcdCore {
             endpoints,
             client,
             options,
-        })
-        .with_normalized_root(root))
+        };
+
+        Ok(EtcdAccessor::new(core, &root))
     }
 }
 
@@ -195,145 +194,151 @@ impl EtcdBuilder {
     }
 }
 
-/// Backend for etcd services.
-pub type EtcdBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Manager {
-    endpoints: Vec<String>,
-    options: ConnectOptions,
+#[derive(Debug, Clone)]
+pub struct EtcdAccessor {
+    core: Arc<EtcdCore>,
+    info: Arc<AccessorInfo>,
 }
 
-impl bb8::ManageConnection for Manager {
-    type Connection = Client;
-    type Error = Error;
+impl EtcdAccessor {
+    fn new(core: EtcdCore, root: &str) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Etcd);
+        info.set_name("etcd");
+        info.set_root(root);
+        info.set_native_capability(Capability {
+            read: true,
 
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = Client::connect(self.endpoints.clone(), Some(self.options.clone()))
-            .await
-            .map_err(format_etcd_error)?;
+            write: true,
+            write_can_empty: true,
 
-        Ok(conn)
-    }
+            delete: true,
+            stat: true,
+            list: true,
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let _ = conn.status().await.map_err(format_etcd_error)?;
-        Ok(())
-    }
+            shared: true,
 
-    /// Always allow reuse conn.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
-    }
-}
+            ..Default::default()
+        });
 
-#[derive(Clone)]
-pub struct Adapter {
-    endpoints: Vec<String>,
-    options: ConnectOptions,
-    client: OnceCell<bb8::Pool<Manager>>,
-}
-
-// implement `Debug` manually, or password may be leaked.
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-
-        ds.field("endpoints", &self.endpoints.join(","));
-        ds.field("options", &self.options.clone());
-        ds.finish()
+        Self {
+            core: Arc::new(core),
+            info: Arc::new(info),
+        }
     }
 }
 
-impl Adapter {
-    async fn conn(&self) -> Result<PooledConnection<'static, Manager>> {
-        let client = self
-            .client
-            .get_or_try_init(|| async {
-                bb8::Pool::builder()
-                    .max_size(64)
-                    .build(Manager {
-                        endpoints: self.endpoints.clone(),
-                        options: self.options.clone(),
-                    })
-                    .await
-            })
-            .await?;
+impl Access for EtcdAccessor {
+    type Reader = Buffer;
+    type Writer = EtcdWriter;
+    type Lister = oio::HierarchyLister<EtcdLister>;
+    type Deleter = oio::OneShotDeleter<EtcdDeleter>;
 
-        client.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => err,
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
-            }
-        })
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = kv::ScanStdIter<vec::IntoIter<Result<String>>>;
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Etcd,
-            &self.endpoints.join(","),
-            Capability {
-                read: true,
-                write: true,
-                list: true,
-                shared: true,
-
-                ..Default::default()
-            },
-        )
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn get(&self, key: &str) -> Result<Option<Buffer>> {
-        let mut client = self.conn().await?;
-        let resp = client.get(key, None).await.map_err(format_etcd_error)?;
-        if let Some(kv) = resp.kvs().first() {
-            Ok(Some(Buffer::from(kv.value().to_vec())))
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let abs_path = build_abs_path(&self.info.root(), path);
+
+        // In etcd, we simulate directory creation by storing an empty value
+        // with the directory path (ensuring it ends with '/')
+        let dir_path = if abs_path.ends_with('/') {
+            abs_path
         } else {
-            Ok(None)
+            format!("{abs_path}/")
+        };
+
+        // Store an empty buffer to represent the directory
+        self.core.set(&dir_path, Buffer::new()).await?;
+
+        Ok(RpCreateDir::default())
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let abs_path = build_abs_path(&self.info.root(), path);
+
+        // First check if it's a direct key
+        match self.core.get(&abs_path).await? {
+            Some(buffer) => {
+                let mut metadata = Metadata::new(EntryMode::from_path(&abs_path));
+                metadata.set_content_length(buffer.len() as u64);
+                Ok(RpStat::new(metadata))
+            }
+            None => {
+                // Check if it's a directory by looking for keys with this prefix
+                let prefix = if abs_path.ends_with('/') {
+                    abs_path
+                } else {
+                    format!("{abs_path}/")
+                };
+
+                // Use etcd prefix query to check if any keys exist with this prefix
+                let has_children = self.core.has_prefix(&prefix).await?;
+                if has_children {
+                    // Has children, it's a directory
+                    let metadata = Metadata::new(EntryMode::DIR);
+                    Ok(RpStat::new(metadata))
+                } else {
+                    Err(Error::new(ErrorKind::NotFound, "path not found"))
+                }
+            }
         }
     }
 
-    async fn set(&self, key: &str, value: Buffer) -> Result<()> {
-        let mut client = self.conn().await?;
-        let _ = client
-            .put(key, value.to_vec(), None)
-            .await
-            .map_err(format_etcd_error)?;
-        Ok(())
-    }
+    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let abs_path = build_abs_path(&self.info.root(), path);
 
-    async fn delete(&self, key: &str) -> Result<()> {
-        let mut client = self.conn().await?;
-        let _ = client.delete(key, None).await.map_err(format_etcd_error)?;
-        Ok(())
-    }
+        match self.core.get(&abs_path).await? {
+            Some(buffer) => {
+                let range = op.range();
 
-    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let mut client = self.conn().await?;
-        let get_options = Some(GetOptions::new().with_prefix().with_keys_only());
-        let resp = client
-            .get(path, get_options)
-            .await
-            .map_err(format_etcd_error)?;
-        let mut res = Vec::default();
-        for kv in resp.kvs() {
-            let v = kv.key_str().map(String::from).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
-                    .set_source(err)
-            })?;
-            res.push(Ok(v));
+                // If range is full, return the buffer directly
+                if range.is_full() {
+                    return Ok((RpRead::new(), buffer));
+                }
+
+                // Handle range requests
+                let offset = range.offset() as usize;
+                if offset >= buffer.len() {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range start offset exceeds content length",
+                    ));
+                }
+
+                let size = range.size().map(|s| s as usize);
+                let end = size.map_or(buffer.len(), |s| (offset + s).min(buffer.len()));
+                let sliced_buffer = buffer.slice(offset..end);
+
+                Ok((RpRead::new(), sliced_buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }
-
-        Ok(kv::ScanStdIter::new(res.into_iter()))
     }
-}
 
-pub fn format_etcd_error(e: EtcdError) -> Error {
-    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-        .set_source(e)
-        .set_temporary()
+    async fn write(&self, path: &str, _op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let abs_path = build_abs_path(&self.info.root(), path);
+        let writer = EtcdWriter::new(self.core.clone(), abs_path);
+        Ok((RpWrite::new(), writer))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = oio::OneShotDeleter::new(EtcdDeleter::new(
+            self.core.clone(),
+            self.info.root().to_string(),
+        ));
+        Ok((RpDelete::default(), deleter))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = EtcdLister::new(
+            self.core.clone(),
+            self.info.root().to_string(),
+            path.to_string(),
+        )
+        .await?;
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+        Ok((RpList::default(), lister))
+    }
 }

@@ -15,20 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-etcd")]
-mod backend;
-#[cfg(feature = "services-etcd")]
-mod core;
-#[cfg(feature = "services-etcd")]
-mod deleter;
-#[cfg(feature = "services-etcd")]
-mod error;
-#[cfg(feature = "services-etcd")]
-mod lister;
-#[cfg(feature = "services-etcd")]
-mod writer;
-#[cfg(feature = "services-etcd")]
-pub use backend::EtcdBuilder as Etcd;
+use std::sync::Arc;
 
-mod config;
-pub use config::EtcdConfig;
+use super::core::EtcdCore;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
+
+pub struct EtcdDeleter {
+    core: Arc<EtcdCore>,
+    root: String,
+}
+
+impl EtcdDeleter {
+    pub fn new(core: Arc<EtcdCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for EtcdDeleter {
+    async fn delete_once(&self, path: String, _args: OpDelete) -> Result<()> {
+        let abs_path = build_abs_path(&self.root, &path);
+        self.core.delete(&abs_path).await
+    }
+}

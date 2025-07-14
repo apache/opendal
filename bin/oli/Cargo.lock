@@ -1339,7 +1339,7 @@ dependencies = [
 
 [[package]]
 name = "oli"
-version = "0.41.21"
+version = "0.41.22"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1374,7 +1374,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "opendal"
-version = "0.53.3"
+version = "0.54.0"
 dependencies = [
  "anyhow",
  "backon",

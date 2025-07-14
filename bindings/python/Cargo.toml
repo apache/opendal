@@ -175,7 +175,9 @@ features = [
   "blocking",
   "layers-mime-guess",
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
-  "services-sftp",
+  #
+  # FIXME: waiting for https://github.com/NobodyXu/concurrent_arena/issues/25
+  # "services-sftp",
 ]
 path = "../../core"
 version = ">=0"

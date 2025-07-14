@@ -51,7 +51,7 @@ logforth = { version = "0.26.1", default-features = false }
 opendal = { version = "0.54.0", path = "../../core", features = [
   "services-fs",
 ] }
-quick-xml = { version = "0.37", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.45", features = [
   "fs",

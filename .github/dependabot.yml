@@ -31,20 +31,6 @@ updates:
       third-party-actions:
         patterns:
           - "*"
-    ignore:
-      # Ignore 1Password v2 actions until 1Password resolves these problems:
-      # 1. Windows support https://github.com/1Password/load-secrets-action/issues/46
-      # 2. `1password/load-secrets-action/configure@v2` doesn't export environment variables into
-      #    service composite actions. e.g., `.github/services/s3/aws_s3/action.yml`.
-      #    The dynamic composite actions call a service action can't utilize connect tokens.
-      #    A proper fix (untested) might not need 1Password's support but it's also not urgent.
-      #    Moreover, we will expose the least amount of permission if we refactor CI.
-      #    We can perhaps utilize a config file, e.g., `.github/services/1password.json`,
-      #    where we:
-      #    a. load secrets in shared workflows, e.g., `.github/workflows/test_behavior_core.yml`
-      #    b. pass secrets to composite actions, e.g., `.github/actions/test_behavior_core` via environment variables
-      - dependency-name: 1password/load-secrets-action/configure
-      - dependency-name: 1password/load-secrets-action
 
   # Core dependencies - semiannual updates with groups
   - package-ecosystem: "cargo"

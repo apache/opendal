@@ -48,7 +48,7 @@ url = { version = "2.5.4" }
 fuse3 = { version = "0.8.1", "features" = ["tokio-runtime", "unprivileged"] }
 fuse3_opendal = { version = "0.0.17", path = "../../integrations/fuse3" }
 libc = "0.2.154"
-nix = { version = "0.29.0", features = ["user"] }
+nix = { version = "0.30.1", features = ["user"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 cloud-filter = { version = "0.0.5" }

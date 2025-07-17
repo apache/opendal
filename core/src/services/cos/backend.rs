@@ -235,6 +235,8 @@ impl Builder for CosBuilder {
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
                             read_with_version: self.config.enable_versioning,
 
                             write: true,

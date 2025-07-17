@@ -31,7 +31,7 @@ use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
-use object_store::PutMultipartOpts;
+use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
@@ -207,7 +207,7 @@ impl ObjectStore for OpendalStore {
     async fn put_multipart_opts(
         &self,
         _location: &Path,
-        _opts: PutMultipartOpts,
+        _opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         Err(object_store::Error::NotSupported {
             source: Box::new(opendal::Error::new(

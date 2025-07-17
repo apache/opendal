@@ -26,13 +26,13 @@ version = "0.0.0"
 
 [dependencies]
 aws-config = { version = "1.0.1", features = ["behavior-version-latest"] }
-aws-credential-types = { version = "1.0.1", features = [
+aws-credential-types = { version = "1.2.4", features = [
   "hardcoded-credentials",
 ] }
-aws-sdk-s3 = "1.4.0"
-criterion = { version = "0.5", features = ["async", "async_tokio"] }
+aws-sdk-s3 = "1.91.0"
+criterion = { version = "0.6", features = ["async", "async_tokio"] }
 dotenvy = "0.15"
-logforth = { version = "0.23.1", default-features = false }
+logforth = { version = "0.26.2", default-features = false }
 opendal = { path = "../..", features = ["tests"] }
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }

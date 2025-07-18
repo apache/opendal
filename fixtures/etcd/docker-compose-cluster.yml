@@ -17,14 +17,13 @@
 
 services:
   etcd1:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23790:2379"
       - "23800:2380"
     command:
       - /usr/local/bin/etcd
       - --name=etcd1
-      - --data-dir=/etcd-data
       - --listen-client-urls=http://0.0.0.0:2379
       - --advertise-client-urls=http://etcd1:2379
       - --listen-peer-urls=http://0.0.0.0:2380
@@ -33,17 +32,14 @@ services:
       - --initial-cluster-token=etcd-cluster
       - --initial-cluster-state=new
       - --max-request-bytes=10485760
-    volumes:
-      - etcd1-data:/etcd-data
   etcd2:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23791:2379"
       - "23801:2380"
     command:
       - /usr/local/bin/etcd
       - --name=etcd2
-      - --data-dir=/etcd-data
       - --listen-client-urls=http://0.0.0.0:2379
       - --advertise-client-urls=http://etcd2:2379
       - --listen-peer-urls=http://0.0.0.0:2380
@@ -52,17 +48,14 @@ services:
       - --initial-cluster-token=etcd-cluster
       - --initial-cluster-state=new
       - --max-request-bytes=10485760
-    volumes:
-      - etcd2-data:/etcd-data
   etcd3:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23792:2379"
       - "23802:2380"
     command:
       - /usr/local/bin/etcd
       - --name=etcd3
-      - --data-dir=/etcd-data
       - --listen-client-urls=http://0.0.0.0:2379
       - --advertise-client-urls=http://etcd3:2379
       - --listen-peer-urls=http://0.0.0.0:2380
@@ -71,10 +64,3 @@ services:
       - --initial-cluster-token=etcd-cluster
       - --initial-cluster-state=new
       - --max-request-bytes=10485760
-    volumes:
-      - etcd3-data:/etcd-data
-
-volumes:
-  etcd1-data:
-  etcd2-data:
-  etcd3-data:

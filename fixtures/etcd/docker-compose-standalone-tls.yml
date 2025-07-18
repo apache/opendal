@@ -17,37 +17,33 @@
 
 services:
   etcd:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.16
     ports:
       - "2379:2379"
       - "2380:2380"
     volumes:
-      - ./ca.pem:/etc/ssl/certs/ca.pem
-      - ./server.pem:/etc/ssl/certs/server.pem
-      - ./server-key.pem:/etc/ssl/certs/server-key.pem
-      - ./client-key.pem:/etc/ssl/certs/client-key.pem
-      - ./client.pem:/etc/ssl/certs/client.pem
-      - etcd-data:/etcd-data
+      - ./ca.pem:/srv/ca.pem
+      - ./server.pem:/srv/server.pem
+      - ./server-key.pem:/srv/server-key.pem
+      - ./client.pem:/srv/client.pem
+      - ./client-key.pem:/srv/client-key.pem
     command:
       - /usr/local/bin/etcd
       - --name=etcd
-      - --data-dir=/etcd-data
       - --listen-client-urls=https://0.0.0.0:2379
-      - --advertise-client-urls=https://etcd:2379
+      - --advertise-client-urls=https://0.0.0.0:2379
       - --listen-peer-urls=https://0.0.0.0:2380
-      - --initial-advertise-peer-urls=https://etcd:2380
-      - --initial-cluster=etcd=https://etcd:2380
-      - --initial-cluster-token=etcd-cluster
-      - --initial-cluster-state=new
+      - --initial-advertise-peer-urls=https://0.0.0.0:2380
+      - --initial-cluster=etcd=https://0.0.0.0:2380
+      - --log-level=info
+      - --logger=zap
+      - --log-outputs=stderr
       - --max-request-bytes=10485760
-      - --trusted-ca-file=/etc/ssl/certs/ca.pem
-      - --cert-file=/etc/ssl/certs/server.pem
-      - --key-file=/etc/ssl/certs/server-key.pem
-      - --peer-trusted-ca-file=/etc/ssl/certs/ca.pem
-      - --peer-cert-file=/etc/ssl/certs/server.pem
-      - --peer-key-file=/etc/ssl/certs/server-key.pem
+      - --cert-file=/srv/server.pem
+      - --key-file=/srv/server-key.pem
       - --client-cert-auth=true
+      - --trusted-ca-file=/srv/ca.pem
+      - --peer-cert-file=/srv/server.pem
+      - --peer-key-file=/srv/server-key.pem
       - --peer-client-cert-auth=true
-
-volumes:
-  etcd-data:
+      - --peer-trusted-ca-file=/srv/ca.pem

@@ -20,6 +20,7 @@ version: '3.8'
 services:
   memcached:
     image: bitnamisecure/memcached
+    user: root
     environment:
       # memcache's max item size is 1MiB, But opendal's behavior tests
       # will produce larger file.

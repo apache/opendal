@@ -18,7 +18,7 @@
 version: "3.8"
 services:
   etcd1:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23790:2379"
       - "23800:2380"
@@ -37,7 +37,7 @@ services:
     volumes:
       - etcd1-data:/etcd-data
   etcd2:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23791:2379"
       - "23801:2380"
@@ -56,7 +56,7 @@ services:
     volumes:
       - etcd2-data:/etcd-data
   etcd3:
-    image: gcr.io/etcd-development/etcd:latest
+    image: gcr.io/etcd-development/etcd:v3.5.21
     ports:
       - "23792:2379"
       - "23802:2380"

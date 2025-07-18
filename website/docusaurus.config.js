@@ -25,8 +25,7 @@ const exec = require("child_process").execSync;
 const path = require("path");
 const crates_llms_txt = require("crates-llms-txt");
 
-const lightCodeTheme = require("prism-react-renderer/themes/github");
-const darkCodeTheme = require("prism-react-renderer/themes/dracula");
+const { themes } = require("prism-react-renderer");
 const repoAddress = "https://github.com/apache/opendal";
 
 const baseUrl = process.env.OPENDAL_WEBSITE_BASE_URL
@@ -373,8 +372,8 @@ const config = {
         copyright: `Copyright © 2022-${new Date().getFullYear()}, The Apache Software Foundation<br/>Apache OpenDAL, OpenDAL, Apache, the Apache feather and the Apache OpenDAL project logo are either registered trademarks or trademarks of the Apache Software Foundation.`,
       },
       prism: {
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme,
+        theme: themes.github,
+        darkTheme: themes.dracula,
         additionalLanguages: ["rust", "java", "groovy"],
       },
       zoom: {

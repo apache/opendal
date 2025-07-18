@@ -17,22 +17,37 @@
 
 services:
   etcd:
-    image: bitnami/etcd:latest
+    image: gcr.io/etcd-development/etcd:latest
     ports:
       - "2379:2379"
       - "2380:2380"
     volumes:
-      - ./ca.pem:/opt/bitnami/etcd/conf/ca.pem
-      - ./server.pem:/opt/bitnami/etcd/conf/server.pem
-      - ./server-key.pem:/opt/bitnami/etcd/conf/server-key.pem
-      - ./client-key.pem:/opt/bitnami/etcd/client-key.pem
-      - ./client.pem:/opt/bitnami/etcd/client.pem
-    environment:
-      ETCD_NAME: etcd
-      ETCD_ROOT_PASSWORD: opendal
-      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: https://etcd:2379
-      ETCD_MAX_REQUEST_BYTES: 10485760
-      ETCD_TRUSTED_CA_FILE: /opt/bitnami/etcd/conf/ca.pem
-      ETCD_KEY_FILE: /opt/bitnami/etcd/conf/server-key.pem
-      ETCD_CERT_FILE: /opt/bitnami/etcd/conf/server.pem
+      - ./ca.pem:/etc/ssl/certs/ca.pem
+      - ./server.pem:/etc/ssl/certs/server.pem
+      - ./server-key.pem:/etc/ssl/certs/server-key.pem
+      - ./client-key.pem:/etc/ssl/certs/client-key.pem
+      - ./client.pem:/etc/ssl/certs/client.pem
+      - etcd-data:/etcd-data
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --listen-client-urls=https://0.0.0.0:2379
+      - --advertise-client-urls=https://etcd:2379
+      - --listen-peer-urls=https://0.0.0.0:2380
+      - --initial-advertise-peer-urls=https://etcd:2380
+      - --initial-cluster=etcd=https://etcd:2380
+      - --initial-cluster-token=etcd-cluster
+      - --initial-cluster-state=new
+      - --max-request-bytes=10485760
+      - --trusted-ca-file=/etc/ssl/certs/ca.pem
+      - --cert-file=/etc/ssl/certs/server.pem
+      - --key-file=/etc/ssl/certs/server-key.pem
+      - --peer-trusted-ca-file=/etc/ssl/certs/ca.pem
+      - --peer-cert-file=/etc/ssl/certs/server.pem
+      - --peer-key-file=/etc/ssl/certs/server-key.pem
+      - --client-cert-auth=true
+      - --peer-client-cert-auth=true
+
+volumes:
+  etcd-data:

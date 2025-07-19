@@ -15,19 +15,18 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.8'
+version: "3.8"
 
 services:
   memcached:
     image: bitnamisecure/memcached
-    user: root
     environment:
       # memcache's max item size is 1MiB, But opendal's behavior tests
       # will produce larger file.
       #
       # Specify the setting here to make our test happy.
-      - MEMCACHED_MAX_ITEM_SIZE=16777216
-      - MEMCACHED_USERNAME=root
-      - MEMCACHED_PASSWORD=opendal
+      MEMCACHED_MAX_ITEM_SIZE: 16777216
+      MEMCACHED_USERNAME: "root"
+      MEMCACHED_PASSWORD: "opendal"
     ports:
-      - '11211:11211'
+      - "11211:11211"

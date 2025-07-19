@@ -119,9 +119,9 @@ Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that cre
 
 After pushing the tag, we need to check the GitHub action status to make sure the release candidate is created successfully.
 
-- Python: [Bindings Python CI](https://github.com/apache/opendal/actions/workflows/bindings_python.yml)
-- Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
-- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/bindings_nodejs.yml)
+- Python: [Bindings Python CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_python.yml)
+- Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
+- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_nodejs.yml)
 
 In the most cases, it would be great to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
 

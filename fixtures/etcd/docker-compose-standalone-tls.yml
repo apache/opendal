@@ -23,19 +23,16 @@ services:
       - "2379:2379"
       - "2380:2380"
     volumes:
-      - ./ca.pem:/certs/ca.pem
-      - ./server.pem:/certs/server.pem
-      - ./server-key.pem:/certs/server-key.pem
-      - ./client-key.pem:/certs/client-key.pem
-      - ./client.pem:/certs/client.pem
+      - ./ca.pem:/etc/etcd/ssl/ca.pem
+      - ./server.pem:/etc/etcd/ssl/server.pem
+      - ./server-key.pem:/etc/etcd/ssl/server-key.pem
     command:
       - /usr/local/bin/etcd
       - --name=etcd
-      - --data-dir=/etcd-data
       - --listen-client-urls=https://0.0.0.0:2379
-      - --advertise-client-urls=https://etcd:2379
+      - --advertise-client-urls=https://127.0.0.1:2379
       - --max-request-bytes=10485760
-      - --cert-file=/certs/server.pem
-      - --key-file=/certs/server-key.pem
       - --client-cert-auth=true
-      - --trusted-ca-file=/certs/ca.pem
+      - --trusted-ca-file=/etc/etcd/ssl/ca.pem
+      - --cert-file=/etc/etcd/ssl/server.pem
+      - --key-file=/etc/etcd/ssl/server-key.pem

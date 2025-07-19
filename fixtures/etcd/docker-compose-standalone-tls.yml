@@ -34,9 +34,9 @@ services:
       - "2379:2379"
       - "2380:2380"
     volumes:
-      - /tmp/etcd/ca.pem:/etc/etcd/ssl/ca.pem
-      - /tmp/etcd/server.pem:/etc/etcd/ssl/server.pem
-      - /tmp/etcd/server-key.pem:/etc/etcd/ssl/server-key.pem
+      - ./ca.pem:/etc/etcd/ssl/ca.pem
+      - ./server.pem:/etc/etcd/ssl/server.pem
+      - ./server-key.pem:/etc/etcd/ssl/server-key.pem
     command:
       - /usr/local/bin/etcd
       - --name=etcd

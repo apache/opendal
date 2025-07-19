@@ -22,7 +22,7 @@ services:
     ports:
       - "2379:2379"
     volumes:
-      - ./certs/:/srv/
+      - .:/srv/
       - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
       - etcd-data:/etcd-data
     environment:

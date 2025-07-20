@@ -43,7 +43,7 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
         }
 
         object_store::Error::Generic { store, .. } => {
-            Error::new(ErrorKind::Unexpected, format!("{} operation failed", store)).set_source(err)
+            Error::new(ErrorKind::Unexpected, format!("{store} operation failed")).set_source(err)
         }
 
         _ => Error::new(ErrorKind::Unexpected, "unknown error").set_source(err),

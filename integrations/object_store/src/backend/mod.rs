@@ -97,16 +97,14 @@ impl Access for ObjectStoreBackend {
             .set_name("object_store")
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
-
+                stat_with_if_match: true,
+                stat_with_if_unmodified_since: true,
                 read: true,
                 write: true,
                 delete: true,
-
                 list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 ..Default::default()
             });
         Arc::new(info)

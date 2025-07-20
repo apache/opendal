@@ -1,0 +1,10 @@
+var searchData=
+[
+  ['read_0',['read',['../classopendal_1_1Operator.html#a7eaa968a63e019161bd1eb5c06f829ab',1,'opendal::Operator::read()'],['../classopendal_1_1Reader.html#ac930aa3695f924c92c06330256a9e04c',1,'opendal::Reader::read()'],['../classopendal_1_1async_1_1Operator.html#a4f463df384d33f07a1be60f6e5f9593b',1,'opendal::async::Operator::read()'],['../classopendal_1_1async_1_1Reader.html#ac435de2ed50c6221fdc9566127869810',1,'opendal::async::Reader::read()']]],
+  ['reader_1',['reader',['../classopendal_1_1Operator.html#acb1cc25bef3e5c56045629959ec790e7',1,'opendal::Operator::reader()'],['../classopendal_1_1async_1_1Operator.html#ac0d4c3f5aaf1f680465b997690201107',1,'opendal::async::Operator::reader()'],['../classopendal_1_1Reader.html#a171413a390be13b315e122d33defc531',1,'opendal::Reader::Reader()'],['../classopendal_1_1async_1_1Reader.html#a119f1e3cd11fcf0bd7f4ac11c24c618f',1,'opendal::async::Reader::Reader(const Reader &amp;)=delete'],['../classopendal_1_1async_1_1Reader.html#ad9d038722a683c3300612a1ee2cedfab',1,'opendal::async::Reader::Reader(Reader &amp;&amp;other) noexcept'],['../classopendal_1_1async_1_1Reader.html#a650d93ebb608ca91e880085098902749',1,'opendal::async::Reader::Reader(size_t reader_id) noexcept']]],
+  ['readerstream_2',['ReaderStream',['../classopendal_1_1ReaderStream.html#a2ffd0887705406ed3c2354631305ac65',1,'opendal::ReaderStream']]],
+  ['readerstreambuf_3',['ReaderStreamBuf',['../classopendal_1_1ReaderStream_1_1ReaderStreamBuf.html#aafcc4cb40ee8e995ed000e13c6556890',1,'opendal::ReaderStream::ReaderStreamBuf']]],
+  ['remove_4',['remove',['../classopendal_1_1Operator.html#a2ebd89e6bd4274414757b594e398b9e5',1,'opendal::Operator']]],
+  ['remove_5fall_5',['remove_all',['../classopendal_1_1async_1_1Operator.html#a278c15d56d1a5e6d2dc3747404d15ec5',1,'opendal::async::Operator']]],
+  ['rename_6',['rename',['../classopendal_1_1Operator.html#a0effdc74c828055d6c31dce1d76cb9af',1,'opendal::Operator::rename()'],['../classopendal_1_1async_1_1Operator.html#a44da79b334e0536445ff65bcc5bc946d',1,'opendal::async::Operator::rename()']]]
+];

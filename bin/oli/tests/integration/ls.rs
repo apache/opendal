@@ -44,3 +44,38 @@ async fn test_basic_ls() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_ls_tree() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    fs::create_dir_all(dir.path().join("a/b"))?;
+
+    let file_root = dir.path().join("file_root");
+    let file_a = dir.path().join("a/file_a");
+    let file_b = dir.path().join("a/b/file_b");
+
+    let content = "hello";
+    fs::write(&file_root, content)?;
+    fs::write(&file_a, content)?;
+    fs::write(&file_b, content)?;
+
+    let current_dir = dir.path().to_string_lossy().to_string() + "/";
+    let mut cmd = oli();
+    cmd.arg("ls").arg("--tree").arg(current_dir);
+
+    assert_cmd_snapshot!(cmd, @r#"
+success: true
+exit_code: 0
+----- stdout -----
+.
+├── a/
+│   ├── b/
+│   │   └── file_b
+│   └── file_a
+└── file_root
+
+----- stderr -----
+"#);
+
+    Ok(())
+}

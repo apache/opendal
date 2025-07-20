@@ -24,8 +24,8 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
-version = "0.52.1"
+rust-version = "1.82"
+version = "0.54.0"
 
 [features]
 send_wrapper = ["dep:send_wrapper"]
@@ -40,17 +40,17 @@ path = "tests/behavior/main.rs"
 async-trait = "0.1"
 bytes = "1"
 futures = "0.3"
-object_store = "0.12"
-opendal = { version = "0.53.0", path = "../../core", default-features = false }
+object_store = "0.12.3"
+opendal = { version = "0.54.0", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-datafusion = "47.0.0"
+datafusion = "48.0.0"
 libtest-mimic = "0.8.1"
-opendal = { version = "0.53.0", path = "../../core", features = [
+opendal = { version = "0.54.0", path = "../../core", features = [
   "services-memory",
   "services-s3",
   "tests",

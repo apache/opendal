@@ -39,7 +39,7 @@ impl D1Response {
         let response: D1Response = serde_json::from_slice(bs).map_err(|e| {
             Error::new(
                 crate::ErrorKind::Unexpected,
-                format!("failed to parse error response: {}", e),
+                format!("failed to parse error response: {e}"),
             )
         })?;
 

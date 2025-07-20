@@ -158,7 +158,7 @@ impl Builder for WebhdfsBuilder {
     /// exits.
     /// if the directory does not exit, the directory will be automatically created
     fn build(self) -> Result<impl Access> {
-        debug!("start building backend: {:?}", self);
+        debug!("start building backend: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -174,7 +174,7 @@ impl Builder for WebhdfsBuilder {
             }
             None => WEBHDFS_DEFAULT_ENDPOINT.to_string(),
         };
-        debug!("backend use endpoint {}", endpoint);
+        debug!("backend use endpoint {endpoint}");
 
         let atomic_write_dir = self.config.atomic_write_dir;
 
@@ -185,8 +185,6 @@ impl Builder for WebhdfsBuilder {
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -198,8 +196,6 @@ impl Builder for WebhdfsBuilder {
                 delete: true,
 
                 list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 shared: true,
 

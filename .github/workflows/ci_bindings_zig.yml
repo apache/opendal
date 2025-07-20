@@ -45,9 +45,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: korandoru/setup-zig@v1
+      - uses: mlugg/setup-zig@475c97be87a204e6c57fe851f970bd02005a70f0 # v2.0.4
         with:
-          zig-version: 0.14.0
+          version: 0.14.0
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

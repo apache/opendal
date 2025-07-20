@@ -238,7 +238,7 @@ mod tests {
             let cache = PathCacher::new(TestQuery {});
 
             let actual = cache.get(input).await.unwrap();
-            assert_eq!(actual.as_deref(), expect, "{}", name)
+            assert_eq!(actual.as_deref(), expect, "{name}")
         }
     }
 }

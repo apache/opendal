@@ -29,7 +29,7 @@ async fn example(op: Operator) -> Result<()> {
 
     // Fetch metadata of s3.
     let meta = op.stat("test.txt").await?;
-    println!("stat: {:?}", meta);
+    println!("stat: {meta:?}");
 
     // Delete data from s3.
     op.delete("test.txt").await?;

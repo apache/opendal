@@ -23,7 +23,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
-use uuid::Uuid;
 
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
@@ -141,7 +140,7 @@ impl Builder for HdfsBuilder {
         };
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut builder = hdrs::ClientBuilder::new(name_node);
         if let Some(ticket_cache_path) = &self.config.kerberos_ticket_cache_path {
@@ -156,7 +155,7 @@ impl Builder for HdfsBuilder {
         // Create root dir if not exist.
         if let Err(e) = client.metadata(&root) {
             if e.kind() == io::ErrorKind::NotFound {
-                debug!("root {} is not exist, creating now", root);
+                debug!("root {root} is not exist, creating now");
 
                 client.create_dir(&root).map_err(new_std_io_error)?
             }
@@ -180,8 +179,6 @@ impl Builder for HdfsBuilder {
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
-                        stat_has_content_length: true,
-                        stat_has_last_modified: true,
 
                         read: true,
 
@@ -192,8 +189,6 @@ impl Builder for HdfsBuilder {
                         delete: true,
 
                         list: true,
-                        list_has_content_length: true,
-                        list_has_last_modified: true,
 
                         rename: true,
 
@@ -209,14 +204,6 @@ impl Builder for HdfsBuilder {
             client: Arc::new(client),
         })
     }
-}
-
-#[inline]
-fn tmp_file_of(path: &str) -> String {
-    let name = get_basename(path);
-    let uuid = Uuid::new_v4().to_string();
-
-    format!("{name}.{uuid}")
 }
 
 /// Backend for hdfs services.
@@ -313,11 +300,10 @@ impl Access for HdfsBackend {
         let should_append = op.append() && target_exists;
         let tmp_path = self.atomic_write_dir.as_ref().and_then(|atomic_write_dir| {
             // If the target file exists, we should append to the end of it directly.
-            if should_append {
-                None
-            } else {
-                Some(build_rooted_abs_path(atomic_write_dir, &tmp_file_of(path)))
-            }
+            (!should_append).then_some(build_rooted_abs_path(
+                atomic_write_dir,
+                &build_tmp_path_of(path),
+            ))
         });
 
         if !target_exists {

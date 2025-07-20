@@ -20,6 +20,8 @@ mod core;
 #[cfg(feature = "services-fs")]
 mod delete;
 #[cfg(feature = "services-fs")]
+mod error;
+#[cfg(feature = "services-fs")]
 mod lister;
 #[cfg(feature = "services-fs")]
 mod reader;

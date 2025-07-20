@@ -18,6 +18,8 @@
 #[cfg(feature = "services-vercel-blob")]
 mod core;
 #[cfg(feature = "services-vercel-blob")]
+mod delete;
+#[cfg(feature = "services-vercel-blob")]
 mod error;
 #[cfg(feature = "services-vercel-blob")]
 mod lister;

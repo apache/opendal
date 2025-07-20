@@ -22,6 +22,7 @@
 
 mod cat;
 mod cp;
+mod edit;
 mod ls;
 mod mv;
 mod rm;

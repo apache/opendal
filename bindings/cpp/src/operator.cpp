@@ -17,7 +17,10 @@
  * under the License.
  */
 
-#include "boost/date_time/posix_time/time_parsers.hpp"
+#include <chrono>
+#include <cstdio>
+#include <ctime>
+
 #include "lib.rs.h"
 #include "opendal.hpp"
 #include "utils/ffi_converter.hpp"
@@ -47,8 +50,28 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
 
   auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
   if (last_modified_str.has_value()) {
-    metadata.last_modified =
-        boost::posix_time::from_iso_string(last_modified_str.value());
+    // Parse ISO 8601 string to time_point using strptime to avoid locale lock
+    std::tm tm = {};
+    const char *str = last_modified_str.value().c_str();
+
+    // Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS
+    int year, month, day, hour, minute, second;
+    if (sscanf(str, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute,
+               &second) == 6) {
+      tm.tm_year = year - 1900;  // years since 1900
+      tm.tm_mon = month - 1;     // months since January (0-11)
+      tm.tm_mday = day;
+      tm.tm_hour = hour;
+      tm.tm_min = minute;
+      tm.tm_sec = second;
+      tm.tm_isdst = -1;  // let mktime determine DST
+
+      std::time_t time_t_value = std::mktime(&tm);
+      if (time_t_value != -1) {
+        metadata.last_modified =
+            std::chrono::system_clock::from_time_t(time_t_value);
+      }
+    }
   }
 
   return metadata;

@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
 use log::debug;
 
 use super::core::*;
@@ -124,8 +122,6 @@ impl Builder for FsBuilder {
                 ErrorKind::Unexpected,
                 "canonicalize of root directory failed",
             )
-            .with_operation("Builder::build")
-            .with_context("root", root.to_string_lossy())
             .set_source(e)
         })?;
 
@@ -153,8 +149,6 @@ impl Builder for FsBuilder {
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_last_modified: true,
 
                             read: true,
 
@@ -204,35 +198,12 @@ impl Access for FsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        tokio::fs::create_dir_all(&p)
-            .await
-            .map_err(new_std_io_error)?;
-
+        self.core.fs_create_dir(path).await?;
         Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
-        let mode = if meta.is_dir() {
-            EntryMode::DIR
-        } else if meta.is_file() {
-            EntryMode::FILE
-        } else {
-            EntryMode::Unknown
-        };
-        let m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
+        let m = self.core.fs_stat(path).await?;
         Ok(RpStat::new(m))
     }
 
@@ -246,22 +217,7 @@ impl Access for FsBackend {
     ///
     /// Benchmark could be found [here](https://gist.github.com/Xuanwo/48f9cfbc3022ea5f865388bb62e1a70f)
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let mut f = tokio::fs::OpenOptions::new()
-            .read(true)
-            .open(&p)
-            .await
-            .map_err(new_std_io_error)?;
-
-        if args.range().offset() != 0 {
-            use tokio::io::AsyncSeekExt;
-
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
-
+        let f = self.core.fs_read(path, &args).await?;
         let r = FsReader::new(
             self.core.clone(),
             f,
@@ -271,80 +227,22 @@ impl Access for FsBackend {
     }
 
     async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let (target_path, tmp_path) = if let Some(atomic_write_dir) = &self.core.atomic_write_dir {
-            let target_path = self
-                .core
-                .ensure_write_abs_path(&self.core.root, path)
-                .await?;
-            let tmp_path = self
-                .core
-                .ensure_write_abs_path(atomic_write_dir, &tmp_file_of(path))
-                .await?;
+        let is_append = op.append();
+        let concurrent = op.concurrent();
 
-            // If the target file exists, we should append to the end of it directly.
-            if op.append()
-                && tokio::fs::try_exists(&target_path)
-                    .await
-                    .map_err(new_std_io_error)?
-            {
-                (target_path, None)
-            } else {
-                (target_path, Some(tmp_path))
-            }
-        } else {
-            let p = self
-                .core
-                .ensure_write_abs_path(&self.core.root, path)
-                .await?;
+        let writer = FsWriter::create(self.core.clone(), path, op).await?;
 
-            (p, None)
-        };
-
-        let mut open_options = tokio::fs::OpenOptions::new();
-        if op.if_not_exists() {
-            open_options.create_new(true);
-        } else {
-            open_options.create(true);
-        }
-
-        open_options.write(true);
-
-        if op.append() {
-            open_options.append(true);
-        } else {
-            open_options.truncate(true);
-        }
-
-        let f = open_options
-            .open(tmp_path.as_ref().unwrap_or(&target_path))
-            .await
-            .map_err(|e| {
-                match e.kind() {
-                    std::io::ErrorKind::AlreadyExists => {
-                        // Map io AlreadyExists to opendal ConditionNotMatch
-                        Error::new(
-                            ErrorKind::ConditionNotMatch,
-                            "The file already exists in the filesystem",
-                        )
-                        .set_source(e)
-                    }
-                    _ => new_std_io_error(e),
-                }
-            })?;
-
-        let w = FsWriter::new(target_path, tmp_path, f);
-
-        let w = if op.append() {
-            FsWriters::One(w)
+        let writer = if is_append {
+            FsWriters::One(writer)
         } else {
             FsWriters::Two(oio::PositionWriter::new(
                 self.info().clone(),
-                w,
-                op.concurrent(),
+                writer,
+                concurrent,
             ))
         };
 
-        Ok((RpWrite::default(), w))
+        Ok((RpWrite::default(), writer))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -355,97 +253,22 @@ impl Access for FsBackend {
     }
 
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = self.core.root.join(path.trim_end_matches('/'));
-
-        let f = match tokio::fs::read_dir(&p).await {
-            Ok(rd) => rd,
-            Err(e) => {
-                return match e.kind() {
-                    // Return empty list if the directory not found
-                    std::io::ErrorKind::NotFound => Ok((RpList::default(), None)),
-                    // TODO: enable after our MSRV has been raised to 1.83
-                    //
-                    // If the path is not a directory, return an empty list
-                    //
-                    // The path could be a file or a symbolic link in this case.
-                    // Returning a NotADirectory error to the user isn't helpful; instead,
-                    // providing an empty directory is a more user-friendly. In fact, the dir
-                    // `path/` does not exist.
-                    // std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
-                    _ => {
-                        // TODO: remove this after we have MSRV 1.83
-                        #[cfg(unix)]
-                        if e.raw_os_error() == Some(20) {
-                            // On unix 20: Not a directory
-                            return Ok((RpList::default(), None));
-                        }
-                        #[cfg(windows)]
-                        if e.raw_os_error() == Some(267) {
-                            // On windows 267: DIRECTORY
-                            return Ok((RpList::default(), None));
-                        }
-
-                        Err(new_std_io_error(e))
-                    }
-                };
+        match self.core.fs_list(path).await? {
+            Some(f) => {
+                let rd = FsLister::new(&self.core.root, path, f);
+                Ok((RpList::default(), Some(rd)))
             }
-        };
-
-        let rd = FsLister::new(&self.core.root, path, f);
-        Ok((RpList::default(), Some(rd)))
+            None => Ok((RpList::default(), None)),
+        }
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let from = self.core.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
-
-        let to = self
-            .core
-            .ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))
-            .await?;
-
-        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
-
+        self.core.fs_copy(from, to).await?;
         Ok(RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
-        let from = self.core.root.join(from.trim_end_matches('/'));
-
-        // try to get the metadata of the source file to ensure it exists
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
-
-        let to = self
-            .core
-            .ensure_write_abs_path(&self.core.root, to.trim_end_matches('/'))
-            .await?;
-
-        tokio::fs::rename(from, to)
-            .await
-            .map_err(new_std_io_error)?;
-
+        self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_tmp_file_of() {
-        let cases = vec![
-            ("hello.txt", "hello.txt"),
-            ("/tmp/opendal.log", "opendal.log"),
-            ("/abc/def/hello.parquet", "hello.parquet"),
-        ];
-
-        for (path, expected_prefix) in cases {
-            let tmp_file = tmp_file_of(path);
-            assert!(tmp_file.len() > expected_prefix.len());
-            assert!(tmp_file.starts_with(expected_prefix));
-        }
     }
 }

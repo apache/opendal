@@ -15,6 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::time::Duration;
+
+use bb8::RunError;
+use bytes::Bytes;
 use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
@@ -26,9 +32,9 @@ use redis::Pipeline;
 use redis::RedisError;
 use redis::RedisFuture;
 use redis::Value;
+use tokio::sync::OnceCell;
 
-use crate::Error;
-use crate::ErrorKind;
+use crate::*;
 
 #[derive(Clone)]
 pub enum RedisConnection {
@@ -103,6 +109,96 @@ impl bb8::ManageConnection for RedisConnectionManager {
 
     fn has_broken(&self, _: &mut Self::Connection) -> bool {
         false
+    }
+}
+
+/// RedisCore holds the Redis connection and configuration
+#[derive(Clone)]
+pub struct RedisCore {
+    pub addr: String,
+    pub client: Option<Client>,
+    pub cluster_client: Option<ClusterClient>,
+    pub conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
+    pub default_ttl: Option<Duration>,
+}
+
+impl Debug for RedisCore {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut ds = f.debug_struct("RedisCore");
+        ds.field("addr", &self.addr);
+        ds.finish()
+    }
+}
+
+impl RedisCore {
+    pub async fn conn(&self) -> Result<bb8::PooledConnection<'_, RedisConnectionManager>> {
+        let pool = self
+            .conn
+            .get_or_try_init(|| async {
+                bb8::Pool::builder()
+                    .build(self.get_redis_connection_manager())
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::ConfigInvalid, "connect to redis failed")
+                            .set_source(err)
+                    })
+            })
+            .await?;
+        pool.get().await.map_err(|err| match err {
+            RunError::TimedOut => {
+                Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
+            }
+            RunError::User(err) => err,
+        })
+    }
+
+    pub fn get_redis_connection_manager(&self) -> RedisConnectionManager {
+        if let Some(_client) = self.client.clone() {
+            RedisConnectionManager {
+                client: self.client.clone(),
+                cluster_client: None,
+            }
+        } else {
+            RedisConnectionManager {
+                client: None,
+                cluster_client: self.cluster_client.clone(),
+            }
+        }
+    }
+
+    pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
+        let mut conn = self.conn().await?;
+        let result: Option<Bytes> = conn.get(key).await.map_err(format_redis_error)?;
+        Ok(result.map(Buffer::from))
+    }
+
+    pub async fn get_range(&self, key: &str, start: isize, end: isize) -> Result<Option<Buffer>> {
+        let mut conn = self.conn().await?;
+        let result: Option<Bytes> = conn
+            .getrange(key, start, end)
+            .await
+            .map_err(format_redis_error)?;
+        Ok(result.map(Buffer::from))
+    }
+
+    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+        let mut conn = self.conn().await?;
+        let value = value.to_vec();
+        if let Some(dur) = self.default_ttl {
+            let _: () = conn
+                .set_ex(key, value, dur.as_secs())
+                .await
+                .map_err(format_redis_error)?;
+        } else {
+            let _: () = conn.set(key, value).await.map_err(format_redis_error)?;
+        }
+        Ok(())
+    }
+
+    pub async fn delete(&self, key: &str) -> Result<()> {
+        let mut conn = self.conn().await?;
+        let _: () = conn.del(key).await.map_err(format_redis_error)?;
+        Ok(())
     }
 }
 

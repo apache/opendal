@@ -31,7 +31,6 @@ mod lister;
 mod reader;
 mod writer;
 
-
 use deleter::ObjectStoreDeleter;
 use error::parse_error;
 use lister::ObjectStoreLister;
@@ -154,14 +153,14 @@ impl Access for ObjectStoreBackend {
 mod tests {
     use super::*;
     use object_store::memory::InMemory;
-    use opendal::raw::oio::{Write, Delete, List, Read};
+    use opendal::raw::oio::{Delete, List, Read, Write};
     use opendal::Buffer;
 
     #[tokio::test]
     async fn test_object_store_backend_builder() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let builder = ObjectStoreBuilder::default().store(store);
-        
+
         let backend = builder.build().expect("build should succeed");
         assert!(backend.info().scheme() == Scheme::Custom("object_store"));
     }
@@ -173,12 +172,12 @@ mod tests {
             .store(store)
             .build()
             .expect("build should succeed");
-        
+
         let info = backend.info();
         assert_eq!(info.scheme(), Scheme::Custom("object_store"));
         assert_eq!(info.name(), "object_store".into());
         assert_eq!(info.root(), "/".into());
-        
+
         let cap = info.native_capability();
         assert!(cap.stat);
         assert!(cap.read);
@@ -194,37 +193,42 @@ mod tests {
             .store(store.clone())
             .build()
             .expect("build should succeed");
-        
+
         let path = "test_file.txt";
         let content = b"Hello, world!";
-        
+
         // Test write
         let (_, mut writer) = backend
             .write(path, OpWrite::default())
             .await
             .expect("write should succeed");
-        
-        writer.write(Buffer::from(&content[..])).await.expect("write content should succeed");
+
+        writer
+            .write(Buffer::from(&content[..]))
+            .await
+            .expect("write content should succeed");
         writer.close().await.expect("close should succeed");
-        
+
         // Test stat
         let stat_result = backend
             .stat(path, OpStat::default())
             .await
             .expect("stat should succeed");
-        
-        assert_eq!(stat_result.into_metadata().content_length(), content.len() as u64);
-        
+
+        assert_eq!(
+            stat_result.into_metadata().content_length(),
+            content.len() as u64
+        );
+
         // Test read
         let (_, mut reader) = backend
             .read(path, OpRead::default())
             .await
             .expect("read should succeed");
-        
+
         let buf = reader.read().await.expect("read should succeed");
         assert_eq!(buf.to_vec(), content);
     }
-
 
     #[tokio::test]
     async fn test_object_store_backend_list() {
@@ -233,34 +237,37 @@ mod tests {
             .store(store.clone())
             .build()
             .expect("build should succeed");
-        
+
         // Create multiple files
         let files = vec![
             ("dir1/file1.txt", b"content1"),
             ("dir1/file2.txt", b"content2"),
             ("dir2/file3.txt", b"content3"),
         ];
-        
+
         for (path, content) in &files {
             let (_, mut writer) = backend
                 .write(path, OpWrite::default())
                 .await
                 .expect("write should succeed");
-            writer.write(Buffer::from(&content[..])).await.expect("write content should succeed");
+            writer
+                .write(Buffer::from(&content[..]))
+                .await
+                .expect("write content should succeed");
             writer.close().await.expect("close should succeed");
         }
-        
+
         // List directory
         let (_, mut lister) = backend
             .list("dir1/", OpList::default())
             .await
             .expect("list should succeed");
-        
+
         let mut entries = Vec::new();
         while let Some(entry) = lister.next().await.expect("next should succeed") {
             entries.push(entry);
         }
-        
+
         assert_eq!(entries.len(), 2);
         assert!(entries.iter().any(|e| e.path() == "dir1/file1.txt"));
         assert!(entries.iter().any(|e| e.path() == "dir1/file2.txt"));
@@ -273,28 +280,34 @@ mod tests {
             .store(store.clone())
             .build()
             .expect("build should succeed");
-        
+
         let path = "test_delete.txt";
         let content = b"To be deleted";
-        
+
         // Write file
         let (_, mut writer) = backend
             .write(path, OpWrite::default())
             .await
             .expect("write should succeed");
-        writer.write(Buffer::from(&content[..])).await.expect("write content should succeed");
+        writer
+            .write(Buffer::from(&content[..]))
+            .await
+            .expect("write content should succeed");
         writer.close().await.expect("close should succeed");
-        
+
         // Verify file exists
-        backend.stat(path, OpStat::default())
+        backend
+            .stat(path, OpStat::default())
             .await
             .expect("file should exist");
-        
+
         // Delete file
         let (_, mut deleter) = backend.delete().await.expect("delete should succeed");
-        deleter.delete(path, OpDelete::default()).expect("delete should succeed");
+        deleter
+            .delete(path, OpDelete::default())
+            .expect("delete should succeed");
         deleter.flush().await.expect("flush should succeed");
-        
+
         // Verify file is deleted
         let result = backend.stat(path, OpStat::default()).await;
         assert!(result.is_err());
@@ -307,15 +320,15 @@ mod tests {
             .store(store.clone())
             .build()
             .expect("build should succeed");
-        
+
         // Test stat on non-existent file
         let result = backend.stat("non_existent.txt", OpStat::default()).await;
         assert!(result.is_err());
-        
+
         // Test read on non-existent file
         let result = backend.read("non_existent.txt", OpRead::default()).await;
         assert!(result.is_err());
-        
+
         // Test list on non-existent directory
         let result = backend.list("non_existent_dir/", OpList::default()).await;
         // This should succeed but return empty results
@@ -324,5 +337,4 @@ mod tests {
             assert!(entry.is_none());
         }
     }
-
 }

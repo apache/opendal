@@ -181,7 +181,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Check if there are remaining space to push new tasks.
     #[inline]
     pub fn has_remaining(&self) -> bool {
-        self.tasks.len() < self.concurrent + self.completed_but_unretrieved.load(Ordering::Relaxed)
+        self.tasks.len() < self.concurrent - self.completed_but_unretrieved.load(Ordering::Relaxed)
     }
 
     /// Chunk if there are remaining results to fetch.

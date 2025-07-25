@@ -58,7 +58,8 @@ jobs:
             fi
           elif [ "$event_name" == "pull_request" ]; then
             pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
-            if [ "$pr_head_repo_fork" != "true" ]; then
+            # Only expose secrets for main repo and non-dependabot runs to mitigate security risks
+            if [ "$pr_head_repo_fork" != "true" ] && [ "${{ github.actor }}" != "dependabot[bot]" ]; then
               has_secrets="true"
             fi
 

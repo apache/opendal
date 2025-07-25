@@ -52,8 +52,6 @@ updates:
           - "base64"
           - "bytes"
           - "chrono"
-          - "rand"
-          - "getrandom"
           - "http*"
           - "percent-encoding"
           - "prometheus*"
@@ -84,6 +82,10 @@ updates:
       others:
         patterns:
           - "*"
+        exclude-patterns:
+          # Please upgrade to new APIs when updating "rand"
+          - "rand"
+          - "getrandom"
 
   - package-ecosystem: "cargo"
     directory: "/bin/oay"

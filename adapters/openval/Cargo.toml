@@ -15,20 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-services:
-  vsftpd:
-    image: fauria/vsftpd
-    ports:
-      - "2121:21"
-      - "20000-22000:20000-22000"
-    environment:
-      FTP_USER: admin
-      FTP_PASS: admin
-      PASV_ADDRESS: 127.0.0.1
-      PASV_MIN_PORT: 20000
-      PASV_MAX_PORT: 22000
-    volumes:
-      - vsftpd-data:/home/vsftpd
+[package]
+description = "Apache OpenDAL™'s OpenVAL: One Layer, All Vectors."
+name = "openval"
 
-volumes:
-  vsftpd-data:
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+rust-version = "1.85"
+version = "0.0.0"
+
+[dependencies]

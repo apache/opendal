@@ -1397,6 +1397,7 @@ dependencies = [
  "log",
  "md-5",
  "percent-encoding",
+ "pin-project-lite",
  "prost",
  "quick-xml 0.38.0",
  "reqsign",

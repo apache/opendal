@@ -21,9 +21,9 @@ use std::sync::Arc;
 
 use bytes::BufMut;
 use futures::stream;
-use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::patches::stream::StreamExt;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -147,8 +147,8 @@ impl Reader {
         let merged_ranges = self.merge_ranges(ranges.clone());
 
         let merged_bufs: Vec<_> =
-            stream::iter(merged_ranges.clone().into_iter().map(|v| self.read(v)))
-                .buffered(self.ctx.options().concurrent())
+            stream::iter(merged_ranges.clone().into_iter().map(|v| (self.read(v), 1)))
+                .buffer_by_ordered(self.ctx.options().concurrent())
                 .try_collect()
                 .await?;
 

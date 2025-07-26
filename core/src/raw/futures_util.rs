@@ -25,19 +25,17 @@ use futures::FutureExt;
 use crate::*;
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
-///
-/// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.
 #[cfg(not(target_arch = "wasm32"))]
 pub type BoxedFuture<'a, T> = futures::future::BoxFuture<'a, T>;
 #[cfg(target_arch = "wasm32")]
+/// BoxedFuture is the type alias of [`futures::future::LocalBoxFuture`].
 pub type BoxedFuture<'a, T> = futures::future::LocalBoxFuture<'a, T>;
 
 /// BoxedStaticFuture is the type alias of [`futures::future::BoxFuture`].
-///
-/// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.
 #[cfg(not(target_arch = "wasm32"))]
 pub type BoxedStaticFuture<T> = futures::future::BoxFuture<'static, T>;
 #[cfg(target_arch = "wasm32")]
+/// BoxedStaticFuture is the type alias of [`futures::future::LocalBoxFuture`].
 pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 
 /// MaybeSend is a marker to determine whether a type is `Send` or not.
@@ -49,6 +47,14 @@ pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 /// And it's empty trait on wasm32 target to indicate that a type is not `Send`.
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
+
+/// MaybeSend is a marker to determine whether a type is `Send` or not.
+/// We use this trait to wrap the `Send` requirement for wasm32 target.
+///
+/// # Safety
+///
+/// [`MaybeSend`] is equivalent to `Send` on non-wasm32 target.
+/// And it's empty trait on wasm32 target to indicate that a type is not `Send`.
 #[cfg(target_arch = "wasm32")]
 pub trait MaybeSend {}
 

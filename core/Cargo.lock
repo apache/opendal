@@ -5419,7 +5419,6 @@ dependencies = [
  "ouroboros",
  "percent-encoding",
  "persy",
- "pin-project-lite",
  "pretty_assertions",
  "probe",
  "prometheus 0.14.0",

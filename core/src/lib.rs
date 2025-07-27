@@ -155,9 +155,6 @@
 // Make sure all our public APIs have docs.
 #![deny(missing_docs)]
 
-// Private modules, they will not be accessed by users.
-mod patches;
-
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod types;
 pub use types::*;

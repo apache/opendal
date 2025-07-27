@@ -165,7 +165,7 @@ impl Reader {
 
         for range in merged_ranges.clone() {
             let reader = self.clone();
-            tasks.create_task(FetchInput { reader, range });
+            tasks.execute(FetchInput { reader, range }).await?;
         }
 
         let mut merged_bufs = vec![];

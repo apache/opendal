@@ -1,5 +1,7 @@
 # Contributing
 
+> **Note**: This C++ binding follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) for consistent and maintainable code.
+
 - [Contributing](#contributing)
   - [Setup](#setup)
     - [Using a dev container environment](#using-a-dev-container-environment)

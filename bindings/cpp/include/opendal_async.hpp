@@ -46,37 +46,37 @@ class Operator {
   ~Operator() = default;
 
   using ReadFuture = opendal::ffi::async::RustFutureRead;
-  ReadFuture read(std::string_view path);
+  ReadFuture Read(std::string_view path);
 
   using WriteFuture = opendal::ffi::async::RustFutureWrite;
-  WriteFuture write(std::string_view path, std::span<uint8_t> data);
+  WriteFuture Write(std::string_view path, std::span<uint8_t> data);
 
   using ListFuture = opendal::ffi::async::RustFutureList;
-  ListFuture list(std::string_view path);
+  ListFuture List(std::string_view path);
 
   using ExistsFuture = opendal::ffi::async::RustFutureBool;
-  ExistsFuture exists(std::string_view path);
+  ExistsFuture Exists(std::string_view path);
 
   using CreateDirFuture = opendal::ffi::async::RustFutureWrite;
-  CreateDirFuture create_dir(std::string_view path);
+  CreateDirFuture CreateDir(std::string_view path);
 
   using CopyFuture = opendal::ffi::async::RustFutureWrite;
-  CopyFuture copy(std::string_view from, std::string_view to);
+  CopyFuture Copy(std::string_view from, std::string_view to);
 
   using RenameFuture = opendal::ffi::async::RustFutureWrite;
-  RenameFuture rename(std::string_view from, std::string_view to);
+  RenameFuture Rename(std::string_view from, std::string_view to);
 
   using DeleteFuture = opendal::ffi::async::RustFutureWrite;
-  DeleteFuture delete_path(std::string_view path);
+  DeleteFuture DeletePath(std::string_view path);
 
   using RemoveAllFuture = opendal::ffi::async::RustFutureWrite;
-  RemoveAllFuture remove_all(std::string_view path);
+  RemoveAllFuture RemoveAll(std::string_view path);
 
   using ReaderFuture = opendal::ffi::async::RustFutureReaderId;
-  ReaderFuture reader(std::string_view path);
+  ReaderFuture GetReader(std::string_view path);
 
   using ListerFuture = opendal::ffi::async::RustFutureListerId;
-  ListerFuture lister(std::string_view path);
+  ListerFuture GetLister(std::string_view path);
 
  private:
   rust::Box<opendal::ffi::async::Operator> operator_;
@@ -110,12 +110,12 @@ class Reader {
    * @param len Number of bytes to read
    * @return Future that resolves to the read data
    */
-  ReadFuture read(uint64_t start, uint64_t len);
+  ReadFuture Read(uint64_t start, uint64_t len);
 
  private:
   friend class Operator;
 
-  void destroy() noexcept;
+  void Destroy() noexcept;
 
   size_t reader_id_{0};
 };
@@ -147,12 +147,12 @@ class Lister {
    * @return Future that resolves to the next entry path, or empty string if no
    * more entries
    */
-  NextFuture next();
+  NextFuture Next();
 
  private:
   friend class Operator;
 
-  void destroy() noexcept;
+  void Destroy() noexcept;
 
   size_t lister_id_{0};
 };

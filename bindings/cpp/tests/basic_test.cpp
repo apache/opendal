@@ -149,7 +149,7 @@ TEST_F(OpendalTest, ListerTest) {
 
   std::set<std::string> paths;
   for (const auto &entry : lister) {
-      paths.insert(entry.path);
+    paths.insert(entry.path);
   }
   EXPECT_EQ(paths.size(), 3);
   EXPECT_TRUE(paths.find(dir_path) != paths.end());

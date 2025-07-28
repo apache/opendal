@@ -74,13 +74,15 @@ Operator::CreateDirFuture Operator::create_dir(std::string_view path) {
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
-Operator::CopyFuture Operator::copy(std::string_view from, std::string_view to) {
+Operator::CopyFuture Operator::copy(std::string_view from,
+                                    std::string_view to) {
   return opendal::ffi::async::operator_copy(
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
       RUST_STRING(to));
 }
 
-Operator::RenameFuture Operator::rename(std::string_view from, std::string_view to) {
+Operator::RenameFuture Operator::rename(std::string_view from,
+                                        std::string_view to) {
   return opendal::ffi::async::operator_rename(
       opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
       RUST_STRING(to));

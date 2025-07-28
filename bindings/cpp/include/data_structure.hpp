@@ -101,84 +101,84 @@ class Metadata {
   bool IsDir() const { return type == EntryMode::DIR; }
 
   /**
-   * @brief Get the content length in bytes
+   * @brief Content length in bytes
    * @return Content length (0 if not set)
    */
-  std::uint64_t GetContentLength() const { return content_length; }
+  std::uint64_t ContentLength() const { return content_length; }
 
   /**
-   * @brief Get the cache control directive
+   * @brief Cache control directive
    * @return Optional cache control string
    */
-  const std::optional<std::string>& GetCacheControl() const {
+  const std::optional<std::string>& CacheControl() const {
     return cache_control;
   }
 
   /**
-   * @brief Get the content disposition
+   * @brief Content disposition
    * @return Optional content disposition string
    */
-  const std::optional<std::string>& GetContentDisposition() const {
+  const std::optional<std::string>& ContentDisposition() const {
     return content_disposition;
   }
 
   /**
-   * @brief Get the content MD5 hash
+   * @brief Content MD5 hash
    * @return Optional MD5 hash string
    */
-  const std::optional<std::string>& GetContentMd5() const {
+  const std::optional<std::string>& ContentMd5() const {
     return content_md5;
   }
 
   /**
-   * @brief Get the content type (MIME type)
+   * @brief Content type (MIME type)
    * @return Optional content type string
    */
-  const std::optional<std::string>& GetContentType() const {
+  const std::optional<std::string>& ContentType() const {
     return content_type;
   }
 
   /**
-   * @brief Get the content encoding
+   * @brief Content encoding
    * @return Optional content encoding string
    */
-  const std::optional<std::string>& GetContentEncoding() const {
+  const std::optional<std::string>& ContentEncoding() const {
     return content_encoding;
   }
 
   /**
-   * @brief Get the ETag
+   * @brief ETag
    * @return Optional ETag string
    */
-  const std::optional<std::string>& GetEtag() const { return etag; }
+  const std::optional<std::string>& Etag() const { return etag; }
 
   /**
-   * @brief Get the last modified timestamp
+   * @brief Last modified timestamp
    * @return Optional timestamp of last modification
    */
-  const std::optional<std::chrono::system_clock::time_point>& GetLastModified()
+  const std::optional<std::chrono::system_clock::time_point>& LastModified()
       const {
     return last_modified;
   }
 
   /**
-   * @brief Get the version identifier
+   * @brief Version identifier
    * @return Optional version string
    */
-  const std::optional<std::string>& GetVersion() const { return version; }
+  const std::optional<std::string>& Version() const { return version; }
 
   /**
    * @brief Check if this is the current version
    * @return Optional boolean indicating if this is current (None if versioning
    * not supported)
    */
-  const std::optional<bool>& GetIsCurrent() const { return is_current; }
+  const std::optional<bool>& IsCurrent() const { return is_current; }
 
   /**
    * @brief Check if this entry has been deleted
    * @return true if deleted, false otherwise
    */
-  bool GetIsDeleted() const { return is_deleted; }
+  bool IsDeleted() const { return is_deleted; }
 };
 
 /**

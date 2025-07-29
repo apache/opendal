@@ -51,43 +51,37 @@ impl ObjectStoreWriter {
 }
 
 impl oio::Write for ObjectStoreWriter {
-    fn write(&mut self, bs: Buffer) -> impl Future<Output = Result<()>> + MaybeSend {
-        async move {
-            let bytes = bs.to_bytes();
-            let payload = PutPayload::from(bytes);
-            let opts = parse_write_args(&self.args)?;
-            let result = self
-                .store
-                .put_opts(&self.path, payload, opts)
-                .await
-                .map_err(parse_error)?;
-            self.result = Some(result);
-            Ok(())
-        }
-        .boxed()
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        let bytes = bs.to_bytes();
+        let payload = PutPayload::from(bytes);
+        let opts = parse_write_args(&self.args)?;
+        let result = self
+            .store
+            .put_opts(&self.path, payload, opts)
+            .await
+            .map_err(parse_error)?;
+        self.result = Some(result);
+        Ok(())
     }
 
-    fn close(&mut self) -> impl Future<Output = Result<Metadata>> + MaybeSend {
-        async {
-            let result = match &self.result {
-                Some(result) => result,
-                None => return Err(Error::new(ErrorKind::Unexpected, "No result")),
-            };
+    async fn close(&mut self) -> Result<Metadata> {
+        let result = match &self.result {
+            Some(result) => result,
+            None => return Err(Error::new(ErrorKind::Unexpected, "No result")),
+        };
 
-            let mut metadata = Metadata::new(EntryMode::FILE);
-            if let Some(etag) = &result.e_tag {
-                metadata.set_etag(etag);
-            }
-            if let Some(version) = &result.version {
-                metadata.set_version(version);
-            }
-            Ok(metadata)
+        let mut metadata = Metadata::new(EntryMode::FILE);
+        if let Some(etag) = &result.e_tag {
+            metadata.set_etag(etag);
         }
-        .boxed()
+        if let Some(version) = &result.version {
+            metadata.set_version(version);
+        }
+        Ok(metadata)
     }
 
-    fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
-        async { Ok(()) }.boxed()
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
     }
 }
 

@@ -393,26 +393,39 @@ mod tests {
         }
 
         // Now we shouldn't have any more space (since no tasks have completed yet)
-        assert!(!tasks.has_remaining(), "Should not have space after submitting concurrent tasks");
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have space after submitting concurrent tasks"
+        );
 
         // Wait for some tasks to complete
         sleep(Duration::from_millis(150)).await;
 
         // Now we should have space up to prefetch limit
         for i in concurrent..concurrent + prefetch {
-            assert!(tasks.has_remaining(), "Should have space for prefetch task {}", i);
+            assert!(
+                tasks.has_remaining(),
+                "Should have space for prefetch task {}",
+                i
+            );
             tasks.execute(i).await.unwrap();
         }
 
         // Now has_remaining should return false
-        assert!(!tasks.has_remaining(), "Should not have remaining space after filling up prefetch buffer");
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have remaining space after filling up prefetch buffer"
+        );
 
         // Retrieve one result
         let result = tasks.next().await;
         assert!(result.is_some());
 
         // Now there should be space for one more task
-        assert!(tasks.has_remaining(), "Should have remaining space after retrieving one result");
+        assert!(
+            tasks.has_remaining(),
+            "Should have remaining space after retrieving one result"
+        );
     }
 
     #[tokio::test]
@@ -434,18 +447,24 @@ mod tests {
         }
 
         // Should not have space for more
-        assert!(!tasks.has_remaining(), "Should not have remaining space with prefetch=0");
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have remaining space with prefetch=0"
+        );
 
         // Retrieve one result
         let result = tasks.next().await;
         assert!(result.is_some());
 
         // Now there should be space for exactly one more task
-        assert!(tasks.has_remaining(), "Should have remaining space after retrieving one result");
-        
+        assert!(
+            tasks.has_remaining(),
+            "Should have remaining space after retrieving one result"
+        );
+
         // Execute one more
         tasks.execute(concurrent).await.unwrap();
-        
+
         // Should be full again
         assert!(!tasks.has_remaining(), "Should be full again");
     }

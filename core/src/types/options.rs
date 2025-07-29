@@ -512,3 +512,23 @@ pub struct WriteOptions {
     /// - Better utilize network bandwidth
     pub chunk: Option<usize>,
 }
+
+/// Options for copy operations.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct CopyOptions {
+    /// Sets the condition that copy operation will succeed only if target does not exist.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_if_not_exists`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed if the target path does not exist
+    /// - Will return error if target already exists
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides a way to ensure copy operations only create new resources
+    /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
+    pub if_not_exists: bool,
+}

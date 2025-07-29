@@ -388,7 +388,7 @@ mod tests {
 
         // Submit concurrent tasks
         for i in 0..concurrent {
-            assert!(tasks.has_remaining(), "Should have space for task {}", i);
+            assert!(tasks.has_remaining(), "Should have space for task {i}");
             tasks.execute(i).await.unwrap();
         }
 
@@ -405,8 +405,7 @@ mod tests {
         for i in concurrent..concurrent + prefetch {
             assert!(
                 tasks.has_remaining(),
-                "Should have space for prefetch task {}",
-                i
+                "Should have space for prefetch task {i}"
             );
             tasks.execute(i).await.unwrap();
         }

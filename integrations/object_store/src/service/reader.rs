@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::VecDeque;
 use std::future::Future;
 use std::sync::Arc;
 
@@ -73,16 +74,13 @@ impl ObjectStoreReader {
 }
 
 impl oio::Read for ObjectStoreReader {
-    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
-        async move {
-            let mut bytes_stream = self.bytes_stream.lock().await;
-            let mut all_bytes = Vec::new();
-            while let Some(Ok(bytes)) = bytes_stream.next().await {
-                all_bytes.extend_from_slice(&bytes);
-            }
-            Ok(Buffer::from(all_bytes))
+    async fn read(&mut self) -> Result<Buffer> {
+        let mut bytes_stream = self.bytes_stream.lock().await;
+        let mut bytes_deque = VecDeque::<Bytes>::new();
+        while let Some(Ok(bytes)) = bytes_stream.next().await {
+            bytes_deque.push_back(bytes);
         }
-        .boxed()
+        Ok(Buffer::from(bytes_deque))
     }
 }
 

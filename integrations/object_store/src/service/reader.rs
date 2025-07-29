@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -27,16 +26,14 @@ use object_store::ObjectStore;
 
 use futures::FutureExt;
 use opendal::raw::*;
-use opendal::Error;
-use opendal::ErrorKind;
 use opendal::*;
+use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use crate::utils::{IntoSendStream, SendWrapper};
 
 /// ObjectStore reader
 pub struct ObjectStoreReader {
-    bytes_stream: Option<BoxStream<'static, object_store::Result<Bytes>>>,
+    bytes_stream: Mutex<BoxStream<'static, object_store::Result<Bytes>>>,
     meta: object_store::ObjectMeta,
     args: OpRead,
 }
@@ -51,7 +48,7 @@ impl ObjectStoreReader {
         let opts = parse_read_args(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
-        let bytes_stream = Some(result.into_stream());
+        let bytes_stream = Mutex::new(result.into_stream());
         Ok(Self {
             bytes_stream,
             meta,
@@ -76,20 +73,16 @@ impl ObjectStoreReader {
 }
 
 impl oio::Read for ObjectStoreReader {
-    async fn read(&mut self) -> Result<Buffer> {
-        let mut bytes_stream = match self.bytes_stream.take() {
-            Some(bytes_stream) => bytes_stream,
-            None => return Err(Error::new(ErrorKind::Unexpected, "no bytes to read")),
-        };
-
-        // convert bytes_stream to Buffer
-        let mut all_bytes = Vec::new();
-        while let Some(chunk_result) = bytes_stream.next().await {
-            let chunk = chunk_result.map_err(parse_error)?;
-            all_bytes.extend_from_slice(&chunk);
+    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
+        async move {
+            let mut bytes_stream = self.bytes_stream.lock().await;
+            let mut all_bytes = Vec::new();
+            while let Some(Ok(bytes)) = bytes_stream.next().await {
+                all_bytes.extend_from_slice(&bytes);
+            }
+            Ok(Buffer::from(all_bytes))
         }
-
-        Ok(Buffer::from(all_bytes))
+        .boxed()
     }
 }
 

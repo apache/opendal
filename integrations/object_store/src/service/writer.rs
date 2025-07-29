@@ -16,10 +16,8 @@
 // under the License.
 
 use std::borrow::Cow;
-use std::future::Future;
 use std::sync::Arc;
 
-use futures::FutureExt;
 use object_store::Attribute;
 use object_store::AttributeValue;
 use object_store::ObjectStore;

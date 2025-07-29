@@ -964,7 +964,6 @@ impl Builder for S3Builder {
                             delete_with_version: self.config.enable_versioning,
 
                             copy: true,
-                            copy_with_if_not_exists: true,
 
                             list: true,
                             list_with_limit: true,
@@ -1116,19 +1115,13 @@ impl Access for S3Backend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let if_not_exists = args.if_not_exists();
-        let resp = self.core.s3_copy_object(from, to, args).await?;
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.s3_copy_object(from, to).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
-            // If S3 supports If-None-Match for destination, it should return 412
-            StatusCode::PRECONDITION_FAILED if if_not_exists => Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "the destination object already exists",
-            )),
             _ => Err(parse_error(resp)),
         }
     }

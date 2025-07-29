@@ -652,12 +652,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(
-        &self,
-        from: &str,
-        to: &str,
-        args: OpCopy,
-    ) -> Result<Response<Buffer>> {
+    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -711,14 +706,9 @@ impl S3Core {
         let mut req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
-            .header(constants::X_AMZ_COPY_SOURCE, &source);
-
-        // Try using If-None-Match header for destination
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
-        }
-
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+            .header(constants::X_AMZ_COPY_SOURCE, &source)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;
 

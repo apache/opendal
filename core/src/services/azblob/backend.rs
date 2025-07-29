@@ -415,6 +415,7 @@ impl Builder for AzblobBuilder {
                             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
                             copy: true,
+                            copy_with_if_not_exists: true,
 
                             list: true,
                             list_with_recursive: true,
@@ -538,8 +539,9 @@ impl Access for AzblobBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let if_not_exists = args.if_not_exists();
+        let resp = self.core.azblob_copy_blob(from, to, args).await?;
 
         let status = resp.status();
 

@@ -1125,12 +1125,10 @@ impl Access for S3Backend {
         match status {
             StatusCode::OK => Ok(RpCopy::default()),
             // If S3 supports If-None-Match for destination, it should return 412
-            StatusCode::PRECONDITION_FAILED if if_not_exists => {
-                Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "the destination object already exists",
-                ))
-            }
+            StatusCode::PRECONDITION_FAILED if if_not_exists => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "the destination object already exists",
+            )),
             _ => Err(parse_error(resp)),
         }
     }

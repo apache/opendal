@@ -864,12 +864,28 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 
 /// Args for `copy` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpCopy {}
+pub struct OpCopy {
+    if_not_exists: bool,
+}
 
 impl OpCopy {
     /// Create a new `OpCopy`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the if_not_exists flag for the operation.
+    ///
+    /// When set to true, the copy operation will only proceed if the destination
+    /// doesn't already exist.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Get if_not_exists flag.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
     }
 }
 

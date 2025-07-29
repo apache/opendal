@@ -217,7 +217,6 @@ services-vercel-blob = []
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []
-services-object-store = ["dep:object_store"]
 
 [lib]
 bench = false

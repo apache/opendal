@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::future::Future;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -25,7 +24,6 @@ use futures::StreamExt;
 use object_store::GetRange;
 use object_store::ObjectStore;
 
-use futures::FutureExt;
 use opendal::raw::*;
 use opendal::*;
 use tokio::sync::Mutex;

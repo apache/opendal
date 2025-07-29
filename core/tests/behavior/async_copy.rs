@@ -240,6 +240,10 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
 
 /// Copy with if_not_exists to a new file should succeed.
 pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_not_exists {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 
@@ -269,6 +273,10 @@ pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()
 
 /// Copy with if_not_exists to an existing file should fail.
 pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_not_exists {
+        return Ok(());
+    }
+
     let source_path = uuid::Uuid::new_v4().to_string();
     let (source_content, _) = gen_bytes(op.info().full_capability());
 

@@ -54,7 +54,6 @@ use crate::*;
 
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
-    pub const X_AMZ_COPY_SOURCE_IF_NONE_MATCH: &str = "x-amz-copy-source-if-none-match";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -667,11 +666,6 @@ impl S3Core {
 
         let mut req = Request::put(&target);
 
-        // Add if_not_exists condition using native S3 header
-        if args.if_not_exists() {
-            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_NONE_MATCH, "*");
-        }
-
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
@@ -714,10 +708,15 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let req = req
+        let mut req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
             .header(constants::X_AMZ_COPY_SOURCE, &source);
+
+        // Try using If-None-Match header for destination
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
 
         let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 

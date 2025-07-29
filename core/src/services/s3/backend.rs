@@ -964,6 +964,7 @@ impl Builder for S3Builder {
                             delete_with_version: self.config.enable_versioning,
 
                             copy: true,
+                            copy_with_if_not_exists: true,
 
                             list: true,
                             list_with_limit: true,
@@ -1115,8 +1116,9 @@ impl Access for S3Backend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let if_not_exists = args.if_not_exists();
+        let resp = self.core.s3_copy_object(from, to, args).await?;
 
         let status = resp.status();
 

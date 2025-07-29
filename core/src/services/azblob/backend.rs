@@ -540,7 +540,6 @@ impl Access for AzblobBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        let if_not_exists = args.if_not_exists();
         let resp = self.core.azblob_copy_blob(from, to, args).await?;
 
         let status = resp.status();

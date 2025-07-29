@@ -49,8 +49,8 @@ enum class EntryMode : int {
 class Metadata {
  public:
   // Basic file information
-  EntryMode type;
-  std::uint64_t content_length;
+  EntryMode type{EntryMode::UNKNOWN};
+  std::uint64_t content_length{0};
 
   // HTTP-style headers
   std::optional<std::string>
@@ -72,10 +72,13 @@ class Metadata {
   std::optional<std::string>
       version;                     ///< Version identifier (e.g., S3 version ID)
   std::optional<bool> is_current;  ///< Whether this is the current version
-  bool is_deleted;  ///< Whether this entry has been marked as deleted
+  bool is_deleted{false};  ///< Whether this entry has been marked as deleted
 
   // Default constructor
-  Metadata() : content_length(0), is_deleted(false) {}
+  Metadata() = default;
+
+  // Destructor
+  ~Metadata() = default;
 
   // Accessor methods
 

@@ -72,15 +72,12 @@ impl ObjectStoreReader {
 }
 
 impl oio::Read for ObjectStoreReader {
-    fn read(&mut self) -> impl Future<Output = Result<Buffer>> + MaybeSend {
-        async {
-            let bytes = match self.bytes.take() {
-                Some(bytes) => bytes,
-                None => return Err(Error::new(ErrorKind::Unexpected, "no bytes to read")),
-            };
-            Ok(Buffer::from(bytes))
-        }
-        .boxed()
+    async fn read(&mut self) -> Result<Buffer> {
+        let bytes = match self.bytes.take() {
+            Some(bytes) => bytes,
+            None => return Err(Error::new(ErrorKind::Unexpected, "no bytes to read")),
+        };
+        Ok(Buffer::from(bytes))
     }
 }
 

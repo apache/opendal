@@ -68,23 +68,23 @@ impl Builder for ObjectStoreBuilder {
                 .with_context("service", Scheme::Custom("object_store"))
         })?;
 
-        Ok(ObjectStoreBackend { store })
+        Ok(ObjectStoreService { store })
     }
 }
 
 /// ObjectStore backend
-pub struct ObjectStoreBackend {
+pub struct ObjectStoreService {
     store: Arc<dyn ObjectStore + 'static>,
 }
 
-impl Debug for ObjectStoreBackend {
+impl Debug for ObjectStoreService {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("ObjectStoreBackend");
         d.finish_non_exhaustive()
     }
 }
 
-impl Access for ObjectStoreBackend {
+impl Access for ObjectStoreService {
     type Reader = ObjectStoreReader;
     type Writer = ObjectStoreWriter;
     type Lister = ObjectStoreLister;

@@ -191,7 +191,7 @@ if (OPENDAL_ENABLE_TESTING)
         FetchContent_MakeAvailable(cppcoro)
     endif()
 
-    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/metadata_test.cpp)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()

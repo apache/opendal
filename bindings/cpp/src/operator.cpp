@@ -36,18 +36,37 @@ std::optional<std::string> parse_optional_string(ffi::OptionalString &&s) {
   }
 }
 
-Metadata parse_meta_data(ffi::Metadata &&meta) {
-  Metadata metadata{
-      .type = static_cast<EntryMode>(meta.mode),
-      .content_length = meta.content_length,
-      .cache_control = parse_optional_string(std::move(meta.cache_control)),
-      .content_disposition =
-          parse_optional_string(std::move(meta.content_disposition)),
-      .content_md5 = parse_optional_string(std::move(meta.content_md5)),
-      .content_type = parse_optional_string(std::move(meta.content_type)),
-      .etag = parse_optional_string(std::move(meta.etag)),
-  };
+std::optional<bool> parse_optional_bool(ffi::OptionalBool &&b) {
+  if (b.has_value) {
+    return b.value;
+  } else {
+    return std::nullopt;
+  }
+}
 
+Metadata parse_meta_data(ffi::Metadata &&meta) {
+  Metadata metadata;
+
+  // Basic information
+  metadata.type = static_cast<EntryMode>(meta.mode);
+  metadata.content_length = meta.content_length;
+
+  // HTTP-style headers
+  metadata.cache_control = parse_optional_string(std::move(meta.cache_control));
+  metadata.content_disposition =
+      parse_optional_string(std::move(meta.content_disposition));
+  metadata.content_md5 = parse_optional_string(std::move(meta.content_md5));
+  metadata.content_type = parse_optional_string(std::move(meta.content_type));
+  metadata.content_encoding =
+      parse_optional_string(std::move(meta.content_encoding));
+  metadata.etag = parse_optional_string(std::move(meta.etag));
+
+  // Versioning information
+  metadata.version = parse_optional_string(std::move(meta.version));
+  metadata.is_current = parse_optional_bool(std::move(meta.is_current));
+  metadata.is_deleted = meta.is_deleted;
+
+  // Parse last_modified timestamp
   auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
   if (last_modified_str.has_value()) {
     // Parse ISO 8601 string to time_point using strptime to avoid locale lock

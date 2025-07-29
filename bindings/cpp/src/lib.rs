@@ -62,6 +62,11 @@ mod ffi {
         value: String,
     }
 
+    struct OptionalBool {
+        has_value: bool,
+        value: bool,
+    }
+
     struct OptionalEntry {
         has_value: bool,
         value: Entry,
@@ -74,8 +79,13 @@ mod ffi {
         content_disposition: OptionalString,
         content_md5: OptionalString,
         content_type: OptionalString,
+        content_encoding: OptionalString,
         etag: OptionalString,
         last_modified: OptionalString,
+        version: OptionalString,
+        is_current: OptionalBool,
+        is_deleted: bool,
+        // Note: content_range and user_metadata are complex types that need special handling
     }
 
     struct Entry {

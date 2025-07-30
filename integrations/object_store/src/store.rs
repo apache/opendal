@@ -171,7 +171,7 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
-        future_write.into_send().await.map_err(|err| {
+        let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
                 object_store::Error::Precondition { path, source }
                     if opts_mode == PutMode::Create =>
@@ -182,10 +182,10 @@ impl ObjectStore for OpendalStore {
             }
         })?;
 
-        Ok(PutResult {
-            e_tag: None,
-            version: None,
-        })
+        let e_tag = rp.etag().map(|s| s.to_string());
+        let version = rp.version().map(|s| s.to_string());
+
+        Ok(PutResult { e_tag, version })
     }
 
     async fn put_multipart(
@@ -465,22 +465,30 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn copy(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "copy is not implemented so far",
-            )),
-        })
+    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.inner
+            .copy(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+            )
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
+
+        Ok(())
     }
 
-    async fn rename(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "rename is not implemented so far",
-            )),
-        })
+    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.inner
+            .rename(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+            )
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
+
+        Ok(())
     }
 
     async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
@@ -552,16 +560,16 @@ impl MultipartUpload for OpendalMultipartUpload {
 
     async fn complete(&mut self) -> object_store::Result<PutResult> {
         let mut writer = self.writer.lock().await;
-        writer
+        let metadata = writer
             .close()
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
 
-        Ok(PutResult {
-            e_tag: None,
-            version: None,
-        })
+        let e_tag = metadata.etag().map(|s| s.to_string());
+        let version = metadata.version().map(|s| s.to_string());
+
+        Ok(PutResult { e_tag, version })
     }
 
     async fn abort(&mut self) -> object_store::Result<()> {

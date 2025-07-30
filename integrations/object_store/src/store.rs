@@ -171,7 +171,7 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
-        future_write.into_send().await.map_err(|err| {
+        let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
                 object_store::Error::Precondition { path, source }
                     if opts_mode == PutMode::Create =>
@@ -182,9 +182,12 @@ impl ObjectStore for OpendalStore {
             }
         })?;
 
+        let e_tag = rp.etag().map(|s| s.to_string());
+        let version = rp.version().map(|s| s.to_string());
+
         Ok(PutResult {
-            e_tag: None,
-            version: None,
+            e_tag,
+            version,
         })
     }
 
@@ -560,15 +563,18 @@ impl MultipartUpload for OpendalMultipartUpload {
 
     async fn complete(&mut self) -> object_store::Result<PutResult> {
         let mut writer = self.writer.lock().await;
-        writer
+        let metadata = writer
             .close()
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
 
+        let e_tag = metadata.etag().map(|s| s.to_string());
+        let version = metadata.version().map(|s| s.to_string());
+
         Ok(PutResult {
-            e_tag: None,
-            version: None,
+            e_tag,
+            version,
         })
     }
 

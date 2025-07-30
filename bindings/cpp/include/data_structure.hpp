@@ -86,99 +86,99 @@ class Metadata {
    * @brief Get the entry mode (file type)
    * @return EntryMode indicating whether this is a file, directory, or unknown
    */
-  EntryMode mode() const { return type; }
+  EntryMode Mode() const { return type; }
 
   /**
    * @brief Check if this metadata represents a file
    * @return true if this is a file, false otherwise
    */
-  bool is_file() const { return type == EntryMode::FILE; }
+  bool IsFile() const { return type == EntryMode::FILE; }
 
   /**
    * @brief Check if this metadata represents a directory
    * @return true if this is a directory, false otherwise
    */
-  bool is_dir() const { return type == EntryMode::DIR; }
+  bool IsDir() const { return type == EntryMode::DIR; }
 
   /**
-   * @brief Get the content length in bytes
+   * @brief Content length in bytes
    * @return Content length (0 if not set)
    */
-  std::uint64_t get_content_length() const { return content_length; }
+  std::uint64_t ContentLength() const { return content_length; }
 
   /**
-   * @brief Get the cache control directive
+   * @brief Cache control directive
    * @return Optional cache control string
    */
-  const std::optional<std::string>& get_cache_control() const {
+  const std::optional<std::string>& CacheControl() const {
     return cache_control;
   }
 
   /**
-   * @brief Get the content disposition
+   * @brief Content disposition
    * @return Optional content disposition string
    */
-  const std::optional<std::string>& get_content_disposition() const {
+  const std::optional<std::string>& ContentDisposition() const {
     return content_disposition;
   }
 
   /**
-   * @brief Get the content MD5 hash
+   * @brief Content MD5 hash
    * @return Optional MD5 hash string
    */
-  const std::optional<std::string>& get_content_md5() const {
+  const std::optional<std::string>& ContentMd5() const {
     return content_md5;
   }
 
   /**
-   * @brief Get the content type (MIME type)
+   * @brief Content type (MIME type)
    * @return Optional content type string
    */
-  const std::optional<std::string>& get_content_type() const {
+  const std::optional<std::string>& ContentType() const {
     return content_type;
   }
 
   /**
-   * @brief Get the content encoding
+   * @brief Content encoding
    * @return Optional content encoding string
    */
-  const std::optional<std::string>& get_content_encoding() const {
+  const std::optional<std::string>& ContentEncoding() const {
     return content_encoding;
   }
 
   /**
-   * @brief Get the ETag
+   * @brief ETag
    * @return Optional ETag string
    */
-  const std::optional<std::string>& get_etag() const { return etag; }
+  const std::optional<std::string>& Etag() const { return etag; }
 
   /**
-   * @brief Get the last modified timestamp
+   * @brief Last modified timestamp
    * @return Optional timestamp of last modification
    */
-  const std::optional<std::chrono::system_clock::time_point>&
-  get_last_modified() const {
+  const std::optional<std::chrono::system_clock::time_point>& LastModified()
+      const {
     return last_modified;
   }
 
   /**
-   * @brief Get the version identifier
+   * @brief Version identifier
    * @return Optional version string
    */
-  const std::optional<std::string>& get_version() const { return version; }
+  const std::optional<std::string>& Version() const { return version; }
 
   /**
    * @brief Check if this is the current version
    * @return Optional boolean indicating if this is current (None if versioning
    * not supported)
    */
-  const std::optional<bool>& get_is_current() const { return is_current; }
+  const std::optional<bool>& IsCurrent() const { return is_current; }
 
   /**
    * @brief Check if this entry has been deleted
    * @return true if deleted, false otherwise
    */
-  bool get_is_deleted() const { return is_deleted; }
+  bool IsDeleted() const { return is_deleted; }
 };
 
 /**

@@ -2,6 +2,8 @@
 
 [![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/cpp/)
 
+> **Note**: This C++ binding follows the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) for consistent and maintainable code.
+
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
 Documents: [![Documents](https://img.shields.io/badge/opendal-cpp-blue?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/cpp/)
@@ -15,8 +17,8 @@ Documents: [![Documents](https://img.shields.io/badge/opendal-cpp-blue?logo=Apac
 int main() {
     auto op = opendal::Operator("memory");
     std::vector<uint8_t> data = {1, 2, 3, 4, 5};
-    op.write("test", data);
-    auto result = op.read("test");  // result == data
+    op.Write("test", data);
+    auto result = op.Read("test");  // result == data
 }
 ```
 

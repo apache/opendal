@@ -72,17 +72,17 @@ class Operator {
    *
    * @return true if the operator is available, false otherwise
    */
-  bool available() const;
+  bool Available() const;
 
   /**
    * @brief Read data from the operator
    * @note The operation will make unnecessary copy. So we recommend to use the
-   * `reader` method.
+   * `GetReader` method.
    *
    * @param path The path of the data
    * @return The data read from the operator
    */
-  std::string read(std::string_view path);
+  std::string Read(std::string_view path);
 
   /**
    * @brief Write data to the operator
@@ -90,7 +90,7 @@ class Operator {
    * @param path The path of the data
    * @param data The data to write
    */
-  void write(std::string_view path, std::string_view data);
+  void Write(std::string_view path, std::string_view data);
 
   /**
    * @brief Read data from the operator
@@ -98,7 +98,7 @@ class Operator {
    * @param path The path of the data
    * @return The reader of the data
    */
-  Reader reader(std::string_view path);
+  Reader GetReader(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -106,8 +106,8 @@ class Operator {
    * @param path The path to check
    * @return true if the path exists, false otherwise
    */
-  [[deprecated("Use exists() instead.")]]
-  bool is_exist(std::string_view path);
+  [[deprecated("Use Exists() instead.")]]
+  bool IsExist(std::string_view path);
 
   /**
    * @brief Check if the path exists
@@ -115,14 +115,14 @@ class Operator {
    * @param path The path to check
    * @return true if the path exists, false otherwise
    */
-  bool exists(std::string_view path);
+  bool Exists(std::string_view path);
 
   /**
    * @brief Create a directory
    *
    * @param path The path of the directory
    */
-  void create_dir(std::string_view path);
+  void CreateDir(std::string_view path);
 
   /**
    * @brief Copy a file from src to dst.
@@ -130,7 +130,7 @@ class Operator {
    * @param src The source path
    * @param dst The destination path
    */
-  void copy(std::string_view src, std::string_view dst);
+  void Copy(std::string_view src, std::string_view dst);
 
   /**
    * @brief Rename a file from src to dst.
@@ -138,14 +138,14 @@ class Operator {
    * @param src The source path
    * @param dst The destination path
    */
-  void rename(std::string_view src, std::string_view dst);
+  void Rename(std::string_view src, std::string_view dst);
 
   /**
    * @brief Remove a file or directory
    *
    * @param path The path of the file or directory
    */
-  void remove(std::string_view path);
+  void Remove(std::string_view path);
 
   /**
    * @brief Get the metadata of a file or directory
@@ -153,7 +153,7 @@ class Operator {
    * @param path The path of the file or directory
    * @return The metadata of the file or directory
    */
-  Metadata stat(std::string_view path);
+  Metadata Stat(std::string_view path);
 
   /**
    * @brief List the entries of a directory
@@ -162,12 +162,12 @@ class Operator {
    * @param path The path of the directory
    * @return The entries of the directory
    */
-  std::vector<Entry> list(std::string_view path);
+  std::vector<Entry> List(std::string_view path);
 
-  Lister lister(std::string_view path);
+  Lister GetLister(std::string_view path);
 
  private:
-  void destroy() noexcept;
+  void Destroy() noexcept;
 
   ffi::Operator *operator_{nullptr};
 };
@@ -187,16 +187,16 @@ class Reader {
 
   ~Reader() noexcept;
 
-  std::streamsize read(void *s, std::streamsize n);
+  std::streamsize Read(void *s, std::streamsize n);
 
-  std::streampos seek(std::streamoff off, std::ios_base::seekdir way);
+  std::streampos Seek(std::streamoff off, std::ios_base::seekdir way);
 
  private:
   friend class Operator;
 
   Reader(ffi::Reader *pointer) noexcept;
 
-  void destroy() noexcept;
+  void Destroy() noexcept;
 
   ffi::Reader *reader_{nullptr};
 };
@@ -222,8 +222,9 @@ class ReaderStream : public std::istream {
 
       while (total_read < count) {
         if (gptr() < egptr()) {
-          std::streamsize available = egptr() - gptr();
-          std::streamsize to_copy = std::min(available, count - total_read);
+          std::streamsize available_bytes = egptr() - gptr();
+          std::streamsize to_copy =
+              std::min(available_bytes, count - total_read);
           std::memcpy(s + total_read, gptr(), to_copy);
           gbump(to_copy);
           total_read += to_copy;
@@ -244,7 +245,7 @@ class ReaderStream : public std::istream {
       // Update the buffer start position to current reader position
       buffer_start_pos_ += (egptr() - eback());
 
-      std::streamsize n = reader_.read(buffer_, sizeof(buffer_));
+      std::streamsize n = reader_.Read(buffer_, sizeof(buffer_));
       if (n <= 0) {
         return traits_type::eof();
       }
@@ -269,7 +270,7 @@ class ReaderStream : public std::istream {
       }
 
       // Actual seek operation
-      std::streampos new_pos = reader_.seek(off, dir);
+      std::streampos new_pos = reader_.Seek(off, dir);
       if (new_pos != std::streampos(-1)) {
         buffer_start_pos_ = new_pos;
         setg(buffer_, buffer_, buffer_);
@@ -328,14 +329,14 @@ class Lister {
     using reference = Entry &;
 
     Iterator(Lister &lister) : lister_{lister} {
-      current_entry_ = lister_.next();
+      current_entry_ = lister_.Next();
     }
 
     Entry operator*() { return current_entry_.value(); }
 
     Iterator &operator++() {
       if (current_entry_) {
-        current_entry_ = lister_.next();
+        current_entry_ = lister_.Next();
       }
       return *this;
     }
@@ -361,7 +362,7 @@ class Lister {
    *
    * @return The next entry of the lister
    */
-  std::optional<Entry> next();
+  std::optional<Entry> Next();
 
   Iterator begin() { return Iterator(*this); }
   Iterator end() { return Iterator(*this, true); }
@@ -371,7 +372,7 @@ class Lister {
 
   Lister(ffi::Lister *pointer) noexcept;
 
-  void destroy() noexcept;
+  void Destroy() noexcept;
 
   ffi::Lister *lister_{nullptr};
 };

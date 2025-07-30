@@ -32,50 +32,50 @@ class MetadataTest : public ::testing::Test {
 
   void SetUp() override {
     op = opendal::Operator(scheme, config);
-    EXPECT_TRUE(op.available());
+    EXPECT_TRUE(op.Available());
   }
 
   // Helper methods for BDD-style testing
   void given_a_file_exists_with_content(const std::string& path,
                                         const std::string& content) {
-    op.write(path, content);
-    EXPECT_TRUE(op.exists(path));
+    op.Write(path, content);
+    EXPECT_TRUE(op.Exists(path));
   }
 
   void given_a_directory_exists(const std::string& path) {
-    op.create_dir(path);
-    EXPECT_TRUE(op.exists(path));
+    op.CreateDir(path);
+    EXPECT_TRUE(op.Exists(path));
   }
 
   opendal::Metadata when_i_get_metadata_for(const std::string& path) {
-    return op.stat(path);
+    return op.Stat(path);
   }
 
   void then_metadata_should_indicate_file_type(
       const opendal::Metadata& metadata) {
-    EXPECT_TRUE(metadata.is_file());
-    EXPECT_FALSE(metadata.is_dir());
-    EXPECT_EQ(metadata.mode(), opendal::EntryMode::FILE);
+    EXPECT_TRUE(metadata.IsFile());
+    EXPECT_FALSE(metadata.IsDir());
+    EXPECT_EQ(metadata.Mode(), opendal::EntryMode::FILE);
     EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);
   }
 
   void then_metadata_should_indicate_directory_type(
       const opendal::Metadata& metadata) {
-    EXPECT_FALSE(metadata.is_file());
-    EXPECT_TRUE(metadata.is_dir());
-    EXPECT_EQ(metadata.mode(), opendal::EntryMode::DIR);
+    EXPECT_FALSE(metadata.IsFile());
+    EXPECT_TRUE(metadata.IsDir());
+    EXPECT_EQ(metadata.Mode(), opendal::EntryMode::DIR);
     EXPECT_EQ(metadata.type, opendal::EntryMode::DIR);
   }
 
   void then_content_length_should_be(const opendal::Metadata& metadata,
                                      std::uint64_t expected_length) {
     EXPECT_EQ(metadata.content_length, expected_length);
-    EXPECT_EQ(metadata.get_content_length(), expected_length);
+    EXPECT_EQ(metadata.ContentLength(), expected_length);
   }
 
   void then_metadata_should_not_be_deleted(const opendal::Metadata& metadata) {
     EXPECT_FALSE(metadata.is_deleted);
-    EXPECT_FALSE(metadata.get_is_deleted());
+    EXPECT_FALSE(metadata.IsDeleted());
   }
 };
 
@@ -211,13 +211,13 @@ TEST_F(MetadataTest, OptionalFieldsAccessibility) {
   auto metadata = when_i_get_metadata_for(file_path);
 
   // Then I should be able to access all optional header fields without crashes
-  EXPECT_NO_THROW(metadata.get_cache_control());
-  EXPECT_NO_THROW(metadata.get_content_disposition());
-  EXPECT_NO_THROW(metadata.get_content_md5());
-  EXPECT_NO_THROW(metadata.get_content_type());
-  EXPECT_NO_THROW(metadata.get_content_encoding());
-  EXPECT_NO_THROW(metadata.get_etag());
-  EXPECT_NO_THROW(metadata.get_last_modified());
+  EXPECT_NO_THROW(metadata.CacheControl());
+  EXPECT_NO_THROW(metadata.ContentDisposition());
+  EXPECT_NO_THROW(metadata.ContentMd5());
+  EXPECT_NO_THROW(metadata.ContentType());
+  EXPECT_NO_THROW(metadata.ContentEncoding());
+  EXPECT_NO_THROW(metadata.Etag());
+  EXPECT_NO_THROW(metadata.LastModified());
 }
 
 // Feature: Versioning Information in Metadata
@@ -237,12 +237,12 @@ TEST_F(MetadataTest, VersioningFields) {
   auto metadata = when_i_get_metadata_for(file_path);
 
   // Then I should be able to access versioning fields
-  EXPECT_NO_THROW(metadata.get_version());
-  EXPECT_NO_THROW(metadata.get_is_current());
-  EXPECT_NO_THROW(metadata.get_is_deleted());
+  EXPECT_NO_THROW(metadata.Version());
+  EXPECT_NO_THROW(metadata.IsCurrent());
+  EXPECT_NO_THROW(metadata.IsDeleted());
 
   // And for memory storage, file should not be deleted by default
-  EXPECT_FALSE(metadata.get_is_deleted());
+  EXPECT_FALSE(metadata.IsDeleted());
 }
 
 // Feature: Metadata Consistency
@@ -263,17 +263,17 @@ TEST_F(MetadataTest, AccessorConsistency) {
   auto metadata = when_i_get_metadata_for(file_path);
 
   // Then direct field access should match accessor methods
-  EXPECT_EQ(metadata.type, metadata.mode());
-  EXPECT_EQ(metadata.content_length, metadata.get_content_length());
-  EXPECT_EQ(metadata.is_deleted, metadata.get_is_deleted());
+  EXPECT_EQ(metadata.type, metadata.Mode());
+  EXPECT_EQ(metadata.content_length, metadata.ContentLength());
+  EXPECT_EQ(metadata.is_deleted, metadata.IsDeleted());
 
   // And accessor methods should provide consistent boolean results
   if (metadata.type == opendal::EntryMode::FILE) {
-    EXPECT_TRUE(metadata.is_file());
-    EXPECT_FALSE(metadata.is_dir());
+    EXPECT_TRUE(metadata.IsFile());
+    EXPECT_FALSE(metadata.IsDir());
   } else if (metadata.type == opendal::EntryMode::DIR) {
-    EXPECT_FALSE(metadata.is_file());
-    EXPECT_TRUE(metadata.is_dir());
+    EXPECT_FALSE(metadata.IsFile());
+    EXPECT_TRUE(metadata.IsDir());
   }
 }
 
@@ -305,9 +305,9 @@ TEST_F(MetadataTest, CopyAndMove) {
   EXPECT_EQ(copied_metadata.is_deleted, moved_metadata.is_deleted);
 
   // And both should function correctly
-  EXPECT_EQ(copied_metadata.is_file(), moved_metadata.is_file());
-  EXPECT_EQ(copied_metadata.get_content_length(),
-            moved_metadata.get_content_length());
+  EXPECT_EQ(copied_metadata.IsFile(), moved_metadata.IsFile());
+  EXPECT_EQ(copied_metadata.ContentLength(),
+            moved_metadata.ContentLength());
 }
 
 TEST_F(MetadataTest, DefaultConstruction) {
@@ -319,13 +319,13 @@ TEST_F(MetadataTest, DefaultConstruction) {
   // Then it should have sensible defaults
   EXPECT_EQ(default_metadata.content_length, 0);
   EXPECT_FALSE(default_metadata.is_deleted);
-  EXPECT_EQ(default_metadata.get_content_length(), 0);
-  EXPECT_FALSE(default_metadata.get_is_deleted());
+  EXPECT_EQ(default_metadata.ContentLength(), 0);
+  EXPECT_FALSE(default_metadata.IsDeleted());
 
   // And accessor methods should work without crashing
-  EXPECT_NO_THROW(default_metadata.mode());
-  EXPECT_NO_THROW(default_metadata.is_file());
-  EXPECT_NO_THROW(default_metadata.is_dir());
+  EXPECT_NO_THROW(default_metadata.Mode());
+  EXPECT_NO_THROW(default_metadata.IsFile());
+  EXPECT_NO_THROW(default_metadata.IsDir());
 }
 
 // Feature: Multiple Files Metadata Comparison
@@ -354,10 +354,10 @@ TEST_F(MetadataTest, DifferentFileSizes) {
   then_metadata_should_indicate_file_type(large_metadata);
 
   // And their sizes should differ appropriately
-  EXPECT_LT(small_metadata.get_content_length(),
-            large_metadata.get_content_length());
-  EXPECT_EQ(small_metadata.get_content_length(), small_content.length());
-  EXPECT_EQ(large_metadata.get_content_length(), large_content.length());
+  EXPECT_LT(small_metadata.ContentLength(),
+            large_metadata.ContentLength());
+  EXPECT_EQ(small_metadata.ContentLength(), small_content.length());
+  EXPECT_EQ(large_metadata.ContentLength(), large_content.length());
 }
 
 TEST_F(MetadataTest, FileVsDirectory) {
@@ -377,10 +377,10 @@ TEST_F(MetadataTest, FileVsDirectory) {
 
   // Then they should have different types
   EXPECT_NE(file_metadata.type, dir_metadata.type);
-  EXPECT_TRUE(file_metadata.is_file());
-  EXPECT_TRUE(dir_metadata.is_dir());
-  EXPECT_FALSE(file_metadata.is_dir());
-  EXPECT_FALSE(dir_metadata.is_file());
+  EXPECT_TRUE(file_metadata.IsFile());
+  EXPECT_TRUE(dir_metadata.IsDir());
+  EXPECT_FALSE(file_metadata.IsDir());
+  EXPECT_FALSE(dir_metadata.IsFile());
 
   // And both should not be deleted
   then_metadata_should_not_be_deleted(file_metadata);
@@ -404,7 +404,7 @@ TEST_F(MetadataTest, LastModifiedAccess) {
   auto metadata = when_i_get_metadata_for(file_path);
 
   // Then I should be able to access the last modified timestamp
-  EXPECT_NO_THROW(metadata.get_last_modified());
+  EXPECT_NO_THROW(metadata.LastModified());
 
   // Note: For memory storage, last_modified might not be set
   // This is expected behavior and not an error
@@ -427,12 +427,12 @@ TEST_F(MetadataTest, TimestampConsistency) {
   auto metadata2 = when_i_get_metadata_for(file2);
 
   // Then both should handle timestamps consistently
-  EXPECT_NO_THROW(metadata1.get_last_modified());
-  EXPECT_NO_THROW(metadata2.get_last_modified());
+  EXPECT_NO_THROW(metadata1.LastModified());
+  EXPECT_NO_THROW(metadata2.LastModified());
 
   // And the timestamp handling should be the same type
-  auto ts1 = metadata1.get_last_modified();
-  auto ts2 = metadata2.get_last_modified();
+  auto ts1 = metadata1.LastModified();
+  auto ts2 = metadata2.LastModified();
 
   // Both should have the same availability (either both have timestamps or both
   // don't)
@@ -452,9 +452,9 @@ TEST_F(MetadataTest, UnknownEntryMode) {
   unknown_metadata.type = opendal::EntryMode::UNKNOWN;
 
   // When I check the type using accessor methods
-  auto mode = unknown_metadata.mode();
-  auto is_file = unknown_metadata.is_file();
-  auto is_dir = unknown_metadata.is_dir();
+  auto mode = unknown_metadata.Mode();
+  auto is_file = unknown_metadata.IsFile();
+  auto is_dir = unknown_metadata.IsDir();
 
   // Then it should handle unknown type without crashing
   EXPECT_EQ(mode, opendal::EntryMode::UNKNOWN);
@@ -469,15 +469,15 @@ TEST_F(MetadataTest, EmptyOptionalFields) {
   opendal::Metadata empty_metadata;
 
   // When I access all optional fields
-  auto cache_control = empty_metadata.get_cache_control();
-  auto content_disposition = empty_metadata.get_content_disposition();
-  auto content_md5 = empty_metadata.get_content_md5();
-  auto content_type = empty_metadata.get_content_type();
-  auto content_encoding = empty_metadata.get_content_encoding();
-  auto etag = empty_metadata.get_etag();
-  auto version = empty_metadata.get_version();
-  auto is_current = empty_metadata.get_is_current();
-  auto last_modified = empty_metadata.get_last_modified();
+  auto cache_control = empty_metadata.CacheControl();
+  auto content_disposition = empty_metadata.ContentDisposition();
+  auto content_md5 = empty_metadata.ContentMd5();
+  auto content_type = empty_metadata.ContentType();
+  auto content_encoding = empty_metadata.ContentEncoding();
+  auto etag = empty_metadata.Etag();
+  auto version = empty_metadata.Version();
+  auto is_current = empty_metadata.IsCurrent();
+  auto last_modified = empty_metadata.LastModified();
 
   // Then all optional fields should be empty (no value)
   EXPECT_FALSE(cache_control.has_value());
@@ -491,15 +491,15 @@ TEST_F(MetadataTest, EmptyOptionalFields) {
   EXPECT_FALSE(last_modified.has_value());
 
   // And accessing them should not crash
-  EXPECT_NO_THROW(empty_metadata.get_cache_control());
-  EXPECT_NO_THROW(empty_metadata.get_content_disposition());
-  EXPECT_NO_THROW(empty_metadata.get_content_md5());
-  EXPECT_NO_THROW(empty_metadata.get_content_type());
-  EXPECT_NO_THROW(empty_metadata.get_content_encoding());
-  EXPECT_NO_THROW(empty_metadata.get_etag());
-  EXPECT_NO_THROW(empty_metadata.get_version());
-  EXPECT_NO_THROW(empty_metadata.get_is_current());
-  EXPECT_NO_THROW(empty_metadata.get_last_modified());
+  EXPECT_NO_THROW(empty_metadata.CacheControl());
+  EXPECT_NO_THROW(empty_metadata.ContentDisposition());
+  EXPECT_NO_THROW(empty_metadata.ContentMd5());
+  EXPECT_NO_THROW(empty_metadata.ContentType());
+  EXPECT_NO_THROW(empty_metadata.ContentEncoding());
+  EXPECT_NO_THROW(empty_metadata.Etag());
+  EXPECT_NO_THROW(empty_metadata.Version());
+  EXPECT_NO_THROW(empty_metadata.IsCurrent());
+  EXPECT_NO_THROW(empty_metadata.LastModified());
 }
 
 TEST_F(MetadataTest, LongFilenames) {
@@ -574,10 +574,10 @@ TEST_F(MetadataTest, RepeatedAccess) {
   EXPECT_EQ(metadata2.is_deleted, metadata3.is_deleted);
 
   // And all should behave identically
-  EXPECT_EQ(metadata1.is_file(), metadata2.is_file());
-  EXPECT_EQ(metadata2.is_file(), metadata3.is_file());
-  EXPECT_EQ(metadata1.get_content_length(), metadata2.get_content_length());
-  EXPECT_EQ(metadata2.get_content_length(), metadata3.get_content_length());
+  EXPECT_EQ(metadata1.IsFile(), metadata2.IsFile());
+  EXPECT_EQ(metadata2.IsFile(), metadata3.IsFile());
+  EXPECT_EQ(metadata1.ContentLength(), metadata2.ContentLength());
+  EXPECT_EQ(metadata2.ContentLength(), metadata3.ContentLength());
 }
 
 TEST_F(MetadataTest, AfterFileModification) {
@@ -593,7 +593,7 @@ TEST_F(MetadataTest, AfterFileModification) {
   auto initial_metadata = when_i_get_metadata_for(file_path);
 
   // And I modify the file content
-  op.write(file_path, modified_content);
+  op.Write(file_path, modified_content);
 
   // And I get metadata again
   auto modified_metadata = when_i_get_metadata_for(file_path);
@@ -607,8 +607,8 @@ TEST_F(MetadataTest, AfterFileModification) {
   then_content_length_should_be(modified_metadata, modified_content.length());
 
   // And the new content length should be different from the old one
-  EXPECT_NE(initial_metadata.get_content_length(),
-            modified_metadata.get_content_length());
-  EXPECT_GT(modified_metadata.get_content_length(),
-            initial_metadata.get_content_length());
+  EXPECT_NE(initial_metadata.ContentLength(),
+            modified_metadata.ContentLength());
+  EXPECT_GT(modified_metadata.ContentLength(),
+            initial_metadata.ContentLength());
 }

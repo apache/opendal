@@ -90,6 +90,7 @@ impl ChunkedReader {
         let tasks = ConcurrentTasks::new(
             ctx.accessor().info().executor(),
             ctx.options().concurrent(),
+            ctx.options().prefetch(),
             |mut r: oio::Reader| {
                 Box::pin(async {
                     match r.read_all().await {

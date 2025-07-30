@@ -155,6 +155,7 @@ impl Reader {
         let mut tasks = ConcurrentTasks::new(
             self.ctx.accessor().info().executor(),
             self.ctx.options().concurrent(),
+            self.ctx.options().prefetch(),
             |input: FetchInput| {
                 Box::pin(async move {
                     let FetchInput { range, reader } = input.clone();

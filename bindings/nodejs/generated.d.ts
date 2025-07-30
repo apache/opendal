@@ -188,6 +188,21 @@ export interface ReaderOptions {
   * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
   */
   chunk?: number
+  /** Controls the number of prefetched bytes ranges that can be buffered in memory
+  * during concurrent reading.
+  *
+  * When performing concurrent reads with `Reader`, this option limits how many
+  * completed-but-not-yet-read chunks can be buffered. Once the number of buffered
+  * chunks reaches this limit, no new read tasks will be spawned until some of the
+  * buffered chunks are consumed.
+  *
+  * - Default value: 0 (no prefetching, strict back-pressure control)
+  * - Set to a higher value to allow more aggressive prefetching at the cost of memory
+  *
+  * This option helps prevent memory exhaustion when reading large files with high
+  * concurrency settings.
+  */
+  prefetch?: number
   /**
   * Controls the optimization strategy for range reads in [`Reader::fetch`].
   *

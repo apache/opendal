@@ -185,10 +185,7 @@ impl ObjectStore for OpendalStore {
         let e_tag = rp.etag().map(|s| s.to_string());
         let version = rp.version().map(|s| s.to_string());
 
-        Ok(PutResult {
-            e_tag,
-            version,
-        })
+        Ok(PutResult { e_tag, version })
     }
 
     async fn put_multipart(
@@ -572,10 +569,7 @@ impl MultipartUpload for OpendalMultipartUpload {
         let e_tag = metadata.etag().map(|s| s.to_string());
         let version = metadata.version().map(|s| s.to_string());
 
-        Ok(PutResult {
-            e_tag,
-            version,
-        })
+        Ok(PutResult { e_tag, version })
     }
 
     async fn abort(&mut self) -> object_store::Result<()> {

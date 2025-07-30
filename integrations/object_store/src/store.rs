@@ -478,13 +478,17 @@ impl ObjectStore for OpendalStore {
         Ok(())
     }
 
-    async fn rename(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "rename is not implemented so far",
-            )),
-        })
+    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.inner
+            .rename(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+            )
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
+
+        Ok(())
     }
 
     async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {

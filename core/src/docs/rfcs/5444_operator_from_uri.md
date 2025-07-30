@@ -5,7 +5,7 @@
 
 # Summary
 
-This RFC proposes adding URI-based configuration support to OpenDAL, allowing users to create operators directly from URIs. The proposal introduces a new `from_uri` API in both the `Operator` and `Configurator` traits, along with an `OperatorRegistry` to manage operator factories.
+This RFC proposes adding URI-based configuration support to OpenDAL, allowing users to create operators directly from URIs. The proposal introduces a new `from_uri` API in both the `Operator` and `Configurator` traits, along with an `OperatorRegistry` to manage operator factories. As part of this change, we will also transition from the `Scheme` enum to string-based scheme identifiers, enabling better modularity and support for service crate splitting.
 
 # Motivation
 
@@ -40,11 +40,20 @@ let op = Operator::from_uri("fs:///tmp/test", vec![])?;
 
 OpenDAL will, by default, register services enabled by features in a global `OperatorRegistry`. Users can also create custom operator registries to support their own schemes or additional options.
 
-```
+```rust
 // Using with custom registry
 let registry = OperatorRegistry::new();
 registry.register("custom", my_factory);
 let op = registry.parse("custom://endpoint", options)?;
+
+// The same service implementation can be registered under multiple schemes
+registry.register("s3", s3_factory);
+registry.register("minio", s3_factory);  // MinIO is S3-compatible
+registry.register("r2", s3_factory);     // Cloudflare R2 is S3-compatible
+
+// Users can define their own scheme names for internal use
+registry.register("company-storage", s3_factory);
+registry.register("backup-storage", azblob_factory);
 ```
 
 # Reference-level explanation
@@ -73,9 +82,7 @@ impl OperatorRegistry {
 
 2. The `Configurator` trait extension:
 
-`Configurator` will add a new API to create a configuration from a URI and options. OpenDAL will provide default implementations for common configurations. But services can override this method to support their own special needs.
-
-For example, S3 might need to extract the `bucket` and `region` from the URI when possible.
+`Configurator` will add a new API to create a configuration from a URI and options. Services should only parse the URI components relevant to their configuration (host, path, query parameters) without concerning themselves with the scheme portion.
 
 ```rust
 impl Configurator for S3Config {
@@ -84,6 +91,8 @@ impl Configurator for S3Config {
     }
 }
 ```
+
+This design allows the same S3 implementation to work whether accessed via `s3://`, `minio://`, or any other user-defined scheme.
 
 3. The `Operator` `from_uri` method:
 
@@ -100,7 +109,13 @@ impl Operator {
 }
 ```
 
-We are intentionally using `&str` instead of `Scheme` here to simplify working with external components outside this crate. Additionally, we plan to remove `Scheme` from our public API soon to enable splitting OpenDAL into multiple crates.
+## Scheme Enum Removal
+
+As part of this RFC, we will transition from the `Scheme` enum to string-based identifiers (`&'static str`). This change is necessary because:
+
+1. **Modularity**: Services in separate crates cannot add variants to a core enum
+2. **Extensibility**: Users and third-party crates can define custom schemes without modifying OpenDAL
+3. **Simplicity**: Services don't need to know their scheme identifier
 
 # Drawbacks
 
@@ -137,5 +152,9 @@ None
 
 # Future possibilities
 
-- Support for connection string format.
-- Configuration presets like `r2` and `s3` with directory bucket enabled.
+- Support for connection string format
+- Configuration presets like `r2` and `s3` with directory bucket enabled
+- Service crate splitting: Each service can live in its own crate and register itself with the core
+- Plugin system: Allow dynamic loading of service implementations at runtime
+- Service discovery: Automatically register available services based on feature flags or runtime detection
+- Scheme validation and conventions: Provide utilities to validate scheme naming conventions

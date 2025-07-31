@@ -84,7 +84,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("create");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         self.inner.create_dir(path, args).with_context(cx).await
     }
@@ -93,7 +93,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("read");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         self.inner
             .read(path, args)
             .await
@@ -104,7 +104,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("write");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         self.inner
             .write(path, args)
             .await
@@ -116,7 +116,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let mut span = tracer.start("copy");
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         self.inner().copy(from, to, args).with_context(cx).await
     }
@@ -126,7 +126,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let mut span = tracer.start("rename");
         span.set_attribute(KeyValue::new("from", from.to_string()));
         span.set_attribute(KeyValue::new("to", to.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         self.inner().rename(from, to, args).with_context(cx).await
     }
@@ -135,7 +135,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("stat");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         self.inner().stat(path, args).with_context(cx).await
     }
@@ -148,7 +148,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("list");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         self.inner
             .list(path, args)
             .await
@@ -159,7 +159,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("presign");
         span.set_attribute(KeyValue::new("path", path.to_string()));
-        span.set_attribute(KeyValue::new("args", format!("{:?}", args)));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         self.inner().presign(path, args).with_context(cx).await
     }

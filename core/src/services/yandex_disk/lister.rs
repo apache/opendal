@@ -81,7 +81,7 @@ impl oio::PageList for YandexDiskLister {
                             let md = parse_info(mf)?;
 
                             if md.mode().is_dir() {
-                                path = format!("{}/", path);
+                                path = format!("{path}/");
                             }
 
                             ctx.entries.push_back(Entry::new(&path, md));

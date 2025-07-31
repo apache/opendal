@@ -23,19 +23,19 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 name = "unftp-sbe-opendal"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
-version = "0.2.1"
+rust-version = "1.82"
+version = "0.3.0"
 
 [dependencies]
 async-trait = "0.1.88"
 libunftp = "0.21.0"
-opendal = { version = "0.53.0", path = "../../core" }
+opendal = { version = "0.54.0", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
 
 [dev-dependencies]
 anyhow = "1"
-opendal = { version = "0.53.0", path = "../../core", features = [
+opendal = { version = "0.54.0", path = "../../core", features = [
   "services-s3",
 ] }
 tokio = { version = "1.38.0", default-features = false, features = [

@@ -1,6 +1,7 @@
 {
   "rust-analyzer.cargo.allTargets": true,
   "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.procMacro.ignored": { "napi-derive": ["napi"] },
   "rust-analyzer.linkedProjects": [
     "${workspaceFolder}/core/Cargo.toml",
     "${workspaceFolder}/bindings/python/Cargo.toml",

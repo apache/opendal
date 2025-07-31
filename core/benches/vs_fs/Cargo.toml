@@ -21,11 +21,11 @@ edition = "2021"
 license = "Apache-2.0"
 name = "opendal-benchmark-vs-fs"
 publish = false
-rust-version = "1.80"
+rust-version = "1.82"
 version = "0.0.0"
 
 [dependencies]
-criterion = { version = "0.5", features = ["async", "async_tokio"] }
+criterion = { version = "0.6", features = ["async", "async_tokio"] }
 opendal = { path = "../..", features = ["tests"] }
 rand = "0.8"
 tokio = { version = "1", features = ["full"] }

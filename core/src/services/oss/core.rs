@@ -335,7 +335,6 @@ impl OssCore {
         }
 
         let mut req = Request::get(&url);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());

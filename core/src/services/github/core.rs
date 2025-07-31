@@ -66,7 +66,7 @@ impl GithubCore {
 
     pub fn sign(&self, req: request::Builder) -> Result<request::Builder> {
         let mut req = req
-            .header(header::USER_AGENT, format!("opendal-{}", VERSION))
+            .header(header::USER_AGENT, format!("opendal-{VERSION}"))
             .header("X-GitHub-Api-Version", "2022-11-28");
 
         // Github access_token is optional.
@@ -195,7 +195,7 @@ impl GithubCore {
 
     pub async fn delete(&self, path: &str) -> Result<()> {
         // If path is a directory, we should delete path/.gitkeep
-        let formatted_path = format!("{}.gitkeep", path);
+        let formatted_path = format!("{path}.gitkeep");
         let p = if path.ends_with('/') {
             formatted_path.as_str()
         } else {
@@ -280,7 +280,7 @@ impl GithubCore {
 
     /// We use git_url to call github's Tree based API.
     pub async fn list_with_recursive(&self, git_url: &str) -> Result<Vec<Tree>> {
-        let url = format!("{}?recursive=true", git_url);
+        let url = format!("{git_url}?recursive=true");
 
         let req = Request::get(url);
 

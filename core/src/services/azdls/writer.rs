@@ -21,6 +21,7 @@ use http::StatusCode;
 
 use super::core::AzdlsCore;
 use super::core::FILE;
+use super::core::X_MS_VERSION_ID;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -37,6 +38,24 @@ pub struct AzdlsWriter {
 impl AzdlsWriter {
     pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
         AzdlsWriter { core, op, path }
+    }
+
+    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(last_modified) = parse_last_modified(headers)? {
+            metadata.set_last_modified(last_modified);
+        }
+        let etag = parse_etag(headers)?;
+        if let Some(etag) = etag {
+            metadata.set_etag(etag);
+        }
+        let version_id = parse_header_to_str(headers, X_MS_VERSION_ID)?;
+        if let Some(version_id) = version_id {
+            metadata.set_version(version_id);
+        }
+
+        Ok(metadata)
     }
 }
 
@@ -82,7 +101,6 @@ impl oio::AppendWrite for AzdlsWriter {
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         if offset == 0 {
             let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
-
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::OK => {}
@@ -97,9 +115,14 @@ impl oio::AppendWrite for AzdlsWriter {
             .azdls_update(&self.path, Some(size), offset, body)
             .await?;
 
+        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
+        let md5 = parse_content_md5(resp.headers())?;
+        if let Some(md5) = md5 {
+            meta.set_content_md5(md5);
+        }
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
             _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
         }
     }

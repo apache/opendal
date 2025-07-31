@@ -53,7 +53,7 @@ impl oio::PageList for GithubLister {
             for entry in resp.entries {
                 let path = build_rel_path(&self.core.root, &entry.path);
                 let entry = if entry.type_field == "dir" {
-                    let path = format!("{}/", path);
+                    let path = format!("{path}/");
                     Entry::new(&path, Metadata::new(EntryMode::DIR))
                 } else {
                     if path.ends_with(".gitkeep") {
@@ -85,7 +85,7 @@ impl oio::PageList for GithubLister {
                 format!("{}/{}", self.path, t.path)
             };
             let entry = if t.type_field == "tree" {
-                let path = format!("{}/", path);
+                let path = format!("{path}/");
                 Entry::new(&path, Metadata::new(EntryMode::DIR))
             } else {
                 if path.ends_with(".gitkeep") {

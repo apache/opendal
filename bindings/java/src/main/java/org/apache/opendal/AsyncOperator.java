@@ -228,7 +228,11 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Metadata> stat(String path) {
-        final long requestId = stat(nativeHandle, executorHandle, path);
+        return stat(path, StatOptions.builder().build());
+    }
+
+    public CompletableFuture<Metadata> stat(String path, StatOptions options) {
+        final long requestId = stat(nativeHandle, executorHandle, path, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -311,7 +315,7 @@ public class AsyncOperator extends NativeObject {
 
     private static native long delete(long nativeHandle, long executorHandle, String path);
 
-    private static native long stat(long nativeHandle, long executorHandle, String path);
+    private static native long stat(long nativeHandle, long executorHandle, String path, StatOptions options);
 
     private static native long presignRead(long nativeHandle, long executorHandle, String path, long duration);
 

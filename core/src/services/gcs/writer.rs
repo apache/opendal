@@ -74,7 +74,7 @@ impl oio::MultipartWrite for GcsWriter {
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .gcs_initiate_multipart_upload(&percent_encode_path(&self.path))
+            .gcs_initiate_multipart_upload(&percent_encode_path(&self.path), &self.op)
             .await?;
 
         if !resp.status().is_success() {

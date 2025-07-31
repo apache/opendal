@@ -28,44 +28,57 @@ pub struct Capability {
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
 
-    /// If operator supports read.
+    /// Indicates if the operator supports read operations.
     pub read: bool,
-    /// If operator supports read with if match.
+    /// Indicates if conditional read operations using If-Match are supported.
     pub read_with_if_match: bool,
-    /// If operator supports read with if none match.
+    /// Indicates if conditional read operations using If-None-Match are supported.
     pub read_with_if_none_match: bool,
-    /// if operator supports read with override cache control.
+    /// Indicates if conditional read operations using If-Modified-Since are supported.
+    pub read_with_if_modified_since: bool,
+    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
+    pub read_with_if_unmodified_since: bool,
+    /// Indicates if Cache-Control header override is supported during read operations.
     pub read_with_override_cache_control: bool,
-    /// if operator supports read with override content disposition.
+    /// Indicates if Content-Disposition header override is supported during read operations.
     pub read_with_override_content_disposition: bool,
-    /// if operator supports read with override content type.
+    /// Indicates if Content-Type header override is supported during read operations.
     pub read_with_override_content_type: bool,
+    /// Indicates if versions read operations are supported.
+    pub read_with_version: bool,
 
-    /// If operator supports write.
+    /// Indicates if the operator supports write operations.
     pub write: bool,
-    /// If operator supports write can be called in multi times.
+    /// Indicates if multiple write operations can be performed on the same object.
     pub write_can_multi: bool,
-    /// If operator supports write with empty content.
+    /// Indicates if writing empty content is supported.
     pub write_can_empty: bool,
-    /// If operator supports write by append.
+    /// Indicates if append operations are supported.
     pub write_can_append: bool,
-    /// If operator supports write with content type.
+    /// Indicates if Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
-    /// If operator supports write with content disposition.
+    /// Indicates if Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
-    /// If operator supports write with cache control.
+    /// Indicates if Content-Encoding can be specified during write operations.
+    pub write_with_content_encoding: bool,
+    /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
-    /// write_multi_max_size is the max size that services support in write_multi.
-    ///
-    /// For example, AWS S3 supports 5GiB as max in write_multi.
+    /// Indicates if conditional write operations using If-Match are supported.
+    pub write_with_if_match: bool,
+    /// Indicates if conditional write operations using If-None-Match are supported.
+    pub write_with_if_none_match: bool,
+    /// Indicates if write operations can be conditional on object non-existence.
+    pub write_with_if_not_exists: bool,
+    /// Indicates if custom user metadata can be attached during write operations.
+    pub write_with_user_metadata: bool,
+    /// Maximum size supported for multipart uploads.
+    /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
-    /// write_multi_min_size is the min size that services support in write_multi.
-    ///
-    /// For example, AWS S3 requires at least 5MiB in write_multi expect the last one.
+    /// Minimum size required for multipart uploads (except for the last part).
+    /// For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: Option<usize>,
-    /// write_total_max_size is the max size that services support in write_total.
-    ///
-    /// For example, Cloudflare D1 supports 1MB as max in write_total.
+    /// Maximum total size supported for write operations.
+    /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
 
     /// If operator supports create dir.
@@ -117,6 +130,9 @@ impl Capability {
             read_with_override_content_disposition: capability
                 .read_with_override_content_disposition,
             read_with_override_content_type: capability.read_with_override_content_type,
+            read_with_if_modified_since: capability.read_with_if_modified_since,
+            read_with_if_unmodified_since: capability.read_with_if_unmodified_since,
+            read_with_version: capability.read_with_version,
             write: capability.write,
             write_can_multi: capability.write_can_multi,
             write_can_empty: capability.write_can_empty,
@@ -127,6 +143,11 @@ impl Capability {
             write_multi_max_size: capability.write_multi_max_size,
             write_multi_min_size: capability.write_multi_min_size,
             write_total_max_size: capability.write_total_max_size,
+            write_with_content_encoding: capability.write_with_content_encoding,
+            write_with_if_match: capability.write_with_if_match,
+            write_with_if_none_match: capability.write_with_if_none_match,
+            write_with_if_not_exists: capability.write_with_if_not_exists,
+            write_with_user_metadata: capability.write_with_user_metadata,
             create_dir: capability.create_dir,
             delete: capability.delete,
             copy: capability.copy,

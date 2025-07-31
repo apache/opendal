@@ -173,8 +173,6 @@ impl Builder for PcloudBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_last_modified: true,
 
                             create_dir: true,
 
@@ -187,8 +185,6 @@ impl Builder for PcloudBuilder {
                             copy: true,
 
                             list: true,
-                            list_has_content_length: true,
-                            list_has_last_modified: true,
 
                             shared: true,
 

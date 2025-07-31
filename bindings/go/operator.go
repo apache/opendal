@@ -59,8 +59,7 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Copy(src, dest string) error {
-	cp := getFFI[operatorCopy](op.ctx, symOperatorCopy)
-	return cp(op.inner, src, dest)
+	return ffiOperatorCopy.symbol(op.ctx)(op.inner, src, dest)
 }
 
 // Rename changes the name or location of a file from the source path to the destination path.
@@ -95,24 +94,19 @@ func (op *Operator) Copy(src, dest string) error {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Rename(src, dest string) error {
-	rename := getFFI[operatorRename](op.ctx, symOperatorRename)
-	return rename(op.inner, src, dest)
+	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
 }
 
-const symOperatorNew = "opendal_operator_new"
-
-type operatorNew func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error)
-
-var withOperatorNew = withFFI(ffiOpts{
-	sym:    symOperatorNew,
+var ffiOperatorNew = newFFI(ffiOpts{
+	sym:    "opendal_operator_new",
 	rType:  &typeResultOperatorNew,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorNew {
+}, func(ctx context.Context, ffiCall ffiCall) func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
 	return func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
 		var byteName *byte
 		byteName, err = BytePtrFromString(scheme.Name())
 		if err != nil {
-			return
+			return nil, err
 		}
 		var result resultOperatorNew
 		ffiCall(
@@ -129,15 +123,11 @@ var withOperatorNew = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorFree = "opendal_operator_free"
-
-type operatorFree func(op *opendalOperator)
-
-var withOperatorFree = withFFI(ffiOpts{
-	sym:    symOperatorFree,
+var ffiOperatorFree = newFFI(ffiOpts{
+	sym:    "opendal_operator_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) operatorFree {
+}, func(_ context.Context, ffiCall ffiCall) func(op *opendalOperator) {
 	return func(op *opendalOperator) {
 		ffiCall(
 			nil,
@@ -148,29 +138,21 @@ var withOperatorFree = withFFI(ffiOpts{
 
 type operatorOptions struct{}
 
-const symOperatorOptionsNew = "opendal_operator_options_new"
-
-type operatorOptionsNew func() (opts *operatorOptions)
-
-var withOperatorOptionsNew = withFFI(ffiOpts{
-	sym:   symOperatorOptionsNew,
+var ffiOperatorOptionsNew = newFFI(ffiOpts{
+	sym:   "opendal_operator_options_new",
 	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) operatorOptionsNew {
+}, func(_ context.Context, ffiCall ffiCall) func() (opts *operatorOptions) {
 	return func() (opts *operatorOptions) {
 		ffiCall(unsafe.Pointer(&opts))
 		return
 	}
 })
 
-const symOperatorOptionSet = "opendal_operator_options_set"
-
-type operatorOptionsSet func(opts *operatorOptions, key, value string) error
-
-var withOperatorOptionsSet = withFFI(ffiOpts{
-	sym:    symOperatorOptionSet,
+var ffiOperatorOptionsSet = newFFI(ffiOpts{
+	sym:    "opendal_operator_options_set",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) operatorOptionsSet {
+}, func(_ context.Context, ffiCall ffiCall) func(opts *operatorOptions, key, value string) (err error) {
 	return func(opts *operatorOptions, key, value string) (err error) {
 		var (
 			byteKey   *byte
@@ -194,15 +176,11 @@ var withOperatorOptionsSet = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorOptionsFree = "opendal_operator_options_free"
-
-type operatorOptionsFree func(opts *operatorOptions)
-
-var withOperatorOptionsFree = withFFI(ffiOpts{
-	sym:    symOperatorOptionsFree,
+var ffiOperatorOptionsFree = newFFI(ffiOpts{
+	sym:    "opendal_operator_options_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) operatorOptionsFree {
+}, func(_ context.Context, ffiCall ffiCall) func(opts *operatorOptions) {
 	return func(opts *operatorOptions) {
 		ffiCall(
 			nil,
@@ -211,15 +189,11 @@ var withOperatorOptionsFree = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorCopy = "opendal_operator_copy"
-
-type operatorCopy func(op *opendalOperator, src, dest string) (err error)
-
-var withOperatorCopy = withFFI(ffiOpts{
-	sym:    symOperatorCopy,
+var ffiOperatorCopy = newFFI(ffiOpts{
+	sym:    "opendal_operator_copy",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorCopy {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
 	return func(op *opendalOperator, src, dest string) (err error) {
 		var (
 			byteSrc  *byte
@@ -244,15 +218,11 @@ var withOperatorCopy = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorRename = "opendal_operator_rename"
-
-type operatorRename func(op *opendalOperator, src, dest string) (err error)
-
-var withOperatorRename = withFFI(ffiOpts{
-	sym:    symOperatorRename,
+var ffiOperatorRename = newFFI(ffiOpts{
+	sym:    "opendal_operator_rename",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorRename {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (err error) {
 	return func(op *opendalOperator, src, dest string) (err error) {
 		var (
 			byteSrc  *byte
@@ -277,15 +247,11 @@ var withOperatorRename = withFFI(ffiOpts{
 	}
 })
 
-const symBytesFree = "opendal_bytes_free"
-
-type bytesFree func(b *opendalBytes)
-
-var withBytesFree = withFFI(ffiOpts{
-	sym:    symBytesFree,
+var ffiBytesFree = newFFI(ffiOpts{
+	sym:    "opendal_bytes_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) bytesFree {
+}, func(ctx context.Context, ffiCall ffiCall) func(b *opendalBytes) {
 	return func(b *opendalBytes) {
 		ffiCall(
 			nil,

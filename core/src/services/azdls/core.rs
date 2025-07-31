@@ -39,6 +39,7 @@ use crate::*;
 
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
+pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
@@ -272,7 +273,13 @@ impl AzdlsCore {
             return Err(parse_error(resp));
         }
 
-        let meta = parse_into_metadata(path, resp.headers())?;
+        let headers = resp.headers();
+        let mut meta = parse_into_metadata(path, headers)?;
+
+        if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
+            meta.set_version(version_id);
+        }
+
         let resource = resp
             .headers()
             .get("x-ms-resource-type")

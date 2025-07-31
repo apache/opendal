@@ -140,23 +140,17 @@ impl Builder for GdriveBuilder {
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Gdrive)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
                 list: true,
-                list_has_content_type: true,
-                list_has_content_length: true,
-                list_has_etag: true,
 
                 write: true,
 

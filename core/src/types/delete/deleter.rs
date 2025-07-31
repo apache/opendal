@@ -162,7 +162,7 @@ impl Deleter {
     /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
     /// - [`Deleter::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Deleter::delete_try_stream`]: delete a fallible stream of paths.
-    pub async fn delete_stream<S, D>(&mut self, mut stream: S) -> Result<()>
+    pub async fn delete_stream<S, D>(&mut self, stream: S) -> Result<()>
     where
         S: Stream<Item = D>,
         D: IntoDeleteInput,
@@ -182,7 +182,7 @@ impl Deleter {
     /// - [`Deleter::delete_iter`]: delete an infallible iterator of paths.
     /// - [`Deleter::delete_try_iter`]: delete a fallible iterator of paths.
     /// - [`Deleter::delete_stream`]: delete an infallible stream of paths.
-    pub async fn delete_try_stream<S, D>(&mut self, mut try_stream: S) -> Result<()>
+    pub async fn delete_try_stream<S, D>(&mut self, try_stream: S) -> Result<()>
     where
         S: Stream<Item = Result<D>>,
         D: IntoDeleteInput,

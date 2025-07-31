@@ -127,7 +127,7 @@ mod tests {
                 future::ready(entry.ok())
             })
             .for_each(|entry| {
-                println!("{:?}", entry);
+                println!("{entry:?}");
                 future::ready(())
             })
             .await;

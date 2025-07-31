@@ -18,45 +18,76 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use bytes::Buf;
 use tokio::io::AsyncWriteExt;
 
 use crate::raw::*;
+use crate::services::fs::core::FsCore;
 use crate::*;
 
-pub type FsWriters =
-    TwoWays<FsWriter<tokio::fs::File>, oio::PositionWriter<FsWriter<tokio::fs::File>>>;
+pub type FsWriters = TwoWays<FsWriter, oio::PositionWriter<FsWriter>>;
 
-pub struct FsWriter<F> {
+pub struct FsWriter {
     target_path: PathBuf,
-    tmp_path: Option<PathBuf>,
-
-    f: Option<F>,
+    /// The temp_path is used to specify whether we should move to target_path after the file has been closed.
+    temp_path: Option<PathBuf>,
+    f: tokio::fs::File,
 }
 
-impl<F> FsWriter<F> {
-    pub fn new(target_path: PathBuf, tmp_path: Option<PathBuf>, f: F) -> Self {
-        Self {
-            target_path,
-            tmp_path,
+impl FsWriter {
+    pub async fn create(core: Arc<FsCore>, path: &str, op: OpWrite) -> Result<Self> {
+        let target_path = core.ensure_write_abs_path(&core.root, path).await?;
 
-            f: Some(f),
+        // Quick path while atomic_write_dir is not set.
+        if core.atomic_write_dir.is_none() {
+            let target_file = core.fs_write(&target_path, &op).await?;
+
+            return Ok(Self {
+                target_path,
+                temp_path: None,
+                f: target_file,
+            });
         }
+
+        let is_append = op.append();
+        let is_exist = tokio::fs::try_exists(&target_path)
+            .await
+            .map_err(new_std_io_error)?;
+        if op.if_not_exists() && is_exist {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "file already exists, doesn't match the condition if_not_exists",
+            ));
+        }
+
+        // The only case we allow write in place is the file
+        // exists and users request for append writing.
+        let (f, temp_path) = if !(is_append && is_exist) {
+            core.fs_tempfile_write(path).await?
+        } else {
+            let f = core.fs_write(&target_path, &op).await?;
+            (f, None)
+        };
+
+        Ok(Self {
+            target_path,
+            temp_path,
+            f,
+        })
     }
 }
 
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for FsWriter.
-unsafe impl<F> Sync for FsWriter<F> {}
+unsafe impl Sync for FsWriter {}
 
-impl oio::Write for FsWriter<tokio::fs::File> {
+impl oio::Write for FsWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        let f = self.f.as_mut().expect("FsWriter must be initialized");
-
         while bs.has_remaining() {
-            let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
+            let n = self.f.write(bs.chunk()).await.map_err(new_std_io_error)?;
             bs.advance(n);
         }
 
@@ -64,33 +95,25 @@ impl oio::Write for FsWriter<tokio::fs::File> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let f = self.f.as_mut().expect("FsWriter must be initialized");
-        f.flush().await.map_err(new_std_io_error)?;
-        f.sync_all().await.map_err(new_std_io_error)?;
+        self.f.flush().await.map_err(new_std_io_error)?;
+        self.f.sync_all().await.map_err(new_std_io_error)?;
 
-        if let Some(tmp_path) = &self.tmp_path {
-            tokio::fs::rename(tmp_path, &self.target_path)
+        if let Some(temp_path) = &self.temp_path {
+            tokio::fs::rename(temp_path, &self.target_path)
                 .await
                 .map_err(new_std_io_error)?;
         }
 
-        let file_meta = f.metadata().await.map_err(new_std_io_error)?;
-        let mode = if file_meta.is_file() {
-            EntryMode::FILE
-        } else if file_meta.is_dir() {
-            EntryMode::DIR
-        } else {
-            EntryMode::Unknown
-        };
-        let meta = Metadata::new(mode)
+        let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
+        let meta = Metadata::new(EntryMode::FILE)
             .with_content_length(file_meta.len())
             .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
         Ok(meta)
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let Some(tmp_path) = &self.tmp_path {
-            tokio::fs::remove_file(tmp_path)
+        if let Some(temp_path) = &self.temp_path {
+            tokio::fs::remove_file(temp_path)
                 .await
                 .map_err(new_std_io_error)
         } else {
@@ -102,11 +125,10 @@ impl oio::Write for FsWriter<tokio::fs::File> {
     }
 }
 
-impl oio::PositionWrite for FsWriter<tokio::fs::File> {
+impl oio::PositionWrite for FsWriter {
     async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
-        let f = self.f.as_ref().expect("FsWriter must be initialized");
-
-        let f = f
+        let f = self
+            .f
             .try_clone()
             .await
             .map_err(new_std_io_error)?
@@ -132,9 +154,8 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
     }
 
     async fn close(&self) -> Result<Metadata> {
-        let f = self.f.as_ref().expect("FsWriter must be initialized");
-
-        let mut f = f
+        let mut f = self
+            .f
             .try_clone()
             .await
             .map_err(new_std_io_error)?
@@ -144,8 +165,8 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
         f.flush().map_err(new_std_io_error)?;
         f.sync_all().map_err(new_std_io_error)?;
 
-        if let Some(tmp_path) = &self.tmp_path {
-            tokio::fs::rename(tmp_path, &self.target_path)
+        if let Some(temp_path) = &self.temp_path {
+            tokio::fs::rename(temp_path, &self.target_path)
                 .await
                 .map_err(new_std_io_error)?;
         }
@@ -165,8 +186,8 @@ impl oio::PositionWrite for FsWriter<tokio::fs::File> {
     }
 
     async fn abort(&self) -> Result<()> {
-        if let Some(tmp_path) = &self.tmp_path {
-            tokio::fs::remove_file(tmp_path)
+        if let Some(temp_path) = &self.temp_path {
+            tokio::fs::remove_file(temp_path)
                 .await
                 .map_err(new_std_io_error)
         } else {

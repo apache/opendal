@@ -53,3 +53,7 @@ export function loadConfigFromEnv(scheme) {
       .map(([key, value]) => [key.replace(prefix, ''), value]),
   )
 }
+
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}

@@ -34,8 +34,8 @@ auto rust_string(T &&s) -> decltype(s.data(), s.size(), rust::String()) {
 }
 
 template <typename T, typename Container>
-auto rust_slice(Container &&s)
-    -> decltype(s.data(), s.size(), rust::Slice<T>()) {
+auto rust_slice(Container &&s) -> decltype(s.data(), s.size(),
+                                           rust::Slice<T>()) {
   using Elem = std::remove_pointer_t<decltype(s.data())>;
   static_assert(std::is_convertible_v<Elem, T>,
                 "Container element type must be convertible to T");

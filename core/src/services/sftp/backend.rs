@@ -172,7 +172,7 @@ impl Builder for SftpBuilder {
                 } else {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
-                        format!("unknown known_hosts strategy: {}", v).as_str(),
+                        format!("unknown known_hosts strategy: {v}").as_str(),
                     ));
                 }
             }
@@ -184,8 +184,6 @@ impl Builder for SftpBuilder {
             .set_scheme(Scheme::Sftp)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -197,8 +195,6 @@ impl Builder for SftpBuilder {
 
                 list: true,
                 list_with_limit: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 copy: self.config.enable_copy,
                 rename: true,
@@ -343,7 +339,7 @@ impl Access for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let file_path = format!("./{}", path);
+        let file_path = format!("./{path}");
 
         let dir = match fs.open_dir(&file_path).await {
             Ok(dir) => dir,

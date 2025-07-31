@@ -127,7 +127,7 @@ impl Connection {
             .await
             .map_err(new_std_io_error)?;
         writer
-            .write_all(format!("\x00{}\x00{}", username, password).as_bytes())
+            .write_all(format!("\x00{username}\x00{password}").as_bytes())
             .await
             .map_err(new_std_io_error)?;
         writer.flush().await.map_err(new_std_io_error)?;

@@ -61,8 +61,7 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Stat(path string) (*Metadata, error) {
-	stat := getFFI[operatorStat](op.ctx, symOperatorStat)
-	meta, err := stat(op.inner, path)
+	meta, err := ffiOperatorStat.symbol(op.ctx)(op.inner, path)
 	if err != nil {
 		return nil, err
 	}
@@ -96,19 +95,14 @@ func (op *Operator) Stat(path string) (*Metadata, error) {
 //		fmt.Println("The file does not exist")
 //	}
 func (op *Operator) IsExist(path string) (bool, error) {
-	isExist := getFFI[operatorIsExist](op.ctx, symOperatorIsExist)
-	return isExist(op.inner, path)
+	return ffiOperatorIsExist.symbol(op.ctx)(op.inner, path)
 }
 
-const symOperatorStat = "opendal_operator_stat"
-
-type operatorStat func(op *opendalOperator, path string) (*opendalMetadata, error)
-
-var withOperatorStat = withFFI(ffiOpts{
-	sym:    symOperatorStat,
+var ffiOperatorStat = newFFI(ffiOpts{
+	sym:    "opendal_operator_stat",
 	rType:  &typeResultStat,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorStat {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalMetadata, error) {
 	return func(op *opendalOperator, path string) (*opendalMetadata, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -127,15 +121,11 @@ var withOperatorStat = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorIsExist = "opendal_operator_is_exist"
-
-type operatorIsExist func(op *opendalOperator, path string) (bool, error)
-
-var withOperatorIsExists = withFFI(ffiOpts{
-	sym:    symOperatorIsExist,
+var ffiOperatorIsExist = newFFI(ffiOpts{
+	sym:    "opendal_operator_is_exist",
 	rType:  &typeResultIsExist,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorIsExist {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (bool, error) {
 	return func(op *opendalOperator, path string) (bool, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {

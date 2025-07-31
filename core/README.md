@@ -31,8 +31,8 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                                        |
-| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
-| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
+| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
+| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
 | Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
 | Git Based Storage Services     | [huggingface]                                                                                                                            |
@@ -66,7 +66,6 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 [gdrive]: https://www.google.com/drive/
 [onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
 [dropbox]: https://www.dropbox.com/
-[icloud]: https://www.icloud.com/iclouddrive
 [koofr]: https://koofr.eu/
 [pcloud]: https://www.pcloud.com/
 [seafile]: https://www.seafile.com/
@@ -83,7 +82,6 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 [sled]: https://crates.io/crates/sled
 [redb]: https://crates.io/crates/redb
 [tikv]: https://tikv.org/
-[atomicserver]: https://github.com/atomicdata-dev/atomic-server
 
 [d1]: https://developers.cloudflare.com/d1/
 [mongodb]: https://www.mongodb.com/

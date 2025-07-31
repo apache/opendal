@@ -40,19 +40,14 @@ import (
 //
 // Use with caution as this operation is irreversible.
 func (op *Operator) Delete(path string) error {
-	delete := getFFI[operatorDelete](op.ctx, symOperatorDelete)
-	return delete(op.inner, path)
+	return ffiOperatorDelete.symbol(op.ctx)(op.inner, path)
 }
 
-type operatorDelete func(op *opendalOperator, path string) error
-
-const symOperatorDelete = "opendal_operator_delete"
-
-var withOperatorDelete = withFFI(ffiOpts{
-	sym:    symOperatorDelete,
+var ffiOperatorDelete = newFFI(ffiOpts{
+	sym:    "opendal_operator_delete",
 	rType:  &ffi.TypePointer,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorDelete {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) error {
 	return func(op *opendalOperator, path string) error {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {

@@ -263,16 +263,9 @@ impl Buffer {
 
         assert!(
             begin <= end,
-            "range start must not be greater than end: {:?} <= {:?}",
-            begin,
-            end,
+            "range start must not be greater than end: {begin:?} <= {end:?}",
         );
-        assert!(
-            end <= len,
-            "range end out of bounds: {:?} <= {:?}",
-            end,
-            len,
-        );
+        assert!(end <= len, "range end out of bounds: {end:?} <= {len:?}",);
 
         if end == begin {
             return Buffer::new();

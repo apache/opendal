@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.8'
-
 services:
   memcached:
     image: bitnami/memcached
@@ -29,4 +27,4 @@ services:
       MEMCACHED_USERNAME: "test"
       MEMCACHED_PASSWORD: "test"
     ports:
-      - '11211:11211'
+      - "11211:11211"

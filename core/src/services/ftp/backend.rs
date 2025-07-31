@@ -29,7 +29,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
-use uuid::Uuid;
 
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
@@ -167,8 +166,6 @@ impl Builder for FtpBuilder {
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -180,8 +177,6 @@ impl Builder for FtpBuilder {
                 create_dir: true,
 
                 list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 shared: true,
 
@@ -304,13 +299,7 @@ impl Access for FtpBackend {
             }
         }
 
-        let tmp_path = if op.append() {
-            None
-        } else {
-            let uuid = Uuid::new_v4().to_string();
-            Some(format!("{}.{}", path, uuid))
-        };
-
+        let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
         let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))

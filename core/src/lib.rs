@@ -153,7 +153,7 @@
 //! - [Performance Guide][crate::docs::performance]
 
 // Make sure all our public APIs have docs.
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod types;

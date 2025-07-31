@@ -171,16 +171,22 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 		return
 	}
 
-	ctx, cancel, err := contextWithFFIs(scheme.Path())
+	ctx, cancel, err := newContext(scheme.Path())
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			// cancel must be called after all ffi calls
+			// to prevent `use after free` panics.
+			cancel()
+		}
+	}()
 
-	options := getFFI[operatorOptionsNew](ctx, symOperatorOptionsNew)()
-	setOptions := getFFI[operatorOptionsSet](ctx, symOperatorOptionSet)
-	optionsFree := getFFI[operatorOptionsFree](ctx, symOperatorOptionsFree)
+	options := ffiOperatorOptionsNew.symbol(ctx)()
+	setOptions := ffiOperatorOptionsSet.symbol(ctx)
 
-	defer optionsFree(options)
+	defer ffiOperatorOptionsFree.symbol(ctx)(options)
 
 	for key, value := range opts {
 		err = setOptions(options, key, value)
@@ -189,9 +195,8 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 		}
 	}
 
-	inner, err := getFFI[operatorNew](ctx, symOperatorNew)(scheme, options)
+	inner, err := ffiOperatorNew.symbol(ctx)(scheme, options)
 	if err != nil {
-		cancel()
 		return
 	}
 
@@ -211,7 +216,6 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 //
 // Note: It's recommended to use defer op.Close() immediately after creating an Operator.
 func (op *Operator) Close() {
-	free := getFFI[operatorFree]
-	free(op.ctx, symOperatorFree)(op.inner)
+	ffiOperatorFree.symbol(op.ctx)(op.inner)
 	op.cancel()
 }

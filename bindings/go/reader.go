@@ -58,16 +58,14 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Read(path string) ([]byte, error) {
-	read := getFFI[operatorRead](op.ctx, symOperatorRead)
-	bytes, err := read(op.inner, path)
+	bytes, err := ffiOperatorRead.symbol(op.ctx)(op.inner, path)
 	if err != nil {
 		return nil, err
 	}
 
 	data := parseBytes(bytes)
 	if len(data) > 0 {
-		free := getFFI[bytesFree](op.ctx, symBytesFree)
-		free(&bytes)
+		ffiBytesFree.symbol(op.ctx)(&bytes)
 	}
 	return data, nil
 }
@@ -113,8 +111,7 @@ func (op *Operator) Read(path string) ([]byte, error) {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Reader(path string) (*Reader, error) {
-	getReader := getFFI[operatorReader](op.ctx, symOperatorReader)
-	inner, err := getReader(op.inner, path)
+	inner, err := ffiOperatorReader.symbol(op.ctx)(op.inner, path)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +174,7 @@ func (r *Reader) Read(buf []byte) (int, error) {
 	if length == 0 {
 		return 0, nil
 	}
-	read := getFFI[readerRead](r.ctx, symReaderRead)
+	read := ffiReaderRead.symbol(r.ctx)
 	var (
 		totalSize uint
 		size      uint
@@ -238,26 +235,20 @@ func (r *Reader) Read(buf []byte) (int, error) {
 // Note: The actual new position may differ from the requested position
 // if the underlying storage system has restrictions on seeking.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
-	seek := getFFI[readerSeek](r.ctx, symReaderSeek)
-	return seek(r.inner, offset, whence)
+	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
 }
 
 // Close releases resources associated with the OperatorReader.
 func (r *Reader) Close() error {
-	free := getFFI[readerFree](r.ctx, symReaderFree)
-	free(r.inner)
+	ffiReaderFree.symbol(r.ctx)(r.inner)
 	return nil
 }
 
-const symOperatorRead = "opendal_operator_read"
-
-type operatorRead func(op *opendalOperator, path string) (opendalBytes, error)
-
-var withOperatorRead = withFFI(ffiOpts{
-	sym:    symOperatorRead,
+var ffiOperatorRead = newFFI(ffiOpts{
+	sym:    "opendal_operator_read",
 	rType:  &typeResultRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorRead {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (opendalBytes, error) {
 	return func(op *opendalOperator, path string) (opendalBytes, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -273,15 +264,11 @@ var withOperatorRead = withFFI(ffiOpts{
 	}
 })
 
-const symOperatorReader = "opendal_operator_reader"
-
-type operatorReader func(op *opendalOperator, path string) (*opendalReader, error)
-
-var withOperatorReader = withFFI(ffiOpts{
-	sym:    symOperatorReader,
+var ffiOperatorReader = newFFI(ffiOpts{
+	sym:    "opendal_operator_reader",
 	rType:  &typeResultOperatorReader,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) operatorReader {
+}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalReader, error) {
 	return func(op *opendalOperator, path string) (*opendalReader, error) {
 		bytePath, err := BytePtrFromString(path)
 		if err != nil {
@@ -300,15 +287,11 @@ var withOperatorReader = withFFI(ffiOpts{
 	}
 })
 
-const symReaderFree = "opendal_reader_free"
-
-type readerFree func(r *opendalReader)
-
-var withReaderFree = withFFI(ffiOpts{
-	sym:    symReaderFree,
+var ffiReaderFree = newFFI(ffiOpts{
+	sym:    "opendal_reader_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) readerFree {
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader) {
 	return func(r *opendalReader) {
 		ffiCall(
 			nil,
@@ -317,15 +300,11 @@ var withReaderFree = withFFI(ffiOpts{
 	}
 })
 
-const symReaderRead = "opendal_reader_read"
-
-type readerRead func(r *opendalReader, buf []byte) (size uint, err error)
-
-var withReaderRead = withFFI(ffiOpts{
-	sym:    symReaderRead,
+var ffiReaderRead = newFFI(ffiOpts{
+	sym:    "opendal_reader_read",
 	rType:  &typeResultReaderRead,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) readerRead {
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, buf []byte) (size uint, err error) {
 	return func(r *opendalReader, buf []byte) (size uint, err error) {
 		var length = len(buf)
 		if length == 0 {
@@ -346,15 +325,11 @@ var withReaderRead = withFFI(ffiOpts{
 	}
 })
 
-const symReaderSeek = "opendal_reader_seek"
-
-type readerSeek func(r *opendalReader, offset int64, whence int) (int64, error)
-
-var withReaderSeek = withFFI(ffiOpts{
-	sym:    symReaderSeek,
+var ffiReaderSeek = newFFI(ffiOpts{
+	sym:    "opendal_reader_seek",
 	rType:  &typeResultReaderSeek,
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) readerSeek {
+}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, offset int64, whence int) (int64, error) {
 	return func(r *opendalReader, offset int64, whence int) (int64, error) {
 		var result resultReaderSeek
 		ffiCall(

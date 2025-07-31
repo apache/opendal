@@ -39,24 +39,19 @@ type Metadata struct {
 }
 
 func newMetadata(ctx context.Context, inner *opendalMetadata) *Metadata {
-	getLength := getFFI[metaContentLength](ctx, symMetadataContentLength)
-	isFile := getFFI[metaIsFile](ctx, symMetadataIsFile)
-	isDir := getFFI[metaIsDir](ctx, symMetadataIsDir)
-	getLastModified := getFFI[metaLastModified](ctx, symMetadataLastModified)
 
 	var lastModified time.Time
-	ms := getLastModified(inner)
+	ms := ffiMetaLastModified.symbol(ctx)(inner)
 	if ms != -1 {
 		lastModified = time.UnixMilli(ms)
 	}
 
-	free := getFFI[metaFree](ctx, symMetadataFree)
-	defer free(inner)
+	defer ffiMetadataFree.symbol(ctx)(inner)
 
 	return &Metadata{
-		contentLength: getLength(inner),
-		isFile:        isFile(inner),
-		isDir:         isDir(inner),
+		contentLength: ffiMetaContentLength.symbol(ctx)(inner),
+		isFile:        ffiMetaIsFile.symbol(ctx)(inner),
+		isDir:         ffiMetaIsDir.symbol(ctx)(inner),
 		lastModified:  lastModified,
 	}
 }
@@ -85,15 +80,11 @@ func (m *Metadata) LastModified() time.Time {
 	return m.lastModified
 }
 
-type metaContentLength func(m *opendalMetadata) uint64
-
-const symMetadataContentLength = "opendal_metadata_content_length"
-
-var withMetaContentLength = withFFI(ffiOpts{
-	sym:    symMetadataContentLength,
+var ffiMetaContentLength = newFFI(ffiOpts{
+	sym:    "opendal_metadata_content_length",
 	rType:  &ffi.TypeUint64,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) metaContentLength {
+}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) uint64 {
 	return func(m *opendalMetadata) uint64 {
 		var length uint64
 		ffiCall(
@@ -104,15 +95,11 @@ var withMetaContentLength = withFFI(ffiOpts{
 	}
 })
 
-type metaIsFile func(m *opendalMetadata) bool
-
-const symMetadataIsFile = "opendal_metadata_is_file"
-
-var withMetaIsFile = withFFI(ffiOpts{
-	sym:    symMetadataIsFile,
+var ffiMetaIsFile = newFFI(ffiOpts{
+	sym:    "opendal_metadata_is_file",
 	rType:  &ffi.TypeUint8,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) metaIsFile {
+}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
 		var result uint8
 		ffiCall(
@@ -123,15 +110,11 @@ var withMetaIsFile = withFFI(ffiOpts{
 	}
 })
 
-type metaIsDir func(m *opendalMetadata) bool
-
-const symMetadataIsDir = "opendal_metadata_is_dir"
-
-var withMetaIsDir = withFFI(ffiOpts{
-	sym:    symMetadataIsDir,
+var ffiMetaIsDir = newFFI(ffiOpts{
+	sym:    "opendal_metadata_is_dir",
 	rType:  &ffi.TypeUint8,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) metaIsDir {
+}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
 	return func(m *opendalMetadata) bool {
 		var result uint8
 		ffiCall(
@@ -142,15 +125,11 @@ var withMetaIsDir = withFFI(ffiOpts{
 	}
 })
 
-type metaLastModified func(m *opendalMetadata) int64
-
-const symMetadataLastModified = "opendal_metadata_last_modified_ms"
-
-var withMetaLastModified = withFFI(ffiOpts{
-	sym:    symMetadataLastModified,
+var ffiMetaLastModified = newFFI(ffiOpts{
+	sym:    "opendal_metadata_last_modified_ms",
 	rType:  &ffi.TypeSint64,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) metaLastModified {
+}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) int64 {
 	return func(m *opendalMetadata) int64 {
 		var result int64
 		ffiCall(
@@ -161,15 +140,11 @@ var withMetaLastModified = withFFI(ffiOpts{
 	}
 })
 
-type metaFree func(m *opendalMetadata)
-
-const symMetadataFree = "opendal_metadata_free"
-
-var withMetaFree = withFFI(ffiOpts{
-	sym:    symMetadataFree,
+var ffiMetadataFree = newFFI(ffiOpts{
+	sym:    "opendal_metadata_free",
 	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) metaFree {
+}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) {
 	return func(m *opendalMetadata) {
 		ffiCall(
 			nil,

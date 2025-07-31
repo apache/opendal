@@ -55,7 +55,7 @@ impl oio::PageList for OneDriveLister {
                 GENERAL_SELECT_PARAM
             );
             if let Some(limit) = self.op.limit() {
-                base + &format!("&$top={}", limit)
+                base + &format!("&$top={limit}")
             } else {
                 base
             }
@@ -111,7 +111,7 @@ impl oio::PageList for OneDriveLister {
                 .strip_prefix(Self::DRIVE_ROOT_PREFIX)
                 .unwrap_or("");
 
-            let path = format!("{}/{}", parent_path, name);
+            let path = format!("{parent_path}/{name}");
             let mut normalized_path = build_rel_path(self.core.root.as_str(), path.as_str());
             let entry_mode = match drive_item.item_type {
                 ItemType::Folder { .. } => EntryMode::DIR,

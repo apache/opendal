@@ -37,19 +37,6 @@ def test_sync_write(service_name, operator, async_operator):
     assert metadata.mode.is_file()
     assert metadata.content_length == size
 
-    last_modified = (
-        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
-        if metadata.last_modified
-        else None
-    )
-    assert repr(metadata) == (
-        "Metadata(mode=file, "
-        f"content_length={metadata.content_length}, "
-        f"content_type={metadata.content_type}, "
-        f"last_modified={last_modified}, "
-        f"etag={metadata.etag})"
-    )
-
     operator.delete(filename)
 
 
@@ -64,19 +51,6 @@ def test_sync_write_path(service_name, operator, async_operator):
     assert metadata is not None
     assert metadata.mode.is_file()
     assert metadata.content_length == size
-
-    last_modified = (
-        metadata.last_modified.strftime("%Y-%m-%dT%H:%M:%S")
-        if metadata.last_modified
-        else None
-    )
-    assert repr(metadata) == (
-        "Metadata(mode=file, "
-        f"content_length={metadata.content_length}, "
-        f"content_type={metadata.content_type}, "
-        f"last_modified={last_modified}, "
-        f"etag={metadata.etag})"
-    )
 
     operator.delete(filename)
 
@@ -176,6 +150,23 @@ async def test_async_writer(service_name, operator, async_operator):
         await async_operator.stat(filename)
 
 
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+async def test_async_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = await async_operator.open(filename, "wb")
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    with pytest.raises(Exception) as excinfo:
+        async with await async_operator.open(filename, "wb", if_not_exists=True) as w:
+            w.write(content)
+        assert "ConditionNotMatch" in str(excinfo.value)
+
+
 @pytest.mark.need_capability("write", "delete")
 def test_sync_writer(service_name, operator, async_operator):
     size = randint(1, 1024)
@@ -188,3 +179,19 @@ def test_sync_writer(service_name, operator, async_operator):
     operator.delete(filename)
     with pytest.raises(NotFound):
         operator.stat(filename)
+
+
+@pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
+def test_sync_writer_options(service_name, operator, async_operator):
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+    f = operator.open(filename, "wb")
+    written_bytes = f.write(content)
+    assert written_bytes == size
+    f.close()
+
+    with pytest.raises(Exception) as excinfo:
+        with operator.open(filename, "wb", if_not_exists=True) as w:
+            w.write(content)
+        assert "ConditionNotMatch" in str(excinfo.value)

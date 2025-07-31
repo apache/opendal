@@ -34,7 +34,6 @@ _int: TypeAlias = str
 # for more details
 _duration: TypeAlias = str
 
-
 # A "," separated string, for example `"127.0.0.1:1,127.0.0.1:2"`
 _strings: TypeAlias = str
 
@@ -44,12 +43,12 @@ class _Base:
     The services list here is support by opendal pypi wheel.
     """
 
-
     @overload
     def __init__(
         self,
         scheme: Literal["aliyun_drive"],
-        /,*,
+        /,
+        *,
         drive_type: str,
         root: str = ...,
         access_token: str = ...,
@@ -57,33 +56,33 @@ class _Base:
         client_secret: str = ...,
         refresh_token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["alluxio"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["atomicserver"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
         private_key: str = ...,
         public_key: str = ...,
         parent_resource_id: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["azblob"],
-        /,*,
+        /,
+        *,
         container: str,
         root: str = ...,
         endpoint: str = ...,
@@ -95,24 +94,24 @@ class _Base:
         sas_token: str = ...,
         batch_max_operations: _int = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["azdls"],
-        /,*,
+        /,
+        *,
         filesystem: str,
         root: str = ...,
         endpoint: str = ...,
         account_name: str = ...,
         account_key: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["azfile"],
-        /,*,
+        /,
+        *,
         share_name: str,
         root: str = ...,
         endpoint: str = ...,
@@ -120,51 +119,51 @@ class _Base:
         account_key: str = ...,
         sas_token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["b2"],
-        /,*,
+        /,
+        *,
         bucket: str,
         bucket_id: str,
         root: str = ...,
         application_key_id: str = ...,
         application_key: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["cacache"],
-        /,*,
+        /,
+        *,
         datadir: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["cloudflare_kv"],
-        /,*,
+        /,
+        *,
         token: str = ...,
         account_id: str = ...,
         namespace_id: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["compfs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["cos"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
         secret_id: str = ...,
@@ -173,12 +172,12 @@ class _Base:
         enable_versioning: _bool = ...,
         disable_config_load: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["d1"],
-        /,*,
+        /,
+        *,
         token: str = ...,
         account_id: str = ...,
         database_id: str = ...,
@@ -187,51 +186,51 @@ class _Base:
         key_field: str = ...,
         value_field: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["dashmap"],
-        /,*,
+        /,
+        *,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["dbfs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["dropbox"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         access_token: str = ...,
         refresh_token: str = ...,
         client_id: str = ...,
         client_secret: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["fs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         atomic_write_dir: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["gcs"],
-        /,*,
+        /,
+        *,
         bucket: str,
         root: str = ...,
         endpoint: str = ...,
@@ -246,92 +245,92 @@ class _Base:
         disable_config_load: _bool = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["gdrive"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         access_token: str = ...,
         refresh_token: str = ...,
         client_id: str = ...,
         client_secret: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["ghac"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         version: str = ...,
         endpoint: str = ...,
         runtime_token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["github"],
-        /,*,
+        /,
+        *,
         owner: str,
         repo: str,
         root: str = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["gridfs"],
-        /,*,
+        /,
+        *,
         connection_string: str = ...,
         database: str = ...,
         bucket: str = ...,
         chunk_size: _int = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["hdfs_native"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         name_node: str = ...,
         enable_append: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["http"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         username: str = ...,
         password: str = ...,
         token: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["huggingface"],
-        /,*,
+        /,
+        *,
         repo_type: str = ...,
         repo_id: str = ...,
         revision: str = ...,
         root: str = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["icloud"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         apple_id: str = ...,
         password: str = ...,
@@ -339,41 +338,41 @@ class _Base:
         ds_web_auth_token: str = ...,
         is_china_mainland: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["ipfs"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["ipmfs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["koofr"],
-        /,*,
+        /,
+        *,
         endpoint: str,
         email: str,
         root: str = ...,
         password: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["lakefs"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         username: str = ...,
         password: str = ...,
@@ -381,43 +380,43 @@ class _Base:
         repository: str = ...,
         branch: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["memcached"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         root: str = ...,
         username: str = ...,
         password: str = ...,
         default_ttl: _duration = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["memory"],
-        /,*,
+        /,
+        *,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["mini_moka"],
-        /,*,
+        /,
+        *,
         max_capacity: _int = ...,
         time_to_live: _duration = ...,
         time_to_idle: _duration = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["moka"],
-        /,*,
+        /,
+        *,
         name: str = ...,
         max_capacity: _int = ...,
         time_to_live: _duration = ...,
@@ -425,12 +424,12 @@ class _Base:
         num_segments: _int = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["mongodb"],
-        /,*,
+        /,
+        *,
         connection_string: str = ...,
         database: str = ...,
         collection: str = ...,
@@ -438,32 +437,32 @@ class _Base:
         key_field: str = ...,
         value_field: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["monoiofs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["mysql"],
-        /,*,
+        /,
+        *,
         connection_string: str = ...,
         table: str = ...,
         key_field: str = ...,
         value_field: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["nebula_graph"],
-        /,*,
+        /,
+        *,
         host: str = ...,
         port: _int = ...,
         username: str = ...,
@@ -474,12 +473,12 @@ class _Base:
         value_field: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["obs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
         access_key_id: str = ...,
@@ -487,12 +486,12 @@ class _Base:
         bucket: str = ...,
         enable_versioning: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["onedrive"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         access_token: str = ...,
         refresh_token: str = ...,
@@ -500,19 +499,18 @@ class _Base:
         client_secret: str = ...,
         enable_versioning: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["opfs"],
         /,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["oss"],
-        /,*,
+        /,
+        *,
         bucket: str,
         root: str = ...,
         endpoint: str = ...,
@@ -532,55 +530,55 @@ class _Base:
         oidc_token_file: str = ...,
         sts_endpoint: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["pcloud"],
-        /,*,
+        /,
+        *,
         endpoint: str,
         root: str = ...,
         username: str = ...,
         password: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["persy"],
-        /,*,
+        /,
+        *,
         datafile: str = ...,
         segment: str = ...,
         index: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["postgresql"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         connection_string: str = ...,
         table: str = ...,
         key_field: str = ...,
         value_field: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["redb"],
-        /,*,
+        /,
+        *,
         datadir: str = ...,
         root: str = ...,
         table: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["redis"],
-        /,*,
+        /,
+        *,
         db: _int,
         endpoint: str = ...,
         cluster_endpoints: str = ...,
@@ -589,12 +587,12 @@ class _Base:
         root: str = ...,
         default_ttl: _duration = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["s3"],
-        /,*,
+        /,
+        *,
         bucket: str,
         root: str = ...,
         enable_versioning: _bool = ...,
@@ -625,24 +623,24 @@ class _Base:
         enable_write_with_append: _bool = ...,
         disable_list_objects_v2: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["seafile"],
-        /,*,
+        /,
+        *,
         repo_name: str,
         root: str = ...,
         endpoint: str = ...,
         username: str = ...,
         password: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["sftp"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         root: str = ...,
         user: str = ...,
@@ -650,34 +648,34 @@ class _Base:
         known_hosts_strategy: str = ...,
         enable_copy: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["sled"],
-        /,*,
+        /,
+        *,
         datadir: str = ...,
         root: str = ...,
         tree: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["sqlite"],
-        /,*,
+        /,
+        *,
         connection_string: str = ...,
         table: str = ...,
         key_field: str = ...,
         value_field: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["surrealdb"],
-        /,*,
+        /,
+        *,
         connection_string: str = ...,
         username: str = ...,
         password: str = ...,
@@ -688,51 +686,51 @@ class _Base:
         value_field: str = ...,
         root: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["swift"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         container: str = ...,
         root: str = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["upyun"],
-        /,*,
+        /,
+        *,
         bucket: str,
         root: str = ...,
         operator: str = ...,
         password: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["vercel_artifacts"],
-        /,*,
+        /,
+        *,
         access_token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["vercel_blob"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         token: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["webdav"],
-        /,*,
+        /,
+        *,
         endpoint: str = ...,
         username: str = ...,
         password: str = ...,
@@ -740,12 +738,12 @@ class _Base:
         root: str = ...,
         disable_copy: _bool = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["webhdfs"],
-        /,*,
+        /,
+        *,
         root: str = ...,
         endpoint: str = ...,
         user_name: str = ...,
@@ -753,16 +751,14 @@ class _Base:
         disable_list_batch: _bool = ...,
         atomic_write_dir: str = ...,
     ) -> None: ...
-
     @overload
     def __init__(
         self,
         scheme: Literal["yandex_disk"],
-        /,*,
+        /,
+        *,
         access_token: str,
         root: str = ...,
     ) -> None: ...
-
-
     @overload
     def __init__(self, scheme: str, /, **kwargs: str) -> None: ...

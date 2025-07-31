@@ -66,6 +66,7 @@ icu_provider@2.0.0											X
 idna@1.0.3		X								X			
 idna_adapter@1.2.1		X								X			
 indexmap@2.9.0		X								X			
+io-uring@0.7.7		X								X			
 ipnet@2.11.0		X								X			
 itoa@1.0.15		X								X			
 js-sys@0.3.77		X								X			
@@ -80,7 +81,7 @@ mio@1.0.3										X
 num-traits@0.2.19		X								X			
 object@0.36.7		X								X			
 once_cell@1.21.3		X								X			
-opendal@0.53.3		X											
+opendal@0.54.0		X											
 percent-encoding@2.3.1		X								X			
 pin-project-lite@0.2.16		X								X			
 pin-utils@0.1.0		X								X			
@@ -121,7 +122,7 @@ syn@2.0.101		X								X
 sync_wrapper@1.0.2		X											
 synstructure@0.13.2										X			
 tinystr@0.8.1											X		
-tokio@1.45.0										X			
+tokio@1.46.1										X			
 tokio-macros@2.5.0										X			
 tokio-rustls@0.26.2		X								X			
 tokio-util@0.7.15										X			

@@ -44,7 +44,6 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use log::debug;
 /// # use log::info;
 /// # use opendal::layers::PrometheusClientLayer;
 /// # use opendal::services;
@@ -58,11 +57,10 @@ use crate::*;
 /// let op = Operator::new(services::Memory::default())?
 ///     .layer(PrometheusClientLayer::builder().register(&mut registry))
 ///     .finish();
-/// debug!("operator: {op:?}");
 ///
 /// // Write data into object test.
 /// op.write("test", "Hello, World!").await?;
-/// // Read data from object.
+/// // Read data from the object.
 /// let bs = op.read("test").await?;
 /// info!("content: {}", String::from_utf8_lossy(&bs.to_bytes()));
 ///
@@ -75,8 +73,7 @@ use crate::*;
 /// prometheus_client::encoding::text::encode(&mut buf, &registry).unwrap();
 /// println!("## Prometheus Metrics");
 /// println!("{}", buf);
-///
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -182,10 +179,9 @@ impl PrometheusClientLayerBuilder {
 
     /// Register the metrics into the registry and return a [`PrometheusClientLayer`].
     ///
-    /// # Examples
+    /// # Example
     ///
     /// ```no_run
-    /// # use log::debug;
     /// # use opendal::layers::PrometheusClientLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
@@ -197,12 +193,10 @@ impl PrometheusClientLayerBuilder {
     /// let builder = services::Memory::default();
     /// let mut registry = prometheus_client::registry::Registry::default();
     ///
-    /// let op = Operator::new(builder)?
+    /// let _ = Operator::new(builder)?
     ///     .layer(PrometheusClientLayer::builder().register(&mut registry))
     ///     .finish();
-    /// debug!("operator: {op:?}");
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register(self, registry: &mut Registry) -> PrometheusClientLayer {

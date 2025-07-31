@@ -43,7 +43,7 @@ impl From<libc::c_int> for Error {
     fn from(errno: libc::c_int) -> Error {
         let err_str = unsafe { libc::strerror(errno) };
         let message = if err_str.is_null() {
-            format!("errno: {}", errno)
+            format!("errno: {errno}")
         } else {
             let c_str = unsafe { CStr::from_ptr(err_str) };
             c_str.to_string_lossy().into_owned()
@@ -59,16 +59,16 @@ impl From<Error> for io::Error {
     fn from(error: Error) -> io::Error {
         match error {
             Error::VhostUserFsError { message, source } => {
-                let message = format!("Vhost user fs error: {}", message);
+                let message = format!("Vhost user fs error: {message}");
                 match source {
-                    Some(source) => io::Error::other(format!("{}, source: {:?}", message, source)),
+                    Some(source) => io::Error::other(format!("{message}, source: {source:?}")),
                     None => io::Error::other(message),
                 }
             }
             Error::Unexpected { message, source } => {
-                let message = format!("Unexpected error: {}", message);
+                let message = format!("Unexpected error: {message}");
                 match source {
-                    Some(source) => io::Error::other(format!("{}, source: {:?}", message, source)),
+                    Some(source) => io::Error::other(format!("{message}, source: {source:?}")),
                     None => io::Error::other(message),
                 }
             }

@@ -142,7 +142,7 @@ impl Builder for OnedriveBuilder {
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Onedrive)
@@ -163,9 +163,6 @@ impl Builder for OnedriveBuilder {
 
                 stat: true,
                 stat_with_if_none_match: true,
-                stat_has_content_length: true,
-                stat_has_etag: true,
-                stat_has_last_modified: true,
                 stat_with_version: self.config.enable_versioning,
 
                 delete: true,
@@ -174,10 +171,6 @@ impl Builder for OnedriveBuilder {
                 list: true,
                 list_with_limit: true,
                 list_with_versions: self.config.enable_versioning,
-                list_has_content_length: true,
-                list_has_etag: true,
-                list_has_last_modified: true,
-                list_has_version: self.config.enable_versioning, // same as `list_with_versions`?
 
                 shared: true,
 

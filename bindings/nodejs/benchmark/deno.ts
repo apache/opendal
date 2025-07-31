@@ -17,9 +17,9 @@
  * under the License.
  */
 
-import { Operator } from 'npm:opendal'
-import 'https://deno.land/std@0.181.0/dotenv/load.ts'
-import { S3Client } from 'https://deno.land/x/s3_lite_client@0.5.0/mod.ts'
+import { Operator } from '../index.mjs'
+import 'jsr:@std/dotenv/load'
+import { S3Client } from 'jsr:@bradenmacdonald/s3-lite-client'
 
 const endpoint = Deno.env.get('AWS_S3_ENDPOINT') || 'http://localhost:9000'
 const url = new URL(endpoint)

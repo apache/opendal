@@ -25,10 +25,7 @@ import pytest
 
 @pytest.mark.need_capability("read", "write", "delete", "shared")
 def test_operator_pickle(service_name, operator, async_operator):
-    """
-    Test Operator's pickle serialization and deserialization.
-    """
-
+    """Test Operator's pickle serialization and deserialization."""
     size = randint(1, 1024)
     filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)

@@ -44,7 +44,6 @@ impl oio::OneShotDelete for FsDeleter {
                 } else {
                     tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
                 }
-
                 Ok(())
             }
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),

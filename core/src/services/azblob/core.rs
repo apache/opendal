@@ -575,13 +575,25 @@ impl AzblobCore {
         self.send(req).await
     }
 
-    pub async fn azblob_copy_blob(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn azblob_copy_blob(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Response<Buffer>> {
         let source = self.build_path_url(from);
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)
             .header(constants::X_MS_COPY_SOURCE, source)
-            .header(CONTENT_LENGTH, 0)
+            .header(CONTENT_LENGTH, 0);
+
+        // Add if_not_exists condition using If-None-Match header
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        let mut req = req
             .extension(Operation::Copy)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

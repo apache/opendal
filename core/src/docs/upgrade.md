@@ -1,3 +1,103 @@
+# Upgrade to v0.54
+
+## Public API
+
+### RFC-6189: Remove Native Blocking Support
+
+OpenDAL v0.54 implements [RFC-6189](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_6189_remove_native_blocking/index.html), which removes all native blocking support in favor of using `block_on` from async runtimes.
+
+The following breaking changes have been made:
+
+- `blocking::Operator` can no longer be used within async contexts
+- Using blocking APIs now requires an async runtime
+- All `Blocking*` types have been moved to the `opendal::blocking` module
+
+To migrate:
+
+```diff
+- use opendal::BlockingOperator;
++ use opendal::blocking::Operator;
+```
+
+### RFC-6213: Options Based API
+
+OpenDAL v0.54 implements [RFC-6213](https://opendal.apache.org/docs/rust/opendal/docs/rfcs/rfc_6213_options_api/index.html), which introduces options-based APIs for more structured and extensible operation configuration.
+
+New APIs added:
+
+- `read_options(path, ReadOptions)`
+- `write_options(path, data, WriteOptions)`  
+- `list_options(path, ListOptions)`
+- `stat_options(path, StatOptions)`
+- `delete_options(path, DeleteOptions)`
+
+Example usage:
+
+```rust
+// Read with options
+let options = ReadOptions::new()
+    .range(0..1024)
+    .if_match("etag");
+let data = op.read_options("path/to/file", options).await?;
+
+// Write with options  
+let options = WriteOptions::new()
+    .content_type("text/plain")
+    .cache_control("max-age=3600");
+op.write_options("path/to/file", data, options).await?;
+```
+
+### Remove `stat_has_xxx` and `list_has_xxx` APIs
+
+All `stat_has_*` and `list_has_*` capability check APIs have been removed. Instead, check capabilities directly on the `Capability` struct:
+
+```diff
+- if op.info().full_capability().stat_has_content_length() {
++ if op.info().full_capability().stat.content_length {
+    // ...
+}
+```
+
+### Fix `with_user_metadata` signature
+
+The signature of `with_user_metadata` has been changed. Please update your code accordingly if you use this method.
+
+### Services removed due to lack of maintainer
+
+The following services have been removed due to lack of maintainers:
+
+- `atomicserver`
+- `icloud`
+- `nebula_graph`
+
+If you need these services, please consider maintaining them or use alternative services.
+
+### HttpClientLayer replaces `update_http_client`
+
+The `Operator::update_http_client()` method has been replaced by `HttpClientLayer`:
+
+```diff
+- op.update_http_client(client);
++ op = op.layer(HttpClientLayer::new(client));
+```
+
+### Expose `presign_xxx_options` API
+
+New options-based presign APIs have been exposed:
+
+```rust
+let options = PresignOptions::new()
+    .expire(Duration::from_secs(3600));
+    
+let url = op.presign_read_options("path/to/file", options).await?;
+```
+
+## Raw API
+
+### Remove native blocking support
+
+All native blocking implementations have been removed from the raw API. Services and layers no longer need to implement blocking-specific methods.
+
 # Upgrade to v0.53
 
 ## Public API
@@ -26,9 +126,9 @@ In opendal v0.53, we introduced a new concept of `Context` which is used to stor
 
 All services `http_client` API has been deprecated and replaced by `Operator::update_http_client` API.
 
-### OpenDAL MSRV bumped to `1.80`
+### OpenDAL MSRV bumped to `1.82`
 
-Since v0.53, OpenDAL will require Rust 1.80.0 or later to build.
+Since v0.53, OpenDAL will require Rust 1.82.0 or later to build.
 
 ## Raw API
 

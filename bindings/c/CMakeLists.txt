@@ -87,9 +87,15 @@ add_executable(error_handle examples/error_handle.c)
 target_link_libraries(error_handle opendal_c_shared)
 
 # test targets
-file(GLOB TEST_SRCS tests/*.cpp)
-add_executable(tests ${TEST_SRCS})
-target_link_libraries(tests opendal_c_shared gtest_main)
+set(GTEST_SRCS
+    tests/bdd.cpp
+    tests/error_msg.cpp
+    tests/list.cpp
+    tests/opinfo.cpp
+    tests/reader.cpp
+)
+add_executable(tests ${GTEST_SRCS})
+target_link_libraries(tests opendal_c_shared gtest_main uuid)
 if (TEST_ENABLE_ASAN)
     target_compile_options(tests PRIVATE -fsanitize=address)
     target_link_options(tests PRIVATE -fsanitize=address)

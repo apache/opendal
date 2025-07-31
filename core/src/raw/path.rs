@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::*;
+use std::hash::{BuildHasher, Hasher};
 
 /// build_abs_path will build an absolute path with root.
 ///
@@ -210,6 +211,49 @@ pub fn get_parent(path: &str) -> &str {
     }
 }
 
+// Sets the size of random generated postfix for random file names
+const RANDOM_TMP_PATH_POSTFIX_LENGTH: usize = 8;
+// Allowed characters for choices in a random-generated char
+const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const CHARS_LENGTH: u64 = CHARS.len() as u64;
+
+/// Build a temporary path of a file path.
+///
+/// `build_tmp_path_of` appends a dot following a random generated postfix.
+/// Don't use it with a path to a folder.
+#[inline]
+pub fn build_tmp_path_of(path: &str) -> String {
+    let name = get_basename(path);
+    let mut buf = String::with_capacity(name.len() + RANDOM_TMP_PATH_POSTFIX_LENGTH);
+    buf.push_str(name);
+    buf.push('.');
+
+    // Uses `std` for the random number generator instead of external crates.
+    //
+    // `RandomState::new` builds a hasher that generates a different random sequence each time.
+    // Calling `RandomState::new` each time produces a `RandomState` from
+    // a per-thread pseudo seed pools that Rust manages.
+    // The default hasher, `SipHasher13`, has some notable properties:
+    //
+    // 1. `fastrand` is roughly 10x faster than `SipHasher13`, but it adds an extra dependency.
+    // 2. While `fastrand` is faster, `SipHasher13` is fast enough for our needs since
+    //    we're only generating a few characters.
+    // 3. This is not a cryptographically secure pseudorandom number generator (CSPRNG).
+    //
+    // If we need stronger randomness in the future, we can:
+    // 1. Increase the output length.
+    // 2. Use the `getrandom` crate to source randomness from the OS.
+    for _ in 0..RANDOM_TMP_PATH_POSTFIX_LENGTH {
+        let random = std::collections::hash_map::RandomState::new()
+            .build_hasher()
+            .finish();
+        let choice: usize = (random % CHARS_LENGTH).try_into().unwrap();
+        buf.push(CHARS[choice] as char);
+    }
+
+    buf
+}
+
 /// Validate given path is match with given EntryMode.
 #[inline]
 pub fn validate_path(path: &str, mode: EntryMode) -> bool {
@@ -377,6 +421,31 @@ mod tests {
         for (name, path, mode, expect) in cases {
             let actual = validate_path(path, mode);
             assert_eq!(actual, expect, "{name}")
+        }
+    }
+
+    #[test]
+    fn test_build_tmp_path_of() {
+        let cases = vec![
+            ("a file path", "example.txt", "example.txt."),
+            (
+                "a file path in a directory",
+                "folder/example.txt",
+                "example.txt.",
+            ),
+        ];
+
+        for (name, path, expect_starts_with) in cases {
+            let actual = build_tmp_path_of(path);
+            assert!(
+                actual.starts_with(expect_starts_with),
+                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
+            );
+            assert_eq!(
+                actual.len(),
+                expect_starts_with.len() + 8, // See RANDOM_TMP_PATH_POSTFIX_SIZE
+                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
+            )
         }
     }
 }

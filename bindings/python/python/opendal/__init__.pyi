@@ -16,9 +16,15 @@
 # under the License.
 
 import os
+from collections.abc import AsyncIterable, Iterable
+from datetime import datetime
 from types import TracebackType
-from typing import Any, AsyncIterable, Iterable, Optional, Type, Union, final
+from typing import Any, Union, final
 
+try:
+    from warnings import deprecated
+except ImportError:
+    from typing_extensions import deprecated
 from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.__base import _Base
@@ -38,81 +44,139 @@ class Operator(_Base):
     Example:
         ```python
         import opendal
+
         op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
         op.write("hello.txt", b"hello world")
         ```
     """
+
     def __init__(self, scheme: str, **options: Any) -> None: ...
-    def layer(self, layer: Layer) -> "Operator":
+    def layer(self, layer: Layer) -> Operator:
         """Add new layers upon the current operator.
 
         Args:
             layer (Layer): The layer to be added.
 
-        Returns:
+        Returns
+        -------
             The new operator with the layer added.
         """
-    def open(self, path: PathBuf, mode: str) -> File:
+    def open(self, path: PathBuf, mode: str, **options: Any) -> File:
         """Open a file at the given path for reading or writing.
 
         Args:
-            path (str|Path): The path to the file.
-            mode (str): The mode to open the file. Can be "rb" or "wb".
+            path (str | Path): The path to the file.
+            mode (str): The mode to open the file. Must be either `"rb"` for reading or
+                `"wb"` for writing.
+            **options (Any): Additional options passed to the underlying OpenDAL reader
+                or writer.
+                - If `mode == "rb"`: options match the
+                  [OpenDAL `ReaderOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReaderOptions.html).
+                - If `mode == "wb"`: options match the
+                  [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
-        Returns:
-            A file-like object that can be used to read or write the file.
+        Returns
+        -------
+            File: A file-like object that can be used to read or write the file.
 
         Example:
             ```python
             import opendal
+
             op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
             with op.open("hello.txt", "wb") as f:
                 f.write(b"hello world")
             ```
         """
-    def read(self, path: PathBuf) -> bytes:
+    def read(self, path: PathBuf, **options: Any) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **options (Any): Optional read parameters matching the
+                [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html):
 
-        Returns:
-            The content of the object as bytes.
+                - offset (int): Byte offset to start reading from. Defaults to 0
+                    if not specified.
+                - size (int): Number of bytes to read. If not specified, reads until
+                    the end of the object.
+                  Together, `offset` and `size` define the byte range for reading.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - concurrent (int): Level of concurrency for reading. Defaults to
+                    backend-specific value.
+                - chunk (int): Read chunk size in bytes.
+                - gap (int): Minimum gap (in bytes) between chunks to consider
+                    them separate.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+
+        Returns
+        -------
+            bytes: The content of the object as bytes.
         """
-    def write(
-        self,
-        path: PathBuf,
-        bs: bytes,
-        *,
-        append: bool = ...,
-        chunk: int = ...,
-        content_type: str = ...,
-        content_disposition: str = ...,
-        cache_control: str = ...,
-    ) -> None:
+    def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
         """Write the content to the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
             bs (bytes): The content to write.
-            append (bool): Whether to append the content to the object.
-                Defaults to False.
-            chunk (int): The chunk size for writing. Defaults to write all.
-            content_type (str): The content type of the object.
-                Defaults to None.
-            content_disposition (str): The content disposition of the object.
-                Defaults to None.
-            cache_control (str): The cache control of the object.
-                Defaults to None.
+            **options (Any): Optional write parameters matching the
+                [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html):
+
+                - append (bool): If True, append to the object instead of overwriting.
+                - chunk (int): Specify the chunk size in bytes for multipart uploads.
+                - concurrent (int): Number of concurrent upload parts. Larger values can
+                    improve performance.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+                - content_encoding (str): Override the Content-Encoding header.
+                - if_match (str): Perform the write only if the object's current
+                    ETag matches the given one.
+                - if_none_match (str): Perform the write only if the object's
+                    current ETag does NOT match the given one.
+                - if_not_exists (bool): Only write the object if it doesn't
+                    already exist.
+                - user_metadata (dict[str, str]): Custom user metadata to associate
+                    with the object.
+
+        Returns
+        -------
+            None
         """
-    def stat(self, path: PathBuf) -> Metadata:
+    def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **kwargs (Any): Optional stat parameters matching the
+                [OpenDAL `StatOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.StatOptions.html):
 
-        Returns:
-            The metadata of the object.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+        Returns
+        -------
+            Metadata: The metadata of the object.
         """
     def create_dir(self, path: PathBuf) -> None:
         """Create a directory at the given path.
@@ -132,32 +196,59 @@ class Operator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             True if the object exists, False otherwise.
         """
-    def list(self, path: PathBuf, *, start_after: str | None = None) -> Iterable[Entry]:
-        """List the objects at the given path.
+    def list(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
+        """List objects at the given path.
 
         Args:
-            path (str|Path): The path to the directory.
-            start_after (str | None): The key to start listing from.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html):
 
-        Returns:
-            An iterable of entries representing the objects in the directory.
+                - limit (int): The limit passed to the underlying service to specify the
+                    max results that could return per-request. Users could use this to
+                    control the memory usage of list operation. If not set, all matching
+                    entries will be listed.
+                - start_after (str): Start listing after this key. Useful for pagination
+                    or resuming interrupted listings.
+                - recursive (bool): Whether to list entries recursively through all
+                    subdirectories. If False, lists only top-level entries (entries
+                    under the given path).
+                - versions (bool): Whether to include all versions of objects, if the
+                    underlying service supports versioning.
+                - deleted (bool): Whether to include deleted objects, if the underlying
+                    service supports soft-deletes or versioning.
+
+        Returns
+        -------
+            Iterable[Entry]: An iterable of entries representing the objects in the
+                directory or prefix.
         """
-    def scan(self, path: PathBuf) -> Iterable[Entry]:
+    @deprecated("Use `list()` instead.")
+    def scan(self, path: PathBuf, **kwargs) -> Iterable[Entry]:
         """Scan the objects at the given path recursively.
 
         Args:
-            path (str|Path): The path to the directory.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
+                excluding `recursive` which is always enforced as `True`
 
-        Returns:
-            An iterable of entries representing the objects in the directory.
+        Returns
+        -------
+            Iterable[Entry]: An iterable of all entries under the given path,
+                recursively traversing all subdirectories. Each entry represents
+                an object (e.g., file or directory) discovered within the full
+                descendant hierarchy of the specified path.
         """
     def capability(self) -> Capability:
         """Get the capability of the operator.
 
-        Returns:
+        Returns
+        -------
             The capability of the operator.
         """
     def copy(self, source: PathBuf, target: PathBuf) -> None:
@@ -175,8 +266,7 @@ class Operator(_Base):
             target (str|Path): The target path.
         """
     def remove_all(self, path: PathBuf) -> None:
-        """Convert into an async operator
-        """
+        """Convert into an async operator."""
     def to_async_operator(self) -> AsyncOperator: ...
 
 @final
@@ -191,73 +281,131 @@ class AsyncOperator(_Base):
     Example:
         ```python
         import opendal
+
         op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
         await op.write("hello.txt", b"hello world")
         ```
     """
+
     def __init__(self, scheme: str, **options: Any) -> None: ...
-    def layer(self, layer: Layer) -> "AsyncOperator": ...
-    async def open(self, path: PathBuf, mode: str) -> AsyncFile:
+    def layer(self, layer: Layer) -> AsyncOperator: ...
+    async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
         """Open a file at the given path for reading or writing.
 
         Args:
-            path (str|Path): The path to the file.
-            mode (str): The mode to open the file. Can be "rb" or "wb".
+            path (str | Path): The path to the file.
+            mode (str): The mode to open the file. Must be either `"rb"` for reading or
+                `"wb"` for writing.
+            **options (Any): Additional options passed to the underlying OpenDAL reader
+                or writer.
+                - If `mode == "rb"`: options match the
+                  [OpenDAL `ReaderOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReaderOptions.html).
+                - If `mode == "wb"`: options match the
+                  [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html).
 
-        Returns:
-            A file-like object that can be used to read or write the file.
+        Returns
+        -------
+            AsyncFile: A file-like object that can be used to read or write the file.
 
         Example:
             ```python
             import opendal
+
             op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
             async with await op.open("hello.txt", "wb") as f:
                 await f.write(b"hello world")
             ```
         """
-    async def read(self, path: PathBuf) -> bytes:
+    async def read(self, path: PathBuf, **options: Any) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **options (Any): Optional read parameters matching the
+                [OpenDAL `ReadOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ReadOptions.html):
 
-        Returns:
+                - offset (int): Byte offset to start reading from. Defaults to 0
+                    if not specified.
+                - size (int): Number of bytes to read. If not specified, reads until
+                    the end of the object.
+                  Together, `offset` and `size` define the byte range for reading.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - concurrent (int): Level of concurrency for reading. Defaults to
+                    backend-specific value.
+                - chunk (int): Read chunk size in bytes.
+                - gap (int): Minimum gap (in bytes) between chunks to consider
+                    them separate.
+                - override_content_type (str): Override the returned content type.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+
+        Returns
+        -------
             The content of the object as bytes.
         """
-    async def write(
-        self,
-        path: PathBuf,
-        bs: bytes,
-        *,
-        append: bool = ...,
-        chunk: int = ...,
-        content_type: str = ...,
-        content_disposition: str = ...,
-        cache_control: str = ...,
-    ) -> None:
+    async def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
         """Write the content to the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
             bs (bytes): The content to write.
-            append (bool): Whether to append the content to the object.
-                Defaults to False.
-            chunk (int): The chunk size for writing. Defaults to write all.
-            content_type (str): The content type of the object.
-                Defaults to None.
-            content_disposition (str): The content disposition of the object.
-                Defaults to None.
-            cache_control (str): The cache control of the object.
-                Defaults to None.
+            **options (Any): Optional write parameters matching the
+                [OpenDAL `WriteOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.WriteOptions.html):
+
+                - append (bool): If True, append to the object instead of overwriting.
+                - chunk (int): Specify the chunk size in bytes for multipart uploads.
+                - concurrent (int): Number of concurrent upload parts. Larger values can
+                    improve performance.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+                - content_encoding (str): Override the Content-Encoding header.
+                - if_match (str): Perform the write only if the object's current
+                    ETag matches the given one.
+                - if_none_match (str): Perform the write only if the object's
+                    current ETag does NOT match the given one.
+                - if_not_exists (bool): Only write the object if it doesn't
+                    already exist.
+                - user_metadata (dict[str, str]): Custom user metadata to associate
+                    with the object.
+
+        Returns
+        -------
+            None
         """
-    async def stat(self, path: PathBuf) -> Metadata:
+    async def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path): The path to the object.
+            **kwargs (Any): Optional stat parameters matching the
+                [OpenDAL `StatOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.StatOptions.html):
 
-        Returns:
-            The metadata of the object.
+                - version (str): Specify the version of the object to read, if
+                    supported by the backend.
+                - if_match (str): Read only if the ETag matches the given value.
+                - if_none_match (str): Read-only if the ETag does not match the
+                    given value.
+                - if_modified_since (datetime): Only read if the object was modified
+                    since this timestamp. This timestamp must be in UTC.
+                - if_unmodified_since (datetime): Only read if the object was not
+                    modified since this timestamp. This timestamp must be in UTC.
+                - cache_control (str): Override the cache-control header for the object.
+                - content_type (str): Explicitly set the Content-Type header for
+                    the object.
+                - content_disposition (str): Sets how the object should be presented
+                    (e.g., as an attachment).
+        Returns
+        -------
+            Metadata: The metadata of the object.
         """
     async def create_dir(self, path: PathBuf) -> None:
         """Create a directory at the given path.
@@ -277,29 +425,54 @@ class AsyncOperator(_Base):
         Args:
             path (str|Path): The path to the object.
 
-        Returns:
+        Returns
+        -------
             True if the object exists, False otherwise.
         """
-    async def list(
-        self, path: PathBuf, *, start_after: str | None = None
-    ) -> AsyncIterable[Entry]:
-        """List the objects at the given path.
+    async def list(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
+        """List objects at the given path.
 
         Args:
-            path (str|Path): The path to the directory.
-            start_after (str | None): The key to start listing from.
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html):
 
-        Returns:
-            An iterable of entries representing the objects in the directory.
+                - limit (int): The limit passed to the underlying service to specify the
+                    max results that could return per-request. Users could use this to
+                    control the memory usage of list operation. If not set, all matching
+                    entries will be listed.
+                - start_after (str): Start listing after this key. Useful for pagination
+                    or resuming interrupted listings.
+                - recursive (bool): Whether to list entries recursively through all
+                    subdirectories. If False, lists only top-level entries (entries
+                    under the given path).
+                - versions (bool): Whether to include all versions of objects, if the
+                    underlying service supports versioning.
+                - deleted (bool): Whether to include deleted objects, if the underlying
+                    service supports soft-deletes or versioning.
+
+        Returns
+        -------
+            Iterable[Entry]: An iterable of entries representing the objects in the
+                directory or prefix.
         """
-    async def scan(self, path: PathBuf) -> AsyncIterable[Entry]:
+    @deprecated("Use `list()` instead.")
+    async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
 
-        Args:
-            path (str|Path): The path to the directory.
 
-        Returns:
-            An iterable of entries representing the objects in the directory.
+        Args:
+            path (str | Path): The path to the directory/ prefix.
+            **kwargs (Any): Optional listing parameters matching the
+                [OpenDAL `ListOptions`](https://opendal.apache.org/docs/rust/opendal/options/struct.ListOptions.html),
+                excluding `recursive` which is always enforced as `True`
+
+        Returns
+        -------
+            Iterable[Entry]: An iterable of all entries under the given path,
+                recursively traversing all subdirectories. Each entry represents
+                an object (e.g., file or directory) discovered within the full
+                descendant hierarchy of the specified path.
         """
     async def presign_stat(self, path: PathBuf, expire_second: int) -> PresignedRequest:
         """Generate a presigned URL for stat operation.
@@ -308,7 +481,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_read(self, path: PathBuf, expire_second: int) -> PresignedRequest:
@@ -318,7 +492,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_write(
@@ -330,7 +505,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     async def presign_delete(
@@ -342,7 +518,8 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the object.
             expire_second (int): The expiration time in seconds.
 
-        Returns:
+        Returns
+        -------
             A presigned request object.
         """
     def capability(self) -> Capability: ...
@@ -375,22 +552,25 @@ class File:
 
     Created by the `open` method of the `Operator` class.
     """
-    def read(self, size: Optional[int] = None) -> bytes:
+
+    def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
             size (int): The number of bytes to read. If None, read all.
 
-        Returns:
+        Returns
+        -------
             The content of the file as bytes.
         """
-    def readline(self, size: Optional[int] = None) -> bytes:
+    def readline(self, size: int | None = None) -> bytes:
         """Read a single line from the file.
 
         Args:
             size (int): The number of bytes to read. If None, read until newline.
 
-        Returns:
+        Returns
+        -------
             The line read from the file as bytes.
         """
     def write(self, bs: bytes) -> None:
@@ -406,13 +586,15 @@ class File:
             pos (int): The position to set.
             whence (int): The reference point for the position. Can be 0, 1, or 2.
 
-        Returns:
+        Returns
+        -------
             The new position in the file.
         """
     def tell(self) -> int:
         """Get the current position in the file.
 
-        Returns:
+        Returns
+        -------
             The current position in the file.
         """
     def close(self) -> None:
@@ -421,9 +603,9 @@ class File:
         """Enter the runtime context related to this object."""
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the runtime context related to this object."""
     @property
@@ -433,13 +615,14 @@ class File:
         """Flush the internal buffer."""
     def readable(self) -> bool:
         """Check if the file is readable."""
-    def readinto(self, buffer: Union[bytes, bytearray]) -> int:
+    def readinto(self, buffer: bytes | bytearray) -> int:
         """Read bytes into a buffer.
 
         Args:
             buffer (bytes|bytearray): The buffer to read into.
 
-        Returns:
+        Returns
+        -------
             The number of bytes read.
         """
     def seekable(self) -> bool:
@@ -454,13 +637,15 @@ class AsyncFile:
 
     Created by the `open` method of the `AsyncOperator` class.
     """
-    async def read(self, size: Optional[int] = None) -> bytes:
+
+    async def read(self, size: int | None = None) -> bytes:
         """Read the content of the file.
 
         Args:
             size (int): The number of bytes to read. If None, read all.
 
-        Returns:
+        Returns
+        -------
             The content of the file as bytes.
         """
     async def write(self, bs: bytes) -> None:
@@ -476,13 +661,15 @@ class AsyncFile:
             pos (int): The position to set.
             whence (int): The reference point for the position. Can be 0, 1, or 2.
 
-        Returns:
+        Returns
+        -------
             The new position in the file.
         """
     async def tell(self) -> int:
         """Get the current position in the file.
 
-        Returns:
+        Returns
+        -------
             The current position in the file.
         """
     async def close(self) -> None:
@@ -491,9 +678,9 @@ class AsyncFile:
         """Enter the runtime context related to this object."""
     def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the runtime context related to this object."""
     @property
@@ -509,30 +696,52 @@ class AsyncFile:
 @final
 class Entry:
     """An entry in the directory listing."""
+
     @property
     def path(self) -> str:
         """The path of the entry."""
+    @property
+    def metadata(self) -> Metadata:
+        """The metadata of the entry."""
 
 @final
 class Metadata:
     @property
-    def content_disposition(self) -> Optional[str]:
+    def content_disposition(self) -> str | None:
         """The content disposition of the object."""
     @property
     def content_length(self) -> int:
         """The content length of the object."""
     @property
-    def content_md5(self) -> Optional[str]:
+    def content_md5(self) -> str | None:
         """The MD5 checksum of the object."""
     @property
-    def content_type(self) -> Optional[str]:
+    def content_type(self) -> str | None:
         """The mime type of the object."""
     @property
-    def etag(self) -> Optional[str]:
+    def content_encoding(self) -> str | None:
+        """The content encoding of the object."""
+    @property
+    def etag(self) -> str | None:
         """The ETag of the object."""
     @property
     def mode(self) -> EntryMode:
         """The mode of the object."""
+    @property
+    def is_file(self) -> bool:
+        """Returns `True` if this metadata is for a file."""
+    @property
+    def is_dir(self) -> bool:
+        """Returns `True` if this metadata is for a directory."""
+    @property
+    def last_modified(self) -> datetime | None:
+        """The last modified time of the object."""
+    @property
+    def version(self) -> str | None:
+        """The version of the object, if available."""
+    @property
+    def user_metadata(self) -> str | None:
+        """The user defined metadata of the object."""
 
 @final
 class EntryMode:
@@ -553,103 +762,124 @@ class Capability:
     """Storage capability information."""
 
     stat: bool
-    """If operator supports stat"""
+    """If operator supports stat."""
 
     stat_with_if_match: bool
-    """If operator supports stat with if match"""
+    """If operator supports stat with if match."""
 
     stat_with_if_none_match: bool
-    """If operator supports stat with if none match"""
+    """If operator supports stat with if none match."""
 
     read: bool
-    """If operator supports read"""
+    """Indicates if the operator supports read operations."""
 
     read_with_if_match: bool
-    """If operator supports read with if match"""
+    """Indicates if conditional read operations using If-Match are supported."""
 
     read_with_if_none_match: bool
-    """If operator supports read with if none match"""
+    """Indicates if conditional read operations using If-None-Match are supported."""
+
+    read_with_if_modified_since: bool
+    """If-Modified-Since condition supported for read."""
+
+    read_with_if_unmodified_since: bool
+    """If-Unmodified-Since condition supported for read."""
 
     read_with_override_cache_control: bool
-    """If operator supports read with override cache control"""
+    """Cache-Control header override supported for read."""
 
     read_with_override_content_disposition: bool
-    """If operator supports read with override content disposition"""
+    """Content-Disposition header override supported for read."""
 
     read_with_override_content_type: bool
-    """If operator supports read with override content type"""
+    """Indicates if Content-Type header override is supported during read operations."""
+
+    read_with_version: bool
+    """Indicates if versions read operations are supported."""
 
     write: bool
-    """If operator supports write"""
+    """Indicates if the operator supports write operations."""
 
     write_can_multi: bool
-    """If operator supports write can be called in multi times"""
+    """Indicates if multiple write operations can be performed on the same object."""
 
     write_can_empty: bool
-    """If operator supports write with empty content"""
+    """Indicates if writing empty content is supported."""
 
     write_can_append: bool
-    """If operator supports write by append"""
+    """Indicates if append operations are supported."""
 
     write_with_content_type: bool
-    """If operator supports write with content type"""
+    """Indicates if Content-Type can be specified during write operations."""
 
     write_with_content_disposition: bool
-    """If operator supports write with content disposition"""
+    """Indicates if Content-Disposition can be specified during write operations."""
+
+    write_with_content_encoding: bool
+    """Indicates if Content-Encoding can be specified during write operations."""
 
     write_with_cache_control: bool
-    """If operator supports write with cache control"""
+    """Indicates if Cache-Control can be specified during write operations."""
 
-    write_multi_max_size: Optional[int]
-    """Write_multi_max_size is the max size that services support in write_multi.
-    For example, AWS S3 supports 5GiB as max in write_multi."""
+    write_with_if_match: bool
+    """Indicates if conditional write operations using If-Match are supported."""
 
-    write_multi_min_size: Optional[int]
-    """Write_multi_min_size is the min size that services support in write_multi.
-    For example, AWS S3 requires at least 5MiB in write_multi expect the last one."""
+    write_with_if_none_match: bool
+    """Indicates if conditional write operations using If-None-Match are supported."""
 
-    write_total_max_size: Optional[int]
-    """Write_total_max_size is the max size that services support in write_total.
-    For example, Cloudflare D1 supports 1MB as max in write_total."""
+    write_with_if_not_exists: bool
+    """Indicates if write operations can be conditional on object non-existence."""
+
+    write_with_user_metadata: bool
+    """Indicates if custom user metadata can be attached during write operations."""
+
+    write_multi_max_size: int | None
+    """Maximum part size for multipart uploads (e.g. 5GiB for AWS S3)."""
+
+    write_multi_min_size: int | None
+    """Minimum part size for multipart uploads (e.g. 5MiB for AWS S3)."""
+
+    write_total_max_size: int | None
+    """Maximum total size for write operations (e.g. 1MB for Cloudflare D1)."""
 
     create_dir: bool
-    """If operator supports create dir"""
+    """If operator supports create dir."""
 
     delete: bool
-    """If operator supports delete"""
+    """If operator supports delete."""
 
     copy: bool
-    """If operator supports copy"""
+    """If operator supports copy."""
 
     rename: bool
-    """If operator supports rename"""
+    """If operator supports rename."""
 
     list: bool
-    """If operator supports list"""
+    """If operator supports list."""
 
     list_with_limit: bool
-    """If backend supports list with limit"""
+    """If backend supports list with limit."""
 
     list_with_start_after: bool
-    """If backend supports list with start after"""
+    """If backend supports list with start after."""
 
     list_with_recursive: bool
-    """If backend supports list with recursive"""
+    """If backend supports list with recursive."""
 
     presign: bool
-    """If operator supports presign"""
+    """If operator supports presign."""
 
     presign_read: bool
-    """If operator supports presign read"""
+    """If operator supports presign read."""
 
     presign_stat: bool
-    """If operator supports presign stat"""
+    """If operator supports presign stat."""
 
     presign_write: bool
-    """If operator supports presign write"""
+    """If operator supports presign write."""
 
     presign_delete: bool
-    """If operator supports presign delete"""
+    """If operator supports presign delete."""
 
     shared: bool
-    """If operator supports shared"""
+    """If operator supports shared."""

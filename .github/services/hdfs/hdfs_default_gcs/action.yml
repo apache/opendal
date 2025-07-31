@@ -27,7 +27,7 @@ runs:
         distribution: temurin
         java-version: "11"
     - name: Load secrets
-      uses: 1password/load-secrets-action@v1
+      uses: 1password/load-secrets-action@v2
       with:
         export-env: true
       env:

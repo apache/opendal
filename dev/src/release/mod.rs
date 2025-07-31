@@ -108,7 +108,7 @@ fn archive_and_checksum(package: &package::Package, files: &[&str]) -> anyhow::R
 
         let checksum = workspace_dir()
             .join("dist")
-            .join(format!("{}.sha512", filename));
+            .join(format!("{filename}.sha512"));
         std::fs::write(checksum, checksum_lines)?;
     }
 

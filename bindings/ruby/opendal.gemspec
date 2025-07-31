@@ -59,7 +59,7 @@ Gem::Specification.new do |spec|
 
   spec.extensions = ["./extconf.rb"]
 
-  spec.requirements = ["Rust >= 1.80"]
+  spec.requirements = ["Rust >= 1.82"]
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life

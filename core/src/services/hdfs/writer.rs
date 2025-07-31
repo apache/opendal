@@ -65,6 +65,10 @@ impl oio::Write for HdfsWriter<hdrs::AsyncFile> {
         while bs.has_remaining() {
             let n = f.write(bs.chunk()).await.map_err(new_std_io_error)?;
             bs.advance(n);
+
+            if n == 0 {
+                f.flush().await.map_err(new_std_io_error)?;
+            }
         }
 
         self.size += len;

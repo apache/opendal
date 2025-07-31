@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for koofr service.
+#[cfg(feature = "services-koofr")]
+pub(super) const DEFAULT_SCHEME: &str = "koofr";
 #[cfg(feature = "services-koofr")]
 mod core;
 #[cfg(feature = "services-koofr")]

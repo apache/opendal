@@ -31,11 +31,10 @@ use super::error::PcloudError;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::PcloudConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "pcloud";
-
 impl Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
 

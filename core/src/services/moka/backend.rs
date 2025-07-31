@@ -26,12 +26,11 @@ use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "moka";
-
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
     fn into_builder(self) -> Self::Builder {

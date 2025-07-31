@@ -35,11 +35,10 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::OssConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "oss";
-
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for OssConfig {

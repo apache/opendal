@@ -32,11 +32,10 @@ use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "lakefs";
-
 impl Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
     fn into_builder(self) -> Self::Builder {

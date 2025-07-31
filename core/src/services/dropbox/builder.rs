@@ -26,11 +26,10 @@ use tokio::sync::Mutex;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "dropbox";
-
 impl Configurator for DropboxConfig {
     type Builder = DropboxBuilder;
 

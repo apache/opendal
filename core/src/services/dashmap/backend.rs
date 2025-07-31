@@ -26,12 +26,11 @@ use super::core::DashmapCore;
 use super::delete::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "dashmap";
-
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;
     fn into_builder(self) -> Self::Builder {

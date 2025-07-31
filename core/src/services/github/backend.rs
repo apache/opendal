@@ -31,11 +31,10 @@ use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::GithubConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "github";
-
 impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
 

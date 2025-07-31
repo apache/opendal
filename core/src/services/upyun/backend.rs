@@ -29,11 +29,10 @@ use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "upyun";
-
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
 

@@ -34,11 +34,10 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::B2Config;
 use crate::*;
-const DEFAULT_SCHEME: &str = "b2";
-
 impl Configurator for B2Config {
     type Builder = B2Builder;
 

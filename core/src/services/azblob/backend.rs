@@ -38,11 +38,10 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "azblob";
-
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {

@@ -28,6 +28,7 @@ use super::backend::GdriveBackend;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
+use super::DEFAULT_SCHEME;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
@@ -36,8 +37,6 @@ use crate::raw::PathCacher;
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
-const DEFAULT_SCHEME: &str = "gdrive";
-
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
 

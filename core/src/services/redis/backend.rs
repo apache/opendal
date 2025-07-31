@@ -32,12 +32,11 @@ use tokio::sync::OnceCell;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "redis";
-
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 

@@ -29,11 +29,10 @@ use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "dbfs";
-
 impl Configurator for DbfsConfig {
     type Builder = DbfsBuilder;
     fn into_builder(self) -> Self::Builder {

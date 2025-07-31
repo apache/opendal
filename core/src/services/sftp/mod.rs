@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for sftp service.
+#[cfg(feature = "services-sftp")]
+pub(super) const DEFAULT_SCHEME: &str = "sftp";
 #[cfg(feature = "services-sftp")]
 mod delete;
 #[cfg(feature = "services-sftp")]

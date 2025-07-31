@@ -28,11 +28,10 @@ use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "alluxio";
-
 impl Configurator for AlluxioConfig {
     type Builder = AlluxioBuilder;
 

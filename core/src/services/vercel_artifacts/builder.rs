@@ -21,13 +21,12 @@ use std::sync::Arc;
 
 use super::backend::VercelArtifactsBackend;
 use super::core::VercelArtifactsCore;
+use super::DEFAULT_SCHEME;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::services::VercelArtifactsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "vercel_artifacts";
-
 impl Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;
 

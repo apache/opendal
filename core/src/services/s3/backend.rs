@@ -50,6 +50,7 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -66,7 +67,6 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
     m
 });
 
-const DEFAULT_SCHEME: &str = "s3";
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for S3Config {

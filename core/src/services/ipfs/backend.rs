@@ -27,11 +27,10 @@ use prost::Message;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "ipfs";
-
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
 

@@ -33,11 +33,10 @@ use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SeafileConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "seafile";
-
 impl Configurator for SeafileConfig {
     type Builder = SeafileBuilder;
 

@@ -34,12 +34,11 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "cos";
-
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
 

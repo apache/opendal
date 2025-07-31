@@ -32,11 +32,10 @@ use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "vercel_blob";
-
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
 

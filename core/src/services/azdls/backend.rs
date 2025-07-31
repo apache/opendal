@@ -33,11 +33,10 @@ use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "azdls";
-
 impl From<AzureStorageConfig> for AzdlsConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzdlsConfig {

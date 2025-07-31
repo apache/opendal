@@ -27,6 +27,7 @@ use services::onedrive::core::OneDriveSigner;
 use tokio::sync::Mutex;
 
 use super::backend::OnedriveBackend;
+use super::DEFAULT_SCHEME;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
@@ -34,8 +35,6 @@ use crate::raw::HttpClient;
 use crate::services::OnedriveConfig;
 use crate::Scheme;
 use crate::*;
-const DEFAULT_SCHEME: &str = "onedrive";
-
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
     fn into_builder(self) -> Self::Builder {

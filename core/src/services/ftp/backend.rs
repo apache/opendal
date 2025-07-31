@@ -36,11 +36,10 @@ use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::FtpConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "ftp";
-
 impl Configurator for FtpConfig {
     type Builder = FtpBuilder;
     fn into_builder(self) -> Self::Builder {

@@ -32,11 +32,10 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "aliyun_drive";
-
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
 

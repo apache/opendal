@@ -28,11 +28,10 @@ use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "hdfs_native";
-
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 impl Configurator for HdfsNativeConfig {

@@ -28,11 +28,10 @@ use super::delete::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "swift";
-
 impl Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
     fn into_builder(self) -> Self::Builder {

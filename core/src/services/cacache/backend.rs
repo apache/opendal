@@ -27,8 +27,7 @@ use crate::*;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
-const DEFAULT_SCHEME: &str = "cacache";
-
+use super::DEFAULT_SCHEME;
 impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;
     fn into_builder(self) -> Self::Builder {

@@ -32,11 +32,10 @@ use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "azfile";
-
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzfileConfig {

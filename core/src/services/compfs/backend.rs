@@ -26,12 +26,11 @@ use super::delete::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "compfs";
-
 impl Configurator for CompfsConfig {
     type Builder = CompfsBuilder;
     fn into_builder(self) -> Self::Builder {

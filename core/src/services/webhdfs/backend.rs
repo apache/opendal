@@ -34,11 +34,10 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "webhdfs";
-
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 impl Configurator for WebhdfsConfig {

@@ -26,11 +26,10 @@ use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::FsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "fs";
-
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
     fn into_builder(self) -> Self::Builder {

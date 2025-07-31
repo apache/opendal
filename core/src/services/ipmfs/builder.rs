@@ -21,11 +21,10 @@ use log::debug;
 
 use super::backend::IpmfsBackend;
 use super::core::IpmfsCore;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "ipmfs";
-
 impl Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;
 

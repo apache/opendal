@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for lakefs service.
+#[cfg(feature = "services-lakefs")]
+pub(super) const DEFAULT_SCHEME: &str = "lakefs";
 #[cfg(feature = "services-lakefs")]
 mod core;
 #[cfg(feature = "services-lakefs")]

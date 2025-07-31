@@ -25,11 +25,10 @@ use log::debug;
 
 use super::core::HttpCore;
 use super::error::parse_error;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "http";
-
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
 

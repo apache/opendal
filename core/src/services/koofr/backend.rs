@@ -34,11 +34,10 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::KoofrConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "koofr";
-
 impl Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
 

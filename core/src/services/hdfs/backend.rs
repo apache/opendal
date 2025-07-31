@@ -28,11 +28,10 @@ use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "hdfs";
-
 impl Configurator for HdfsConfig {
     type Builder = HdfsBuilder;
     fn into_builder(self) -> Self::Builder {

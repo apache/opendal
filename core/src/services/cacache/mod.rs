@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for cacache service.
+#[cfg(feature = "services-cacache")]
+pub(super) const DEFAULT_SCHEME: &str = "cacache";
 #[cfg(feature = "services-cacache")]
 mod backend;
 #[cfg(feature = "services-cacache")]

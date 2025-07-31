@@ -22,12 +22,11 @@ use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
 use crate::*;
-const DEFAULT_SCHEME: &str = "memory";
-
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
     fn into_builder(self) -> Self::Builder {

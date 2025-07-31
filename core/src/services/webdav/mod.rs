@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for webdav service.
+#[cfg(feature = "services-webdav")]
+pub(super) const DEFAULT_SCHEME: &str = "webdav";
 #[cfg(feature = "services-webdav")]
 mod core;
 #[cfg(feature = "services-webdav")]

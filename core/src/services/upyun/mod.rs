@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for upyun service.
+#[cfg(feature = "services-upyun")]
+pub(super) const DEFAULT_SCHEME: &str = "upyun";
 #[cfg(feature = "services-upyun")]
 mod core;
 #[cfg(feature = "services-upyun")]

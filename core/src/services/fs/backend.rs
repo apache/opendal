@@ -29,6 +29,7 @@ use super::writer::FsWriters;
 use crate::raw::*;
 use crate::services::FsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "fs";
 
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
@@ -144,7 +145,7 @@ impl Builder for FsBuilder {
             core: Arc::new(FsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("fs")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,

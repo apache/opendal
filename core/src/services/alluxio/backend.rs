@@ -31,6 +31,7 @@ use super::writer::AlluxioWriters;
 use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "alluxio";
 
 impl Configurator for AlluxioConfig {
     type Builder = AlluxioBuilder;
@@ -125,7 +126,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("alluxio")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

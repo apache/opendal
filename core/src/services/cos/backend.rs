@@ -38,6 +38,7 @@ use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "cos";
 
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
@@ -221,7 +222,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("cos")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

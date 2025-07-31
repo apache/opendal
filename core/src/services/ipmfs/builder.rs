@@ -24,6 +24,7 @@ use super::core::IpmfsCore;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "ipmfs";
 
 impl Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;
@@ -137,7 +138,7 @@ impl Builder for IpmfsBuilder {
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
         let info = AccessorInfo::default();
-        info.set_scheme("ipmfs")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

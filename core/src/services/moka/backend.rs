@@ -30,6 +30,7 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "moka";
 
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
@@ -202,7 +203,7 @@ pub struct MokaAccessor {
 impl MokaAccessor {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme("moka");
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
         info.set_native_capability(Capability {

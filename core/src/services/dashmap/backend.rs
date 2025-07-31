@@ -30,6 +30,7 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "dashmap";
 
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;
@@ -100,7 +101,7 @@ pub struct DashmapAccessor {
 impl DashmapAccessor {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme("dashmap");
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name("dashmap");
         info.set_root(&root);
         info.set_native_capability(Capability {

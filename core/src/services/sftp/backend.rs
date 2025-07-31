@@ -38,6 +38,7 @@ use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::services::SftpConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "sftp";
 
 impl Configurator for SftpConfig {
     type Builder = SftpBuilder;
@@ -180,7 +181,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme("sftp")
+            .set_scheme(DEFAULT_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

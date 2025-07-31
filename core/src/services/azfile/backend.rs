@@ -35,6 +35,7 @@ use super::writer::AzfileWriters;
 use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "azfile";
 
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
@@ -225,7 +226,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("azfile")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

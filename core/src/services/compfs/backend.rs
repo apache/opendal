@@ -30,6 +30,7 @@ use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "compfs";
 
 impl Configurator for CompfsConfig {
     type Builder = CompfsBuilder;
@@ -90,7 +91,7 @@ impl Builder for CompfsBuilder {
         let core = CompfsCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme("compfs")
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

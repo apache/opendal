@@ -32,6 +32,7 @@ use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "dbfs";
 
 impl Configurator for DbfsConfig {
     type Builder = DbfsBuilder;
@@ -149,7 +150,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme("dbfs")
+        am.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,

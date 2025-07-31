@@ -36,6 +36,7 @@ use crate::raw::PathCacher;
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
+const DEFAULT_SCHEME: &str = "gdrive";
 
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
@@ -142,7 +143,7 @@ impl Builder for GdriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme("gdrive")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

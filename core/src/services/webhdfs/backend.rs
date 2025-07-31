@@ -37,6 +37,7 @@ use super::writer::WebhdfsWriters;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "webhdfs";
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
@@ -180,7 +181,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme("webhdfs")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

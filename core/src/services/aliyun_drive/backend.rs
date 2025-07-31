@@ -35,6 +35,7 @@ use super::writer::AliyunDriveWriter;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "aliyun_drive";
 
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
@@ -176,7 +177,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("aliyun_drive")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

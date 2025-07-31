@@ -34,6 +34,7 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::services::GithubConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "github";
 
 impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
@@ -150,7 +151,7 @@ impl Builder for GithubBuilder {
             core: Arc::new(GithubCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("github")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

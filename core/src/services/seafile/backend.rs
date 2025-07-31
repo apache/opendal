@@ -36,6 +36,7 @@ use super::writer::SeafileWriters;
 use crate::raw::*;
 use crate::services::SeafileConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "seafile";
 
 impl Configurator for SeafileConfig {
     type Builder = SeafileBuilder;
@@ -188,7 +189,7 @@ impl Builder for SeafileBuilder {
             core: Arc::new(SeafileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("seafile")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

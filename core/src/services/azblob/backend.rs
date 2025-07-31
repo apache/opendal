@@ -41,6 +41,7 @@ use super::writer::AzblobWriters;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "azblob";
 
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
@@ -384,7 +385,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("azblob")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

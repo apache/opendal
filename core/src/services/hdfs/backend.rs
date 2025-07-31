@@ -31,6 +31,7 @@ use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "hdfs";
 
 impl Configurator for HdfsConfig {
     type Builder = HdfsBuilder;
@@ -174,7 +175,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme("hdfs")
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

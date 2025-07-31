@@ -31,6 +31,7 @@ use super::writer::HdfsNativeWriter;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "hdfs_native";
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
@@ -149,7 +150,7 @@ impl Access for HdfsNativeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme("hdfs_native")
+        am.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

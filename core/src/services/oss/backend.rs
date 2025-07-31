@@ -38,6 +38,7 @@ use super::writer::OssWriters;
 use crate::raw::*;
 use crate::services::OssConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "oss";
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
@@ -410,7 +411,7 @@ impl Builder for OssBuilder {
             core: Arc::new(OssCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("oss")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

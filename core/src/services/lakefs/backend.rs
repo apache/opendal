@@ -35,6 +35,7 @@ use super::writer::LakefsWriter;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "lakefs";
 
 impl Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
@@ -175,18 +176,19 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("lakefs").set_native_capability(Capability {
-                        stat: true,
+                    am.set_scheme(DEFAULT_SCHEME)
+                        .set_native_capability(Capability {
+                            stat: true,
 
-                        list: true,
+                            list: true,
 
-                        read: true,
-                        write: true,
-                        delete: true,
-                        copy: true,
-                        shared: true,
-                        ..Default::default()
-                    });
+                            read: true,
+                            write: true,
+                            delete: true,
+                            copy: true,
+                            shared: true,
+                            ..Default::default()
+                        });
                     am.into()
                 },
                 endpoint,

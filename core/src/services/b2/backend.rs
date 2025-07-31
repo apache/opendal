@@ -37,6 +37,7 @@ use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::B2Config;
 use crate::*;
+const DEFAULT_SCHEME: &str = "b2";
 
 impl Configurator for B2Config {
     type Builder = B2Builder;
@@ -191,7 +192,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("b2")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

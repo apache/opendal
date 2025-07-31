@@ -31,6 +31,7 @@ use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::MiniMokaConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "mini_moka";
 
 impl Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
@@ -155,7 +156,7 @@ impl Access for MiniMokaBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme("mini_moka")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

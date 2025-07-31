@@ -33,6 +33,7 @@ use super::writer::YandexDiskWriters;
 use crate::raw::*;
 use crate::services::YandexDiskConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "yandex_disk";
 
 impl Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;
@@ -126,7 +127,7 @@ impl Builder for YandexDiskBuilder {
             core: Arc::new(YandexDiskCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("yandex_disk")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

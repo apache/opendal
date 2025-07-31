@@ -37,6 +37,7 @@ use super::writer::KoofrWriters;
 use crate::raw::*;
 use crate::services::KoofrConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "koofr";
 
 impl Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
@@ -174,7 +175,7 @@ impl Builder for KoofrBuilder {
             core: Arc::new(KoofrCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("koofr")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

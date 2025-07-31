@@ -35,6 +35,7 @@ use super::writer::VercelBlobWriters;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "vercel_blob";
 
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
@@ -127,7 +128,7 @@ impl Builder for VercelBlobBuilder {
             core: Arc::new(VercelBlobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("vercel_blob")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

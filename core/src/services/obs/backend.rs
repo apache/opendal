@@ -38,6 +38,7 @@ use super::writer::ObsWriters;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "obs";
 
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;
@@ -232,7 +233,7 @@ impl Builder for ObsBuilder {
             core: Arc::new(ObsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("obs")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

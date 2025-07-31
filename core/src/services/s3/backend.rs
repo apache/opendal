@@ -66,6 +66,7 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
     m
 });
 
+const DEFAULT_SCHEME: &str = "s3";
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for S3Config {
@@ -903,7 +904,7 @@ impl Builder for S3Builder {
             core: Arc::new(S3Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("s3")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

@@ -30,6 +30,7 @@ use super::ipld::PBNode;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "ipfs";
 
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
@@ -131,7 +132,7 @@ impl Builder for IpfsBuilder {
         debug!("backend use endpoint {}", &endpoint);
 
         let info = AccessorInfo::default();
-        info.set_scheme("ipfs")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

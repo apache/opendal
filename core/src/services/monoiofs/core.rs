@@ -30,6 +30,7 @@ use monoio::RuntimeBuilder;
 
 use crate::raw::*;
 use crate::*;
+const DEFAULT_SCHEME: &str = "monoiofs";
 
 pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 
@@ -69,7 +70,7 @@ impl MonoiofsCore {
         Self {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme("monoiofs")
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root.to_string_lossy())
                     .set_native_capability(Capability {
                         stat: true,

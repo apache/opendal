@@ -32,6 +32,7 @@ use super::writer::WebdavWriter;
 use crate::raw::*;
 use crate::services::WebdavConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "webdav";
 
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;
@@ -175,7 +176,7 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme("webdav")
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

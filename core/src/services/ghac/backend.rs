@@ -30,6 +30,7 @@ use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "ghac";
 
 fn value_or_env(
     explicit_value: Option<String>,
@@ -173,7 +174,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme("ghac")
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {

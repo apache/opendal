@@ -34,6 +34,7 @@ use super::writer::PcloudWriters;
 use crate::raw::*;
 use crate::services::PcloudConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "pcloud";
 
 impl Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
@@ -168,7 +169,7 @@ impl Builder for PcloudBuilder {
             core: Arc::new(PcloudCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("pcloud")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

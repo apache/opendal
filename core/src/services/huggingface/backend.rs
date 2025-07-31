@@ -31,6 +31,7 @@ use super::lister::HuggingfaceLister;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "huggingface";
 
 impl Configurator for HuggingfaceConfig {
     type Builder = HuggingfaceBuilder;
@@ -172,7 +173,7 @@ impl Builder for HuggingfaceBuilder {
             core: Arc::new(HuggingfaceCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("huggingface")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

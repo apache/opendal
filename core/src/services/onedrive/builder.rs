@@ -34,6 +34,7 @@ use crate::raw::HttpClient;
 use crate::services::OnedriveConfig;
 use crate::Scheme;
 use crate::*;
+const DEFAULT_SCHEME: &str = "onedrive";
 
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
@@ -144,7 +145,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme("onedrive")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,

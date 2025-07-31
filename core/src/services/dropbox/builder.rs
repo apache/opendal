@@ -29,6 +29,7 @@ use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "dropbox";
 
 impl Configurator for DropboxConfig {
     type Builder = DropboxBuilder;
@@ -181,7 +182,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("dropbox")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

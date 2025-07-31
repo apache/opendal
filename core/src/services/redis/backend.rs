@@ -36,6 +36,7 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "redis";
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
@@ -277,7 +278,7 @@ pub struct RedisAccessor {
 impl RedisAccessor {
     fn new(core: RedisCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme("redis");
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(&core.addr);
         info.set_root("/");
         info.set_native_capability(Capability {

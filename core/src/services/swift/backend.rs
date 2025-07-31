@@ -31,6 +31,7 @@ use super::writer::SwiftWriter;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "swift";
 
 impl Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
@@ -155,7 +156,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("swift")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

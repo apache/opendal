@@ -32,6 +32,7 @@ use super::writer::UpyunWriters;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "upyun";
 
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
@@ -169,7 +170,7 @@ impl Builder for UpyunBuilder {
             core: Arc::new(UpyunCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("upyun")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

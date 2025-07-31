@@ -28,6 +28,7 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "http";
 
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
@@ -157,7 +158,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme("http")
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

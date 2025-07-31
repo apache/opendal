@@ -36,6 +36,7 @@ use super::writer::AzdlsWriters;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "azdls";
 
 impl From<AzureStorageConfig> for AzdlsConfig {
     fn from(config: AzureStorageConfig) -> Self {
@@ -295,7 +296,7 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme("azdls")
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {

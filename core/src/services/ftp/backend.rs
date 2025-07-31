@@ -39,6 +39,7 @@ use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::services::FtpConfig;
 use crate::*;
+const DEFAULT_SCHEME: &str = "ftp";
 
 impl Configurator for FtpConfig {
     type Builder = FtpBuilder;
@@ -161,7 +162,7 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme("ftp")
+            .set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

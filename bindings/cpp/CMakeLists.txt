@@ -32,6 +32,8 @@ set(ENV{LANG} en_US.UTF-8)
 set(ENV{LC_ALL} en_US.UTF-8)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
@@ -46,9 +48,31 @@ option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
 if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)
 
-    if (NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
-        message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+        find_library(LIBCXXRT_LIBRARY NAMES c++rt libc++rt)
+        find_library(LIBUNWIND_LIBRARY NAMES unwind)
+        if(LIBCXXRT_LIBRARY AND LIBUNWIND_LIBRARY)
+            list(APPEND CMAKE_REQUIRED_LIBRARIES ${LIBCXXRT_LIBRARY} ${LIBUNWIND_LIBRARY})
+            set(COROUTINES_EXTRA_LIBRARIES ${LIBCXXRT_LIBRARY} ${LIBUNWIND_LIBRARY} CACHE INTERNAL "")
+        endif()
     endif()
+    
+    find_package(Coroutines REQUIRED)
+    
+    if(NOT Coroutines_FOUND)
+        message(FATAL_ERROR "C++ coroutines are required for async mode but not supported by the compiler")
+    endif()
+    
+    if(COROUTINES_COMPILE_FLAGS)
+        add_compile_options(${COROUTINES_COMPILE_FLAGS})
+    endif()
+    
+    add_compile_definitions(
+        OPENDAL_COROUTINE_HEADER="${COROUTINES_HEADER_FILE}"
+        OPENDAL_COROUTINE_NAMESPACE=${COROUTINES_NAMESPACE}
+    )
+    
+    message(STATUS "Async mode enabled with coroutine support: ${COROUTINES_HEADER_FILE} (${COROUTINES_NAMESPACE})")
 else()
     set(CMAKE_CXX_STANDARD 17)
 endif()
@@ -195,9 +219,9 @@ if (OPENDAL_ENABLE_TESTING)
             URL https://github.com/andreasbuhr/cppcoro/archive/${OPENDAL_CPPCORO_VERSION}.zip
         )
         FetchContent_MakeAvailable(cppcoro)
-        target_compile_options(cppcoro PRIVATE
-            "-Wno-deprecated-this-capture"
-        )
+        # target_compile_options(cppcoro PRIVATE
+        #     "-Wno-deprecated-this-capture"
+        # )
     endif()
 
     list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/metadata_test.cpp)
@@ -210,9 +234,9 @@ if (OPENDAL_ENABLE_TESTING)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
     if (OPENDAL_ENABLE_ASYNC)
         target_link_libraries(opendal_cpp_test cppcoro)
-        target_compile_options(opendal_cpp_test PRIVATE
-            "-Wno-deprecated-this-capture"
-        )
+        # target_compile_options(opendal_cpp_test PRIVATE
+        #     "-Wno-deprecated-this-capture"
+        # )
     endif()
 
     # enable address sanitizers

@@ -119,10 +119,14 @@ unsafe impl Future for RustFutureEntryOption {
 }
 
 pub struct Operator(od::Operator);
+
+#[allow(dead_code)]
 pub struct Reader {
     reader: Arc<od::Reader>,
     id: usize,
 }
+
+#[allow(dead_code)]
 pub struct Lister {
     lister: Arc<Mutex<od::Lister>>,
     id: usize,

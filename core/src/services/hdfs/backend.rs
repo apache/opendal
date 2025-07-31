@@ -125,7 +125,6 @@ impl HdfsBuilder {
 }
 
 impl Builder for HdfsBuilder {
-    const SCHEME: Scheme = Scheme::Hdfs;
     type Config = HdfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -175,7 +174,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Hdfs)
+                am.set_scheme("hdfs")
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

@@ -301,7 +301,6 @@ impl AzblobBuilder {
 }
 
 impl Builder for AzblobBuilder {
-    const SCHEME: Scheme = Scheme::Azblob;
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -385,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azblob)
+                    am.set_scheme("azblob")
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

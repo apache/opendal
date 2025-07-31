@@ -130,7 +130,6 @@ impl AliyunDriveBuilder {
 }
 
 impl Builder for AliyunDriveBuilder {
-    const SCHEME: Scheme = Scheme::AliyunDrive;
     type Config = AliyunDriveConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -177,7 +176,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::AliyunDrive)
+                    am.set_scheme("aliyun_drive")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

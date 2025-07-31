@@ -96,7 +96,6 @@ impl CloudflareKvBuilder {
 }
 
 impl Builder for CloudflareKvBuilder {
-    const SCHEME: Scheme = Scheme::CloudflareKv;
     type Config = CloudflareKvConfig;
 
     fn build(self) -> Result<impl Access> {

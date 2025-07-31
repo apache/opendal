@@ -135,7 +135,6 @@ impl D1Builder {
 }
 
 impl Builder for D1Builder {
-    const SCHEME: Scheme = Scheme::D1;
     type Config = D1Config;
 
     fn build(self) -> Result<impl Access> {

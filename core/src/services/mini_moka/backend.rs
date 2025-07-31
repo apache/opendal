@@ -103,7 +103,6 @@ impl MiniMokaBuilder {
 }
 
 impl Builder for MiniMokaBuilder {
-    const SCHEME: Scheme = Scheme::MiniMoka;
     type Config = MiniMokaConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -156,7 +155,7 @@ impl Access for MiniMokaBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::MiniMoka)
+        info.set_scheme("mini_moka")
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

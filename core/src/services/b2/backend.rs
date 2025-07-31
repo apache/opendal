@@ -136,7 +136,6 @@ impl B2Builder {
 }
 
 impl Builder for B2Builder {
-    const SCHEME: Scheme = Scheme::B2;
     type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
@@ -192,7 +191,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::B2)
+                    am.set_scheme("b2")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

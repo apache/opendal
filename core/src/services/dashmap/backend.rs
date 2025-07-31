@@ -67,7 +67,6 @@ impl DashmapBuilder {
 }
 
 impl Builder for DashmapBuilder {
-    const SCHEME: Scheme = Scheme::Dashmap;
     type Config = DashmapConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -101,7 +100,7 @@ pub struct DashmapAccessor {
 impl DashmapAccessor {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Dashmap);
+        info.set_scheme("dashmap");
         info.set_name("dashmap");
         info.set_root(&root);
         info.set_native_capability(Capability {

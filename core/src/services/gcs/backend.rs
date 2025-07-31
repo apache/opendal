@@ -234,7 +234,6 @@ impl GcsBuilder {
 }
 
 impl Builder for GcsBuilder {
-    const SCHEME: Scheme = Scheme::Gcs;
     type Config = GcsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -308,7 +307,7 @@ impl Builder for GcsBuilder {
             core: Arc::new(GcsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Gcs)
+                    am.set_scheme("gcs")
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

@@ -129,7 +129,6 @@ impl HttpBuilder {
 }
 
 impl Builder for HttpBuilder {
-    const SCHEME: Scheme = Scheme::Http;
     type Config = HttpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -158,7 +157,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Http)
+        info.set_scheme("http")
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

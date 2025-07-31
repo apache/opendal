@@ -137,7 +137,6 @@ impl OnedriveBuilder {
 }
 
 impl Builder for OnedriveBuilder {
-    const SCHEME: Scheme = Scheme::Onedrive;
     type Config = OnedriveConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -145,7 +144,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Onedrive)
+        info.set_scheme("onedrive")
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,

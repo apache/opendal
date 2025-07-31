@@ -106,7 +106,6 @@ impl IpfsBuilder {
 }
 
 impl Builder for IpfsBuilder {
-    const SCHEME: Scheme = Scheme::Ipfs;
     type Config = IpfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -132,7 +131,7 @@ impl Builder for IpfsBuilder {
         debug!("backend use endpoint {}", &endpoint);
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Ipfs)
+        info.set_scheme("ipfs")
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

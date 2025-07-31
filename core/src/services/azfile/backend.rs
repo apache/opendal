@@ -181,7 +181,6 @@ impl AzfileBuilder {
 }
 
 impl Builder for AzfileBuilder {
-    const SCHEME: Scheme = Scheme::Azfile;
     type Config = AzfileConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -226,7 +225,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azfile)
+                    am.set_scheme("azfile")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -164,7 +164,6 @@ impl CosBuilder {
 }
 
 impl Builder for CosBuilder {
-    const SCHEME: Scheme = Scheme::Cos;
     type Config = CosConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -222,7 +221,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Cos)
+                    am.set_scheme("cos")
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

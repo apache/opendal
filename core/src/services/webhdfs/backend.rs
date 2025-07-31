@@ -147,7 +147,6 @@ impl WebhdfsBuilder {
 }
 
 impl Builder for WebhdfsBuilder {
-    const SCHEME: Scheme = Scheme::Webhdfs;
     type Config = WebhdfsConfig;
 
     /// build the backend
@@ -181,7 +180,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Webhdfs)
+        info.set_scheme("webhdfs")
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

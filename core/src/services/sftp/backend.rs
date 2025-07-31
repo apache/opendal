@@ -141,7 +141,6 @@ impl SftpBuilder {
 }
 
 impl Builder for SftpBuilder {
-    const SCHEME: Scheme = Scheme::Sftp;
     type Config = SftpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -181,7 +180,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(Scheme::Sftp)
+            .set_scheme("sftp")
             .set_native_capability(Capability {
                 stat: true,
 

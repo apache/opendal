@@ -58,7 +58,6 @@ impl CompfsBuilder {
 }
 
 impl Builder for CompfsBuilder {
-    const SCHEME: Scheme = Scheme::Compfs;
     type Config = CompfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -91,7 +90,7 @@ impl Builder for CompfsBuilder {
         let core = CompfsCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Compfs)
+                am.set_scheme("compfs")
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

@@ -126,7 +126,6 @@ impl LakefsBuilder {
 }
 
 impl Builder for LakefsBuilder {
-    const SCHEME: Scheme = Scheme::Lakefs;
     type Config = LakefsConfig;
 
     /// Build a LakefsBackend.
@@ -176,19 +175,18 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Lakefs)
-                        .set_native_capability(Capability {
-                            stat: true,
+                    am.set_scheme("lakefs").set_native_capability(Capability {
+                        stat: true,
 
-                            list: true,
+                        list: true,
 
-                            read: true,
-                            write: true,
-                            delete: true,
-                            copy: true,
-                            shared: true,
-                            ..Default::default()
-                        });
+                        read: true,
+                        write: true,
+                        delete: true,
+                        copy: true,
+                        shared: true,
+                        ..Default::default()
+                    });
                     am.into()
                 },
                 endpoint,

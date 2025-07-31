@@ -124,7 +124,6 @@ impl IpmfsBuilder {
 }
 
 impl Builder for IpmfsBuilder {
-    const SCHEME: Scheme = Scheme::Ipmfs;
     type Config = IpmfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -138,7 +137,7 @@ impl Builder for IpmfsBuilder {
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Ipmfs)
+        info.set_scheme("ipmfs")
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

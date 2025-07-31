@@ -25,7 +25,6 @@ use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::services::VercelArtifactsConfig;
-use crate::Scheme;
 use crate::*;
 
 impl Configurator for VercelArtifactsConfig {
@@ -82,12 +81,11 @@ impl VercelArtifactsBuilder {
 }
 
 impl Builder for VercelArtifactsBuilder {
-    const SCHEME: Scheme = Scheme::VercelArtifacts;
     type Config = VercelArtifactsConfig;
 
     fn build(self) -> Result<impl Access> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::VercelArtifacts)
+        info.set_scheme("vercel_artifacts")
             .set_native_capability(Capability {
                 stat: true,
 

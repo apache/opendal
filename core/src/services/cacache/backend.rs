@@ -51,7 +51,6 @@ impl CacacheBuilder {
 }
 
 impl Builder for CacacheBuilder {
-    const SCHEME: Scheme = Scheme::Cacache;
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -65,7 +64,7 @@ impl Builder for CacacheBuilder {
         };
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Cacache);
+        info.set_scheme("cacache");
         info.set_name(&datadir_path);
         info.set_root("/");
         info.set_native_capability(Capability {

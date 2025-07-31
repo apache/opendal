@@ -126,7 +126,6 @@ impl DropboxBuilder {
 }
 
 impl Builder for DropboxBuilder {
-    const SCHEME: Scheme = Scheme::Dropbox;
     type Config = DropboxConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -182,7 +181,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Dropbox)
+                    am.set_scheme("dropbox")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -104,7 +104,6 @@ impl AlluxioBuilder {
 }
 
 impl Builder for AlluxioBuilder {
-    const SCHEME: Scheme = Scheme::Alluxio;
     type Config = AlluxioConfig;
 
     /// Builds the backend and returns the result of AlluxioBackend.
@@ -126,7 +125,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Alluxio)
+                    am.set_scheme("alluxio")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

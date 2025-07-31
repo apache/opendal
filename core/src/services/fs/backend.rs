@@ -72,7 +72,6 @@ impl FsBuilder {
 }
 
 impl Builder for FsBuilder {
-    const SCHEME: Scheme = Scheme::Fs;
     type Config = FsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -145,7 +144,7 @@ impl Builder for FsBuilder {
             core: Arc::new(FsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Fs)
+                    am.set_scheme("fs")
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,

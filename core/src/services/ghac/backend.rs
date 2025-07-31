@@ -136,7 +136,6 @@ impl GhacBuilder {
 }
 
 impl Builder for GhacBuilder {
-    const SCHEME: Scheme = Scheme::Ghac;
     type Config = GhacConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -174,7 +173,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Ghac)
+                am.set_scheme("ghac")
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {

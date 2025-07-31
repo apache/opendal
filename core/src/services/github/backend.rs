@@ -119,7 +119,6 @@ impl GithubBuilder {
 }
 
 impl Builder for GithubBuilder {
-    const SCHEME: Scheme = Scheme::Github;
     type Config = GithubConfig;
 
     /// Builds the backend and returns the result of GithubBackend.
@@ -151,7 +150,7 @@ impl Builder for GithubBuilder {
             core: Arc::new(GithubCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Github)
+                    am.set_scheme("github")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

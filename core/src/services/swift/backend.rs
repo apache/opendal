@@ -113,7 +113,6 @@ impl SwiftBuilder {
 }
 
 impl Builder for SwiftBuilder {
-    const SCHEME: Scheme = Scheme::Swift;
     type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
@@ -156,7 +155,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Swift)
+                    am.set_scheme("swift")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

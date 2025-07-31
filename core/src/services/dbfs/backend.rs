@@ -96,7 +96,6 @@ impl DbfsBuilder {
 }
 
 impl Builder for DbfsBuilder {
-    const SCHEME: Scheme = Scheme::Dbfs;
     type Config = DbfsConfig;
 
     /// Build a DbfsBackend.
@@ -150,7 +149,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Dbfs)
+        am.set_scheme("dbfs")
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,

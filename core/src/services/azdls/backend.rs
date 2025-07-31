@@ -249,7 +249,6 @@ impl AzdlsBuilder {
 }
 
 impl Builder for AzdlsBuilder {
-    const SCHEME: Scheme = Scheme::Azdls;
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -296,7 +295,7 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azdls)
+                    am.set_scheme("azdls")
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {

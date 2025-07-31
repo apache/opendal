@@ -69,7 +69,7 @@ impl MonoiofsCore {
         Self {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Monoiofs)
+                am.set_scheme("monoiofs")
                     .set_root(&root.to_string_lossy())
                     .set_native_capability(Capability {
                         stat: true,

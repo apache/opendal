@@ -135,7 +135,6 @@ impl WebdavBuilder {
 }
 
 impl Builder for WebdavBuilder {
-    const SCHEME: Scheme = Scheme::Webdav;
     type Config = WebdavConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -176,7 +175,7 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Webdav)
+                am.set_scheme("webdav")
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

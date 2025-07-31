@@ -109,7 +109,6 @@ impl FtpBuilder {
 }
 
 impl Builder for FtpBuilder {
-    const SCHEME: Scheme = Scheme::Ftp;
     type Config = FtpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -162,7 +161,7 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme(Scheme::Ftp)
+            .set_scheme("ftp")
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

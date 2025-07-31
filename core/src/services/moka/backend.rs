@@ -151,7 +151,6 @@ impl MokaBuilder {
 }
 
 impl Builder for MokaBuilder {
-    const SCHEME: Scheme = Scheme::Moka;
     type Config = MokaConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -203,7 +202,7 @@ pub struct MokaAccessor {
 impl MokaAccessor {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Moka);
+        info.set_scheme("moka");
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
         info.set_native_capability(Capability {

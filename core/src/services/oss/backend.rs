@@ -318,7 +318,6 @@ impl OssBuilder {
 }
 
 impl Builder for OssBuilder {
-    const SCHEME: Scheme = Scheme::Oss;
     type Config = OssConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -411,7 +410,7 @@ impl Builder for OssBuilder {
             core: Arc::new(OssCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Oss)
+                    am.set_scheme("oss")
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

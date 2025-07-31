@@ -132,7 +132,6 @@ impl PcloudBuilder {
 }
 
 impl Builder for PcloudBuilder {
-    const SCHEME: Scheme = Scheme::Pcloud;
     type Config = PcloudConfig;
 
     /// Builds the backend and returns the result of PcloudBackend.
@@ -169,7 +168,7 @@ impl Builder for PcloudBuilder {
             core: Arc::new(PcloudCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Pcloud)
+                    am.set_scheme("pcloud")
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

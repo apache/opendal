@@ -206,15 +206,47 @@ impl ObjectStore for OpendalStore {
 
     async fn put_multipart_opts(
         &self,
-        _location: &Path,
-        _opts: PutMultipartOptions,
+        location: &Path,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "put_multipart_opts is not implemented so far",
-            )),
-        })
+        let mut writer_builder = self
+            .inner
+            .writer_with(&percent_decode_path(location.as_ref()))
+            .concurrent(8);
+
+        // Handle attributes if provided
+        for (key, value) in opts.attributes.iter() {
+            match key {
+                object_store::Attribute::CacheControl => {
+                    writer_builder = writer_builder.cache_control(value);
+                }
+                object_store::Attribute::ContentDisposition => {
+                    writer_builder = writer_builder.content_disposition(value);
+                }
+                object_store::Attribute::ContentEncoding => {
+                    writer_builder = writer_builder.content_encoding(value);
+                }
+                object_store::Attribute::ContentLanguage => {
+                    // no support
+                }
+                object_store::Attribute::ContentType => {
+                    writer_builder = writer_builder.content_type(value);
+                }
+                object_store::Attribute::Metadata(k) => {
+                    writer_builder = writer_builder
+                        .user_metadata([(k.as_ref().to_string(), value.as_ref().to_string())]);
+                }
+                _ => {}
+            }
+        }
+
+        let writer = writer_builder
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let upload = OpendalMultipartUpload::new(writer, location.clone());
+
+        Ok(Box::new(upload))
     }
 
     async fn get_opts(

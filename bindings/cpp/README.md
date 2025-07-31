@@ -70,13 +70,16 @@ Support for more package managers is coming soon!
 - CMake >= 3.22
 - C++ compiler with C++17 support
 
+**This binding currently requires Clang/AppleClang for compilation.**  
+Newer versions of GNU GCC exhibit slight differences in macro parsing behavior compared to Clang, which may cause compilation issues.
+
 ### Build
 
 ```bash
 mkdir build
 cd build
 # Add -DOPENDAL_DEV=ON to make development environment for OpenDAL
-cmake ..
+cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..
 make
 ```
 
@@ -105,8 +108,32 @@ make docs
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
 - `OPENDAL_ENABLE_ASYNC`: Enable async support. Default: `OFF`
 
+## Editor Integration: VSCode
+
+We provide [clangd](https://clangd.llvm.org/) configuration for enhanced IDE support:
+
+1. Install the [VSCode clangd extension](https://marketplace.visualstudio.com/items?itemName=llvm-vs-code-extensions.vscode-clangd)
+2. Generate compile commands during build:
+
+``` bash
+cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
+```
+
+3. The project is pre-configured via `.vscode/settings.json` to automatically point to the `compile_commands.json` in your build directory
+4. For subprojects: Add `"clangd.arguments": ["--compile-commands-dir=/path/to/build"]` to your VSCode configuration.
+
+Auto-configuration via `.vscode/settings.json`:
+
+``` json
+{
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/build"
+  ]
+}
+```
+
 ## License and Trademarks
 
-Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

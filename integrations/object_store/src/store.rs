@@ -313,6 +313,17 @@ impl ObjectStore for OpendalStore {
                 .map_err(|err| format_object_store_error(err, location.as_ref()))?
         };
 
+        // Convert user defined metadata from OpenDAL to object_store attributes
+        let mut attributes = object_store::Attributes::new();
+        if let Some(user_meta) = meta.user_metadata() {
+            for (key, value) in user_meta {
+                attributes.insert(
+                    object_store::Attribute::Metadata(key.clone().into()),
+                    value.clone().into(),
+                );
+            }
+        }
+
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
@@ -326,7 +337,7 @@ impl ObjectStore for OpendalStore {
                 payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
                 range: 0..0,
                 meta,
-                attributes: Default::default(),
+                attributes,
             });
         }
 
@@ -387,7 +398,7 @@ impl ObjectStore for OpendalStore {
             payload: GetResultPayload::Stream(Box::pin(stream)),
             range: read_range.start..read_range.end,
             meta,
-            attributes: Default::default(),
+            attributes,
         })
     }
 

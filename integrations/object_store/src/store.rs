@@ -38,6 +38,7 @@ use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
+use opendal::options::CopyOptions;
 use opendal::raw::percent_decode_path;
 use opendal::Buffer;
 use opendal::Writer;
@@ -108,6 +109,41 @@ impl OpendalStore {
     /// Get the Operator info.
     pub fn info(&self) -> &OperatorInfo {
         self.info.as_ref()
+    }
+
+    /// Copy a file from one location to another
+    async fn copy_request(
+        &self,
+        from: &Path,
+        to: &Path,
+        if_not_exists: bool,
+    ) -> object_store::Result<()> {
+        let mut copy_options = CopyOptions::default();
+        if if_not_exists {
+            copy_options.if_not_exists = true;
+        }
+
+        // Perform the copy operation
+        self.inner
+            .copy_options(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+                copy_options,
+            )
+            .into_send()
+            .await
+            .map_err(|err| {
+                if if_not_exists && err.kind() == opendal::ErrorKind::AlreadyExists {
+                    object_store::Error::AlreadyExists {
+                        path: to.to_string(),
+                        source: Box::new(err),
+                    }
+                } else {
+                    format_object_store_error(err, from.as_ref())
+                }
+            })?;
+
+        Ok(())
     }
 }
 
@@ -498,16 +534,11 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.inner
-            .copy(
-                &percent_decode_path(from.as_ref()),
-                &percent_decode_path(to.as_ref()),
-            )
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
+        self.copy_request(from, to, false).await
+    }
 
-        Ok(())
+    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.copy_request(from, to, true).await
     }
 
     async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
@@ -521,15 +552,6 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, from.as_ref()))?;
 
         Ok(())
-    }
-
-    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "copy_if_not_exists is not implemented so far",
-            )),
-        })
     }
 }
 

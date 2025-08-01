@@ -49,8 +49,6 @@ use crate::*;
 /// }
 /// ```
 pub trait Builder: Default + 'static {
-    /// Associated scheme for this builder. It indicates what underlying service is.
-    const SCHEME: Scheme;
     /// Associated configuration for this builder.
     type Config: Configurator;
 
@@ -60,7 +58,6 @@ pub trait Builder: Default + 'static {
 
 /// Dummy implementation of builder
 impl Builder for () {
-    const SCHEME: Scheme = Scheme::Custom("dummy");
     type Config = ();
 
     fn build(self) -> Result<impl Access> {

@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for ipmfs service.
+#[cfg(feature = "services-ipmfs")]
+pub(super) const DEFAULT_SCHEME: &str = "ipmfs";
 #[cfg(feature = "services-ipmfs")]
 mod backend;
 #[cfg(feature = "services-ipmfs")]

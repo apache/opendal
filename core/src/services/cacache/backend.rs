@@ -27,7 +27,7 @@ use crate::*;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
-
+use super::DEFAULT_SCHEME;
 impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -51,7 +51,6 @@ impl CacacheBuilder {
 }
 
 impl Builder for CacacheBuilder {
-    const SCHEME: Scheme = Scheme::Cacache;
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -65,7 +64,7 @@ impl Builder for CacacheBuilder {
         };
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Cacache);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(&datadir_path);
         info.set_root("/");
         info.set_native_capability(Capability {

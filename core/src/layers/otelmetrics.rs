@@ -432,7 +432,7 @@ impl OtelMetricsInterceptor {
         let mut attributes = Vec::with_capacity(6);
 
         attributes.extend([
-            KeyValue::new(observe::LABEL_SCHEME, attrs.scheme.into_static()),
+            KeyValue::new(observe::LABEL_SCHEME, attrs.scheme),
             KeyValue::new(observe::LABEL_NAMESPACE, attrs.namespace),
             KeyValue::new(observe::LABEL_ROOT, attrs.root),
             KeyValue::new(observe::LABEL_OPERATION, attrs.operation),

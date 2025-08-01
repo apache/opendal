@@ -30,10 +30,10 @@ use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::YandexDiskConfig;
 use crate::*;
-
 impl Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;
 
@@ -104,7 +104,6 @@ impl YandexDiskBuilder {
 }
 
 impl Builder for YandexDiskBuilder {
-    const SCHEME: Scheme = Scheme::YandexDisk;
     type Config = YandexDiskConfig;
 
     /// Builds the backend and returns the result of YandexDiskBackend.
@@ -127,7 +126,7 @@ impl Builder for YandexDiskBuilder {
             core: Arc::new(YandexDiskCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::YandexDisk)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

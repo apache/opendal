@@ -96,7 +96,6 @@ impl TikvBuilder {
 }
 
 impl Builder for TikvBuilder {
-    const SCHEME: Scheme = Scheme::Tikv;
     type Config = TikvConfig;
 
     fn build(self) -> Result<impl Access> {

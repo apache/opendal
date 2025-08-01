@@ -136,7 +136,6 @@ impl EtcdBuilder {
 }
 
 impl Builder for EtcdBuilder {
-    const SCHEME: Scheme = Scheme::Etcd;
     type Config = EtcdConfig;
 
     fn build(self) -> Result<impl Access> {

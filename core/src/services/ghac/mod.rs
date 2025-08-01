@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for ghac service.
+#[cfg(feature = "services-ghac")]
+pub(super) const DEFAULT_SCHEME: &str = "ghac";
 #[cfg(feature = "services-ghac")]
 mod error;
 #[cfg(feature = "services-ghac")]

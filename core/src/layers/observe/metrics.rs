@@ -151,7 +151,7 @@ pub static LABEL_STATUS_CODE: &str = "status_code";
 pub struct MetricLabels {
     /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
     /// Used to differentiate between different storage backends.
-    pub scheme: Scheme,
+    pub scheme: &'static str,
     /// The storage namespace (e.g., bucket name, container name).
     /// Identifies the specific storage container being accessed.
     pub namespace: Arc<str>,

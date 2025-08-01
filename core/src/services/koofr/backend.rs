@@ -34,10 +34,10 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::KoofrConfig;
 use crate::*;
-
 impl Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
 
@@ -136,7 +136,6 @@ impl KoofrBuilder {
 }
 
 impl Builder for KoofrBuilder {
-    const SCHEME: Scheme = Scheme::Koofr;
     type Config = KoofrConfig;
 
     /// Builds the backend and returns the result of KoofrBackend.
@@ -175,7 +174,7 @@ impl Builder for KoofrBuilder {
             core: Arc::new(KoofrCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Koofr)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

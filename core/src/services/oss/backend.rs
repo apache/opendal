@@ -35,10 +35,10 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::OssConfig;
 use crate::*;
-
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for OssConfig {
@@ -318,7 +318,6 @@ impl OssBuilder {
 }
 
 impl Builder for OssBuilder {
-    const SCHEME: Scheme = Scheme::Oss;
     type Config = OssConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -411,7 +410,7 @@ impl Builder for OssBuilder {
             core: Arc::new(OssCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Oss)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

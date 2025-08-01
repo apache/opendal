@@ -22,11 +22,11 @@ use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
 use crate::*;
-
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -50,7 +50,6 @@ impl MemoryBuilder {
 }
 
 impl Builder for MemoryBuilder {
-    const SCHEME: Scheme = Scheme::Memory;
     type Config = MemoryConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -72,7 +71,7 @@ pub struct MemoryAccessor {
 impl MemoryAccessor {
     fn new(core: MemoryCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Memory);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(&format!("{:p}", Arc::as_ptr(&core.data)));
         info.set_root("/");
         info.set_native_capability(Capability {

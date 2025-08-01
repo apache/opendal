@@ -75,10 +75,12 @@ pub(crate) enum AzureStorageService {
     Blob,
 
     /// Azure File Storage.
+    #[cfg(feature = "services-azfile")]
     File,
 
     /// Azure Data Lake Storage Gen2.
     /// Backed by Blob Storage but exposed through a different endpoint (`dfs`).
+    #[cfg(feature = "services-azdls")]
     Adls,
 }
 
@@ -180,7 +182,9 @@ fn collect_endpoint(
 ) -> Result<Option<String>> {
     match storage {
         AzureStorageService::Blob => collect_or_build_endpoint(key_values, "BlobEndpoint", "blob"),
+        #[cfg(feature = "services-azfile")]
         AzureStorageService::File => collect_or_build_endpoint(key_values, "FileEndpoint", "file"),
+        #[cfg(feature = "services-azdls")]
         AzureStorageService::Adls => {
             // ADLS doesn't have a dedicated endpoint field and we can only
             // build it from parts.
@@ -281,7 +285,8 @@ mod tests {
 
     #[test]
     fn test_azure_config_from_connection_string() {
-        let test_cases = vec![
+        #[allow(unused_mut)]
+        let mut test_cases = vec![
             ("minimal fields",
                 (AzureStorageService::Blob, "BlobEndpoint=https://testaccount.blob.core.windows.net/"),
                 Some(AzureStorageConfig{
@@ -319,29 +324,6 @@ mod tests {
                     // Defaults to https
                     endpoint: Some("https://testaccount.blob.core.windows.net".to_string()),
                     account_name: Some("testaccount".to_string()),
-                    ..Default::default()
-                }),
-            ),
-            ("adls endpoint from parts",
-                (AzureStorageService::Adls, "AccountName=testaccount;EndpointSuffix=core.windows.net;DefaultEndpointsProtocol=https"),
-                Some(AzureStorageConfig{
-                    account_name: Some("testaccount".to_string()),
-                    endpoint: Some("https://testaccount.dfs.core.windows.net".to_string()),
-                    ..Default::default()
-                }),
-            ),
-            ("file endpoint from field",
-                (AzureStorageService::File, "FileEndpoint=https://testaccount.file.core.windows.net"),
-                Some(AzureStorageConfig{
-                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
-                    ..Default::default()
-                })
-            ),
-            ("file endpoint from parts",
-                (AzureStorageService::File, "AccountName=testaccount;EndpointSuffix=core.windows.net"),
-                Some(AzureStorageConfig{
-                    account_name: Some("testaccount".to_string()),
-                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
                     ..Default::default()
                 }),
             ),
@@ -415,11 +397,53 @@ mod tests {
                 (AzureStorageService::Blob, "DefaultEndpointsProtocol=ftp;AccountName=example;EndpointSuffix=core.windows.net",),
                 None, // This should fail due to invalid protocol
             ),
-            ("azdls development storage",
-                (AzureStorageService::Adls, "UseDevelopmentStorage=true"),
-                Some(AzureStorageConfig::default()), // Azurite doesn't support ADLSv2, so we ignore this case
-            ),
         ];
+
+        #[cfg(feature = "services-azdls")]
+        test_cases.push(
+            ("adls endpoint from parts",
+                (AzureStorageService::Adls, "AccountName=testaccount;EndpointSuffix=core.windows.net;DefaultEndpointsProtocol=https"),
+                Some(AzureStorageConfig{
+                    account_name: Some("testaccount".to_string()),
+                    endpoint: Some("https://testaccount.dfs.core.windows.net".to_string()),
+                    ..Default::default()
+                }),
+            )
+        );
+
+        #[cfg(feature = "services-azfile")]
+        test_cases.extend(vec![
+            (
+                "file endpoint from field",
+                (
+                    AzureStorageService::File,
+                    "FileEndpoint=https://testaccount.file.core.windows.net",
+                ),
+                Some(AzureStorageConfig {
+                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
+                    ..Default::default()
+                }),
+            ),
+            (
+                "file endpoint from parts",
+                (
+                    AzureStorageService::File,
+                    "AccountName=testaccount;EndpointSuffix=core.windows.net",
+                ),
+                Some(AzureStorageConfig {
+                    account_name: Some("testaccount".to_string()),
+                    endpoint: Some("https://testaccount.file.core.windows.net".to_string()),
+                    ..Default::default()
+                }),
+            ),
+        ]);
+
+        #[cfg(feature = "services-azdls")]
+        test_cases.push((
+            "azdls development storage",
+            (AzureStorageService::Adls, "UseDevelopmentStorage=true"),
+            Some(AzureStorageConfig::default()), // Azurite doesn't support ADLSv2, so we ignore this case
+        ));
 
         for (name, (storage, conn_str), expected) in test_cases {
             let actual = azure_config_from_connection_string(conn_str, storage);

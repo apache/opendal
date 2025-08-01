@@ -29,10 +29,10 @@ use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::*;
-
 impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
 
@@ -128,7 +128,6 @@ impl UpyunBuilder {
 }
 
 impl Builder for UpyunBuilder {
-    const SCHEME: Scheme = Scheme::Upyun;
     type Config = UpyunConfig;
 
     /// Builds the backend and returns the result of UpyunBackend.
@@ -170,7 +169,7 @@ impl Builder for UpyunBuilder {
             core: Arc::new(UpyunCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Upyun)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

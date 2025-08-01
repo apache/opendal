@@ -35,10 +35,10 @@ use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SftpConfig;
 use crate::*;
-
 impl Configurator for SftpConfig {
     type Builder = SftpBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -141,7 +141,6 @@ impl SftpBuilder {
 }
 
 impl Builder for SftpBuilder {
-    const SCHEME: Scheme = Scheme::Sftp;
     type Config = SftpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -181,7 +180,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(Scheme::Sftp)
+            .set_scheme(DEFAULT_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

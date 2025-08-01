@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for ftp service.
+#[cfg(feature = "services-ftp")]
+pub(super) const DEFAULT_SCHEME: &str = "ftp";
 #[cfg(feature = "services-ftp")]
 mod delete;
 #[cfg(feature = "services-ftp")]

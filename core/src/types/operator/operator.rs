@@ -1004,7 +1004,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Operator::writer")
-                    .with_context("service", acc.info().scheme().into_static())
+                    .with_context("service", acc.info().scheme())
                     .with_context("path", &path),
             );
         }

@@ -450,7 +450,7 @@ impl Access for () {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let ai = AccessorInfo::default();
-        ai.set_scheme(Scheme::Custom("dummy"))
+        ai.set_scheme("dummy")
             .set_root("")
             .set_name("dummy")
             .set_native_capability(Capability::default());
@@ -543,9 +543,9 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 /// Accessor is the type erased accessor with `Arc<dyn Accessor>`.
 pub type Accessor = Arc<dyn AccessDyn>;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct AccessorInfoInner {
-    scheme: Scheme,
+    scheme: &'static str,
     root: Arc<str>,
     name: Arc<str>,
 
@@ -554,6 +554,20 @@ struct AccessorInfoInner {
 
     http_client: HttpClient,
     executor: Executor,
+}
+
+impl Default for AccessorInfoInner {
+    fn default() -> Self {
+        Self {
+            scheme: "unknown",
+            root: Arc::from(""),
+            name: Arc::from(""),
+            native_capability: Capability::default(),
+            full_capability: Capability::default(),
+            http_client: HttpClient::default(),
+            executor: Executor::default(),
+        }
+    }
 }
 
 /// Info for the accessor. Users can use this struct to retrieve information about the underlying backend.
@@ -621,27 +635,27 @@ impl Hash for AccessorInfo {
 }
 
 impl AccessorInfo {
-    /// [`Scheme`] of backend.
+    /// Scheme of backend.
     ///
     /// # Panic Safety
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
     /// this method will gracefully continue execution by simply returning the current scheme.
-    pub fn scheme(&self) -> Scheme {
+    pub fn scheme(&self) -> &'static str {
         match self.inner.read() {
             Ok(v) => v.scheme,
             Err(err) => err.get_ref().scheme,
         }
     }
 
-    /// Set [`Scheme`] for backend.
+    /// Set scheme for backend.
     ///
     /// # Panic Safety
     ///
     /// This method safely handles lock poisoning scenarios. If the inner `RwLock` is poisoned,
     /// this method will gracefully continue execution by simply skipping the update operation
     /// rather than propagating the panic.
-    pub fn set_scheme(&self, scheme: Scheme) -> &Self {
+    pub fn set_scheme(&self, scheme: &'static str) -> &Self {
         if let Ok(mut v) = self.inner.write() {
             v.scheme = scheme;
         }

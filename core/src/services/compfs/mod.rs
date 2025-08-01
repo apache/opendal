@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for compfs service.
+#[cfg(feature = "services-compfs")]
+pub(super) const DEFAULT_SCHEME: &str = "compfs";
 #[cfg(feature = "services-compfs")]
 mod core;
 #[cfg(feature = "services-compfs")]

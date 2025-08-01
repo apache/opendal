@@ -29,10 +29,10 @@ use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
-
 impl Configurator for DbfsConfig {
     type Builder = DbfsBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -96,7 +96,6 @@ impl DbfsBuilder {
 }
 
 impl Builder for DbfsBuilder {
-    const SCHEME: Scheme = Scheme::Dbfs;
     type Config = DbfsConfig;
 
     /// Build a DbfsBackend.
@@ -150,7 +149,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Dbfs)
+        am.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,

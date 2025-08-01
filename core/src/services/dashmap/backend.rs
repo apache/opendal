@@ -26,11 +26,11 @@ use super::core::DashmapCore;
 use super::delete::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
-
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -67,7 +67,6 @@ impl DashmapBuilder {
 }
 
 impl Builder for DashmapBuilder {
-    const SCHEME: Scheme = Scheme::Dashmap;
     type Config = DashmapConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -101,7 +100,7 @@ pub struct DashmapAccessor {
 impl DashmapAccessor {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Dashmap);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name("dashmap");
         info.set_root(&root);
         info.set_native_capability(Capability {

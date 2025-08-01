@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for azfile service.
+#[cfg(feature = "services-azfile")]
+pub(super) const DEFAULT_SCHEME: &str = "azfile";
 #[cfg(feature = "services-azfile")]
 mod core;
 #[cfg(feature = "services-azfile")]

@@ -50,6 +50,7 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -716,7 +717,6 @@ impl S3Builder {
 }
 
 impl Builder for S3Builder {
-    const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
     fn build(mut self) -> Result<impl Access> {
@@ -904,7 +904,7 @@ impl Builder for S3Builder {
             core: Arc::new(S3Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::S3)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

@@ -68,7 +68,7 @@ impl GhacWriter {
                 let azure_core = Arc::new(AzblobCore {
                     info: {
                         let am = AccessorInfo::default();
-                        am.set_scheme(Scheme::Azblob)
+                        am.set_scheme("azblob")
                             .set_root("/")
                             .set_name(container)
                             .set_native_capability(Capability {

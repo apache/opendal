@@ -28,10 +28,10 @@ use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;
-
 impl Configurator for HuggingfaceConfig {
     type Builder = HuggingfaceBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -126,7 +126,6 @@ impl HuggingfaceBuilder {
 }
 
 impl Builder for HuggingfaceBuilder {
-    const SCHEME: Scheme = Scheme::Huggingface;
     type Config = HuggingfaceConfig;
 
     /// Build a HuggingfaceBackend.
@@ -173,7 +172,7 @@ impl Builder for HuggingfaceBuilder {
             core: Arc::new(HuggingfaceCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Huggingface)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

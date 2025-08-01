@@ -38,10 +38,10 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
-
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {
@@ -301,7 +301,6 @@ impl AzblobBuilder {
 }
 
 impl Builder for AzblobBuilder {
-    const SCHEME: Scheme = Scheme::Azblob;
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -385,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azblob)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

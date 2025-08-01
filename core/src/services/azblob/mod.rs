@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for azblob service.
+#[cfg(feature = "services-azblob")]
+pub(super) const DEFAULT_SCHEME: &str = "azblob";
 #[cfg(feature = "services-azblob")]
 pub(crate) mod core;
 #[cfg(feature = "services-azblob")]

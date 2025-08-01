@@ -35,7 +35,7 @@ clap = { version = "4.5.40", features = ["derive", "env"] }
 log = { version = "0.4.22" }
 logforth = { version = "0.26.1", default-features = false }
 opendal = { version = "0.54.0", path = "../../core" }
-tokio = { version = "1.46.1", features = [
+tokio = { version = "1.47.0", features = [
   "fs",
   "macros",
   "rt-multi-thread",

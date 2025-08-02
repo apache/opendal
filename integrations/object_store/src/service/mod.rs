@@ -60,7 +60,6 @@ impl ObjectStoreBuilder {
 
 impl Builder for ObjectStoreBuilder {
     type Config = ();
-    const SCHEME: Scheme = Scheme::Custom("object_store");
 
     fn build(self) -> Result<impl Access> {
         let store = self.store.ok_or_else(|| {
@@ -92,7 +91,7 @@ impl Access for ObjectStoreService {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Custom("object_store"))
+        info.set_scheme("object_store")
             .set_root("/")
             .set_name("object_store")
             .set_native_capability(Capability {
@@ -160,7 +159,7 @@ mod tests {
         let builder = ObjectStoreBuilder::default().store(store);
 
         let backend = builder.build().expect("build should succeed");
-        assert!(backend.info().scheme() == Scheme::Custom("object_store"));
+        assert!(backend.info().scheme() == "object_store");
     }
 
     #[tokio::test]
@@ -172,7 +171,7 @@ mod tests {
             .expect("build should succeed");
 
         let info = backend.info();
-        assert_eq!(info.scheme(), Scheme::Custom("object_store"));
+        assert_eq!(info.scheme(), "object_store");
         assert_eq!(info.name(), "object_store".into());
         assert_eq!(info.root(), "/".into());
 

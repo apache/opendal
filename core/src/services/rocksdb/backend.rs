@@ -63,7 +63,6 @@ impl RocksdbBuilder {
 }
 
 impl Builder for RocksdbBuilder {
-    const SCHEME: Scheme = Scheme::Rocksdb;
     type Config = RocksdbConfig;
 
     fn build(self) -> Result<impl Access> {

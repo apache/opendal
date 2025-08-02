@@ -28,10 +28,10 @@ use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;
-
 impl Configurator for AlluxioConfig {
     type Builder = AlluxioBuilder;
 
@@ -104,7 +104,6 @@ impl AlluxioBuilder {
 }
 
 impl Builder for AlluxioBuilder {
-    const SCHEME: Scheme = Scheme::Alluxio;
     type Config = AlluxioConfig;
 
     /// Builds the backend and returns the result of AlluxioBackend.
@@ -126,7 +125,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Alluxio)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

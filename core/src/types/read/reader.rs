@@ -20,10 +20,10 @@ use std::ops::RangeBounds;
 use std::sync::Arc;
 
 use bytes::BufMut;
-use futures::stream;
-use futures::StreamExt;
 use futures::TryStreamExt;
 
+use crate::raw::Access;
+use crate::raw::ConcurrentTasks;
 use crate::*;
 
 /// Reader is designed to read data from given path in an asynchronous
@@ -146,11 +146,33 @@ impl Reader {
     pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
         let merged_ranges = self.merge_ranges(ranges.clone());
 
-        let merged_bufs: Vec<_> =
-            stream::iter(merged_ranges.clone().into_iter().map(|v| self.read(v)))
-                .buffered(self.ctx.options().concurrent())
-                .try_collect()
-                .await?;
+        #[derive(Clone)]
+        struct FetchInput {
+            reader: Reader,
+            range: Range<u64>,
+        }
+
+        let mut tasks = ConcurrentTasks::new(
+            self.ctx.accessor().info().executor(),
+            self.ctx.options().concurrent(),
+            self.ctx.options().prefetch(),
+            |input: FetchInput| {
+                Box::pin(async move {
+                    let FetchInput { range, reader } = input.clone();
+                    (input, reader.read(range).await)
+                })
+            },
+        );
+
+        for range in merged_ranges.clone() {
+            let reader = self.clone();
+            tasks.execute(FetchInput { reader, range }).await?;
+        }
+
+        let mut merged_bufs = vec![];
+        while let Some(b) = tasks.next().await {
+            merged_bufs.push(b?);
+        }
 
         let mut bufs = Vec::with_capacity(ranges.len());
         for range in ranges {

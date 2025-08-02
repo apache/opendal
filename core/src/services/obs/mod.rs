@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for obs service.
+#[cfg(feature = "services-obs")]
+pub(super) const DEFAULT_SCHEME: &str = "obs";
 #[cfg(feature = "services-obs")]
 mod core;
 #[cfg(feature = "services-obs")]

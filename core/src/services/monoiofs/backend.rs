@@ -61,7 +61,6 @@ impl MonoiofsBuilder {
 }
 
 impl Builder for MonoiofsBuilder {
-    const SCHEME: Scheme = Scheme::Monoiofs;
     type Config = MonoiofsConfig;
 
     fn build(self) -> Result<impl Access> {

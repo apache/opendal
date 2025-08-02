@@ -41,7 +41,7 @@ fn baseline(b: Bencher) {
 #[divan::bench(args = [1, 2, 8, 32])]
 fn concurrent(b: Bencher, concurrent: usize) {
     b.with_inputs(|| {
-        ConcurrentTasks::new(Executor::new(), concurrent, |()| {
+        ConcurrentTasks::new(Executor::new(), concurrent, 8, |()| {
             Box::pin(async {
                 tokio::time::sleep(Duration::from_millis(1)).await;
                 ((), Ok(()))

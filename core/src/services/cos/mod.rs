@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for cos service.
+#[cfg(feature = "services-cos")]
+pub(super) const DEFAULT_SCHEME: &str = "cos";
 #[cfg(feature = "services-cos")]
 mod core;
 #[cfg(feature = "services-cos")]

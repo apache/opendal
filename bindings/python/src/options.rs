@@ -30,6 +30,7 @@ pub struct ReadOptions {
     pub chunk: Option<usize>,
     pub gap: Option<usize>,
     pub offset: Option<usize>,
+    pub prefetch: Option<usize>,
     pub size: Option<usize>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
@@ -95,6 +96,7 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
+            prefetch: opts.prefetch.unwrap_or_default(),
         }
     }
 }

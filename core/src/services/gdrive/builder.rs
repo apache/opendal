@@ -28,6 +28,7 @@ use super::backend::GdriveBackend;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
+use super::DEFAULT_SCHEME;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
@@ -36,7 +37,6 @@ use crate::raw::PathCacher;
 use crate::services::GdriveConfig;
 use crate::Scheme;
 use crate::*;
-
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
 
@@ -135,7 +135,6 @@ impl GdriveBuilder {
 }
 
 impl Builder for GdriveBuilder {
-    const SCHEME: Scheme = Scheme::Gdrive;
     type Config = GdriveConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -143,7 +142,7 @@ impl Builder for GdriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Gdrive)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

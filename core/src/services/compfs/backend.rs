@@ -26,11 +26,11 @@ use super::delete::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;
 use crate::*;
-
 impl Configurator for CompfsConfig {
     type Builder = CompfsBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -58,7 +58,6 @@ impl CompfsBuilder {
 }
 
 impl Builder for CompfsBuilder {
-    const SCHEME: Scheme = Scheme::Compfs;
     type Config = CompfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -91,7 +90,7 @@ impl Builder for CompfsBuilder {
         let core = CompfsCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Compfs)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

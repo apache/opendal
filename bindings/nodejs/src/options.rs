@@ -266,6 +266,22 @@ pub struct ReaderOptions {
      */
     pub chunk: Option<u32>,
 
+    /** Controls the number of prefetched bytes ranges that can be buffered in memory
+     * during concurrent reading.
+     *
+     * When performing concurrent reads with `Reader`, this option limits how many
+     * completed-but-not-yet-read chunks can be buffered. Once the number of buffered
+     * chunks reaches this limit, no new read tasks will be spawned until some of the
+     * buffered chunks are consumed.
+     *
+     * - Default value: 0 (no prefetching, strict back-pressure control)
+     * - Set to a higher value to allow more aggressive prefetching at the cost of memory
+     *
+     * This option helps prevent memory exhaustion when reading large files with high
+     * concurrency settings.
+     */
+    pub prefetch: Option<u32>,
+
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
      *
@@ -323,6 +339,7 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
             concurrent: value.concurrent.unwrap_or_default() as usize,
             chunk: value.chunk.map(|chunk| chunk as usize),
             gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            prefetch: value.concurrent.unwrap_or_default() as usize,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,

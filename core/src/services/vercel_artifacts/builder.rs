@@ -21,13 +21,12 @@ use std::sync::Arc;
 
 use super::backend::VercelArtifactsBackend;
 use super::core::VercelArtifactsCore;
+use super::DEFAULT_SCHEME;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::services::VercelArtifactsConfig;
-use crate::Scheme;
 use crate::*;
-
 impl Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;
 
@@ -82,12 +81,11 @@ impl VercelArtifactsBuilder {
 }
 
 impl Builder for VercelArtifactsBuilder {
-    const SCHEME: Scheme = Scheme::VercelArtifacts;
     type Config = VercelArtifactsConfig;
 
     fn build(self) -> Result<impl Access> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::VercelArtifacts)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

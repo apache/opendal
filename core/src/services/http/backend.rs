@@ -25,10 +25,10 @@ use log::debug;
 
 use super::core::HttpCore;
 use super::error::parse_error;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
-
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
 
@@ -129,7 +129,6 @@ impl HttpBuilder {
 }
 
 impl Builder for HttpBuilder {
-    const SCHEME: Scheme = Scheme::Http;
     type Config = HttpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -158,7 +157,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Http)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

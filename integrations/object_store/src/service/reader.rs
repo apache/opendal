@@ -44,7 +44,7 @@ impl ObjectStoreReader {
         args: OpRead,
     ) -> Result<Self> {
         let path = object_store::path::Path::from(path);
-        let opts = parse_read_args(&args)?;
+        let opts = convert_to_get_options(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
         let bytes_stream = Mutex::new(result.into_stream());
@@ -82,7 +82,7 @@ impl oio::Read for ObjectStoreReader {
     }
 }
 
-fn parse_read_args(args: &OpRead) -> Result<object_store::GetOptions> {
+fn convert_to_get_options(args: &OpRead) -> Result<object_store::GetOptions> {
     let mut options = object_store::GetOptions::default();
 
     if let Some(version) = args.version() {

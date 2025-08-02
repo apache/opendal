@@ -165,8 +165,29 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     async fn complete_part(
         &self,
         upload_id: &str,
-        _parts: &[oio::MultipartPart],
+        parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
+        // Validate that we have parts to complete
+        if parts.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Cannot complete multipart upload with no parts",
+            ));
+        }
+
+        // Validate part numbers are sequential and start from 0
+        for (i, part) in parts.iter().enumerate() {
+            if part.part_number != i {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    format!(
+                        "Invalid part number: expected {}, got {}",
+                        i, part.part_number
+                    ),
+                ));
+            }
+        }
+
         // Get the multipart upload for this upload_id
         let mut uploads = self.multipart_uploads.lock().await;
         let multipart_upload = uploads

@@ -83,6 +83,38 @@ impl oio::Write for ObjectStoreWriter {
     }
 }
 
+impl oio::MultipartWrite for ObjectStoreWriter {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+        todo!()
+    }
+
+    async fn initiate_part(&self) -> Result<String> {
+        todo!()
+    }
+
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
+        todo!()
+    }
+
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        todo!()
+    }
+
+    async fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        _size: u64,
+        _body: Buffer,
+    ) -> Result<oio::MultipartPart> {
+        todo!()
+    }
+}
+
 pub(crate) fn parse_write_args(args: &OpWrite) -> Result<PutOptions> {
     let mut opts = PutOptions::default();
 

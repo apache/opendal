@@ -54,41 +54,6 @@ impl ObjectStoreWriter {
     }
 }
 
-impl oio::Write for ObjectStoreWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let bytes = bs.to_bytes();
-        let payload = PutPayload::from(bytes);
-        let opts = parse_write_args(&self.args)?;
-        let result = self
-            .store
-            .put_opts(&self.path, payload, opts)
-            .await
-            .map_err(parse_error)?;
-        self.result = Some(result);
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        let result = match &self.result {
-            Some(result) => result,
-            None => return Err(Error::new(ErrorKind::Unexpected, "No result")),
-        };
-
-        let mut metadata = Metadata::new(EntryMode::FILE);
-        if let Some(etag) = &result.e_tag {
-            metadata.set_etag(etag);
-        }
-        if let Some(version) = &result.version {
-            metadata.set_version(version);
-        }
-        Ok(metadata)
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        Ok(())
-    }
-}
-
 impl oio::MultipartWrite for ObjectStoreWriter {
     /// Write the entire object in one go.
     /// Used when the object is small enough to bypass multipart upload.

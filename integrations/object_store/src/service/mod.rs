@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use object_store::ObjectStore;
+use opendal::raw::oio::MultipartWriter;
 use opendal::raw::*;
 use opendal::Error;
 use opendal::ErrorKind;
@@ -85,7 +86,7 @@ impl Debug for ObjectStoreService {
 
 impl Access for ObjectStoreService {
     type Reader = ObjectStoreReader;
-    type Writer = ObjectStoreWriter;
+    type Writer = MultipartWriter<ObjectStoreWriter>;
     type Lister = ObjectStoreLister;
     type Deleter = ObjectStoreDeleter;
 
@@ -132,7 +133,10 @@ impl Access for ObjectStoreService {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = ObjectStoreWriter::new(self.store.clone(), path, args);
-        Ok((RpWrite::default(), writer))
+        Ok((
+            RpWrite::default(),
+            MultipartWriter::new(self.info(), writer, 10),
+        ))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

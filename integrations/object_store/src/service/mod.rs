@@ -53,9 +53,8 @@ impl Debug for ObjectStoreBuilder {
 
 impl ObjectStoreBuilder {
     /// Set the object store instance
-    pub fn store(mut self, store: Arc<dyn ObjectStore + 'static>) -> Self {
-        self.store = Some(store);
-        self
+    pub fn new(store: Arc<dyn ObjectStore + 'static>) -> Self {
+        Self { store: Some(store) }
     }
 }
 
@@ -160,7 +159,7 @@ mod tests {
     #[tokio::test]
     async fn test_object_store_backend_builder() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let builder = ObjectStoreBuilder::default().store(store);
+        let builder = ObjectStoreBuilder::new(store);
 
         let backend = builder.build().expect("build should succeed");
         assert!(backend.info().scheme() == "object_store");
@@ -169,8 +168,7 @@ mod tests {
     #[tokio::test]
     async fn test_object_store_backend_info() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let backend = ObjectStoreBuilder::default()
-            .store(store)
+        let backend = ObjectStoreBuilder::new(store)
             .build()
             .expect("build should succeed");
 
@@ -190,8 +188,7 @@ mod tests {
     #[tokio::test]
     async fn test_object_store_backend_basic_operations() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let backend = ObjectStoreBuilder::default()
-            .store(store.clone())
+        let backend = ObjectStoreBuilder::new(store.clone())
             .build()
             .expect("build should succeed");
 
@@ -232,10 +229,59 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_object_store_backend_multipart_upload() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::new(store.clone())
+            .build()
+            .expect("build should succeed");
+
+        let path = "test_file.txt";
+        let content =
+            b"Hello, multipart upload! This is a test content for multipart upload functionality.";
+        let content_len = content.len();
+
+        // Test multipart upload with multiple chunks
+        let (_, mut writer) = backend
+            .write(path, OpWrite::default())
+            .await
+            .expect("write should succeed");
+
+        // Write content in chunks to simulate multipart upload
+        let chunk_size = 20;
+        for chunk in content.chunks(chunk_size) {
+            writer
+                .write(Buffer::from(chunk))
+                .await
+                .expect("write chunk should succeed");
+        }
+
+        writer.close().await.expect("close should succeed");
+
+        // Verify the uploaded file
+        let stat_result = backend
+            .stat(path, OpStat::default())
+            .await
+            .expect("stat should succeed");
+
+        assert_eq!(
+            stat_result.into_metadata().content_length(),
+            content_len as u64
+        );
+
+        // Read back and verify content
+        let (_, mut reader) = backend
+            .read(path, OpRead::default())
+            .await
+            .expect("read should succeed");
+
+        let buf = reader.read().await.expect("read should succeed");
+        assert_eq!(buf.to_vec(), content);
+    }
+
+    #[tokio::test]
     async fn test_object_store_backend_list() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let backend = ObjectStoreBuilder::default()
-            .store(store.clone())
+        let backend = ObjectStoreBuilder::new(store.clone())
             .build()
             .expect("build should succeed");
 
@@ -277,8 +323,7 @@ mod tests {
     #[tokio::test]
     async fn test_object_store_backend_delete() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let backend = ObjectStoreBuilder::default()
-            .store(store.clone())
+        let backend = ObjectStoreBuilder::new(store)
             .build()
             .expect("build should succeed");
 
@@ -317,8 +362,7 @@ mod tests {
     #[tokio::test]
     async fn test_object_store_backend_error_handling() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
-        let backend = ObjectStoreBuilder::default()
-            .store(store.clone())
+        let backend = ObjectStoreBuilder::new(store)
             .build()
             .expect("build should succeed");
 

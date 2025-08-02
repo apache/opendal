@@ -43,6 +43,7 @@ use opendal::raw::percent_decode_path;
 use opendal::Buffer;
 use opendal::Writer;
 use opendal::{Operator, OperatorInfo};
+use std::collections::HashMap;
 use tokio::sync::{Mutex, Notify};
 
 /// OpendalStore implements ObjectStore trait by using opendal.
@@ -245,38 +246,50 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        let mut writer_builder = self
-            .inner
-            .writer_with(&percent_decode_path(location.as_ref()))
-            .concurrent(8);
+        const DEFAULT_CONCURRENT: usize = 8;
+
+        let mut options = opendal::options::WriteOptions {
+            concurrent: DEFAULT_CONCURRENT,
+            ..Default::default()
+        };
+
+        // Collect user metadata separately to handle multiple entries
+        let mut user_metadata = HashMap::new();
 
         // Handle attributes if provided
         for (key, value) in opts.attributes.iter() {
             match key {
                 object_store::Attribute::CacheControl => {
-                    writer_builder = writer_builder.cache_control(value);
+                    options.cache_control = Some(value.to_string());
                 }
                 object_store::Attribute::ContentDisposition => {
-                    writer_builder = writer_builder.content_disposition(value);
+                    options.content_disposition = Some(value.to_string());
                 }
                 object_store::Attribute::ContentEncoding => {
-                    writer_builder = writer_builder.content_encoding(value);
+                    options.content_encoding = Some(value.to_string());
                 }
                 object_store::Attribute::ContentLanguage => {
                     // no support
+                    continue;
                 }
                 object_store::Attribute::ContentType => {
-                    writer_builder = writer_builder.content_type(value);
+                    options.content_type = Some(value.to_string());
                 }
                 object_store::Attribute::Metadata(k) => {
-                    writer_builder = writer_builder
-                        .user_metadata([(k.as_ref().to_string(), value.as_ref().to_string())]);
+                    user_metadata.insert(k.to_string(), value.to_string());
                 }
                 _ => {}
             }
         }
 
-        let writer = writer_builder
+        // Apply user metadata if any entries were collected
+        if !user_metadata.is_empty() {
+            options.user_metadata = Some(user_metadata);
+        }
+
+        let writer = self
+            .inner
+            .writer_options(&percent_decode_path(location.as_ref()), options)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;

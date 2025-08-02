@@ -291,6 +291,46 @@ mod tests {
     use std::sync::Arc;
 
     #[tokio::test]
+    async fn test_single_file_upload() {
+        // Create a native InMemory store from object_store crate
+        let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+        let mut rng = thread_rng();
+        let path: Path = "test_single_file.txt".into();
+
+        // Generate random bytes for the file
+        let file_size = rng.gen_range(100..=2048);
+        let mut random_bytes = vec![0; file_size];
+        rng.fill_bytes(&mut random_bytes);
+
+        // Upload the file using put method
+        let payload = object_store::PutPayload::from(random_bytes.clone());
+        let result = object_store.put(&path, payload).await.unwrap();
+
+        // Verify the upload was successful
+        assert!(result.e_tag.is_some() || result.version.is_some());
+
+        // Retrieve the file and verify its content
+        let retrieved_bytes = object_store
+            .get(&path)
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap();
+
+        // Verify the retrieved content matches the original
+        assert_eq!(retrieved_bytes, Bytes::from(random_bytes));
+
+        // Verify the file metadata
+        let meta = object_store.head(&path).await.unwrap();
+        assert_eq!(meta.size, file_size as u64);
+
+        // Clean up
+        object_store.delete(&path).await.unwrap();
+    }
+
+    #[tokio::test]
     async fn test_multipart_upload_with_memory_store() {
         // Create a native InMemory store from object_store crate
         let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());

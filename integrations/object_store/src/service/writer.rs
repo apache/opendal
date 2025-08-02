@@ -84,12 +84,41 @@ impl oio::Write for ObjectStoreWriter {
 }
 
 impl oio::MultipartWrite for ObjectStoreWriter {
-    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        todo!()
+    /// Write the entire object in one go.
+    /// Used when the object is small enough to bypass multipart upload.
+    async fn write_once(&self, _size: u64, body: Buffer) -> Result<Metadata> {
+        let bytes = body.to_bytes();
+        let payload = PutPayload::from(bytes);
+        let opts = parse_write_args(&self.args)?;
+
+        let result = self
+            .store
+            .put_opts(&self.path, payload, opts)
+            .await
+            .map_err(parse_error)?;
+
+        // Build metadata from put result
+        let mut metadata = Metadata::new(EntryMode::FILE);
+        if let Some(etag) = &result.e_tag {
+            metadata.set_etag(etag);
+        }
+        if let Some(version) = &result.version {
+            metadata.set_version(version);
+        }
+
+        Ok(metadata)
     }
 
+    // Generate a unique upload ID that we'll use to track this session
     async fn initiate_part(&self) -> Result<String> {
-        todo!()
+        // For ObjectStore, we need to use the underlying service's
+        // multipart API. Different services use different approaches:                                                                                                                                                                None
+        // - S3: InitiateMultipartUpload
+        // - Azure: Block Blob operations
+        // - GCS: Multipart upload
+
+        let upload_id = format!("mp-{}", ulid::Ulid::new());
+        Ok(upload_id)
     }
 
     async fn complete_part(

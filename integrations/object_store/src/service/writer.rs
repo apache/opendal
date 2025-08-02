@@ -25,6 +25,7 @@ use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
 
+use opendal::raw::oio::MultipartPart;
 use opendal::raw::*;
 use opendal::*;
 
@@ -86,10 +87,25 @@ impl oio::Write for ObjectStoreWriter {
 impl oio::MultipartWrite for ObjectStoreWriter {
     /// Write the entire object in one go.
     /// Used when the object is small enough to bypass multipart upload.
-    async fn write_once(&self, _size: u64, body: Buffer) -> Result<Metadata> {
+    async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
+        // Validate that actual body size matches expected size
+        let actual_size = body.len() as u64;
+        if actual_size != size {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Expected size {} but got {}", size, actual_size),
+            ));
+        }
+
         let bytes = body.to_bytes();
         let payload = PutPayload::from(bytes);
-        let opts = parse_write_args(&self.args)?;
+        let mut opts = parse_write_args(&self.args)?;
+
+        // Add size metadata for tracking
+        opts.attributes.insert(
+            Attribute::Metadata("content-size".into()),
+            AttributeValue::from(size.to_string()),
+        );
 
         let result = self
             .store
@@ -121,6 +137,63 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         Ok(upload_id)
     }
 
+    /// Upload a single part of the multipart upload.
+    /// Part numbers must be sequential starting from 1.
+    /// Returns the ETag and part information for this uploaded part.
+    async fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<MultipartPart> {
+        // Validate that actual body size matches expected size
+        let actual_size = body.len() as u64;
+        if actual_size != size {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("Expected size {} but got {}", size, actual_size),
+            ));
+        }
+
+        let bytes = body.to_bytes();
+        let payload = PutPayload::from(bytes.clone());
+
+        // For ObjectStore, we'll use a convention-based approach
+        // Each part is uploaded with a tag that includes the upload ID
+        let mut opts = parse_write_args(&self.args)?;
+
+        // Add tracking metadata
+        opts.attributes.insert(
+            Attribute::Metadata("upload-id".into()),
+            AttributeValue::from(upload_id.to_string()),
+        );
+        opts.attributes.insert(
+            Attribute::Metadata("part-number".into()),
+            AttributeValue::from(part_number.to_string()),
+        );
+        opts.attributes.insert(
+            Attribute::Metadata("part-size".into()),
+            AttributeValue::from(size.to_string()),
+        );
+
+        // Upload the part
+        let result = self
+            .store
+            .put_opts(&self.path, payload, opts)
+            .await
+            .map_err(parse_error)?;
+
+        // Create part info
+        let multipart_part = MultipartPart {
+            part_number,
+            etag: result.e_tag.clone().unwrap_or_default(),
+            checksum: None,
+        };
+
+        Ok(multipart_part)
+    }
+
     async fn complete_part(
         &self,
         upload_id: &str,
@@ -130,16 +203,6 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        todo!()
-    }
-
-    async fn write_part(
-        &self,
-        upload_id: &str,
-        part_number: usize,
-        _size: u64,
-        _body: Buffer,
-    ) -> Result<oio::MultipartPart> {
         todo!()
     }
 }

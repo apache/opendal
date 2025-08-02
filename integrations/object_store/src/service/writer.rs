@@ -16,10 +16,12 @@
 // under the License.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use object_store::Attribute;
 use object_store::AttributeValue;
+use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutOptions;
 use object_store::PutPayload;
@@ -36,6 +38,8 @@ pub struct ObjectStoreWriter {
     path: object_store::path::Path,
     args: OpWrite,
     result: Option<PutResult>,
+    // Track multipart uploads by upload_id
+    multipart_uploads: Arc<tokio::sync::Mutex<HashMap<String, Box<dyn MultipartUpload>>>>,
 }
 
 impl ObjectStoreWriter {
@@ -45,6 +49,7 @@ impl ObjectStoreWriter {
             path: object_store::path::Path::from(path),
             args,
             result: None,
+            multipart_uploads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
 }
@@ -127,13 +132,22 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
     // Generate a unique upload ID that we'll use to track this session
     async fn initiate_part(&self) -> Result<String> {
-        // For ObjectStore, we need to use the underlying service's
-        // multipart API. Different services use different approaches:                                                                                                                                                                None
-        // - S3: InitiateMultipartUpload
-        // - Azure: Block Blob operations
-        // - GCS: Multipart upload
+        // Create a unique upload ID using ULID
+        let upload_id = ulid::Ulid::new().to_string();
 
-        let upload_id = format!("mp-{}", ulid::Ulid::new());
+        // Start a new multipart upload using object_store
+        let opts = parse_write_args(&self.args)?;
+        let multipart_opts = convert_to_multipart_options(opts);
+        let multipart_upload = self
+            .store
+            .put_multipart_opts(&self.path, multipart_opts)
+            .await
+            .map_err(parse_error)?;
+
+        // Store the multipart upload for later use
+        let mut uploads = self.multipart_uploads.lock().await;
+        uploads.insert(upload_id.clone(), multipart_upload);
+
         Ok(upload_id)
     }
 
@@ -156,39 +170,28 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             ));
         }
 
+        // Get the multipart upload for this upload_id
+        let mut uploads = self.multipart_uploads.lock().await;
+        let multipart_upload = uploads
+            .get_mut(upload_id)
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
+
+        // Convert Buffer to PutPayload
         let bytes = body.to_bytes();
-        let payload = PutPayload::from(bytes.clone());
-
-        // For ObjectStore, we'll use a convention-based approach
-        // Each part is uploaded with a tag that includes the upload ID
-        let mut opts = parse_write_args(&self.args)?;
-
-        // Add tracking metadata
-        opts.attributes.insert(
-            Attribute::Metadata("upload-id".into()),
-            AttributeValue::from(upload_id.to_string()),
-        );
-        opts.attributes.insert(
-            Attribute::Metadata("part-number".into()),
-            AttributeValue::from(part_number.to_string()),
-        );
-        opts.attributes.insert(
-            Attribute::Metadata("part-size".into()),
-            AttributeValue::from(size.to_string()),
-        );
+        let payload = PutPayload::from(bytes);
 
         // Upload the part
-        let result = self
-            .store
-            .put_opts(&self.path, payload, opts)
-            .await
-            .map_err(parse_error)?;
+        let upload_part = multipart_upload.put_part(payload);
+        upload_part.await.map_err(parse_error)?;
 
-        // Create part info
+        // Create MultipartPart with the part number
+        // Note: We don't have the actual ETag from the part upload,
+        // so we'll use a placeholder. In a real implementation,
+        // you might need to track ETags differently.
         let multipart_part = MultipartPart {
             part_number,
-            etag: result.e_tag.clone().unwrap_or_default(),
-            checksum: None,
+            etag: format!("part-{}", part_number), // Placeholder ETag
+            checksum: None,                        // No checksum for now
         };
 
         Ok(multipart_part)
@@ -197,13 +200,46 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     async fn complete_part(
         &self,
         upload_id: &str,
-        parts: &[oio::MultipartPart],
+        _parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
-        todo!()
+        // Get the multipart upload for this upload_id
+        let mut uploads = self.multipart_uploads.lock().await;
+        let multipart_upload = uploads
+            .get_mut(upload_id)
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
+
+        // Complete the multipart upload
+        let result = multipart_upload.complete().await.map_err(parse_error)?;
+
+        // Remove the upload from tracking
+        uploads.remove(upload_id);
+
+        // Build metadata from the result
+        let mut metadata = Metadata::new(EntryMode::FILE);
+        if let Some(etag) = &result.e_tag {
+            metadata.set_etag(etag);
+        }
+        if let Some(version) = &result.version {
+            metadata.set_version(version);
+        }
+
+        Ok(metadata)
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        todo!()
+        // Get the multipart upload for this upload_id
+        let mut uploads = self.multipart_uploads.lock().await;
+        let multipart_upload = uploads
+            .get_mut(upload_id)
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
+
+        // Abort the multipart upload
+        multipart_upload.abort().await.map_err(parse_error)?;
+
+        // Remove the upload from tracking
+        uploads.remove(upload_id);
+
+        Ok(())
     }
 }
 
@@ -240,4 +276,10 @@ pub(crate) fn parse_write_args(args: &OpWrite) -> Result<PutOptions> {
         }
     }
     Ok(opts)
+}
+
+fn convert_to_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptions {
+    let mut multipart_opts = object_store::PutMultipartOptions::default();
+    multipart_opts.attributes = opts.attributes;
+    multipart_opts
 }

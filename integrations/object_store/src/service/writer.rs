@@ -37,8 +37,6 @@ pub struct ObjectStoreWriter {
     store: Arc<dyn ObjectStore + 'static>,
     path: object_store::path::Path,
     args: OpWrite,
-    result: Option<PutResult>,
-    // Track multipart uploads by upload_id
     multipart_uploads: Arc<tokio::sync::Mutex<HashMap<String, Box<dyn MultipartUpload>>>>,
 }
 
@@ -48,7 +46,6 @@ impl ObjectStoreWriter {
             store,
             path: object_store::path::Path::from(path),
             args,
-            result: None,
             multipart_uploads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
@@ -69,7 +66,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
         let bytes = body.to_bytes();
         let payload = PutPayload::from(bytes);
-        let mut opts = parse_write_args(&self.args)?;
+        let mut opts = convert_to_put_opts(&self.args)?;
 
         // Add size metadata for tracking
         opts.attributes.insert(
@@ -101,7 +98,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let upload_id = ulid::Ulid::new().to_string();
 
         // Start a new multipart upload using object_store
-        let opts = parse_write_args(&self.args)?;
+        let opts = convert_to_put_opts(&self.args)?;
         let multipart_opts = convert_to_multipart_options(opts);
         let multipart_upload = self
             .store
@@ -208,7 +205,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     }
 }
 
-pub(crate) fn parse_write_args(args: &OpWrite) -> Result<PutOptions> {
+pub(crate) fn convert_to_put_opts(args: &OpWrite) -> Result<PutOptions> {
     let mut opts = PutOptions::default();
 
     if let Some(content_type) = args.content_type() {

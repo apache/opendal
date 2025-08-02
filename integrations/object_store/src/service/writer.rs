@@ -61,7 +61,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         if actual_size != size {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                format!("Expected size {} but got {}", size, actual_size),
+                format!("Expected size {size} but got {actual_size}"),
             ));
         }
 
@@ -129,7 +129,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         if actual_size != size {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                format!("Expected size {} but got {}", size, actual_size),
+                format!("Expected size {size} but got {actual_size}"),
             ));
         }
 
@@ -265,9 +265,10 @@ pub(crate) fn convert_to_put_opts(args: &OpWrite) -> Result<PutOptions> {
 }
 
 fn convert_to_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptions {
-    let mut multipart_opts = object_store::PutMultipartOptions::default();
-    multipart_opts.attributes = opts.attributes;
-    multipart_opts
+    object_store::PutMultipartOptions {
+        attributes: opts.attributes,
+        ..Default::default()
+    }
 }
 
 /// Generate a proper ETag for a multipart part

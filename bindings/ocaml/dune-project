@@ -17,7 +17,7 @@
 ; under the License.
 
 (name opendal)
-(version 0.52.0)
+(version 0.1.0)
 (generate_opam_files true)
 (license Apache-2.0)
 (maintainers "OpenDAL Contributors <dev@opendal.apache.org>")

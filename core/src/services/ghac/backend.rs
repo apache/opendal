@@ -26,11 +26,11 @@ use sha2::Digest;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
-
 fn value_or_env(
     explicit_value: Option<String>,
     env_var_name: &str,
@@ -136,7 +136,6 @@ impl GhacBuilder {
 }
 
 impl Builder for GhacBuilder {
-    const SCHEME: Scheme = Scheme::Ghac;
     type Config = GhacConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -174,7 +173,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Ghac)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {

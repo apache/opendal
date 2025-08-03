@@ -34,11 +34,11 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
-
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
 
@@ -164,7 +164,6 @@ impl CosBuilder {
 }
 
 impl Builder for CosBuilder {
-    const SCHEME: Scheme = Scheme::Cos;
     type Config = CosConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -222,7 +221,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Cos)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for dbfs service.
+#[cfg(feature = "services-dbfs")]
+pub(super) const DEFAULT_SCHEME: &str = "dbfs";
 #[cfg(feature = "services-dbfs")]
 mod core;
 #[cfg(feature = "services-dbfs")]

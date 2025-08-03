@@ -32,10 +32,10 @@ use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
-
 impl Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
 
@@ -130,7 +130,6 @@ impl AliyunDriveBuilder {
 }
 
 impl Builder for AliyunDriveBuilder {
-    const SCHEME: Scheme = Scheme::AliyunDrive;
     type Config = AliyunDriveConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -177,7 +176,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::AliyunDrive)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

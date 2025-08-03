@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for dashmap service.
+#[cfg(feature = "services-dashmap")]
+pub(super) const DEFAULT_SCHEME: &str = "dashmap";
 #[cfg(feature = "services-dashmap")]
 mod backend;
 #[cfg(feature = "services-dashmap")]

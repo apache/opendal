@@ -28,10 +28,10 @@ use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
-
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 impl Configurator for HdfsNativeConfig {
@@ -94,7 +94,6 @@ impl HdfsNativeBuilder {
 }
 
 impl Builder for HdfsNativeBuilder {
-    const SCHEME: Scheme = Scheme::HdfsNative;
     type Config = HdfsNativeConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -150,7 +149,7 @@ impl Access for HdfsNativeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(Scheme::HdfsNative)
+        am.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

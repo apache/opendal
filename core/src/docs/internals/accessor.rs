@@ -251,7 +251,6 @@
 //! }
 //!
 //! impl Builder for DuckBuilder {
-//!     const SCHEME: Scheme = Scheme::Duck;
 //!     type Accessor = DuckBackend;
 //!     type Config = DuckConfig;
 //!
@@ -298,7 +297,7 @@
 //!
 //!     fn metadata(&self) -> AccessorInfo {
 //!         let am = AccessorInfo::default();
-//!         am.set_scheme(Scheme::Duck)
+//!         am.set_scheme("duck")
 //!             .set_root(&self.root)
 //!             .set_capability(
 //!                 Capability {

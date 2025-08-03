@@ -32,10 +32,10 @@ use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
-
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzfileConfig {
@@ -181,7 +181,6 @@ impl AzfileBuilder {
 }
 
 impl Builder for AzfileBuilder {
-    const SCHEME: Scheme = Scheme::Azfile;
     type Config = AzfileConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -226,7 +225,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azfile)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -25,19 +25,17 @@ use futures::FutureExt;
 use crate::*;
 
 /// BoxedFuture is the type alias of [`futures::future::BoxFuture`].
-///
-/// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.
 #[cfg(not(target_arch = "wasm32"))]
 pub type BoxedFuture<'a, T> = futures::future::BoxFuture<'a, T>;
 #[cfg(target_arch = "wasm32")]
+/// BoxedFuture is the type alias of [`futures::future::LocalBoxFuture`].
 pub type BoxedFuture<'a, T> = futures::future::LocalBoxFuture<'a, T>;
 
 /// BoxedStaticFuture is the type alias of [`futures::future::BoxFuture`].
-///
-/// We will switch to [`futures::future::LocalBoxFuture`] on wasm32 target.
 #[cfg(not(target_arch = "wasm32"))]
 pub type BoxedStaticFuture<T> = futures::future::BoxFuture<'static, T>;
 #[cfg(target_arch = "wasm32")]
+/// BoxedStaticFuture is the type alias of [`futures::future::LocalBoxFuture`].
 pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 
 /// MaybeSend is a marker to determine whether a type is `Send` or not.
@@ -49,6 +47,14 @@ pub type BoxedStaticFuture<T> = futures::future::LocalBoxFuture<'static, T>;
 /// And it's empty trait on wasm32 target to indicate that a type is not `Send`.
 #[cfg(not(target_arch = "wasm32"))]
 pub trait MaybeSend: Send {}
+
+/// MaybeSend is a marker to determine whether a type is `Send` or not.
+/// We use this trait to wrap the `Send` requirement for wasm32 target.
+///
+/// # Safety
+///
+/// [`MaybeSend`] is equivalent to `Send` on non-wasm32 target.
+/// And it's empty trait on wasm32 target to indicate that a type is not `Send`.
 #[cfg(target_arch = "wasm32")]
 pub trait MaybeSend {}
 
@@ -128,6 +134,8 @@ pub struct ConcurrentTasks<I, O> {
 
     /// The maximum number of concurrent tasks.
     concurrent: usize,
+    /// The maximum number of completed tasks that can be buffered.
+    prefetch: usize,
     /// Tracks the number of tasks that have finished execution but have not yet been collected.
     /// This count is subtracted from the total concurrency capacity, ensuring that the system
     /// always schedules new tasks to maintain the user's desired concurrency level.
@@ -144,12 +152,13 @@ pub struct ConcurrentTasks<I, O> {
 }
 
 impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
-    /// Create a new concurrent tasks with given executor, concurrent and factory.
+    /// Create a new concurrent tasks with given executor, concurrent, prefetch and factory.
     ///
     /// The factory is a function pointer that shouldn't capture any context.
     pub fn new(
         executor: Executor,
         concurrent: usize,
+        prefetch: usize,
         factory: fn(I) -> BoxedStaticFuture<(I, Result<O>)>,
     ) -> Self {
         Self {
@@ -159,6 +168,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             tasks: VecDeque::with_capacity(concurrent),
             results: VecDeque::with_capacity(concurrent),
             concurrent,
+            prefetch,
             completed_but_unretrieved: Arc::default(),
             errored: false,
         }
@@ -181,7 +191,9 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Check if there are remaining space to push new tasks.
     #[inline]
     pub fn has_remaining(&self) -> bool {
-        self.tasks.len() < self.concurrent + self.completed_but_unretrieved.load(Ordering::Relaxed)
+        let completed = self.completed_but_unretrieved.load(Ordering::Relaxed);
+        // Allow up to `prefetch` completed tasks to be buffered
+        self.tasks.len() < self.concurrent + completed.min(self.prefetch)
     }
 
     /// Chunk if there are remaining results to fetch.
@@ -318,7 +330,7 @@ mod tests {
     async fn test_concurrent_tasks() {
         let executor = Executor::new();
 
-        let mut tasks = ConcurrentTasks::new(executor, 16, |(i, dur)| {
+        let mut tasks = ConcurrentTasks::new(executor, 16, 8, |(i, dur)| {
             Box::pin(async move {
                 sleep(dur).await;
 
@@ -355,5 +367,104 @@ mod tests {
         }
 
         assert_eq!(ans, (0..10240).collect::<Vec<_>>())
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_backpressure() {
+        let executor = Executor::new();
+        let concurrent = 4;
+        let prefetch = 2;
+
+        // Create a slower task to ensure they don't complete immediately
+        let mut tasks = ConcurrentTasks::new(executor, concurrent, prefetch, |i: usize| {
+            Box::pin(async move {
+                sleep(Duration::from_millis(100)).await;
+                (i, Ok(i))
+            })
+        });
+
+        // Initially, we should have space for concurrent tasks
+        assert!(tasks.has_remaining(), "Should have space initially");
+
+        // Submit concurrent tasks
+        for i in 0..concurrent {
+            assert!(tasks.has_remaining(), "Should have space for task {i}");
+            tasks.execute(i).await.unwrap();
+        }
+
+        // Now we shouldn't have any more space (since no tasks have completed yet)
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have space after submitting concurrent tasks"
+        );
+
+        // Wait for some tasks to complete
+        sleep(Duration::from_millis(150)).await;
+
+        // Now we should have space up to prefetch limit
+        for i in concurrent..concurrent + prefetch {
+            assert!(
+                tasks.has_remaining(),
+                "Should have space for prefetch task {i}"
+            );
+            tasks.execute(i).await.unwrap();
+        }
+
+        // Now has_remaining should return false
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have remaining space after filling up prefetch buffer"
+        );
+
+        // Retrieve one result
+        let result = tasks.next().await;
+        assert!(result.is_some());
+
+        // Now there should be space for one more task
+        assert!(
+            tasks.has_remaining(),
+            "Should have remaining space after retrieving one result"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_prefetch_zero() {
+        let executor = Executor::new();
+        let concurrent = 4;
+        let prefetch = 0; // No prefetching allowed
+
+        let mut tasks = ConcurrentTasks::new(executor, concurrent, prefetch, |i: usize| {
+            Box::pin(async move {
+                sleep(Duration::from_millis(10)).await;
+                (i, Ok(i))
+            })
+        });
+
+        // With prefetch=0, we can only submit up to concurrent tasks
+        for i in 0..concurrent {
+            tasks.execute(i).await.unwrap();
+        }
+
+        // Should not have space for more
+        assert!(
+            !tasks.has_remaining(),
+            "Should not have remaining space with prefetch=0"
+        );
+
+        // Retrieve one result
+        let result = tasks.next().await;
+        assert!(result.is_some());
+
+        // Now there should be space for exactly one more task
+        assert!(
+            tasks.has_remaining(),
+            "Should have remaining space after retrieving one result"
+        );
+
+        // Execute one more
+        tasks.execute(concurrent).await.unwrap();
+
+        // Should be full again
+        assert!(!tasks.has_remaining(), "Should be full again");
     }
 }

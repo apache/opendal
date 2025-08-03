@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for gcs service.
+#[cfg(feature = "services-gcs")]
+pub(super) const DEFAULT_SCHEME: &str = "gcs";
 #[cfg(feature = "services-gcs")]
 mod core;
 #[cfg(feature = "services-gcs")]

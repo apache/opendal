@@ -37,6 +37,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copy_overwrite
         ))
     }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_not_exists {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_if_not_exists_to_new_file,
+            test_copy_with_if_not_exists_to_existing_file
+        ))
+    }
 }
 
 /// Copy a file with ascii name and test contents.
@@ -223,6 +231,81 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
     assert_eq!(
         format!("{:x}", Sha256::digest(target_content)),
         format!("{:x}", Sha256::digest(&source_content)),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_not_exists to a new file should succeed.
+pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_not_exists {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    // Copy with if_not_exists to a non-existing file should succeed
+    op.copy_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_not_exists to an existing file should fail.
+pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_not_exists {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
+    assert_ne!(source_content, target_content);
+
+    // Write to target file first
+    op.write(&target_path, target_content.clone()).await?;
+
+    // Copy with if_not_exists to an existing file should fail
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await
+        .expect_err("copy must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    // Verify target file content is unchanged
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(current_content)),
+        format!("{:x}", Sha256::digest(&target_content)),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");

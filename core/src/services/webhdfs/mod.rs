@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for webhdfs service.
+#[cfg(feature = "services-webhdfs")]
+pub(super) const DEFAULT_SCHEME: &str = "webhdfs";
 #[cfg(feature = "services-webhdfs")]
 mod delete;
 #[cfg(feature = "services-webhdfs")]

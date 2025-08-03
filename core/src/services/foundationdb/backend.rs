@@ -59,7 +59,6 @@ impl FoundationdbBuilder {
 }
 
 impl Builder for FoundationdbBuilder {
-    const SCHEME: Scheme = Scheme::Foundationdb;
     type Config = FoundationdbConfig;
 
     fn build(self) -> Result<impl Access> {

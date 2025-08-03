@@ -113,7 +113,6 @@ impl MysqlBuilder {
 }
 
 impl Builder for MysqlBuilder {
-    const SCHEME: Scheme = Scheme::Mysql;
     type Config = MysqlConfig;
 
     fn build(self) -> Result<impl Access> {

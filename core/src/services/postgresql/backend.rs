@@ -112,7 +112,6 @@ impl PostgresqlBuilder {
 }
 
 impl Builder for PostgresqlBuilder {
-    const SCHEME: Scheme = Scheme::Postgresql;
     type Config = PostgresqlConfig;
 
     fn build(self) -> Result<impl Access> {

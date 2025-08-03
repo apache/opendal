@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for swift service.
+#[cfg(feature = "services-swift")]
+pub(super) const DEFAULT_SCHEME: &str = "swift";
 #[cfg(feature = "services-swift")]
 mod core;
 #[cfg(feature = "services-swift")]

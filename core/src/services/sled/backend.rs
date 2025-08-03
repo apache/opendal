@@ -79,7 +79,6 @@ impl SledBuilder {
 }
 
 impl Builder for SledBuilder {
-    const SCHEME: Scheme = Scheme::Sled;
     type Config = SledConfig;
 
     fn build(self) -> Result<impl Access> {

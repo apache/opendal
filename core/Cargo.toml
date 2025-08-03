@@ -413,7 +413,7 @@ tokio = { version = "1.46", features = ["time"] }
 uuid = { version = "1.17", features = ["serde", "v4", "js"] }
 
 [dev-dependencies]
-criterion = { version = "0.6", features = ["async", "async_tokio"] }
+criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }

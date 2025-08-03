@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for gdrive service.
+#[cfg(feature = "services-gdrive")]
+pub(super) const DEFAULT_SCHEME: &str = "gdrive";
 #[cfg(feature = "services-gdrive")]
 mod backend;
 #[cfg(feature = "services-gdrive")]

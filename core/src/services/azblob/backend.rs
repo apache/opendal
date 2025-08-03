@@ -38,10 +38,10 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
-
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {
@@ -301,7 +301,6 @@ impl AzblobBuilder {
 }
 
 impl Builder for AzblobBuilder {
-    const SCHEME: Scheme = Scheme::Azblob;
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -385,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azblob)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {
@@ -415,6 +414,7 @@ impl Builder for AzblobBuilder {
                             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
                             copy: true,
+                            copy_with_if_not_exists: true,
 
                             list: true,
                             list_with_recursive: true,
@@ -538,8 +538,8 @@ impl Access for AzblobBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.azblob_copy_blob(from, to, args).await?;
 
         let status = resp.status();
 

@@ -191,11 +191,7 @@ if (OPENDAL_ENABLE_TESTING)
         FetchContent_MakeAvailable(cppcoro)
     endif()
 
-    # Test framework and main runner
-    list(APPEND TEST_SOURCE_FILE tests/test_main.cpp)
-    
-    # Legacy tests for compatibility
-    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/metadata_test.cpp tests/test_main.cpp)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()

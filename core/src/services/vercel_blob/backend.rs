@@ -32,10 +32,10 @@ use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
-
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
 
@@ -107,7 +107,6 @@ impl VercelBlobBuilder {
 }
 
 impl Builder for VercelBlobBuilder {
-    const SCHEME: Scheme = Scheme::VercelBlob;
     type Config = VercelBlobConfig;
 
     /// Builds the backend and returns the result of VercelBlobBackend.
@@ -128,7 +127,7 @@ impl Builder for VercelBlobBuilder {
             core: Arc::new(VercelBlobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::VercelBlob)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

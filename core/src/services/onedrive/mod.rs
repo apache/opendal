@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for onedrive service.
+#[cfg(feature = "services-onedrive")]
+pub(super) const DEFAULT_SCHEME: &str = "onedrive";
 #[cfg(feature = "services-onedrive")]
 mod backend;
 #[cfg(feature = "services-onedrive")]

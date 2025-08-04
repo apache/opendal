@@ -284,9 +284,6 @@ TEST_F(AsyncOpendalTest, AsyncListerTest) {
     auto moved_entry = co_await moved_lister.Next();
     EXPECT_FALSE(moved_entry.empty());  // Should find at least one entry
 
-    // Clean up
-    co_await op->RemoveAll(base_dir);
-    co_await op->RemoveAll(empty_dir);
     co_return;
   }());
 }
@@ -357,8 +354,6 @@ TEST_F(AsyncOpendalTest, AsyncReaderListerIntegrationTest) {
       EXPECT_EQ(reconstructed_data[i], large_data[i]);
     }
 
-    // Clean up
-    co_await op->RemoveAll(base_dir);
     co_return;
   }());
 }

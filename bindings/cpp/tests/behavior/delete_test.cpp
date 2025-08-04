@@ -38,12 +38,12 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteExistingFile) {
     auto content = random_string(100);
     
     // Create the file
-    op_.write(path, content);
-    EXPECT_TRUE(op_.exists(path));
+    op_.Write(path, content);
+    EXPECT_TRUE(op_.Exists(path));
     
     // Delete the file
-    op_.remove(path);
-    EXPECT_FALSE(op_.exists(path));
+    op_.Remove(path);
+    EXPECT_FALSE(op_.Exists(path));
 }
 
 // Test deleting non-existent file (should not error)
@@ -52,10 +52,10 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteNonExistentFile) {
     auto path = random_path();
     
     // Ensure file doesn't exist
-    EXPECT_FALSE(op_.exists(path));
+    EXPECT_FALSE(op_.Exists(path));
     
     // Delete non-existent file should not throw
-    EXPECT_NO_THROW(op_.remove(path));
+    EXPECT_NO_THROW(op_.Remove(path));
 }
 
 // Test deleting empty directory
@@ -65,35 +65,12 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteEmptyDirectory) {
     auto dir_path = random_dir_path();
     
     // Create the directory
-    op_.create_dir(dir_path);
-    EXPECT_TRUE(op_.exists(dir_path));
+    op_.CreateDir(dir_path);
+    EXPECT_TRUE(op_.Exists(dir_path));
     
     // Delete the directory
-    op_.remove(dir_path);
-    EXPECT_FALSE(op_.exists(dir_path));
-}
-
-// Test removing all (recursive delete)
-OPENDAL_TEST_F(DeleteBehaviorTest, RemoveAllRecursive) {
-    OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
-    OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
-    OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
-    auto base_dir = random_dir_path();
-    auto sub_dir = base_dir + "subdir/";
-    auto file1 = base_dir + "file1.txt";
-    auto file2 = sub_dir + "file2.txt";
-    
-    // Create directory structure with files
-    op_.create_dir(base_dir);
-    op_.create_dir(sub_dir);
-    op_.write(file1, random_string(100));
-    op_.write(file2, random_string(100));
-    
-    // Verify structure exists
-    EXPECT_TRUE(op_.exists(base_dir));
-    EXPECT_TRUE(op_.exists(sub_dir));
-    EXPECT_TRUE(op_.exists(file1));
-    EXPECT_TRUE(op_.exists(file2));
+    op_.Remove(dir_path);
+    EXPECT_FALSE(op_.Exists(dir_path));
 }
 
 // Test deleting multiple files
@@ -107,15 +84,15 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteMultipleFiles) {
         auto path = random_path();
         auto content = random_string(100);
         
-        op_.write(path, content);
-        EXPECT_TRUE(op_.exists(path));
+        op_.Write(path, content);
+        EXPECT_TRUE(op_.Exists(path));
         paths.push_back(path);
     }
     
     // Delete all files
     for (const auto& path : paths) {
-        op_.remove(path);
-        EXPECT_FALSE(op_.exists(path));
+        op_.Remove(path);
+        EXPECT_FALSE(op_.Exists(path));
     }
 }
 
@@ -127,12 +104,12 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteSpecialCharFile) {
     auto content = random_string(100);
     
     // Create the file
-    op_.write(path, content);
-    EXPECT_TRUE(op_.exists(path));
+    op_.Write(path, content);
+    EXPECT_TRUE(op_.Exists(path));
     
     // Delete the file
-    op_.remove(path);
-    EXPECT_FALSE(op_.exists(path));
+    op_.Remove(path);
+    EXPECT_FALSE(op_.Exists(path));
 }
 
 // Test deleting large file
@@ -143,12 +120,12 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteLargeFile) {
     auto content = random_string(1024 * 1024); // 1MB
     
     // Create large file
-    op_.write(path, content);
-    EXPECT_TRUE(op_.exists(path));
+    op_.Write(path, content);
+    EXPECT_TRUE(op_.Exists(path));
     
     // Delete the file
-    op_.remove(path);
-    EXPECT_FALSE(op_.exists(path));
+    op_.Remove(path);
+    EXPECT_FALSE(op_.Exists(path));
 }
 
 // Test concurrent deletes
@@ -163,15 +140,15 @@ OPENDAL_TEST_F(DeleteBehaviorTest, ConcurrentDeletes) {
     // Create files
     for (int i = 0; i < num_threads; ++i) {
         paths[i] = random_path();
-        op_.write(paths[i], random_string(100));
-        EXPECT_TRUE(op_.exists(paths[i]));
+        op_.Write(paths[i], random_string(100));
+        EXPECT_TRUE(op_.Exists(paths[i]));
     }
     
     // Delete concurrently
     for (int i = 0; i < num_threads; ++i) {
         threads.emplace_back([&, i]() {
             try {
-                op_.remove(paths[i]);
+                op_.Remove(paths[i]);
             } catch (const std::exception& e) {
                 error_count++;
             }
@@ -186,7 +163,7 @@ OPENDAL_TEST_F(DeleteBehaviorTest, ConcurrentDeletes) {
     
     // Verify all files are deleted
     for (const auto& path : paths) {
-        EXPECT_FALSE(op_.exists(path));
+        EXPECT_FALSE(op_.Exists(path));
     }
 }
 
@@ -198,17 +175,17 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAfterRead) {
     auto content = random_string(100);
     
     // Create and read file
-    op_.write(path, content);
-    auto result = op_.read(path);
+    op_.Write(path, content);
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
     
     // Delete the file
-    op_.remove(path);
-    EXPECT_FALSE(op_.exists(path));
+    op_.Remove(path);
+    EXPECT_FALSE(op_.Exists(path));
     
     // Try to read again (should fail)
     EXPECT_THROW({
-        auto content2 = op_.read(path);
+        auto content2 = op_.Read(path);
     }, std::exception);
 }
 
@@ -221,19 +198,19 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteAndRecreate) {
     auto new_content = random_string(200);
     
     // Create file
-    op_.write(path, original_content);
-    EXPECT_TRUE(op_.exists(path));
-    auto result1 = op_.read(path);
+    op_.Write(path, original_content);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
     // Delete file
-    op_.remove(path);
-    EXPECT_FALSE(op_.exists(path));
+    op_.Remove(path);
+    EXPECT_FALSE(op_.Exists(path));
     
     // Recreate with different content
-    op_.write(path, new_content);
-    EXPECT_TRUE(op_.exists(path));
-    auto result2 = op_.read(path);
+    op_.Write(path, new_content);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result2 = op_.Read(path);
     EXPECT_EQ(result2, new_content);
     EXPECT_NE(result2, original_content);
 }
@@ -250,18 +227,18 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteNestedStructure) {
     auto deep_file = level3_dir + "deep_file.txt";
     
     // Create nested structure
-    op_.create_dir(base_dir);
-    op_.create_dir(level1_dir);
-    op_.create_dir(level2_dir);
-    op_.create_dir(level3_dir);
-    op_.write(deep_file, random_string(100));
+    op_.CreateDir(base_dir);
+    op_.CreateDir(level1_dir);
+    op_.CreateDir(level2_dir);
+    op_.CreateDir(level3_dir);
+    op_.Write(deep_file, random_string(100));
     
     // Verify structure exists
-    EXPECT_TRUE(op_.exists(base_dir));
-    EXPECT_TRUE(op_.exists(level1_dir));
-    EXPECT_TRUE(op_.exists(level2_dir));
-    EXPECT_TRUE(op_.exists(level3_dir));
-    EXPECT_TRUE(op_.exists(deep_file));
+    EXPECT_TRUE(op_.Exists(base_dir));
+    EXPECT_TRUE(op_.Exists(level1_dir));
+    EXPECT_TRUE(op_.Exists(level2_dir));
+    EXPECT_TRUE(op_.Exists(level3_dir));
+    EXPECT_TRUE(op_.Exists(deep_file));
 }
 
 } // namespace opendal::test 

@@ -69,9 +69,6 @@ class Operator {
   using DeleteFuture = opendal::ffi::async::RustFutureWrite;
   DeleteFuture DeletePath(std::string_view path);
 
-  using RemoveAllFuture = opendal::ffi::async::RustFutureWrite;
-  RemoveAllFuture RemoveAll(std::string_view path);
-
   using ReaderFuture = opendal::ffi::async::RustFutureReaderId;
   ReaderFuture GetReader(std::string_view path);
 

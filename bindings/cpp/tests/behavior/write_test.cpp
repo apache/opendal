@@ -36,11 +36,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteEmptyContent) {
     auto path = random_path();
     std::string empty_content = "";
     
-    op_.write(path, empty_content);
+    op_.Write(path, empty_content);
     
     // Verify the file exists and is empty
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, empty_content);
 }
 
@@ -50,11 +50,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteSmallContent) {
     auto path = random_path();
     auto content = random_string(100);
     
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -64,11 +64,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteLargeContent) {
     auto path = random_path();
     auto content = random_string(1024 * 1024); // 1MB
     
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -80,11 +80,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteBinaryData) {
     
     // Convert to string for writing
     std::string content_str(content.begin(), content.end());
-    op_.write(path, content_str);
+    op_.Write(path, content_str);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     std::vector<uint8_t> result_bytes(result.begin(), result.end());
     EXPECT_EQ(result_bytes, content);
 }
@@ -97,13 +97,13 @@ OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
     auto new_content = random_string(200);
     
     // Write original content
-    op_.write(path, original_content);
-    auto result1 = op_.read(path);
+    op_.Write(path, original_content);
+    auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
     // Overwrite with new content
-    op_.write(path, new_content);
-    auto result2 = op_.read(path);
+    op_.Write(path, new_content);
+    auto result2 = op_.Read(path);
     EXPECT_EQ(result2, new_content);
     EXPECT_NE(result2, original_content);
 }
@@ -114,11 +114,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteToNestedPath) {
     auto path = "nested/deep/directory/file.txt";
     auto content = random_string(100);
     
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -128,11 +128,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteSpecialCharFilename) {
     auto path = "test_with-special.chars_123/file-name_with.special.txt";
     auto content = random_string(100);
     
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -149,13 +149,13 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteMultipleFiles) {
         paths.push_back(path);
         contents.push_back(content);
         
-        op_.write(path, content);
+        op_.Write(path, content);
     }
     
     // Verify all files
     for (size_t i = 0; i < paths.size(); ++i) {
-        EXPECT_TRUE(op_.exists(paths[i]));
-        auto result = op_.read(paths[i]);
+        EXPECT_TRUE(op_.Exists(paths[i]));
+        auto result = op_.Read(paths[i]);
         EXPECT_EQ(result, contents[i]);
     }
 }
@@ -166,11 +166,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteUnicodeContent) {
     auto path = random_path();
     std::string unicode_content = "Hello 世界 🌍 Здравствуй мир";
     
-    op_.write(path, unicode_content);
+    op_.Write(path, unicode_content);
     
     // Verify content
-    EXPECT_TRUE(op_.exists(path));
-    auto result = op_.read(path);
+    EXPECT_TRUE(op_.Exists(path));
+    auto result = op_.Read(path);
     EXPECT_EQ(result, unicode_content);
 }
 
@@ -191,7 +191,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
     for (int i = 0; i < num_threads; ++i) {
         threads.emplace_back([&, i]() {
             try {
-                op_.write(paths[i], contents[i]);
+                op_.Write(paths[i], contents[i]);
             } catch (const std::exception& e) {
                 error_count++;
             }
@@ -206,8 +206,8 @@ OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
     
     // Verify all files were written correctly
     for (int i = 0; i < num_threads; ++i) {
-        EXPECT_TRUE(op_.exists(paths[i]));
-        auto result = op_.read(paths[i]);
+        EXPECT_TRUE(op_.Exists(paths[i]));
+        auto result = op_.Read(paths[i]);
         EXPECT_EQ(result, contents[i]);
     }
 }
@@ -221,11 +221,11 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
         auto path = random_path();
         auto content = random_string(size);
         
-        op_.write(path, content);
+        op_.Write(path, content);
         
         // Verify content
-        EXPECT_TRUE(op_.exists(path));
-        auto result = op_.read(path);
+        EXPECT_TRUE(op_.Exists(path));
+        auto result = op_.Read(path);
         EXPECT_EQ(result.size(), size);
         EXPECT_EQ(result, content);
     }
@@ -239,13 +239,13 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteAppendBehavior) {
     auto content2 = random_string(100);
     
     // Write first content
-    op_.write(path, content1);
-    auto result1 = op_.read(path);
+    op_.Write(path, content1);
+    auto result1 = op_.Read(path);
     EXPECT_EQ(result1, content1);
     
     // Write second content (should overwrite, not append for normal write)
-    op_.write(path, content2);
-    auto result2 = op_.read(path);
+    op_.Write(path, content2);
+    auto result2 = op_.Read(path);
     EXPECT_EQ(result2, content2);
     EXPECT_NE(result2, content1 + content2); // Should not be appended
 }

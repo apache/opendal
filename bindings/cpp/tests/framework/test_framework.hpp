@@ -219,7 +219,7 @@ protected:
         
         try {
             op_ = opendal::Operator(config.service_name(), config.config());
-            ASSERT_TRUE(op_.available()) << "Operator not available for service: " << config.service_name();
+            ASSERT_TRUE(op_.Available()) << "Operator not available for service: " << config.service_name();
         } catch (const std::exception& e) {
             GTEST_SKIP() << "Failed to create operator: " << e.what();
         }

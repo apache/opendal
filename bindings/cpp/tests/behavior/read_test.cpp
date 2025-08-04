@@ -36,7 +36,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadNonExistentFile) {
     auto path = random_path();
     
     EXPECT_THROW({
-        auto content = op_.read(path);
+        auto content = op_.Read(path);
     }, std::exception);
 }
 
@@ -47,10 +47,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadEmptyFile) {
     std::string empty_content = "";
     
     // Write empty file
-    op_.write(path, empty_content);
+    op_.Write(path, empty_content);
     
     // Read it back
-    auto result = op_.read(path);
+    auto result = op_.Read(path);
     EXPECT_EQ(result, empty_content);
 }
 
@@ -61,10 +61,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadSmallFile) {
     auto content = random_string(100);
     
     // Write the file
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Read it back
-    auto result = op_.read(path);
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -75,10 +75,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadLargeFile) {
     auto content = random_string(1024 * 1024); // 1MB
     
     // Write the file
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Read it back
-    auto result = op_.read(path);
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -90,10 +90,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadBinaryData) {
     
     // Write binary data
     std::string content_str(content.begin(), content.end());
-    op_.write(path, content_str);
+    op_.Write(path, content_str);
     
     // Read it back
-    auto result = op_.read(path);
+    auto result = op_.Read(path);
     std::vector<uint8_t> result_bytes(result.begin(), result.end());
     EXPECT_EQ(result_bytes, content);
 }
@@ -106,13 +106,13 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadSpecialCharPath) {
     auto content = random_string(100);
     
     // Create directory first
-    op_.create_dir("test_with-special.chars_123/");
+    op_.CreateDir("test_with-special.chars_123/");
     
     // Write the file
-    op_.write(path, content);
+    op_.Write(path, content);
     
     // Read it back
-    auto result = op_.read(path);
+    auto result = op_.Read(path);
     EXPECT_EQ(result, content);
 }
 
@@ -129,12 +129,12 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadMultipleFiles) {
         paths.push_back(path);
         contents.push_back(content);
         
-        op_.write(path, content);
+        op_.Write(path, content);
     }
     
     // Read all files back
     for (size_t i = 0; i < paths.size(); ++i) {
-        auto result = op_.read(paths[i]);
+        auto result = op_.Read(paths[i]);
         EXPECT_EQ(result, contents[i]);
     }
 }
@@ -147,17 +147,17 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
     auto modified_content = random_string(150);
     
     // Write original content
-    op_.write(path, original_content);
+    op_.Write(path, original_content);
     
     // Verify original content
-    auto result1 = op_.read(path);
+    auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
     // Modify the file
-    op_.write(path, modified_content);
+    op_.Write(path, modified_content);
     
     // Verify modified content
-    auto result2 = op_.read(path);
+    auto result2 = op_.Read(path);
     EXPECT_EQ(result2, modified_content);
 }
 
@@ -168,7 +168,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ConcurrentReads) {
     auto content = random_string(1000);
     
     // Write the file
-    op_.write(path, content);
+    op_.Write(path, content);
     
     const int num_threads = 10;
     std::vector<std::thread> threads;
@@ -178,7 +178,7 @@ OPENDAL_TEST_F(ReadBehaviorTest, ConcurrentReads) {
     for (int i = 0; i < num_threads; ++i) {
         threads.emplace_back([&, i]() {
             try {
-                results[i] = op_.read(path);
+                results[i] = op_.Read(path);
             } catch (const std::exception& e) {
                 error_count++;
             }

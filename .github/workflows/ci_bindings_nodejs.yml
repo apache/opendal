@@ -131,18 +131,7 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.settings.target }}
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ~/.napi-rs
-            .cargo-cache
-            target/
-          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         if: ${{ contains(matrix.settings.target, 'musl') }}
         with:
           version: 0.13.0
@@ -221,18 +210,7 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.settings.target }}
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ~/.napi-rs
-            .cargo-cache
-            target/
-          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         if: ${{ contains(matrix.settings.target, 'musl') }}
         with:
           version: 0.13.0
@@ -302,18 +280,7 @@ jobs:
         with:
           toolchain: stable
           targets: ${{ matrix.settings.target }}
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            ~/.napi-rs
-            .cargo-cache
-            target/
-          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: mlugg/setup-zig@v2
         if: ${{ contains(matrix.settings.target, 'musl') }}
         with:
           version: 0.13.0

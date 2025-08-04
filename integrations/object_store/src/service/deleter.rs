@@ -16,11 +16,11 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::future::Future;
 use std::sync::Arc;
 
-use futures::FutureExt;
+use futures::stream::{self, StreamExt};
 use object_store::ObjectStore;
+use opendal::raw::oio::BatchDeleteResult;
 use opendal::raw::*;
 use opendal::*;
 
@@ -28,44 +28,44 @@ use super::error::parse_error;
 
 pub struct ObjectStoreDeleter {
     store: Arc<dyn ObjectStore + 'static>,
-    paths: VecDeque<object_store::path::Path>,
 }
 
 impl ObjectStoreDeleter {
     pub(crate) fn new(store: Arc<dyn ObjectStore + 'static>) -> Self {
-        Self {
-            store,
-            paths: VecDeque::new(),
-        }
+        Self { store }
     }
 }
 
-impl oio::Delete for ObjectStoreDeleter {
-    fn delete(&mut self, path: &str, _: OpDelete) -> Result<()> {
-        self.paths.push_back(object_store::path::Path::from(path));
-        Ok(())
+impl oio::BatchDelete for ObjectStoreDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let object_path = object_store::path::Path::from(path);
+        self.store.delete(&object_path).await.map_err(parse_error)
     }
 
-    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend {
-        async move {
-            if self.paths.is_empty() {
-                return Ok(0);
-            }
+    async fn delete_batch(&self, paths: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+        // convert paths to stream, then use [`ObjectStore::delete_stream`] to delete them in batch
+        let stream = stream::iter(paths.iter())
+            .map(|(path, _)| {
+                Ok::<_, object_store::Error>(object_store::path::Path::from(path.as_str()))
+            })
+            .boxed();
+        let results = self.store.delete_stream(stream).collect::<Vec<_>>().await;
 
-            let mut count = 0;
-            while let Some(path) = self.paths.front() {
-                match self.store.delete(path).await {
-                    Ok(_) => {
-                        self.paths.pop_front();
-                        count += 1;
-                    }
-                    Err(e) => {
-                        return Err(parse_error(e));
-                    }
-                }
+        // convert the results to [`BatchDeleteResult`]
+        let mut result_batch = BatchDeleteResult::default();
+        for (idx, result) in results.into_iter().enumerate() {
+            match result {
+                Ok(_) => result_batch
+                    .succeeded
+                    .push((paths[idx].0.clone(), paths[idx].1.clone())),
+                Err(e) => result_batch.failed.push((
+                    paths[idx].0.clone(),
+                    paths[idx].1.clone(),
+                    parse_error(e),
+                )),
             }
-            Ok(count)
         }
-        .boxed()
+
+        Ok(result_batch)
     }
 }

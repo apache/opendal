@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use object_store::ObjectStore;
+use opendal::raw::oio::BatchDeleter;
 use opendal::raw::oio::MultipartWriter;
 use opendal::raw::*;
 use opendal::Error;
@@ -89,7 +90,7 @@ impl Access for ObjectStoreService {
     type Reader = ObjectStoreReader;
     type Writer = MultipartWriter<ObjectStoreWriter>;
     type Lister = ObjectStoreLister;
-    type Deleter = ObjectStoreDeleter;
+    type Deleter = BatchDeleter<ObjectStoreDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
@@ -132,7 +133,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = ObjectStoreDeleter::new(self.store.clone());
+        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()));
         Ok((RpDelete::default(), deleter))
     }
 

@@ -21,6 +21,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use futures::TryStreamExt;
 use object_store::GetRange;
 use object_store::ObjectStore;
 
@@ -74,11 +75,8 @@ impl ObjectStoreReader {
 impl oio::Read for ObjectStoreReader {
     async fn read(&mut self) -> Result<Buffer> {
         let mut bytes_stream = self.bytes_stream.lock().await;
-        let mut bytes_deque = VecDeque::<Bytes>::new();
-        while let Some(Ok(bytes)) = bytes_stream.next().await {
-            bytes_deque.push_back(bytes);
-        }
-        Ok(Buffer::from(bytes_deque))
+        let bs = bytes_stream.try_next().await.map_err(parse_error)?;
+        Ok(bs.map(Buffer::from).unwrap_or_default())
     }
 }
 

@@ -107,6 +107,7 @@ impl Access for ObjectStoreService {
                 list: true,
                 list_with_limit: true,
                 list_with_start_after: true,
+                delete_with_version: false,
                 ..Default::default()
             });
         Arc::new(info)

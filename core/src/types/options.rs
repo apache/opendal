@@ -417,7 +417,7 @@ pub struct WriteOptions {
     ///
     /// This operation allows specifying the natural language(s) of the content being written.
     pub content_language: Option<String>,
-    
+
     /// Sets user metadata for this write request.
     ///
     /// ### Capability

@@ -15,10 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::future::Future;
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use futures::{stream::BoxStream, StreamExt};
 use object_store::{ObjectMeta, ObjectStore};
@@ -27,6 +24,7 @@ use opendal::*;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
+use crate::utils::format_metadata;
 
 pub struct ObjectStoreLister {
     stream: Mutex<BoxStream<'static, object_store::Result<ObjectMeta>>>,
@@ -68,16 +66,8 @@ impl oio::List for ObjectStoreLister {
         let mut stream = self.stream.lock().await;
         match stream.next().await {
             Some(Ok(meta)) => {
-                let mut metadata = Metadata::new(EntryMode::FILE);
+                let metadata = format_metadata(&meta);
                 let entry = oio::Entry::new(meta.location.as_ref(), metadata.clone());
-                metadata.set_content_length(meta.size);
-                metadata.set_last_modified(meta.last_modified);
-                if let Some(etag) = &meta.e_tag {
-                    metadata.set_etag(etag.as_str());
-                }
-                if let Some(version) = meta.version {
-                    metadata.set_version(version.as_str());
-                }
                 Ok(Some(entry))
             }
             Some(Err(e)) => Err(parse_error(e)),

@@ -38,6 +38,8 @@ use lister::ObjectStoreLister;
 use reader::ObjectStoreReader;
 use writer::ObjectStoreWriter;
 
+use crate::utils::format_metadata;
+
 /// ObjectStore backend builder
 #[derive(Default)]
 pub struct ObjectStoreBuilder {
@@ -112,16 +114,7 @@ impl Access for ObjectStoreService {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let path = object_store::path::Path::from(path);
         let meta = self.store.head(&path).await.map_err(parse_error)?;
-
-        let mut metadata = Metadata::new(EntryMode::FILE);
-        metadata.set_content_length(meta.size);
-        metadata.set_last_modified(meta.last_modified);
-        if let Some(etag) = meta.e_tag {
-            metadata.set_etag(&etag);
-        }
-        if let Some(version) = meta.version {
-            metadata.set_version(&version);
-        }
+        let metadata = format_metadata(&meta);
         Ok(RpStat::new(metadata))
     }
 

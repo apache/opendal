@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::VecDeque;
 use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::stream::BoxStream;
-use futures::StreamExt;
 use futures::TryStreamExt;
 use object_store::GetRange;
 use object_store::ObjectStore;
@@ -45,7 +43,7 @@ impl ObjectStoreReader {
         args: OpRead,
     ) -> Result<Self> {
         let path = object_store::path::Path::from(path);
-        let opts = convert_to_get_options(&args)?;
+        let opts = format_get_options(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
         let bytes_stream = Mutex::new(result.into_stream());
@@ -80,7 +78,7 @@ impl oio::Read for ObjectStoreReader {
     }
 }
 
-fn convert_to_get_options(args: &OpRead) -> Result<object_store::GetOptions> {
+fn format_get_options(args: &OpRead) -> Result<object_store::GetOptions> {
     let mut options = object_store::GetOptions::default();
 
     if let Some(version) = args.version() {

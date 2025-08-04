@@ -67,7 +67,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
         let bytes = body.to_bytes();
         let payload = PutPayload::from(bytes);
-        let mut opts = convert_to_put_opts(&self.args)?;
+        let mut opts = format_put_options(&self.args)?;
 
         // Add size metadata for tracking
         opts.attributes.insert(
@@ -99,8 +99,8 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let upload_id = ulid::Ulid::new().to_string();
 
         // Start a new multipart upload using object_store
-        let opts = convert_to_put_opts(&self.args)?;
-        let multipart_opts = convert_to_multipart_options(opts);
+        let opts = format_put_options(&self.args)?;
+        let multipart_opts = format_multipart_options(opts);
         let multipart_upload = self
             .store
             .put_multipart_opts(&self.path, multipart_opts)
@@ -229,7 +229,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     }
 }
 
-pub(crate) fn convert_to_put_opts(args: &OpWrite) -> Result<PutOptions> {
+pub(crate) fn format_put_options(args: &OpWrite) -> Result<PutOptions> {
     let mut opts = PutOptions::default();
 
     if let Some(content_type) = args.content_type() {
@@ -264,7 +264,7 @@ pub(crate) fn convert_to_put_opts(args: &OpWrite) -> Result<PutOptions> {
     Ok(opts)
 }
 
-fn convert_to_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptions {
+fn format_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptions {
     object_store::PutMultipartOptions {
         attributes: opts.attributes,
         ..Default::default()

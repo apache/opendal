@@ -16,18 +16,20 @@
 // under the License.
 
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::task::{Context, Poll};
 
 use futures::{stream::BoxStream, StreamExt};
 use object_store::{ObjectMeta, ObjectStore};
 use opendal::raw::*;
 use opendal::*;
+use tokio::sync::Mutex;
 
 use super::error::parse_error;
 
 pub struct ObjectStoreLister {
-    stream: Arc<Mutex<BoxStream<'static, object_store::Result<ObjectMeta>>>>,
+    stream: Mutex<BoxStream<'static, object_store::Result<ObjectMeta>>>,
 }
 
 impl ObjectStoreLister {
@@ -56,36 +58,30 @@ impl ObjectStoreLister {
         }
 
         Ok(Self {
-            stream: Arc::new(Mutex::new(stream)),
+            stream: Mutex::new(stream),
         })
     }
 }
 
 impl oio::List for ObjectStoreLister {
-    fn next(&mut self) -> impl Future<Output = Result<Option<oio::Entry>>> + MaybeSend {
-        let stream = self.stream.clone();
-        async move {
-            let next_item = {
-                let mut stream = stream.lock().await;
-                stream.next().await
-            };
-            match next_item {
-                Some(Ok(meta)) => {
-                    let mut metadata = Metadata::new(EntryMode::FILE);
-                    let entry = oio::Entry::new(meta.location.as_ref(), metadata.clone());
-                    metadata.set_content_length(meta.size);
-                    metadata.set_last_modified(meta.last_modified);
-                    if let Some(etag) = &meta.e_tag {
-                        metadata.set_etag(etag.as_str());
-                    }
-                    if let Some(version) = meta.version {
-                        metadata.set_version(version.as_str());
-                    }
-                    Ok(Some(entry))
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let mut stream = self.stream.lock().await;
+        match stream.next().await {
+            Some(Ok(meta)) => {
+                let mut metadata = Metadata::new(EntryMode::FILE);
+                let entry = oio::Entry::new(meta.location.as_ref(), metadata.clone());
+                metadata.set_content_length(meta.size);
+                metadata.set_last_modified(meta.last_modified);
+                if let Some(etag) = &meta.e_tag {
+                    metadata.set_etag(etag.as_str());
                 }
-                Some(Err(e)) => Err(parse_error(e)),
-                None => Ok(None),
+                if let Some(version) = meta.version {
+                    metadata.set_version(version.as_str());
+                }
+                Ok(Some(entry))
             }
+            Some(Err(e)) => Err(parse_error(e)),
+            None => Ok(None),
         }
     }
 }

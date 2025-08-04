@@ -137,7 +137,7 @@ async fn test_edit_existing_file_with_changes() -> Result<()> {
     success: true
     exit_code: 0
     ----- stdout -----
-    File uploaded successfully to tmp[TEMP_DIR]/test_file.txt
+    File uploaded successfully to [TEMP_DIR]/test_file.txt
 
     ----- stderr -----
     "#);
@@ -172,7 +172,7 @@ async fn test_edit_new_file() -> Result<()> {
     success: true
     exit_code: 0
     ----- stdout -----
-    File uploaded successfully to tmp[TEMP_DIR]/new_file.txt
+    File uploaded successfully to [TEMP_DIR]/new_file.txt
 
     ----- stderr -----
     "#);
@@ -264,7 +264,7 @@ async fn test_edit_file_content_replacement() -> Result<()> {
     success: true
     exit_code: 0
     ----- stdout -----
-    File uploaded successfully to tmp[TEMP_DIR]/replace_test.txt
+    File uploaded successfully to [TEMP_DIR]/replace_test.txt
 
     ----- stderr -----
     "#);

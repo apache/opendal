@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for b2 service.
+#[cfg(feature = "services-b2")]
+pub(super) const DEFAULT_SCHEME: &str = "b2";
 #[cfg(feature = "services-b2")]
 mod core;
 #[cfg(feature = "services-b2")]

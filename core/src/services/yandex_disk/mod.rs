@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for yandex_disk service.
+#[cfg(feature = "services-yandex-disk")]
+pub(super) const DEFAULT_SCHEME: &str = "yandex_disk";
 #[cfg(feature = "services-yandex-disk")]
 mod core;
 #[cfg(feature = "services-yandex-disk")]

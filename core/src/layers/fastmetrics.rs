@@ -508,7 +508,7 @@ struct OperationLabels {
 
 impl EncodeLabelSet for OperationLabels {
     fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> fmt::Result {
-        encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme.into_static()))?;
+        encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme))?;
         encoder.encode(&(observe::LABEL_NAMESPACE, self.labels.namespace.as_ref()))?;
         if !self.disable_label_root {
             encoder.encode(&(observe::LABEL_ROOT, self.labels.root.as_ref()))?;

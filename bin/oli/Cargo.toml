@@ -27,7 +27,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.82"
-version = "0.41.21"
+version = "0.41.22"
 
 [dependencies]
 anyhow = { version = "1.0" }
@@ -37,8 +37,8 @@ futures = { version = "0.3" }
 humansize = { version = "2.1" }
 humantime = { version = "2.2" }
 humantime-serde = { version = "1.1" }
-indicatif = { version = "0.17" }
-opendal = { version = "0.53.0", path = "../../core", features = [
+indicatif = { version = "0.18" }
+opendal = { version = "0.54.0", path = "../../core", features = [
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -59,8 +59,8 @@ parse-size = { version = "1.1" }
 pollster = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 tempfile = { version = "3.14" }
-tokio = { version = "1.45", features = ["full"] }
-toml = { version = "0.8" }
+tokio = { version = "1.47", features = ["full"] }
+toml = { version = "0.9" }
 url = { version = "2.5" }
 uuid = { version = "1.17" }
 

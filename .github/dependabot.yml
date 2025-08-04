@@ -17,73 +17,183 @@
 
 version: 2
 updates:
+  # GitHub Actions - yearly updates with groups
   - package-ecosystem: "github-actions"
     directory: "/"
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 2
+    # GitHub Actions have a steady update interval. Update yearly to reduce update PRs.
     schedule:
-      interval: "monthly"
+      interval: "yearly"
+    groups:
+      github-actions:
+        patterns:
+          - "actions/*"
+      third-party-actions:
+        patterns:
+          - "*"
 
+  # Core dependencies - semiannual updates with groups
   - package-ecosystem: "cargo"
     directory: "/core"
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 4
+    # Update core dependencies semiannually because core dependencies are somewhat stable.
+    #
+    # Developers can update dependencies via dependabot manually by:
+    # 1. Go to Dependabot page https://github.com/apache/opendal/network/updates
+    # 2. Choose a project by "Recent update jobs"
+    # 3. Click "Check for updates"
     schedule:
-      interval: "monthly"
+      interval: "semiannually"
+    groups:
+      # HTTP, TLS, serialization and utilities
+      http-serialization-utils:
+        patterns:
+          - "backon"
+          - "base64"
+          - "bytes"
+          - "chrono"
+          - "http*"
+          - "percent-encoding"
+          - "prometheus*"
+          - "quick-xml"
+          - "reqwest"
+          - "reqsign"
+          - "rustls*"
+          - "serde*"
+          - "uuid"
+      # Async runtime and runtime tools
+      async-runtime:
+        patterns:
+          - "tokio*"
+          - "async-*"
+          - "futures*"
+          - "sqlx"
+      # Logs, errors and checksums
+      logs-errors-checksums:
+        patterns:
+          - "anyhow"
+          - "*error*"
+          - "log"
+          - "crc32c"
+          - "sha*"
+          - "md-5"
+          - "metrics"
+          - "tracing"
+      others:
+        patterns:
+          - "*"
+        exclude-patterns:
+          # Please upgrade to new APIs when updating "rand"
+          - "rand"
+          - "getrandom"
 
   - package-ecosystem: "cargo"
     directory: "/bin/oay"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90 # maximum 90 days
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/bin/ofs"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/bin/oli"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/object_store"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/bindings/java"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/bindings/nodejs"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    groups:
+      napi:
+        patterns:
+          - "napi"
+          - "napi-derive"
+      others:
+        patterns:
+          - "*"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"
 
+  # Python bindings
   - package-ecosystem: "cargo"
     directory: "/bindings/python"
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 3
     schedule:
-      interval: "monthly"
+      interval: "semiannually"
     groups:
-      pyo3-dependencies:
+      # Update to keep sync with core dependency
+      core-sync:
         patterns:
-          - "pyo3"
-          - "pyo3-*"
+          - "anyhow"
+          - "bytes"
+          - "chrono"
+          - "tokio*"
+          - "futures*"
+      pyo3:
+        patterns:
+          - "pyo3*"
+      others:
+        patterns:
+          - "*"
 
+  # Website npm dependencies
   - package-ecosystem: "npm"
     directory: "/website"
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    cooldown:
+      semver-patch-days: 90
+      include:
+        - "*"

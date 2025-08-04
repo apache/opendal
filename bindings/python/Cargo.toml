@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.82"
-version = "0.45.20"
+version = "0.46.0"
 
 [features]
 default = [
@@ -175,7 +175,9 @@ features = [
   "blocking",
   "layers-mime-guess",
   # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
-  "services-sftp",
+  #
+  # FIXME: waiting for https://github.com/NobodyXu/concurrent_arena/issues/25
+  # "services-sftp",
 ]
 path = "../../core"
 version = ">=0"

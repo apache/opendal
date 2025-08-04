@@ -261,7 +261,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
-            am.set_scheme(Scheme::Custom("test"));
+            am.set_scheme("test");
             am.into()
         }
 

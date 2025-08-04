@@ -65,7 +65,6 @@ impl PersyBuilder {
 }
 
 impl Builder for PersyBuilder {
-    const SCHEME: Scheme = Scheme::Persy;
     type Config = PersyConfig;
 
     fn build(self) -> Result<impl Access> {

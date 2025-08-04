@@ -686,7 +686,7 @@ jobs:
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        uses: burnett01/rsync-deployments@5.2
+        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr
@@ -707,7 +707,7 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        uses: burnett01/rsync-deployments@5.2
+        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr --delete

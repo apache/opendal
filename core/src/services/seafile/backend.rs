@@ -33,10 +33,10 @@ use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SeafileConfig;
 use crate::*;
-
 impl Configurator for SeafileConfig {
     type Builder = SeafileBuilder;
 
@@ -145,7 +145,6 @@ impl SeafileBuilder {
 }
 
 impl Builder for SeafileBuilder {
-    const SCHEME: Scheme = Scheme::Seafile;
     type Config = SeafileConfig;
 
     /// Builds the backend and returns the result of SeafileBackend.
@@ -189,7 +188,7 @@ impl Builder for SeafileBuilder {
             core: Arc::new(SeafileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Seafile)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

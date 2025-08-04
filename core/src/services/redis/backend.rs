@@ -32,11 +32,11 @@ use tokio::sync::OnceCell;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
-
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
@@ -144,7 +144,6 @@ impl RedisBuilder {
 }
 
 impl Builder for RedisBuilder {
-    const SCHEME: Scheme = Scheme::Redis;
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -278,7 +277,7 @@ pub struct RedisAccessor {
 impl RedisAccessor {
     fn new(core: RedisCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Redis);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(&core.addr);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -396,7 +395,7 @@ mod tests {
 
         // Verify basic properties
         assert_eq!(accessor.root, "/");
-        assert_eq!(accessor.info.scheme(), Scheme::Redis);
+        assert_eq!(accessor.info.scheme(), "redis");
         assert!(accessor.info.native_capability().read);
         assert!(accessor.info.native_capability().write);
         assert!(accessor.info.native_capability().delete);

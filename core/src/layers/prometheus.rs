@@ -667,7 +667,7 @@ impl OperationLabels {
         let mut labels = Vec::with_capacity(6);
 
         labels.extend([
-            self.0.scheme.into_static(),
+            self.0.scheme,
             self.0.namespace.as_ref(),
             self.0.root.as_ref(),
             self.0.operation,

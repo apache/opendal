@@ -33,6 +33,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     strategy:
       # Publish package one by one instead of flooding the registry
       max-parallel: 1
@@ -76,6 +78,8 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
       - name: Publish ${{ matrix.package }}
         working-directory: ${{ matrix.package }}
         # Only publish if it's a tag and the tag is not a pre-release
@@ -83,4 +87,4 @@ jobs:
         run: cargo publish --no-verify
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

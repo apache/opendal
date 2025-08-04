@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for seafile service.
+#[cfg(feature = "services-seafile")]
+pub(super) const DEFAULT_SCHEME: &str = "seafile";
 #[cfg(feature = "services-seafile")]
 mod core;
 #[cfg(feature = "services-seafile")]

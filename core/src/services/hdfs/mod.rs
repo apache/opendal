@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for hdfs service.
+#[cfg(feature = "services-hdfs")]
+pub(super) const DEFAULT_SCHEME: &str = "hdfs";
 #[cfg(feature = "services-hdfs")]
 mod delete;
 #[cfg(feature = "services-hdfs")]

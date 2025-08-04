@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for monoiofs service.
+#[cfg(feature = "services-monoiofs")]
+pub(super) const DEFAULT_SCHEME: &str = "monoiofs";
 #[cfg(feature = "services-monoiofs")]
 mod core;
 #[cfg(feature = "services-monoiofs")]

@@ -31,17 +31,19 @@ use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
-use object_store::PutMultipartOpts;
+use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
+use opendal::options::CopyOptions;
 use opendal::raw::percent_decode_path;
 use opendal::Buffer;
 use opendal::Writer;
 use opendal::{Operator, OperatorInfo};
+use std::collections::HashMap;
 use tokio::sync::{Mutex, Notify};
 
 /// OpendalStore implements ObjectStore trait by using opendal.
@@ -109,6 +111,41 @@ impl OpendalStore {
     pub fn info(&self) -> &OperatorInfo {
         self.info.as_ref()
     }
+
+    /// Copy a file from one location to another
+    async fn copy_request(
+        &self,
+        from: &Path,
+        to: &Path,
+        if_not_exists: bool,
+    ) -> object_store::Result<()> {
+        let mut copy_options = CopyOptions::default();
+        if if_not_exists {
+            copy_options.if_not_exists = true;
+        }
+
+        // Perform the copy operation
+        self.inner
+            .copy_options(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+                copy_options,
+            )
+            .into_send()
+            .await
+            .map_err(|err| {
+                if if_not_exists && err.kind() == opendal::ErrorKind::AlreadyExists {
+                    object_store::Error::AlreadyExists {
+                        path: to.to_string(),
+                        source: Box::new(err),
+                    }
+                } else {
+                    format_object_store_error(err, from.as_ref())
+                }
+            })?;
+
+        Ok(())
+    }
 }
 
 impl Debug for OpendalStore {
@@ -171,7 +208,7 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
-        future_write.into_send().await.map_err(|err| {
+        let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
                 object_store::Error::Precondition { path, source }
                     if opts_mode == PutMode::Create =>
@@ -182,10 +219,10 @@ impl ObjectStore for OpendalStore {
             }
         })?;
 
-        Ok(PutResult {
-            e_tag: None,
-            version: None,
-        })
+        let e_tag = rp.etag().map(|s| s.to_string());
+        let version = rp.version().map(|s| s.to_string());
+
+        Ok(PutResult { e_tag, version })
     }
 
     async fn put_multipart(
@@ -206,15 +243,59 @@ impl ObjectStore for OpendalStore {
 
     async fn put_multipart_opts(
         &self,
-        _location: &Path,
-        _opts: PutMultipartOpts,
+        location: &Path,
+        opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "put_multipart_opts is not implemented so far",
-            )),
-        })
+        const DEFAULT_CONCURRENT: usize = 8;
+
+        let mut options = opendal::options::WriteOptions {
+            concurrent: DEFAULT_CONCURRENT,
+            ..Default::default()
+        };
+
+        // Collect user metadata separately to handle multiple entries
+        let mut user_metadata = HashMap::new();
+
+        // Handle attributes if provided
+        for (key, value) in opts.attributes.iter() {
+            match key {
+                object_store::Attribute::CacheControl => {
+                    options.cache_control = Some(value.to_string());
+                }
+                object_store::Attribute::ContentDisposition => {
+                    options.content_disposition = Some(value.to_string());
+                }
+                object_store::Attribute::ContentEncoding => {
+                    options.content_encoding = Some(value.to_string());
+                }
+                object_store::Attribute::ContentLanguage => {
+                    // no support
+                    continue;
+                }
+                object_store::Attribute::ContentType => {
+                    options.content_type = Some(value.to_string());
+                }
+                object_store::Attribute::Metadata(k) => {
+                    user_metadata.insert(k.to_string(), value.to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // Apply user metadata if any entries were collected
+        if !user_metadata.is_empty() {
+            options.user_metadata = Some(user_metadata);
+        }
+
+        let writer = self
+            .inner
+            .writer_options(&percent_decode_path(location.as_ref()), options)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        let upload = OpendalMultipartUpload::new(writer, location.clone());
+
+        Ok(Box::new(upload))
     }
 
     async fn get_opts(
@@ -245,6 +326,17 @@ impl ObjectStore for OpendalStore {
                 .map_err(|err| format_object_store_error(err, location.as_ref()))?
         };
 
+        // Convert user defined metadata from OpenDAL to object_store attributes
+        let mut attributes = object_store::Attributes::new();
+        if let Some(user_meta) = meta.user_metadata() {
+            for (key, value) in user_meta {
+                attributes.insert(
+                    object_store::Attribute::Metadata(key.clone().into()),
+                    value.clone().into(),
+                );
+            }
+        }
+
         let meta = ObjectMeta {
             location: location.clone(),
             last_modified: meta.last_modified().unwrap_or_default(),
@@ -258,7 +350,7 @@ impl ObjectStore for OpendalStore {
                 payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
                 range: 0..0,
                 meta,
-                attributes: Default::default(),
+                attributes,
             });
         }
 
@@ -319,7 +411,7 @@ impl ObjectStore for OpendalStore {
             payload: GetResultPayload::Stream(Box::pin(stream)),
             range: read_range.start..read_range.end,
             meta,
-            attributes: Default::default(),
+            attributes,
         })
     }
 
@@ -465,31 +557,25 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn copy(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "copy is not implemented so far",
-            )),
-        })
+    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.copy_request(from, to, false).await
     }
 
-    async fn rename(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "rename is not implemented so far",
-            )),
-        })
+    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.copy_request(from, to, true).await
     }
 
-    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> object_store::Result<()> {
-        Err(object_store::Error::NotSupported {
-            source: Box::new(opendal::Error::new(
-                opendal::ErrorKind::Unsupported,
-                "copy_if_not_exists is not implemented so far",
-            )),
-        })
+    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.inner
+            .rename(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+            )
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
+
+        Ok(())
     }
 }
 
@@ -552,16 +638,16 @@ impl MultipartUpload for OpendalMultipartUpload {
 
     async fn complete(&mut self) -> object_store::Result<PutResult> {
         let mut writer = self.writer.lock().await;
-        writer
+        let metadata = writer
             .close()
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, self.location.as_ref()))?;
 
-        Ok(PutResult {
-            e_tag: None,
-            version: None,
-        })
+        let e_tag = metadata.etag().map(|s| s.to_string());
+        let version = metadata.version().map(|s| s.to_string());
+
+        Ok(PutResult { e_tag, version })
     }
 
     async fn abort(&mut self) -> object_store::Result<()> {

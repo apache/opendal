@@ -148,6 +148,8 @@ pub struct Capability {
 
     /// Indicates if copy operations are supported.
     pub copy: bool,
+    /// Indicates if conditional copy operations with if-not-exists are supported.
+    pub copy_with_if_not_exists: bool,
 
     /// Indicates if rename operations are supported.
     pub rename: bool,

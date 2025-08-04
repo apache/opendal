@@ -34,10 +34,10 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;
-
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 impl Configurator for WebhdfsConfig {
@@ -147,7 +147,6 @@ impl WebhdfsBuilder {
 }
 
 impl Builder for WebhdfsBuilder {
-    const SCHEME: Scheme = Scheme::Webhdfs;
     type Config = WebhdfsConfig;
 
     /// build the backend
@@ -181,7 +180,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Webhdfs)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

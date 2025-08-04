@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for fs service.
+#[cfg(feature = "services-fs")]
+pub(super) const DEFAULT_SCHEME: &str = "fs";
 #[cfg(feature = "services-fs")]
 mod core;
 #[cfg(feature = "services-fs")]

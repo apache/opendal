@@ -119,7 +119,6 @@ impl GridfsBuilder {
 }
 
 impl Builder for GridfsBuilder {
-    const SCHEME: Scheme = Scheme::Gridfs;
     type Config = GridfsConfig;
 
     fn build(self) -> Result<impl Access> {

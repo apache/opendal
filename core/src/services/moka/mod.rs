@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for moka service.
+#[cfg(feature = "services-moka")]
+pub(super) const DEFAULT_SCHEME: &str = "moka";
 #[cfg(feature = "services-moka")]
 mod backend;
 #[cfg(feature = "services-moka")]

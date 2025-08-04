@@ -26,11 +26,11 @@ use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
-
 impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -151,7 +151,6 @@ impl MokaBuilder {
 }
 
 impl Builder for MokaBuilder {
-    const SCHEME: Scheme = Scheme::Moka;
     type Config = MokaConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -203,7 +202,7 @@ pub struct MokaAccessor {
 impl MokaAccessor {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Moka);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
         info.set_native_capability(Capability {

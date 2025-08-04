@@ -1004,7 +1004,7 @@ impl Operator {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "write path is a directory")
                     .with_operation("Operator::writer")
-                    .with_context("service", acc.info().scheme().into_static())
+                    .with_context("service", acc.info().scheme())
                     .with_context("path", &path),
             );
         }
@@ -1071,6 +1071,127 @@ impl Operator {
         self.inner().copy(&from, &to, OpCopy::new()).await?;
 
         Ok(())
+    }
+
+    /// Copy a file from `from` to `to` with additional options.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::CopyOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// Copy a file only if the destination doesn't exist:
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.copy_with("path/to/file", "path/to/file2")
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+
+        OperatorFuture::new(
+            self.inner().clone(),
+            from,
+            (options::CopyOptions::default(), to),
+            Self::copy_inner,
+        )
+    }
+
+    /// Copy a file from `from` to `to` with additional options.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
+    /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
+    ///
+    /// # Options
+    ///
+    /// Check [`options::CopyOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// Copy a file only if the destination doesn't exist:
+    ///
+    /// ```
+    /// # use opendal::Result;
+    /// # use opendal::Operator;
+    /// # use opendal::options::CopyOptions;
+    ///
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut opts = CopyOptions::default();
+    /// opts.if_not_exists = true;
+    /// op.copy_options("path/to/file", "path/to/file2", opts).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn copy_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: impl Into<options::CopyOptions>,
+    ) -> Result<()> {
+        let from = normalize_path(from);
+        let to = normalize_path(to);
+        let opts = opts.into();
+
+        Self::copy_inner(self.inner().clone(), from, (opts, to)).await
+    }
+
+    async fn copy_inner(
+        acc: Accessor,
+        from: String,
+        (opts, to): (options::CopyOptions, String),
+    ) -> Result<()> {
+        if !validate_path(&from, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path is a directory")
+                    .with_operation("Operator::copy")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", from),
+            );
+        }
+
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "to path is a directory")
+                    .with_operation("Operator::copy")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        if from == to {
+            return Err(
+                Error::new(ErrorKind::IsSameFile, "from and to paths are same")
+                    .with_operation("Operator::copy")
+                    .with_context("service", acc.info().scheme())
+                    .with_context("from", &from)
+                    .with_context("to", &to),
+            );
+        }
+
+        let mut op = OpCopy::new();
+        if opts.if_not_exists {
+            op = op.with_if_not_exists(true);
+        }
+
+        acc.copy(&from, &to, op).await.map(|_| ())
     }
 
     /// Rename a file from `from` to `to`.

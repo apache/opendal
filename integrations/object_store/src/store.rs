@@ -269,8 +269,7 @@ impl ObjectStore for OpendalStore {
                     options.content_encoding = Some(value.to_string());
                 }
                 object_store::Attribute::ContentLanguage => {
-                    // no support
-                    continue;
+                    options.content_language = Some(value.to_string());
                 }
                 object_store::Attribute::ContentType => {
                     options.content_type = Some(value.to_string());

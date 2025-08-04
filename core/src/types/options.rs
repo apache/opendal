@@ -397,6 +397,27 @@ pub struct WriteOptions {
     ///
     /// This operation allows specifying the encoding applied to the content being written.
     pub content_encoding: Option<String>,
+
+    /// Sets Content-Language header for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_content_language`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, sets Content-Language as system metadata on the target file
+    /// - The value should follow RFC 5646 language tag format
+    /// - Common values include:
+    ///   - `en` - English
+    ///   - `zh-CN` - Chinese (Simplified)
+    ///   - `ja` - Japanese
+    ///   - `en-US` - English (United States)
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation allows specifying the natural language(s) of the content being written.
+    pub content_language: Option<String>,
+    
     /// Sets user metadata for this write request.
     ///
     /// ### Capability

@@ -46,7 +46,7 @@ impl Operator {
     /// And the options,
     /// please refer to the documentation of the corresponding service for the corresponding parameters.
     /// Note that the current options key is snake_case.
-    #[napi(constructor)]
+    #[napi(constructor, async_runtime)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
         let scheme = opendal::Scheme::from_str(&scheme)
             .map_err(|err| {
@@ -58,12 +58,8 @@ impl Operator {
 
         let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
 
-        let blocking_op = {
-            let handle = tokio::runtime::Handle::current();
-            let _guard = handle.enter();
-
-            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
-        };
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
 
         Ok(Operator {
             async_op,
@@ -1069,16 +1065,12 @@ pub struct Layer {
 #[napi]
 impl Operator {
     /// Add a layer to this operator.
-    #[napi]
-    pub fn layer(&self, layer: External<Layer>) -> Result<Self> {
+    #[napi(async_runtime)]
+    pub fn layer(&self, layer: &External<Layer>) -> Result<Self> {
         let async_op = layer.inner.layer(self.async_op.clone());
 
-        let blocking_op = {
-            let handle = tokio::runtime::Handle::current();
-            let _guard = handle.enter();
-
-            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
-        };
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
 
         Ok(Self {
             async_op,

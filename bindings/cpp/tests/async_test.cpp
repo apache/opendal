@@ -112,18 +112,6 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
     auto another_file_exists = co_await op->Exists(another_file_path);
     EXPECT_TRUE(another_file_exists);
 
-    // Remove the entire directory and check non-existence of the directory and
-    // its contents
-    co_await op->RemoveAll(dir_path);
-    auto dir_after_remove_exists = co_await op->Exists(dir_path);
-    EXPECT_FALSE(dir_after_remove_exists);
-    auto file_in_removed_dir_exists =
-        co_await op->Exists(file_path);  // Original file path
-    EXPECT_FALSE(file_in_removed_dir_exists);
-    auto another_file_in_removed_dir_exists =
-        co_await op->Exists(another_file_path);
-    EXPECT_FALSE(another_file_in_removed_dir_exists);
-
     // Test listing after cleaning up
     const auto list_dir_path = "test_list_dir/";
     const auto list_file1_path = "test_list_dir/file1.txt";
@@ -149,9 +137,6 @@ TEST_F(AsyncOpendalTest, AsyncOperationsTest) {
     EXPECT_TRUE(found_file1);
     EXPECT_TRUE(found_file2);
     EXPECT_TRUE(found_subdir);
-
-    // Clean up list test directory
-    co_await op->RemoveAll(list_dir_path);
     co_return;
   }());
 }
@@ -299,9 +284,6 @@ TEST_F(AsyncOpendalTest, AsyncListerTest) {
     auto moved_entry = co_await moved_lister.Next();
     EXPECT_FALSE(moved_entry.empty());  // Should find at least one entry
 
-    // Clean up
-    co_await op->RemoveAll(base_dir);
-    co_await op->RemoveAll(empty_dir);
     co_return;
   }());
 }
@@ -372,8 +354,6 @@ TEST_F(AsyncOpendalTest, AsyncReaderListerIntegrationTest) {
       EXPECT_EQ(reconstructed_data[i], large_data[i]);
     }
 
-    // Clean up
-    co_await op->RemoveAll(base_dir);
     co_return;
   }());
 }

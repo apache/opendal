@@ -56,7 +56,8 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.14.0
+          version: 8
+          run-install: false
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -64,9 +65,6 @@ jobs:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-
-      - name: Corepack
-        run: npm i -g --force corepack@latest && corepack enable
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -99,65 +97,75 @@ jobs:
     strategy:
       matrix:
         settings:
-          - target: x86_64-unknown-linux-gnu
-            build: |
-              docker run \
-              -v .:/build \
-              -e NAPI_TARGET=x86_64-unknown-linux-gnu \
-              -w /build/bindings/nodejs \
-              ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian \
-              bash -c "npm i -g --force corepack@latest && corepack enable && pnpm build"
-              cd bindings/nodejs
-              # change owner to current user
-              sudo chown -R 1001:121 *.node
-          - target: aarch64-unknown-linux-gnu
-            build: |
-              docker run \
-              -v .:/build \
-              -e NAPI_TARGET=aarch64-unknown-linux-gnu \
-              -w /build/bindings/nodejs \
-              ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64 \
-              bash -c "set -e &&
-              rustup target add aarch64-unknown-linux-gnu &&
-              npm i -g --force corepack@latest &&
-              corepack enable &&
-              pnpm build --target aarch64-unknown-linux-gnu &&
-              aarch64-unknown-linux-gnu-strip *.node"
-              cd bindings/nodejs
-              # change owner to current user
-              sudo chown -R 1001:121 *.node
-          - target: aarch64-unknown-linux-musl
-            build: |
-              docker run \
-              -v .:/build \
-              -e NAPI_TARGET=aarch64-unknown-linux-musl \
-              -w /build/bindings/nodejs \
-              ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine \
-              bash -c "set -e &&
-              rustup target add aarch64-unknown-linux-musl &&
-              npm i -g --force corepack@latest &&
-              corepack enable &&
-              pnpm build --target aarch64-unknown-linux-musl &&
-              /aarch64-linux-musl-cross/bin/aarch64-linux-musl-strip *.node"
-              cd bindings/nodejs
-              # change owner to current user
-              sudo chown -R 1001:121 *.node
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
+            build: NAPI_TARGET=x86_64-unknown-linux-gnu pnpm build --use-napi-cross
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: NAPI_TARGET=x86_64-unknown-linux-musl pnpm build -x
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
+            build: NAPI_TARGET=aarch64-unknown-linux-gnu pnpm build --use-napi-cross
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+            build: NAPI_TARGET=aarch64-unknown-linux-musl pnpm build -x
 
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.14.0
+          version: 8
+          run-install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-      - name: Corepack
-        run: npm i -g --force corepack@latest && corepack enable
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+      - uses: goto-bus-stop/setup-zig@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        with:
+          version: 0.13.0
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+      - name: Setup toolchain
+        run: ${{ matrix.settings.setup }}
+        if: ${{ matrix.settings.setup }}
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup node x86
+        uses: actions/setup-node@v4
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: "20"
+          cache: pnpm
+          architecture: x86
       - name: Build
         shell: bash
         working-directory: .
@@ -166,6 +174,7 @@ jobs:
         with:
           name: bindings-linux-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
+
 
   windows:
     name: windows - ${{ matrix.settings.target }}
@@ -180,12 +189,15 @@ jobs:
     strategy:
       matrix:
         settings:
-          - target: x86_64-pc-windows-msvc
-            build: pnpm build
-          - target: aarch64-pc-windows-msvc
-            build: |
-              rustup target add aarch64-pc-windows-msvc;
-              NAPI_TARGET=aarch64-pc-windows-msvc pnpm build
+          - host: windows-latest
+            build: NAPI_TARGET=x86_64-pc-windows-msvc pnpm build
+            target: x86_64-pc-windows-msvc
+          - host: windows-latest
+            build: NAPI_TARGET=i686-pc-windows-msvc pnpm build
+            target: i686-pc-windows-msvc
+          - host: windows-latest
+            target: aarch64-pc-windows-msvc
+            build: NAPI_TARGET=aarch64-pc-windows-msvc pnpm build
 
     # Notes: this defaults only apply on run tasks.
     defaults:
@@ -196,19 +208,57 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.14.0
+          version: 8
+          run-install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-      - name: Corepack
-        run: npm i -g --force corepack@latest && corepack enable
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+      - uses: goto-bus-stop/setup-zig@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        with:
+          version: 0.13.0
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+      - name: Setup toolchain
+        run: ${{ matrix.settings.setup }}
+        if: ${{ matrix.settings.setup }}
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup node x86
+        uses: actions/setup-node@v4
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: "20"
+          cache: pnpm
+          architecture: x86
       - name: Build
         shell: bash
+        working-directory: .
         run: ${{ matrix.settings.build }}
       - uses: actions/upload-artifact@v4
         with:
@@ -228,44 +278,69 @@ jobs:
     strategy:
       matrix:
         settings:
-          - target: x86_64-apple-darwin
-            build: |
-              rustup target add x86_64-apple-darwin;
-              export NAPI_TARGET=x86_64-apple-darwin;
-
-              pnpm build
-              strip -x *.node
-          - target: aarch64-apple-darwin
-            build: |
-              sudo rm -Rf /Library/Developer/CommandLineTools/SDKs/*;
-              export CC=$(xcrun -f clang);
-              export CXX=$(xcrun -f clang++);
-              SYSROOT=$(xcrun --sdk macosx --show-sdk-path);
-              export CFLAGS="-isysroot $SYSROOT -isystem $SYSROOT";
-              rustup target add aarch64-apple-darwin;
-
-              export NAPI_TARGET=aarch64-apple-darwin;
-              pnpm build
-              strip -x *.node
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: NAPI_TARGET=x86_64-apple-darwin pnpm build
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: NAPI_TARGET=aarch64-apple-darwin pnpm build
 
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.14.0
+          version: 8
+          run-install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-      - name: Corepack
-        run: npm i -g --force corepack@latest && corepack enable
+      - name: Install
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.settings.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+      - uses: goto-bus-stop/setup-zig@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        with:
+          version: 0.13.0
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        if: ${{ contains(matrix.settings.target, 'musl') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+      - name: Setup toolchain
+        run: ${{ matrix.settings.setup }}
+        if: ${{ matrix.settings.setup }}
+        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Setup node x86
+        uses: actions/setup-node@v4
+        if: matrix.settings.target == 'i686-pc-windows-msvc'
+        with:
+          node-version: "20"
+          cache: pnpm
+          architecture: x86
       - name: Build
-        run: ${{ matrix.settings.build }}
         shell: bash
+        working-directory: .
+        run: ${{ matrix.settings.build }}
       - uses: actions/upload-artifact@v4
         with:
           name: bindings-macos-${{ matrix.settings.target }}
@@ -288,15 +363,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 10.14.0
+          version: 8
+          run-install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-      - name: Corepack
-        run: npm i -g --force corepack@latest && corepack enable
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

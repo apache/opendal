@@ -11,5 +11,6 @@
     "${workspaceFolder}/bin/oay/Cargo.toml",
     "${workspaceFolder}/bin/ofs/Cargo.toml"
   ],
-  "java.compile.nullAnalysis.mode": "automatic"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "cmake.ignoreCMakeListsMissing": true
 }

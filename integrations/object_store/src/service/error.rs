@@ -21,25 +21,29 @@ use opendal::Scheme;
 
 pub(crate) fn parse_error(err: object_store::Error) -> Error {
     let err = match err {
-        object_store::Error::NotFound { .. } => Error::new(ErrorKind::NotFound, "path not found"),
+        object_store::Error::NotFound { .. } => {
+            Error::new(ErrorKind::NotFound, "path not found").set_source(err)
+        }
 
         object_store::Error::AlreadyExists { .. } => {
-            Error::new(ErrorKind::AlreadyExists, "path already exists")
+            Error::new(ErrorKind::AlreadyExists, "path already exists").set_source(err)
         }
 
         object_store::Error::PermissionDenied { .. }
         | object_store::Error::Unauthenticated { .. } => {
-            Error::new(ErrorKind::PermissionDenied, "permission denied")
+            Error::new(ErrorKind::PermissionDenied, "permission denied").set_source(err)
         }
 
-        object_store::Error::InvalidPath { .. } => Error::new(ErrorKind::NotFound, "invalid path"),
+        object_store::Error::InvalidPath { .. } => {
+            Error::new(ErrorKind::NotFound, "invalid path").set_source(err)
+        }
 
         object_store::Error::NotSupported { .. } => {
-            Error::new(ErrorKind::Unsupported, "operation not supported")
+            Error::new(ErrorKind::Unsupported, "operation not supported").set_source(err)
         }
 
         object_store::Error::Precondition { .. } => {
-            Error::new(ErrorKind::ConditionNotMatch, "precondition not met")
+            Error::new(ErrorKind::ConditionNotMatch, "precondition not met").set_source(err)
         }
 
         object_store::Error::Generic { store, .. } => {
@@ -48,6 +52,4 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
 
         _ => Error::new(ErrorKind::Unexpected, "unknown error").set_source(err),
     };
-
-    err.with_context("service", Scheme::Custom("object_store"))
 }

@@ -144,8 +144,9 @@ std::string Operator::Read(std::string_view path) {
 }
 
 void Operator::Write(std::string_view path, std::string_view data) {
-  operator_->write(utils::rust_str(path),
-                   utils::rust_slice<const uint8_t>(data));
+  rust::Vec<uint8_t> vec;
+  std::copy(data.begin(), data.end(), std::back_inserter(vec));
+  operator_->write(utils::rust_str(path), vec);
 }
 
 bool Operator::Exists(std::string_view path) {

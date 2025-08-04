@@ -102,7 +102,7 @@ mod ffi {
         unsafe fn delete_operator(op: *mut Operator);
 
         fn read(self: &Operator, path: &str) -> Result<Vec<u8>>;
-        fn write(self: &Operator, path: &str, bs: &'static [u8]) -> Result<()>;
+        fn write(self: &Operator, path: &str, bs: Vec<u8>) -> Result<()>;
         fn exists(self: &Operator, path: &str) -> Result<bool>;
         fn create_dir(self: &Operator, path: &str) -> Result<()>;
         fn copy(self: &Operator, src: &str, dst: &str) -> Result<()>;
@@ -167,11 +167,7 @@ impl Operator {
         Ok(self.0.read(path)?.to_vec())
     }
 
-    // To avoid copying the bytes, we use &'static [u8] here.
-    //
-    // Safety: The bytes created from bs will be dropped after the function call.
-    // So it's safe to declare its lifetime as 'static.
-    fn write(&self, path: &str, bs: &'static [u8]) -> Result<()> {
+    fn write(&self, path: &str, bs: Vec<u8>) -> Result<()> {
         Ok(self.0.write(path, bs).map(|_| ())?)
     }
 

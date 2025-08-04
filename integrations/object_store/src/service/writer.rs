@@ -17,20 +17,20 @@
 
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use object_store::Attribute;
 use object_store::AttributeValue;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutOptions;
 use object_store::PutPayload;
+use object_store::{Attribute, PutResult};
 
 use opendal::raw::oio::MultipartPart;
 use opendal::raw::*;
 use opendal::*;
+use tokio::sync::Mutex;
 
 use super::error::parse_error;
 
@@ -38,7 +38,7 @@ pub struct ObjectStoreWriter {
     store: Arc<dyn ObjectStore + 'static>,
     path: object_store::path::Path,
     args: OpWrite,
-    multipart_uploads: Arc<tokio::sync::Mutex<HashMap<String, Box<dyn MultipartUpload>>>>,
+    upload: Mutex<Option<Box<dyn MultipartUpload>>>,
 }
 
 impl ObjectStoreWriter {
@@ -47,7 +47,7 @@ impl ObjectStoreWriter {
             store,
             path: object_store::path::Path::from(path),
             args,
-            multipart_uploads: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
+            upload: Mutex::new(None),
         }
     }
 }
@@ -95,23 +95,29 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
     // Generate a unique upload ID that we'll use to track this session
     async fn initiate_part(&self) -> Result<String> {
-        // Create a unique upload ID using ULID
-        let upload_id = ulid::Ulid::new().to_string();
-
         // Start a new multipart upload using object_store
         let opts = format_put_options(&self.args)?;
         let multipart_opts = format_multipart_options(opts);
-        let multipart_upload = self
+        let upload = self
             .store
             .put_multipart_opts(&self.path, multipart_opts)
             .await
             .map_err(parse_error)?;
 
         // Store the multipart upload for later use
-        let mut uploads = self.multipart_uploads.lock().await;
-        uploads.insert(upload_id.clone(), multipart_upload);
+        let mut guard = self.upload.lock().await;
+        if guard.is_some() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Upload already initiated, abort the previous upload first",
+            ));
+        }
+        *guard = Some(upload);
 
-        Ok(upload_id)
+        // object_store does not provide a way to get the upload id, so we use a fixed string
+        // as the upload id. it's ok because the upload id is already tracked inside the upload
+        // object.
+        Ok("".to_string())
     }
 
     /// Upload a single part of the multipart upload.
@@ -119,7 +125,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     /// Returns the ETag and part information for this uploaded part.
     async fn write_part(
         &self,
-        upload_id: &str,
+        _upload_id: &str,
         part_number: usize,
         size: u64,
         body: Buffer,
@@ -133,12 +139,6 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             ));
         }
 
-        // Get the multipart upload for this upload_id
-        let mut uploads = self.multipart_uploads.lock().await;
-        let multipart_upload = uploads
-            .get_mut(upload_id)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
-
         // Convert Buffer to PutPayload
         let bytes = body.to_bytes();
 
@@ -149,8 +149,11 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let payload = PutPayload::from(bytes);
 
         // Upload the part
-        let upload_part = multipart_upload.put_part(payload);
-        upload_part.await.map_err(parse_error)?;
+        let mut guard = self.upload.lock().await;
+        let upload = guard
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
+        upload.put_part(payload).await.map_err(parse_error)?;
 
         // Create MultipartPart with the proper ETag
         let multipart_part = MultipartPart {
@@ -158,13 +161,12 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             etag,
             checksum: None, // No checksum for now
         };
-
         Ok(multipart_part)
     }
 
     async fn complete_part(
         &self,
-        upload_id: &str,
+        _upload_id: &str,
         parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
         // Validate that we have parts to complete
@@ -189,41 +191,30 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         }
 
         // Get the multipart upload for this upload_id
-        let mut uploads = self.multipart_uploads.lock().await;
-        let multipart_upload = uploads
-            .get_mut(upload_id)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
+        let mut guard = self.upload.lock().await;
+        let upload = guard
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
 
         // Complete the multipart upload
-        let result = multipart_upload.complete().await.map_err(parse_error)?;
-
-        // Remove the upload from tracking
-        uploads.remove(upload_id);
+        let result = upload.complete().await.map_err(parse_error)?;
+        *guard = None;
 
         // Build metadata from the result
-        let mut metadata = Metadata::new(EntryMode::FILE);
-        if let Some(etag) = &result.e_tag {
-            metadata.set_etag(etag);
-        }
-        if let Some(version) = &result.version {
-            metadata.set_version(version);
-        }
-
+        let metadata = format_metadata_with_put_result(result);
         Ok(metadata)
     }
 
-    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+    async fn abort_part(&self, _upload_id: &str) -> Result<()> {
         // Get the multipart upload for this upload_id
-        let mut uploads = self.multipart_uploads.lock().await;
-        let multipart_upload = uploads
-            .get_mut(upload_id)
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload ID not found"))?;
+        let mut guard = self.upload.lock().await;
+        let upload = guard
+            .as_mut()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
 
         // Abort the multipart upload
-        multipart_upload.abort().await.map_err(parse_error)?;
-
-        // Remove the upload from tracking
-        uploads.remove(upload_id);
+        upload.abort().await.map_err(parse_error)?;
+        *guard = None;
 
         Ok(())
     }
@@ -269,6 +260,17 @@ fn format_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptio
         attributes: opts.attributes,
         ..Default::default()
     }
+}
+
+fn format_metadata_with_put_result(result: PutResult) -> Metadata {
+    let mut metadata = Metadata::new(EntryMode::FILE);
+    if let Some(etag) = &result.e_tag {
+        metadata.set_etag(etag);
+    }
+    if let Some(version) = &result.version {
+        metadata.set_version(version);
+    }
+    metadata
 }
 
 /// Generate a proper ETag for a multipart part

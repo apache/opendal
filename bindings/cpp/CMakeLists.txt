@@ -44,7 +44,9 @@ if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)
 
     if (NOT ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")))
-        message(FATAL_ERROR "currently C++ compiler must be clang for async mode")
+        message(STATUS "CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+        message(FATAL_ERROR "currently C++ compiler must be clang for async mode, \
+        should use `cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ...`")
     endif()
 else()
     set(CMAKE_CXX_STANDARD 17)
@@ -189,6 +191,12 @@ if (OPENDAL_ENABLE_TESTING)
             URL https://github.com/andreasbuhr/cppcoro/archive/${OPENDAL_CPPCORO_VERSION}.zip
         )
         FetchContent_MakeAvailable(cppcoro)
+
+        if ((CMAKE_CXX_COMPILER_ID STREQUAL "Clang") OR (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+            target_compile_options(cppcoro PRIVATE
+                "-Wno-deprecated-this-capture"
+            )
+        endif()
     endif()
 
     list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/metadata_test.cpp)

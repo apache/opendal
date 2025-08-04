@@ -32,8 +32,9 @@ crate-type = ["staticlib"]
 [dependencies]
 anyhow = "1.0"
 chrono = "0.4"
-cxx = "1.0"
-cxx-async = { version = "0.1.2", optional = true }
+cxx = "1.0.161"
+cxx-async = { git = "https://github.com/devillove084/cxx-async.git", branch = "fix/build_warning", optional = true }
+# cxx-async = { version = "0.1.2", optional = true }
 futures = "0.3"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [

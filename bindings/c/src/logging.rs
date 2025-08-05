@@ -165,7 +165,7 @@ impl Subscriber for GlogSubscriber {
 
             if let Some(message_str) = message_opt {
                 // DEBUG PRINT
-                println!("[Rust GlogSubscriber] Event message_str: {}", message_str);
+                println!("[Rust GlogSubscriber] Event message_str: {message_str}");
                 if let Ok(message_cstring) = CString::new(message_str) {
                     // message_str is String, CString takes ownership
                     unsafe {

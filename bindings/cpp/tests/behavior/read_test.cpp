@@ -43,6 +43,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadNonExistentFile) {
 // Test reading empty file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadEmptyFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    if (!op_.Info().write_can_empty) {
+        GTEST_SKIP() << "Service doesn't support writing empty content";
+        return;
+    }
     auto path = random_path();
     std::string empty_content = "";
     

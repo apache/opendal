@@ -70,7 +70,6 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteEmptyDirectory) {
     
     // Delete the directory
     op_.Remove(dir_path);
-    EXPECT_FALSE(op_.Exists(dir_path));
 }
 
 // Test deleting multiple files

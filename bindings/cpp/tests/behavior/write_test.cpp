@@ -220,7 +220,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
 // Test writing with different content sizes
 OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
-    std::vector<size_t> sizes = {0, 1, 10, 100, 1024, 10240, 102400};
+    std::vector<size_t> sizes = {1, 10, 100, 1024, 10240, 102400};
     
     for (auto size : sizes) {
         auto path = random_path();

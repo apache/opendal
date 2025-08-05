@@ -388,10 +388,3 @@ inline void initialize_test_framework() {
             GTEST_SKIP() << "Rename operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
         } \
     } while(0)
-
-#define OPENDAL_SKIP_IF_UNSUPPORTED_RENAME() \
-    do { \
-        if (!this->supports_rename()) { \
-            GTEST_SKIP() << "Rename operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
-        } \
-    } while(0)

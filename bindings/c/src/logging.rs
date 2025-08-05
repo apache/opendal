@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 use std::sync::{Mutex, OnceLock};
 use tracing::subscriber::set_global_default;
 use tracing::{Event, Level, Metadata, Subscriber};
@@ -56,7 +56,7 @@ pub extern "C" fn opendal_init_logger() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env())
         .try_init()
-        .unwrap_or_else(|e| eprintln!("opendal_init_logger: failed to init logger: {}", e));
+        .unwrap_or_else(|e| eprintln!("opendal_init_logger: failed to init logger: {e}"));
 }
 
 /// Initializes OpenDAL logging to forward logs to a C callback,
@@ -72,7 +72,9 @@ pub extern "C" fn opendal_init_logger() {
 pub unsafe extern "C" fn opendal_init_glog_logging(callback: opendal_glog_callback_t) {
     println!("[Rust] opendal_init_glog_logging called."); // DEBUG
     if callback.is_none() {
-        eprintln!("opendal_init_glog_logging: received null callback, glog logging will not be initialized.");
+        eprintln!(
+            "opendal_init_glog_logging: received null callback, glog logging will not be initialized."
+        );
         return;
     }
 
@@ -86,8 +88,7 @@ pub unsafe extern "C" fn opendal_init_glog_logging(callback: opendal_glog_callba
     match set_global_default(subscriber) {
         Ok(_) => println!("[Rust] GlogSubscriber set as global default."), // DEBUG
         Err(e) => eprintln!(
-            "[Rust] opendal_init_glog_logging: failed to set global default subscriber: {}",
-            e
+            "[Rust] opendal_init_glog_logging: failed to set global default subscriber: {e}"
         ),
     }
 }
@@ -153,7 +154,7 @@ impl Subscriber for GlogSubscriber {
                 ) {
                     if field.name() == "message" && self.0.is_none() {
                         // Take the first "message" field
-                        *self.0 = Some(format!("{:?}", value));
+                        *self.0 = Some(format!("{value:?}"));
                     }
                 }
             }
@@ -176,17 +177,16 @@ impl Subscriber for GlogSubscriber {
                         );
                     }
                 } else {
-                    eprintln!("OpenDAL glog layer: log message contained null byte and could not be sent to C.");
+                    eprintln!(
+                        "OpenDAL glog layer: log message contained null byte and could not be sent to C."
+                    );
                 }
             } else {
                 // If there's no field named "message", try to format the whole event.
                 // This is a fallback and might not be ideal for structured glog.
                 let fallback_message = format!("{:?}", event.fields());
                 // DEBUG PRINT
-                println!(
-                    "[Rust GlogSubscriber] Fallback message_str: {}",
-                    fallback_message
-                );
+                println!("[Rust GlogSubscriber] Fallback message_str: {fallback_message}");
                 if let Ok(message_cstring) = CString::new(fallback_message) {
                     // fallback_message is String
                     unsafe {

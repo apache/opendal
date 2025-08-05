@@ -211,6 +211,7 @@ private:
 class OpenDALTest : public ::testing::Test {
 protected:
     opendal::Operator op_;
+    opendal::Capability capability_;
     std::mt19937 rng_;
     
     void SetUp() override {
@@ -220,6 +221,7 @@ protected:
         try {
             op_ = opendal::Operator(config.service_name(), config.config());
             ASSERT_TRUE(op_.Available()) << "Operator not available for service: " << config.service_name();
+            capability_ = op_.Info();
         } catch (const std::exception& e) {
             GTEST_SKIP() << "Failed to create operator: " << e.what();
         }
@@ -231,45 +233,27 @@ protected:
     
     // Helper methods for capability checking based on service name
     bool supports_write() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.write;
     }
     
     bool supports_delete() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.delete_feature;
     }
     
     bool supports_create_dir() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.create_dir;
     }
     
     bool supports_list() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.list;
     }
     
     bool supports_copy() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.copy;
     }
     
     bool supports_rename() const {
-        auto& config = TestConfig::instance();
-        const std::string& service = config.service_name();
-        // HTTP service only supports read and stat operations
-        return service != "http";
+        return capability_.rename;
     }
     
     // Helper methods
@@ -403,4 +387,11 @@ inline void initialize_test_framework() {
         if (!this->supports_rename()) { \
             GTEST_SKIP() << "Rename operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
         } \
-    } while(0) 
+    } while(0)
+
+#define OPENDAL_SKIP_IF_UNSUPPORTED_RENAME() \
+    do { \
+        if (!this->supports_rename()) { \
+            GTEST_SKIP() << "Rename operations not supported by service: " << opendal::test::TestConfig::instance().service_name(); \
+        } \
+    } while(0)

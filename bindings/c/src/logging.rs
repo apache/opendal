@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::{CString, c_char};
+use std::ffi::{c_char, CString};
 use std::sync::{Mutex, OnceLock};
 use tracing::subscriber::set_global_default;
 use tracing::{Event, Level, Metadata, Subscriber};

@@ -142,9 +142,8 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         // Convert Buffer to PutPayload
         let bytes = body.to_bytes();
 
-        // Generate a proper ETag for the part based on its content
-        // This follows the pattern used by many object stores where ETags are MD5 hashes
-        let etag = calculate_part_etag(&bytes, part_number);
+        // Return empty string as ETag since it's not used by object_store
+        let etag = String::new();
 
         let payload = PutPayload::from(bytes);
 
@@ -177,18 +176,6 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             ));
         }
 
-        // Validate part numbers are sequential and start from 0
-        for (i, part) in parts.iter().enumerate() {
-            if part.part_number != i {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    format!(
-                        "Invalid part number: expected {}, got {}",
-                        i, part.part_number
-                    ),
-                ));
-            }
-        }
 
         // Get the multipart upload for this upload_id
         let mut guard = self.upload.lock().await;
@@ -273,13 +260,3 @@ fn format_metadata_with_put_result(result: PutResult) -> Metadata {
     metadata
 }
 
-/// Generate a proper ETag for a multipart part
-/// This follows the pattern used by many object stores where ETags are based on content hash
-fn calculate_part_etag(content: &[u8], part_number: usize) -> String {
-    let mut hasher = DefaultHasher::new();
-    content.hash(&mut hasher);
-    part_number.hash(&mut hasher);
-
-    // Format as hex string
-    format!("{:016x}", hasher.finish())
-}

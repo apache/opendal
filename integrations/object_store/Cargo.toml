@@ -45,7 +45,6 @@ opendal = { version = "0.54.0", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }
-ulid = "0.5"
 
 [dev-dependencies]
 anyhow = "1.0.86"

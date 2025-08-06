@@ -17,7 +17,7 @@
 
 use std::{
     future::Future,
-    ops::{Bound, Deref, RangeBounds},
+    ops::{Bound, Deref, Range, RangeBounds},
     sync::Arc,
 };
 
@@ -90,12 +90,34 @@ impl Code for FoyerValue {
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<String, FoyerValue>,
+    size_limit: Range<usize>,
 }
 
 impl FoyerLayer {
     /// Creates a new `FoyerLayer` with the given foyer hybrid cache.
     pub fn new(cache: HybridCache<String, FoyerValue>) -> Self {
-        FoyerLayer { cache }
+        FoyerLayer {
+            cache,
+            size_limit: 0..usize::MAX,
+        }
+    }
+
+    /// Sets the size limit for caching.
+    ///
+    /// It is recommended to set a size limit to avoid caching large files that may not be suitable for caching.
+    pub fn with_size_limit<R: RangeBounds<usize>>(mut self, size_limit: R) -> Self {
+        let start = match size_limit.start_bound() {
+            Bound::Included(v) => *v,
+            Bound::Excluded(v) => *v + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match size_limit.end_bound() {
+            Bound::Included(v) => *v + 1,
+            Bound::Excluded(v) => *v,
+            Bound::Unbounded => usize::MAX,
+        };
+        self.size_limit = start..end;
+        self
     }
 }
 
@@ -105,7 +127,11 @@ impl<A: Access> Layer<A> for FoyerLayer {
     fn layer(&self, accessor: A) -> Self::LayeredAccess {
         let cache = self.cache.clone();
         FoyerAccessor {
-            inner: Arc::new(Inner { accessor, cache }),
+            inner: Arc::new(Inner {
+                accessor,
+                cache,
+                size_limit: self.size_limit.clone(),
+            }),
         }
     }
 }
@@ -114,6 +140,7 @@ impl<A: Access> Layer<A> for FoyerLayer {
 struct Inner<A: Access> {
     accessor: A,
     cache: HybridCache<String, FoyerValue>,
+    size_limit: Range<usize>,
 }
 
 #[derive(Debug)]
@@ -235,9 +262,11 @@ impl<A: Access> oio::Write for Writer<A> {
     async fn close(&mut self) -> Result<Metadata> {
         let buffer = self.buf.clone().collect();
         let res = self.w.close().await;
-        self.inner
-            .cache
-            .insert(self.path.clone(), FoyerValue(buffer));
+        if self.inner.size_limit.contains(&buffer.len()) {
+            self.inner
+                .cache
+                .insert(self.path.clone(), FoyerValue(buffer));
+        }
         res
     }
 

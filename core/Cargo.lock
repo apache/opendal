@@ -3191,8 +3191,9 @@ dependencies = [
 
 [[package]]
 name = "foyer"
-version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4#4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b4d8e96374206ff1b4265f2e2e6e1f80bc3048957b2a1e7fdeef929d68f318f"
 dependencies = [
  "equivalent",
  "foyer-common",
@@ -3209,8 +3210,9 @@ dependencies = [
 
 [[package]]
 name = "foyer-common"
-version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4#4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "911b8e3f23d5fe55b0b240f75af1d2fa5cb7261d3f9b38ef1c57bbc9f0449317"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -3235,8 +3237,9 @@ dependencies = [
 
 [[package]]
 name = "foyer-memory"
-version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4#4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "506883d5a8500dea1b1662f7180f3534bdcbfa718d3253db7179552ef83612fa"
 dependencies = [
  "arc-swap",
  "bitflags 2.9.1",
@@ -3258,8 +3261,9 @@ dependencies = [
 
 [[package]]
 name = "foyer-storage"
-version = "0.17.4"
-source = "git+https://github.com/foyer-rs/foyer?rev=4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4#4b50f6ddcf4c922f6f7caab8510b3fee3598fbb4"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ba8403a54a2f2032fb647e49c442e5feeb33f3989f7024f1b178341a016f06d"
 dependencies = [
  "allocator-api2",
  "anyhow",

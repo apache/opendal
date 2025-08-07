@@ -24,3 +24,10 @@ def test_operator_new_with_path():
     op = opendal.Operator("memory", root=Path("/tmp"))
     assert op is not None
     assert op.capability().read
+
+
+@pytest.mark.asyncio
+def test_async_operator_new_with_path():
+    op = opendal.AsyncOperator("memory", root=Path("/tmp"))
+    assert op is not None
+    assert op.capability().read

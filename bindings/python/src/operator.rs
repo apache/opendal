@@ -336,12 +336,13 @@ impl AsyncOperator {
                     .set_source(err)
             })
             .map_err(format_pyerr)?;
-        let map = map
-            .map(|v| {
-                v.extract::<HashMap<String, String>>()
-                    .expect("must be valid hashmap")
-            })
-            .unwrap_or_default();
+        let map = if let Some(v) = map {
+            v.iter()
+                .map(|(k, v)| Ok((k.extract::<String>()?, v.str()?.to_string())))
+                .collect::<PyResult<HashMap<String, String>>>()?
+        } else {
+            HashMap::default()
+        };
 
         Ok(AsyncOperator {
             core: build_operator(scheme, map.clone())?,

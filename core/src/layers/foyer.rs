@@ -35,6 +35,60 @@ fn extract_err(e: FoyerError) -> Error {
     Error::new(ErrorKind::Unexpected, e.to_string())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct FoyerKey {
+    pub path: String,
+    pub version: Option<String>,
+}
+
+impl Code for FoyerKey {
+    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+        let path_len = self.path.len() as u64;
+        writer.write_all(&path_len.to_le_bytes())?;
+        writer.write_all(self.path.as_bytes())?;
+        if let Some(ref version) = self.version {
+            let version_len = version.len() as u64;
+            writer.write_all(&version_len.to_le_bytes())?;
+            writer.write_all(version.as_bytes())?;
+        } else {
+            writer.write_all(&0u64.to_le_bytes())?;
+        }
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    where
+        Self: Sized,
+    {
+        let mut u64_buf = [0u8; 8];
+        reader.read_exact(&mut u64_buf)?;
+        let path_len = u64::from_le_bytes(u64_buf) as usize;
+        let mut path_buf = vec![0u8; path_len];
+        reader.read_exact(&mut path_buf[..path_len])?;
+        let path = String::from_utf8(path_buf).map_err(|e| CodeError::Other(Box::new(e)))?;
+
+        reader.read_exact(&mut u64_buf)?;
+        let version_len = u64::from_le_bytes(u64_buf) as usize;
+        let version = if version_len > 0 {
+            let mut version_buf = vec![0u8; path_len];
+            reader.read_exact(&mut version_buf[..path_len])?;
+            let version =
+                String::from_utf8(version_buf).map_err(|e| CodeError::Other(Box::new(e)))?;
+            Some(version)
+        } else {
+            None
+        };
+        Ok(FoyerKey { path, version })
+    }
+
+    fn estimated_size(&self) -> usize {
+        // 8B length prefix + path length
+        8 + self.path.len()
+        // 8B version length prefix + version length, if present
+        + 8 + self.version.as_ref().map_or(0, |v| v.len())
+    }
+}
+
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
 #[derive(Debug)]
 pub struct FoyerValue(pub Buffer);
@@ -68,6 +122,7 @@ impl Code for FoyerValue {
     }
 
     fn estimated_size(&self) -> usize {
+        // 8B length prefix + buffer length
         8 + self.0.len()
     }
 }
@@ -87,15 +142,19 @@ impl Code for FoyerValue {
 /// use opendal::services::S3;
 ///
 /// ```
+///
+/// # Note
+///
+/// If the object version is enabled, the foyer cache layer will treat the objects with same key but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
-    cache: HybridCache<String, FoyerValue>,
+    cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
 }
 
 impl FoyerLayer {
     /// Creates a new `FoyerLayer` with the given foyer hybrid cache.
-    pub fn new(cache: HybridCache<String, FoyerValue>) -> Self {
+    pub fn new(cache: HybridCache<FoyerKey, FoyerValue>) -> Self {
         FoyerLayer {
             cache,
             size_limit: 0..usize::MAX,
@@ -139,7 +198,7 @@ impl<A: Access> Layer<A> for FoyerLayer {
 #[derive(Debug)]
 struct Inner<A: Access> {
     accessor: A,
-    cache: HybridCache<String, FoyerValue>,
+    cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
 }
 
@@ -165,22 +224,29 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let path = path.to_string();
+        let version = args.version().map(|v| v.to_string());
         let range = args.range().to_range();
         let entry = self
             .inner
             .cache
-            .fetch(path.clone(), || {
-                let inner = self.inner.clone();
-                async move {
-                    let (_, mut reader) = inner
-                        .accessor
-                        .read(&path, args.with_range(BytesRange::new(0, None)))
-                        .await
-                        .map_err(FoyerError::other)?;
-                    let buffer = reader.read_all().await.map_err(FoyerError::other)?;
-                    Ok(FoyerValue(buffer))
-                }
-            })
+            .fetch(
+                FoyerKey {
+                    path: path.clone(),
+                    version,
+                },
+                || {
+                    let inner = self.inner.clone();
+                    async move {
+                        let (_, mut reader) = inner
+                            .accessor
+                            .read(&path, args.with_range(BytesRange::new(0, None)))
+                            .await
+                            .map_err(FoyerError::other)?;
+                        let buffer = reader.read_all().await.map_err(FoyerError::other)?;
+                        Ok(FoyerValue(buffer))
+                    }
+                },
+            )
             .await
             .map_err(extract_err)?;
 
@@ -262,10 +328,16 @@ impl<A: Access> oio::Write for Writer<A> {
     async fn close(&mut self) -> Result<Metadata> {
         let buffer = self.buf.clone().collect();
         let res = self.w.close().await;
-        if self.inner.size_limit.contains(&buffer.len()) {
-            self.inner
-                .cache
-                .insert(self.path.clone(), FoyerValue(buffer));
+        if let Ok(metadata) = &res {
+            if self.inner.size_limit.contains(&buffer.len()) {
+                self.inner.cache.insert(
+                    FoyerKey {
+                        path: self.path.clone(),
+                        version: metadata.version().map(|v| v.to_string()),
+                    },
+                    FoyerValue(buffer),
+                );
+            }
         }
         res
     }
@@ -277,14 +349,17 @@ impl<A: Access> oio::Write for Writer<A> {
 
 pub struct Deleter<A: Access> {
     deleter: A::Deleter,
-    keys: Vec<String>,
+    keys: Vec<FoyerKey>,
     inner: Arc<Inner<A>>,
 }
 
 impl<A: Access> oio::Delete for Deleter<A> {
     fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.deleter.delete(path, args.clone())?;
-        self.keys.push(path.to_string());
+        self.keys.push(FoyerKey {
+            path: path.to_string(),
+            version: args.version().map(|v| v.to_string()),
+        });
         Ok(())
     }
 

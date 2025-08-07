@@ -25,12 +25,13 @@ use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
+use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
+use super::core::EtcdCore;
+use super::deleter::EtcdDeleter;
+use super::lister::EtcdLister;
+use super::writer::EtcdWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::etcd::core::constants::DEFAULT_ETCD_ENDPOINTS;
-use crate::services::etcd::core::EtcdCore;
-use crate::services::etcd::deleter::EtcdDeleter;
-use crate::services::etcd::lister::EtcdLister;
-use crate::services::etcd::writer::EtcdWriter;
 use crate::services::EtcdConfig;
 use crate::*;
 
@@ -203,7 +204,7 @@ pub struct EtcdAccessor {
 impl EtcdAccessor {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Etcd);
+        info.set_scheme(DEFAULT_SCHEME);
         info.set_name("etcd");
         info.set_root(root);
         info.set_native_capability(Capability {

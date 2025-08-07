@@ -21,7 +21,6 @@ import pytest
 
 
 def test_operator_new_with_path():
-    # Test with string parameters (the most common case)
     op = opendal.Operator("memory", root=Path("/tmp"))
     assert op is not None
     assert op.capability().read

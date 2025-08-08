@@ -1,12 +1,12 @@
 {
-  "name": "@opendal/lib-darwin-arm64",
+  "name": "@opendal/lib-linux-x64-musl",
   "version": "0.49.0",
   "cpu": [
-    "arm64"
+    "x64"
   ],
-  "main": "opendal.darwin-arm64.node",
+  "main": "opendal.linux-x64-musl.node",
   "files": [
-    "opendal.darwin-arm64.node"
+    "opendal.linux-x64-musl.node"
   ],
   "description": "Apache OpenDAL: Access data freely",
   "keywords": [
@@ -36,6 +36,9 @@
     "access": "public"
   },
   "os": [
-    "darwin"
+    "linux"
+  ],
+  "libc": [
+    "musl"
   ]
 }

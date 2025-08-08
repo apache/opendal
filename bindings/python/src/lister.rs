@@ -63,7 +63,7 @@ impl AsyncLister {
 
 #[pymethods]
 impl AsyncLister {
-    fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<Self> {
+    fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
     fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {

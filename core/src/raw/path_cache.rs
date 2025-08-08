@@ -81,7 +81,7 @@ impl<Q: PathQuery> PathCacher<Q> {
         self
     }
 
-    async fn lock(&self) -> Option<MutexGuard<()>> {
+    async fn lock(&self) -> Option<MutexGuard<'_, ()>> {
         if let Some(l) = &self.lock {
             Some(l.lock().await)
         } else {

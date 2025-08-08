@@ -113,7 +113,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             features: services-all
-            build: pnpm build:ci --use-napi-cross && pnpm build:header
+            build: TARGET_CC=clang pnpm build:ci --use-napi-cross && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: aarch64-unknown-linux-musl

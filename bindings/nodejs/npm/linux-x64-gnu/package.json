@@ -30,7 +30,10 @@
   "engines": {
     "node": ">= 10"
   },
-  "repository": "git@github.com/apache/opendal.git",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/apache/opendal.git"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"

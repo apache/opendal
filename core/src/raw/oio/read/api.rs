@@ -88,18 +88,18 @@ pub trait ReadDyn: Unpin + Send + Sync {
     /// The dyn version of [`Read::read`].
     ///
     /// This function returns a boxed future to make it object safe.
-    fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
+    fn read_dyn(&mut self) -> BoxedFuture<'_, Result<Buffer>>;
 
     /// The dyn version of [`Read::read_all`]
-    fn read_all_dyn(&mut self) -> BoxedFuture<Result<Buffer>>;
+    fn read_all_dyn(&mut self) -> BoxedFuture<'_, Result<Buffer>>;
 }
 
 impl<T: Read + ?Sized> ReadDyn for T {
-    fn read_dyn(&mut self) -> BoxedFuture<Result<Buffer>> {
+    fn read_dyn(&mut self) -> BoxedFuture<'_, Result<Buffer>> {
         Box::pin(self.read())
     }
 
-    fn read_all_dyn(&mut self) -> BoxedFuture<Result<Buffer>> {
+    fn read_all_dyn(&mut self) -> BoxedFuture<'_, Result<Buffer>> {
         Box::pin(self.read_all())
     }
 }

@@ -1,12 +1,12 @@
 {
-  "name": "@opendal/lib-win32-arm64-msvc",
+  "name": "@opendal/lib-linux-x64-musl",
   "version": "0.49.0",
   "cpu": [
-    "arm64"
+    "x64"
   ],
-  "main": "opendal.win32-arm64-msvc.node",
+  "main": "opendal.linux-x64-musl.node",
   "files": [
-    "opendal.win32-arm64-msvc.node"
+    "opendal.linux-x64-musl.node"
   ],
   "description": "Apache OpenDAL: One Layer, All Storage.",
   "keywords": [
@@ -39,6 +39,9 @@
     "access": "public"
   },
   "os": [
-    "win32"
+    "linux"
+  ],
+  "libc": [
+    "musl"
   ]
 }

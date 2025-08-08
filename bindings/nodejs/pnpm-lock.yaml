@@ -9,8 +9,8 @@ devDependencies:
     specifier: ^3.468.0
     version: 3.859.0
   '@napi-rs/cli':
-    specifier: ^3.0.4
-    version: 3.0.4(@types/node@18.19.121)
+    specifier: ^3.1.0
+    version: 3.1.0(@types/node@18.19.121)
   '@swc-node/register':
     specifier: ^1.6.2
     version: 1.10.10(@swc/core@1.13.3)(@swc/types@0.1.23)(typescript@5.9.2)
@@ -1136,8 +1136,8 @@ packages:
     resolution: {integrity: sha512-VT2+G1VQs/9oz078bLrYbecdZKs912zQlkelYpuf+SXF+QvZDYJlbx/LSx+meSAwdDFnF8FVXW92AVjjkVmgFw==}
     dev: true
 
-  /@napi-rs/cli@3.0.4(@types/node@18.19.121):
-    resolution: {integrity: sha512-ilbCI69DVDQcIUSUB504LM1+Nhvo0jKycWAzzPJ22YwUoWrru/w0+V5sfjPINgkshQ4Ykv+oZOJXk9Kg1ZBUvg==}
+  /@napi-rs/cli@3.1.0(@types/node@18.19.121):
+    resolution: {integrity: sha512-vOJdydokWLN/YGSVKFfF8wAaslA2Lb4bcVNsgtA/phC1u/FCJZn1Ghkmb/pNoLXgNsSEwZ+7T0R1KupA4HdZpQ==}
     engines: {node: '>= 16'}
     hasBin: true
     peerDependencies:

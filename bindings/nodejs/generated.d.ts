@@ -82,7 +82,7 @@ export declare class BlockingWriter {
 
 /**
  * Capability is used to describe what operations are supported
- *  by the current Operator.
+ * by the current Operator.
  *
  * Via capability, we can know:
  *
@@ -298,7 +298,7 @@ export declare class Operator {
    * ```javascript
    * const meta = await op.stat("test");
    * if (meta.isDir) {
-   *   // do something
+   * // do something
    * }
    * ```
    */
@@ -310,7 +310,7 @@ export declare class Operator {
    * ```javascript
    * const meta = op.statSync("test");
    * if (meta.isDir) {
-   *   // do something
+   * // do something
    * }
    * ```
    */
@@ -560,10 +560,10 @@ export declare class Operator {
    * ```javascript
    * const list = await op.list("path/to/dir/");
    * for (let entry of list) {
-   *   let meta = await op.stat(entry.path);
-   *   if (meta.isFile) {
-   *     // do something
-   *   }
+   * let meta = await op.stat(entry.path);
+   * if (meta.isFile) {
+   * // do something
+   * }
    * }
    * ```
    *
@@ -574,10 +574,10 @@ export declare class Operator {
    * ```javascript
    * const list = await op.list("path/to/dir/", { recursive: true });
    * for (let entry of list) {
-   *   let meta = await op.stat(entry.path);
-   *   if (meta.isFile) {
-   *     // do something
-   *   }
+   * let meta = await op.stat(entry.path);
+   * if (meta.isFile) {
+   * // do something
+   * }
    * }
    * ```
    */
@@ -594,10 +594,10 @@ export declare class Operator {
    * ```javascript
    * const list = op.listSync("path/to/dir/");
    * for (let entry of list) {
-   *   let meta = op.statSync(entry.path);
-   *   if (meta.isFile) {
-   *     // do something
-   *   }
+   * let meta = op.statSync(entry.path);
+   * if (meta.isFile) {
+   * // do something
+   * }
    * }
    * ```
    *
@@ -608,11 +608,11 @@ export declare class Operator {
    * ```javascript
    * const list = op.listSync("path/to/dir/", { recursive: true });
    * for (let entry of list) {
-   *   let path = entry.path();
-   *   let meta = entry.metadata();
-   *   if (meta.isFile) {
-   *     // do something
-   *   }
+   * let path = entry.path();
+   * let meta = entry.metadata();
+   * if (meta.isFile) {
+   * // do something
+   * }
    * }
    * ```
    */
@@ -806,46 +806,36 @@ export declare const enum EntryMode {
 }
 
 export interface ListOptions {
-  /**
-   * The limit passed to underlying service to specify the max results
+  /** * The limit passed to underlying service to specify the max results
    * that could return per-request.
    *
-   * Users could use this to control the memory usage of list operation.
-   */
+   * Users could use this to control the memory usage of list operation. */
   limit?: number
-  /**
-   * The start_after passed to underlying service to specify the specified key
-   * to start listing from.
-   */
+  /** * The start_after passed to underlying service to specify the specified key
+   * to start listing from. */
   startAfter?: string
-  /**
-   * The recursive is used to control whether the list operation is recursive.
+  /** * The recursive is used to control whether the list operation is recursive.
    *
    * - If `false`, list operation will only list the entries under the given path.
    * - If `true`, list operation will list all entries that starts with given path.
    *
-   * Default to `false`.
-   */
+   * Default to `false`. */
   recursive?: boolean
-  /**
-   * The versions is used to control whether the object versions should be returned.
+  /** * The versions is used to control whether the object versions should be returned.
    *
    * - If `false`, list operation will not return with object versions
    * - If `true`, list operation will return with object versions if object versioning is supported
    *   by the underlying service
    *
-   * Default to `false`
-   */
+   * Default to `false` */
   versions?: boolean
-  /**
-   * The deleted is used to control whether the deleted objects should be returned.
+  /** * The deleted is used to control whether the deleted objects should be returned.
    *
    * - If `false`, list operation will not return with deleted objects
    * - If `true`, list operation will return with deleted objects if object versioning is supported
    *   by the underlying service
    *
-   * Default to `false`
-   */
+   * Default to `false` */
   deleted?: boolean
 }
 
@@ -860,28 +850,22 @@ export interface PresignedRequest {
 }
 
 export interface ReaderOptions {
-  /**
-   * Set `version` for this operation.
+  /** * Set `version` for this operation.
    *
-   * This option can be used to retrieve the data of a specified version of the given path.
-   */
+   * This option can be used to retrieve the data of a specified version of the given path. */
   version?: string
-  /**
-   * Set `concurrent` for the operation.
+  /** * Set `concurrent` for the operation.
    *
    * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
    * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
    * on support storage services.
    *
    * By setting `concurrent`, opendal will fetch chunks concurrently with
-   * the give chunk size.
-   */
+   * the give chunk size. */
   concurrent?: number
-  /**
-   * Sets the chunk size for this operation.
+  /** * Sets the chunk size for this operation.
    *
-   * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-   */
+   * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs. */
   chunk?: number
   /** Controls the number of prefetched bytes ranges that can be buffered in memory
    * during concurrent reading.
@@ -895,11 +879,9 @@ export interface ReaderOptions {
    * - Set to a higher value to allow more aggressive prefetching at the cost of memory
    *
    * This option helps prevent memory exhaustion when reading large files with high
-   * concurrency settings.
-   */
+   * concurrency settings. */
   prefetch?: number
-  /**
-   * Controls the optimization strategy for range reads in [`Reader::fetch`].
+  /** * Controls the optimization strategy for range reads in [`Reader::fetch`].
    *
    * When performing range reads, if the gap between two requested ranges is smaller than
    * the configured `gap` size, OpenDAL will merge these ranges into a single read request
@@ -908,61 +890,45 @@ export interface ReaderOptions {
    *
    * This optimization is particularly useful when performing multiple small range reads
    * that are close to each other, as it reduces the overhead of multiple network requests
-   * at the cost of transferring some additional data.
-   */
+   * at the cost of transferring some additional data. */
   gap?: bigint
-  /**
-   * Sets if-match condition for this operation.
-   * If file exists and its etag doesn't match, an error will be returned.
-   */
+  /** * Sets if-match condition for this operation.
+   * If file exists and its etag doesn't match, an error will be returned. */
   ifMatch?: string
-  /**
-   * Sets if-none-match condition for this operation.
-   * If file exists and its etag matches, an error will be returned.
-   */
+  /** * Sets if-none-match condition for this operation.
+   * If file exists and its etag matches, an error will be returned. */
   ifNoneMatch?: string
-  /**
-   * Sets if-modified-since condition for this operation.
+  /** * Sets if-modified-since condition for this operation.
    * If file exists and hasn't been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifModifiedSince?: string
-  /**
-   * Sets if-unmodified-since condition for this operation.
+  /** * Sets if-unmodified-since condition for this operation.
    * If file exists and has been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifUnmodifiedSince?: string
 }
 
 export interface ReadOptions {
-  /**
-   * Set `version` for this operation.
+  /** * Set `version` for this operation.
    *
-   * This option can be used to retrieve the data of a specified version of the given path.
-   */
+   * This option can be used to retrieve the data of a specified version of the given path. */
   version?: string
-  /**
-   * Set `concurrent` for the operation.
+  /** * Set `concurrent` for the operation.
    *
    * OpenDAL by default to read file without concurrent. This is not efficient for cases when users
    * read large chunks of data. By setting `concurrent`, opendal will reading files concurrently
    * on support storage services.
    *
    * By setting `concurrent`, opendal will fetch chunks concurrently with
-   * the give chunk size.
-   */
+   * the give chunk size. */
   concurrent?: number
-  /**
-   * Sets the chunk size for this operation.
+  /** * Sets the chunk size for this operation.
    *
-   * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
-   */
+   * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs. */
   chunk?: number
-  /**
-   * Controls the optimization strategy for range reads in [`Reader::fetch`].
+  /** * Controls the optimization strategy for range reads in [`Reader::fetch`].
    *
    * When performing range reads, if the gap between two requested ranges is smaller than
    * the configured `gap` size, OpenDAL will merge these ranges into a single read request
@@ -971,107 +937,72 @@ export interface ReadOptions {
    *
    * This optimization is particularly useful when performing multiple small range reads
    * that are close to each other, as it reduces the overhead of multiple network requests
-   * at the cost of transferring some additional data.
-   */
+   * at the cost of transferring some additional data. */
   gap?: bigint
-  /**
-   * Sets the offset (starting position) for range read operations.
-   * The read will start from this position in the file.
-   */
+  /** * Sets the offset (starting position) for range read operations.
+   * The read will start from this position in the file. */
   offset?: bigint
-  /**
-   * Sets the size (length) for range read operations.
-   * The read will continue for this many bytes after the offset.
-   */
+  /** * Sets the size (length) for range read operations.
+   * The read will continue for this many bytes after the offset. */
   size?: bigint
-  /**
-   * Sets if-match condition for this operation.
-   * If file exists and its etag doesn't match, an error will be returned.
-   */
+  /** * Sets if-match condition for this operation.
+   * If file exists and its etag doesn't match, an error will be returned. */
   ifMatch?: string
-  /**
-   * Sets if-none-match condition for this operation.
-   * If file exists and its etag matches, an error will be returned.
-   */
+  /** * Sets if-none-match condition for this operation.
+   * If file exists and its etag matches, an error will be returned. */
   ifNoneMatch?: string
-  /**
-   * Sets if-modified-since condition for this operation.
+  /** * Sets if-modified-since condition for this operation.
    * If file exists and hasn't been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifModifiedSince?: string
-  /**
-   * Sets if-unmodified-since condition for this operation.
+  /** * Sets if-unmodified-since condition for this operation.
    * If file exists and has been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifUnmodifiedSince?: string
-  /**
-   * Specify the `content-type` header that should be sent back by the operation.
+  /** * Specify the `content-type` header that should be sent back by the operation.
    *
-   * This option is only meaningful when used along with presign.
-   */
+   * This option is only meaningful when used along with presign. */
   contentType?: string
-  /**
-   * Specify the `cache-control` header that should be sent back by the operation.
+  /** * Specify the `cache-control` header that should be sent back by the operation.
    *
-   * This option is only meaningful when used along with presign.
-   */
+   * This option is only meaningful when used along with presign. */
   cacheControl?: string
-  /**
-   * Specify the `content-disposition` header that should be sent back by the operation.
+  /** * Specify the `content-disposition` header that should be sent back by the operation.
    *
-   * This option is only meaningful when used along with presign.
-   */
+   * This option is only meaningful when used along with presign. */
   contentDisposition?: string
 }
 
 export interface StatOptions {
-  /**
-   * Sets version for this operation.
-   * Retrieves data of a specified version of the given path.
-   */
+  /** * Sets version for this operation.
+   * Retrieves data of a specified version of the given path. */
   version?: string
-  /**
-   * Sets if-match condition for this operation.
-   * If file exists and its etag doesn't match, an error will be returned.
-   */
+  /** * Sets if-match condition for this operation.
+   * If file exists and its etag doesn't match, an error will be returned. */
   ifMatch?: string
-  /**
-   * Sets if-none-match condition for this operation.
-   * If file exists and its etag matches, an error will be returned.
-   */
+  /** * Sets if-none-match condition for this operation.
+   * If file exists and its etag matches, an error will be returned. */
   ifNoneMatch?: string
-  /**
-   * Sets if-modified-since condition for this operation.
+  /** * Sets if-modified-since condition for this operation.
    * If file exists and hasn't been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifModifiedSince?: string
-  /**
-   * Sets if-unmodified-since condition for this operation.
+  /** * Sets if-unmodified-since condition for this operation.
    * If file exists and has been modified since the specified time, an error will be returned.
    * ISO 8601 formatted date string
-   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString
-   */
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toISOString */
   ifUnmodifiedSince?: string
-  /**
-   * Specifies the content-type header for presigned operations.
-   * Only meaningful when used along with presign.
-   */
+  /** * Specifies the content-type header for presigned operations.
+   * Only meaningful when used along with presign. */
   overrideContentType?: string
-  /**
-   * Specifies the cache-control header for presigned operations.
-   * Only meaningful when used along with presign.
-   */
+  /** * Specifies the cache-control header for presigned operations.
+   * Only meaningful when used along with presign. */
   overrideCacheControl?: string
-  /**
-   * Specifies the content-disposition header for presigned operations.
-   * Only meaningful when used along with presign.
-   */
+  /** * Specifies the content-disposition header for presigned operations.
+   * Only meaningful when used along with presign. */
   overrideContentDisposition?: string
 }
 
@@ -1113,10 +1044,10 @@ export interface WriteOptions {
    * ## NOTE
    *
    * - Services may have limitations for user metadata, for example:
-   *   - Key length is typically limited (e.g., 1024 bytes)
-   *   - Value length is typically limited (e.g., 4096 bytes)
-   *   - Total metadata size might be limited
-   *   - Some characters might be forbidden in keys
+   * - Key length is typically limited (e.g., 1024 bytes)
+   * - Value length is typically limited (e.g., 4096 bytes)
+   * - Total metadata size might be limited
+   * - Some characters might be forbidden in keys
    */
   userMetadata?: Record<string, string>
   /**
@@ -1145,10 +1076,10 @@ export interface WriteOptions {
    *
    * - By default, OpenDAL writes files sequentially
    * - When concurrent is set:
-   *   - Multiple write operations can execute in parallel
-   *   - Write operations return immediately without waiting if tasks space are available
-   *   - Close operation ensures all writes complete in order
-   *   - Memory usage increases with concurrency level
+   * - Multiple write operations can execute in parallel
+   * - Write operations return immediately without waiting if tasks space are available
+   * - Close operation ensures all writes complete in order
+   * - Memory usage increases with concurrency level
    */
   concurrent?: number
 }

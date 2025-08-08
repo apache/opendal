@@ -6,7 +6,7 @@
   "main": "index.cjs",
   "module": "index.mjs",
   "types": "index.d.ts",
-  "description": "Apache OpenDAL: Access data freely",
+  "description": "Apache OpenDAL: One Layer, All Storage.",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/apache/opendal.git"

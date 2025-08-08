@@ -8,7 +8,7 @@
   "files": [
     "opendal.linux-arm64-musl.node"
   ],
-  "description": "Apache OpenDAL: Access data freely",
+  "description": "Apache OpenDAL: One Layer, All Storage.",
   "keywords": [
     "api",
     "fs",

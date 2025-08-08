@@ -8,7 +8,7 @@
   "files": [
     "opendal.win32-arm64-msvc.node"
   ],
-  "description": "Apache OpenDAL: Access data freely",
+  "description": "Apache OpenDAL: One Layer, All Storage.",
   "keywords": [
     "api",
     "fs",

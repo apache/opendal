@@ -15,22 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-etcd")]
-pub(super) const DEFAULT_SCHEME: &str = "etcd";
-#[cfg(feature = "services-etcd")]
-mod backend;
-#[cfg(feature = "services-etcd")]
-mod core;
-#[cfg(feature = "services-etcd")]
-mod deleter;
-#[cfg(feature = "services-etcd")]
-mod error;
-#[cfg(feature = "services-etcd")]
-mod lister;
-#[cfg(feature = "services-etcd")]
-mod writer;
-#[cfg(feature = "services-etcd")]
-pub use backend::EtcdBuilder as Etcd;
+use etcd_client::Error as EtcdError;
 
-mod config;
-pub use config::EtcdConfig;
+use crate::{Error, ErrorKind};
+
+pub fn format_etcd_error(e: EtcdError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+        .set_source(e)
+        .set_temporary()
+}

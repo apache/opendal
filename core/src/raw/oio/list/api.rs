@@ -50,11 +50,11 @@ impl<P: List> List for Option<P> {
 }
 
 pub trait ListDyn: Unpin + Send + Sync {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<Entry>>>;
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<Entry>>>;
 }
 
 impl<T: List + ?Sized> ListDyn for T {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<Entry>>> {
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<Entry>>> {
         Box::pin(self.next())
     }
 }

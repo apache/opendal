@@ -33,6 +33,11 @@ protected:
 // Test writing empty content
 OPENDAL_TEST_F(WriteBehaviorTest, WriteEmptyContent) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    // Check if the service supports writing empty content
+    if (!op_.Info().write_can_empty) {
+        GTEST_SKIP() << "Service doesn't support writing empty content";
+        return;
+    }
     auto path = random_path();
     std::string empty_content = "";
     
@@ -215,7 +220,7 @@ OPENDAL_TEST_F(WriteBehaviorTest, ConcurrentWritesDifferentFiles) {
 // Test writing with different content sizes
 OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
-    std::vector<size_t> sizes = {0, 1, 10, 100, 1024, 10240, 102400};
+    std::vector<size_t> sizes = {1, 10, 100, 1024, 10240, 102400};
     
     for (auto size : sizes) {
         auto path = random_path();

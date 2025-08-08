@@ -137,11 +137,11 @@ pub trait HttpFetchDyn: Send + Sync + Unpin + 'static {
     /// The dyn version of [`HttpFetch::fetch`].
     ///
     /// This function returns a boxed future to make it object safe.
-    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>>;
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>>;
 }
 
 impl<T: HttpFetch + ?Sized> HttpFetchDyn for T {
-    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<Result<Response<HttpBody>>> {
+    fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>> {
         Box::pin(self.fetch(req))
     }
 }

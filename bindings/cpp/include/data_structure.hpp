@@ -191,3 +191,40 @@ class Entry {
 };
 
 }  // namespace opendal
+namespace opendal {
+class Capability {
+ public:
+  bool stat;
+  bool stat_with_if_match;
+  bool stat_with_if_none_match;
+  bool read;
+  bool read_with_if_match;
+  bool read_with_if_none_match;
+  bool read_with_override_cache_control;
+  bool read_with_override_content_disposition;
+  bool read_with_override_content_type;
+  bool write;
+  bool write_can_multi;
+  bool write_can_empty;
+  bool write_can_append;
+  bool write_with_content_type;
+  bool write_with_content_disposition;
+  bool write_with_cache_control;
+  size_t write_multi_max_size;
+  size_t write_multi_min_size;
+  size_t write_total_max_size;
+  bool create_dir;
+  bool delete_feature;
+  bool copy;
+  bool rename;
+  bool list;
+  bool list_with_limit;
+  bool list_with_start_after;
+  bool list_with_recursive;
+  bool presign;
+  bool presign_read;
+  bool presign_stat;
+  bool presign_write;
+  bool shared;
+};
+}

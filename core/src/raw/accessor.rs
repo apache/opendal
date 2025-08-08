@@ -285,7 +285,7 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
         args: OpWrite,
     ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>>;
     /// Dyn version of [`Accessor::delete`]
-    fn delete_dyn(&self) -> BoxedFuture<Result<(RpDelete, oio::Deleter)>>;
+    fn delete_dyn(&self) -> BoxedFuture<'_, Result<(RpDelete, oio::Deleter)>>;
     /// Dyn version of [`Accessor::list`]
     fn list_dyn<'a>(
         &'a self,
@@ -355,7 +355,7 @@ where
         Box::pin(self.write(path, args))
     }
 
-    fn delete_dyn(&self) -> BoxedFuture<Result<(RpDelete, oio::Deleter)>> {
+    fn delete_dyn(&self) -> BoxedFuture<'_, Result<(RpDelete, oio::Deleter)>> {
         Box::pin(self.delete())
     }
 

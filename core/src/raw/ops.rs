@@ -689,6 +689,7 @@ pub struct OpWrite {
     content_type: Option<String>,
     content_disposition: Option<String>,
     content_encoding: Option<String>,
+    content_language: Option<String>,
     cache_control: Option<String>,
     if_match: Option<String>,
     if_none_match: Option<String>,
@@ -753,6 +754,17 @@ impl OpWrite {
     /// Set the content encoding of option
     pub fn with_content_encoding(mut self, content_encoding: &str) -> Self {
         self.content_encoding = Some(content_encoding.to_string());
+        self
+    }
+
+    /// Get the content language from option
+    pub fn content_language(&self) -> Option<&str> {
+        self.content_language.as_deref()
+    }
+
+    /// Set the content language of option
+    pub fn with_content_language(mut self, content_language: &str) -> Self {
+        self.content_language = Some(content_language.to_string());
         self
     }
 
@@ -867,6 +879,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 content_type: value.content_type,
                 content_disposition: value.content_disposition,
                 content_encoding: value.content_encoding,
+                content_language: value.content_language,
                 cache_control: value.cache_control,
                 if_match: value.if_match,
                 if_none_match: value.if_none_match,

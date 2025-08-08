@@ -194,7 +194,7 @@ jobs:
         run: cp LICENSE NOTICE ./bindings/nodejs
 
       - name: Publish Dry Run
-        # if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
+        if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
         run: |
           npm publish --access public --provenance --dry-run
 

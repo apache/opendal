@@ -251,6 +251,8 @@ impl Builder for ObsBuilder {
                             write_can_multi: true,
                             write_with_content_type: true,
                             write_with_cache_control: true,
+                            write_with_content_encoding: true,
+                            write_with_content_language: true,
                             // The min multipart size of OBS is 5 MiB.
                             //
                             // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>

@@ -942,6 +942,7 @@ impl Builder for S3Builder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_encoding: true,
+                            write_with_content_language: true,
                             write_with_if_match: !self.config.disable_write_with_if_match,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,

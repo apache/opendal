@@ -183,6 +183,8 @@ impl Builder for UpyunBuilder {
                             write_can_multi: true,
                             write_with_cache_control: true,
                             write_with_content_type: true,
+                            write_with_content_encoding: true,
+                            write_with_content_language: true,
 
                             // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
                             write_multi_min_size: Some(1024 * 1024),

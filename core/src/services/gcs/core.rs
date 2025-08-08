@@ -31,6 +31,7 @@ use constants::*;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -277,6 +278,7 @@ impl GcsCore {
             cache_control: op.cache_control(),
             content_type: op.content_type(),
             content_encoding: op.content_encoding(),
+            content_language: op.content_language(),
             metadata: op.user_metadata(),
         };
 
@@ -369,6 +371,10 @@ impl GcsCore {
 
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding);
+        }
+
+        if let Some(content_language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, content_language);
         }
 
         if let Some(acl) = &self.predefined_acl {
@@ -588,6 +594,10 @@ impl GcsCore {
             builder = builder.header(CONTENT_ENCODING, header_val);
         }
 
+        if let Some(header_val) = op.content_language() {
+            builder = builder.header(CONTENT_LANGUAGE, header_val);
+        }
+
         if let Some(header_val) = op.content_type() {
             builder = builder.header(CONTENT_TYPE, header_val);
         }
@@ -772,6 +782,8 @@ pub struct InsertRequestMetadata<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     content_encoding: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    content_language: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     storage_class: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cache_control: Option<&'a str>,
@@ -783,10 +795,9 @@ impl InsertRequestMetadata<'_> {
     pub fn is_empty(&self) -> bool {
         self.content_type.is_none()
             && self.content_encoding.is_none()
+            && self.content_language.is_none()
             && self.storage_class.is_none()
             && self.cache_control.is_none()
-            // We could also put content-encoding in the url parameters
-            && self.content_encoding.is_none()
             && self.metadata.is_none()
     }
 }

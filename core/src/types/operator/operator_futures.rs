@@ -238,6 +238,12 @@ impl<F: Future<Output = Result<PresignedRequest>>> FuturePresignWrite<F> {
         self
     }
 
+    /// Refer to [`options::WriteOptions::content_language`] for more details.
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
+        self
+    }
+
     /// Refer to [`options::WriteOptions::cache_control`] for more details.
     pub fn cache_control(mut self, v: &str) -> Self {
         self.args.0.cache_control = Some(v.to_string());
@@ -812,6 +818,29 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Sets Content-Language header for this write request.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for more details.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::{ErrorKind, Operator, Result};
+    /// # use futures::io;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _ = op
+    ///     .write_with("path/to/file", vec![0; 4096])
+    ///     .content_language("zh-CN")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
+        self
+    }
+
     /// Sets If-Match header for this write request.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for more details.
@@ -1128,6 +1157,32 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ```
     pub fn content_encoding(mut self, v: &str) -> Self {
         self.args.content_encoding = Some(v.to_string());
+        self
+    }
+
+    /// Sets Content-Language header for this write request.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for more details.
+    ///
+    /// ### Example
+    ///
+    /// ```
+    /// # use opendal::{ErrorKind, Operator, Result};
+    /// # use futures::io;
+    /// # #[tokio::main]
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let mut w = op
+    ///     .writer_with("path/to/file")
+    ///     .content_language("zh-CN")
+    ///     .await?;
+    /// w.write(vec![0; 4096]).await?;
+    /// w.write(vec![1; 4096]).await?;
+    /// w.close().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.content_language = Some(v.to_string());
         self
     }
 

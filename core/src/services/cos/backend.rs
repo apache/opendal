@@ -245,6 +245,8 @@ impl Builder for CosBuilder {
                             write_with_content_type: true,
                             write_with_cache_control: true,
                             write_with_content_disposition: true,
+                            write_with_content_encoding: true,
+                            write_with_content_language: true,
                             // Cos doesn't support forbid overwrite while version has been enabled.
                             write_with_if_not_exists: !self.config.enable_versioning,
                             // The min multipart size of COS is 1 MiB.

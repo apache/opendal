@@ -326,6 +326,7 @@ impl Builder for GcsBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_encoding: true,
+                            write_with_content_language: true,
                             write_with_user_metadata: true,
                             write_with_if_not_exists: true,
 

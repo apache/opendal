@@ -33,6 +33,7 @@ use http::header::HeaderName;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -318,6 +319,10 @@ impl S3Core {
 
         if let Some(encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
 
         if let Some(cache_control) = args.cache_control() {

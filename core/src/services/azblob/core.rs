@@ -26,6 +26,8 @@ use base64::Engine;
 use bytes::Bytes;
 use constants::X_MS_META_PREFIX;
 use http::header::HeaderName;
+use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -268,6 +270,14 @@ impl AzblobCore {
             req = req.header(CONTENT_TYPE, ty)
         }
 
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
+        }
+
         // Specify the wildcard character (*) to perform the operation only if
         // the resource does not exist, and fail the operation if it does exist.
         if args.if_not_exists() {
@@ -349,6 +359,14 @@ impl AzblobCore {
 
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
 
         if let Some(cache_control) = args.cache_control() {
@@ -453,6 +471,14 @@ impl AzblobCore {
 
         if let Some(ty) = args.content_type() {
             req = req.header(CONTENT_TYPE, ty)
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
 
         let req = req

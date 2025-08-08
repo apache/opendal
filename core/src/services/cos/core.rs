@@ -23,6 +23,8 @@ use std::time::Duration;
 use bytes::Bytes;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
@@ -207,6 +209,12 @@ impl CosCore {
         }
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime)
+        }
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding)
+        }
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language)
         }
 
         // For a bucket which has never enabled versioning, you may use it to
@@ -416,6 +424,14 @@ impl CosCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        if let Some(encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, encoding)
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language)
         }
 
         // Set user metadata headers.

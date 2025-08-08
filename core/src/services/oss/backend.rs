@@ -434,6 +434,8 @@ impl Builder for OssBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
+                            write_with_content_encoding: true,
+                            write_with_content_language: true,
                             // TODO: set this to false while version has been enabled.
                             write_with_if_not_exists: !self.config.enable_versioning,
 

@@ -39,6 +39,17 @@ on:
       - "core/**"
       - ".github/workflows/ci_bindings_nodejs.yml"
   workflow_dispatch:
+    inputs:
+      nodejs-publish-dry-run:
+        description: "Trigger nodejs publish dry run"
+        required: true
+        type: boolean
+        default: false
+      nodejs-publish:
+        description: "Trigger nodejs publish"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -57,7 +68,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
-          run-install: false
+          run_install: false
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -87,7 +98,7 @@ jobs:
   build:
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
-    # if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    # if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
     # Notes: this defaults only apply on run tasks.
     defaults:
       run:
@@ -143,7 +154,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
-          run-install: false
+          run_install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -190,6 +201,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    # if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
     needs:
       - build
     permissions:
@@ -206,7 +218,7 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
-          run-install: false
+          run_install: false
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -233,14 +245,14 @@ jobs:
         run: cp LICENSE NOTICE ./bindings/nodejs
 
       - name: Publish Dry Run
-        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
+        # if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
         # Since this command will not exit with non-zero code when file missing,
         # we need to check the output manually.
         run: |
           npm publish --access public --provenance --dry-run
 
       - name: Publish
-        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
+        if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish) || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-'))
         run: |
           echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
           npm publish --access public --provenance

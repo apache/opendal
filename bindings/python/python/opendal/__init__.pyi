@@ -139,6 +139,7 @@ class Operator(_Base):
                 - content_disposition (str): Sets how the object should be presented
                     (e.g., as an attachment).
                 - content_encoding (str): Override the Content-Encoding header.
+                - content_language (str): Override the Content-Language header.
                 - if_match (str): Perform the write only if the object's current
                     ETag matches the given one.
                 - if_none_match (str): Perform the write only if the object's

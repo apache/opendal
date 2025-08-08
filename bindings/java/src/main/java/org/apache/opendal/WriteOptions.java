@@ -49,6 +49,12 @@ public class WriteOptions {
     public final String contentEncoding;
 
     /**
+     * Sets the Content-Language header for the object
+     * Requires capability: writeWithContentLanguage
+     */
+    public final String contentLanguage;
+
+    /**
      * Sets the If-Match header for conditional writes
      * Requires capability: writeWithIfMatch
      */

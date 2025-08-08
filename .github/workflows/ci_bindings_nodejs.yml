@@ -98,7 +98,7 @@ jobs:
   build:
     name: stable - ${{ matrix.settings.target }} - node@20
     runs-on: ${{ matrix.settings.host }}
-    # if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
     # Notes: this defaults only apply on run tasks.
     defaults:
       run:
@@ -201,7 +201,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    # if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name == 'workflow_dispatch' && (inputs.nodejs-publish || inputs.nodejs-publish-dry-run)) || startsWith(github.ref, 'refs/tags/')
     needs:
       - build
     permissions:
@@ -245,7 +245,7 @@ jobs:
         run: cp LICENSE NOTICE ./bindings/nodejs
 
       - name: Publish Dry Run
-        # if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
+        if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
         # Since this command will not exit with non-zero code when file missing,
         # we need to check the output manually.
         run: |

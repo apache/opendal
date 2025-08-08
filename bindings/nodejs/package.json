@@ -7,7 +7,10 @@
   "module": "index.mjs",
   "types": "index.d.ts",
   "description": "Apache OpenDAL: Access data freely",
-  "repository": "git@github.com/apache/opendal.git",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/apache/opendal.git"
+  },
   "napi": {
     "binaryName": "opendal",
     "packageName": "@opendal/lib",

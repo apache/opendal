@@ -17,7 +17,7 @@
 
 use futures::Stream;
 use object_store::ObjectMeta;
-use opendal::Metadata;
+use opendal::{EntryMode, Metadata};
 use std::future::IntoFuture;
 
 /// Conditionally add the `Send` marker trait for the wrapped type.
@@ -62,6 +62,20 @@ pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
         e_tag: meta.etag().map(|x| x.to_string()),
         version: meta.version().map(|x| x.to_string()),
     }
+}
+
+/// Format `object_store::ObjectMeta` to `opendal::Metadata`.
+pub fn format_metadata(meta: &ObjectMeta) -> Metadata {
+    let mut metadata = Metadata::new(EntryMode::FILE);
+    metadata.set_content_length(meta.size);
+    metadata.set_last_modified(meta.last_modified);
+    if let Some(etag) = &meta.e_tag {
+        metadata.set_etag(etag);
+    }
+    if let Some(version) = &meta.version {
+        metadata.set_version(version);
+    }
+    metadata
 }
 
 /// Make given future `Send`.

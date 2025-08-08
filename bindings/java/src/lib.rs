@@ -227,6 +227,7 @@ fn make_write_options<'a>(
         content_type: convert::read_string_field(env, options, "contentType")?,
         content_disposition: convert::read_string_field(env, options, "contentDisposition")?,
         content_encoding: convert::read_string_field(env, options, "contentEncoding")?,
+        content_language: convert::read_string_field(env, options, "contentLanguage")?,
         cache_control: convert::read_string_field(env, options, "cacheControl")?,
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,

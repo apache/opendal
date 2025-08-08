@@ -444,6 +444,9 @@ pub struct WriteOptions {
     /// Set the [Content-Encoding] https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding of op.
     pub content_encoding: Option<String>,
 
+    /// Set the [Content-Language] https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Language of op.
+    pub content_language: Option<String>,
+
     /// Sets user metadata of op.
     ///
     /// If chunk is set, the user metadata will be attached to the object during write.
@@ -495,6 +498,7 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
             content_disposition: value.content_disposition,
             cache_control: value.cache_control,
             content_encoding: value.content_encoding,
+            content_language: value.content_language,
             user_metadata: value.user_metadata,
             if_match: value.if_match,
             if_none_match: value.if_none_match,

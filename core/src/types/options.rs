@@ -398,26 +398,6 @@ pub struct WriteOptions {
     /// This operation allows specifying the encoding applied to the content being written.
     pub content_encoding: Option<String>,
 
-    /// Sets Content-Language header for this write request.
-    ///
-    /// ### Capability
-    ///
-    /// Check [`Capability::write_with_content_language`] before using this feature.
-    ///
-    /// ### Behavior
-    ///
-    /// - If supported, sets Content-Language as system metadata on the target file
-    /// - The value should follow HTTP Content-Language header format
-    /// - Common values include:
-    ///   - `en-US` - English (United States)
-    ///   - `fr-FR` - French (France)
-    ///   - `zh-CN` - Chinese (China)
-    ///   - `es` - Spanish
-    /// - If not supported, the value will be ignored
-    ///
-    /// This operation allows specifying the natural language(s) of the content being written.
-    pub content_language: Option<String>,
-
     /// Sets user metadata for this write request.
     ///
     /// ### Capability

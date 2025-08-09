@@ -45,7 +45,6 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_content_type,
             test_write_with_content_disposition,
             test_write_with_content_encoding,
-            test_write_with_content_language,
             test_write_with_if_none_match,
             test_write_with_if_not_exists,
             test_write_with_if_match,
@@ -229,28 +228,6 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
         meta.content_encoding()
             .expect("content encoding must exist"),
         target_content_encoding
-    );
-    Ok(())
-}
-
-/// write a single file with content language should succeed.
-pub async fn test_write_with_content_language(op: Operator) -> Result<()> {
-    if !op.info().full_capability().write_with_content_language {
-        return Ok(());
-    }
-
-    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
-
-    let target_content_language = "en-US";
-    op.write_with(&path, content)
-        .content_language(target_content_language)
-        .await?;
-
-    let meta = op.stat(&path).await.expect("stat must succeed");
-    assert_eq!(
-        meta.content_language()
-            .expect("content language must exist"),
-        target_content_language
     );
     Ok(())
 }

@@ -397,6 +397,7 @@ pub struct WriteOptions {
     ///
     /// This operation allows specifying the encoding applied to the content being written.
     pub content_encoding: Option<String>,
+
     /// Sets user metadata for this write request.
     ///
     /// ### Capability

@@ -97,6 +97,16 @@ Build API docs:
 uv run mkdocs build
 ```
 
+Build with specific feature groups:
+
+```shell
+# Build with core services only (fs, s3, memory, http)
+maturin develop --features=core
+
+# Build with database services
+maturin develop --features=database
+```
+
 ## Used by
 
 Check out the [users](./users.md) list for more details on who is using OpenDAL.

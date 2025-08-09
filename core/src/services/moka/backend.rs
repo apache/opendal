@@ -166,8 +166,6 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }

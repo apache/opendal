@@ -104,6 +104,13 @@ impl OssBuilder {
         self
     }
 
+    /// Set addressing style for the endpoint.
+    pub fn addressing_style(mut self, addressing_style: &str) -> Self {
+        self.config.addressing_style = Some(addressing_style.to_string());
+
+        self
+    }
+
     /// Set bucket versioning status for this backend
     pub fn enable_versioning(mut self, enabled: bool) -> Self {
         self.config.enable_versioning = enabled;
@@ -124,6 +131,13 @@ impl OssBuilder {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
+
+        self
+    }
+
+    /// Set addressing style for presign endpoint.
+    pub fn presign_addressing_style(mut self, addressing_style: &str) -> Self {
+        self.config.presign_addressing_style = Some(addressing_style.to_string());
 
         self
     }
@@ -166,7 +180,12 @@ impl OssBuilder {
     }
 
     /// preprocess the endpoint option
-    fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
+    fn parse_endpoint(
+        &self,
+        endpoint: &Option<String>,
+        bucket: &str,
+        addressing_style: &Option<String>,
+    ) -> Result<(String, String)> {
         let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
@@ -180,7 +199,28 @@ impl OssBuilder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = if let Some(port) = uri.port_u16() {
+                let full_host = match addressing_style.as_deref() {
+                    None | Some("virtual") => Ok({
+                        if let Some(port) = uri.port_u16() {
+                            format!("{bucket}.{host}:{port}")
+                        } else {
+                            format!("{bucket}.{host}")
+                        }
+                    }),
+                    Some("cname") | Some("path") => Ok({
+                        if let Some(port) = uri.port_u16() {
+                            format!("{host}:{port}")
+                        } else {
+                            host.to_string()
+                        }
+                    }),
+                    Some(v) => Err({
+                        Error::new(ErrorKind::ConfigInvalid, "unsupported addressing style")
+                            .with_context("service", Scheme::Oss)
+                            .with_context("addressing_style", v)
+                    }),
+                }?;
+                if let Some(port) = uri.port_u16() {
                     format!("{bucket}.{host}:{port}")
                 } else {
                     format!("{bucket}.{host}")
@@ -198,6 +238,15 @@ impl OssBuilder {
                     },
                     None => format!("https://{full_host}"),
                 };
+                let endpoint = match addressing_style.as_deref() {
+                    Some("path") => Ok(format!("{}/{}", endpoint, bucket)),
+                    None | Some("cname") | Some("virtual") => Ok(endpoint),
+                    Some(v) => Err({
+                        Error::new(ErrorKind::ConfigInvalid, "unsupported addressing style")
+                            .with_context("service", Scheme::Oss)
+                            .with_context("addressing_style", v)
+                    }),
+                }?;
                 (endpoint, full_host)
             }
             None => {
@@ -337,12 +386,17 @@ impl Builder for OssBuilder {
 
         // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
-        let (endpoint, host) = self.parse_endpoint(&self.config.endpoint, bucket)?;
+        let (endpoint, host) =
+            self.parse_endpoint(&self.config.endpoint, bucket, &self.config.addressing_style)?;
         debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
 
         let presign_endpoint = if self.config.presign_endpoint.is_some() {
-            self.parse_endpoint(&self.config.presign_endpoint, bucket)?
-                .0
+            self.parse_endpoint(
+                &self.config.presign_endpoint,
+                bucket,
+                &self.config.presign_addressing_style,
+            )?
+            .0
         } else {
             endpoint.clone()
         };

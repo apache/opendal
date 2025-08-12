@@ -39,6 +39,7 @@ option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
 option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
+set(FEATURES "" CACHE STRING "opendal features")
 
 if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)

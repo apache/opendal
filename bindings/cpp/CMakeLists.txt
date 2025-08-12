@@ -124,8 +124,16 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if (OPENDAL_ENABLE_ASYNC)
-    list(APPEND CARGO_BUILD_FLAGS "--features" "async")
+    if (FEATURES)
+        set(FEATURES "${FEATURES},async")
+    else()
+        set(FEATURES "async")
+    endif ()
 endif()
+
+if (FEATURES)
+    list(APPEND CARGO_BUILD_FLAGS "--features" "${FEATURES}")
+endif ()
 
 add_custom_target(cargo_build
         COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}

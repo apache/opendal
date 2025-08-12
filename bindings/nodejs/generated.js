@@ -99,7 +99,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-android-arm64')
         const bindingPackageVersion = require('@opendal/lib-android-arm64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -115,7 +115,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-android-arm-eabi')
         const bindingPackageVersion = require('@opendal/lib-android-arm-eabi/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -135,7 +135,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-win32-x64-msvc')
         const bindingPackageVersion = require('@opendal/lib-win32-x64-msvc/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -151,7 +151,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-win32-ia32-msvc')
         const bindingPackageVersion = require('@opendal/lib-win32-ia32-msvc/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -167,7 +167,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-win32-arm64-msvc')
         const bindingPackageVersion = require('@opendal/lib-win32-arm64-msvc/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -186,7 +186,7 @@ function requireNative() {
     try {
       const binding = require('@opendal/lib-darwin-universal')
       const bindingPackageVersion = require('@opendal/lib-darwin-universal/package.json').version
-      if (bindingPackageVersion !== '0.49.0') {
+      if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
         throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
       return binding
@@ -202,7 +202,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-darwin-x64')
         const bindingPackageVersion = require('@opendal/lib-darwin-x64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -218,7 +218,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-darwin-arm64')
         const bindingPackageVersion = require('@opendal/lib-darwin-arm64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -238,7 +238,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-freebsd-x64')
         const bindingPackageVersion = require('@opendal/lib-freebsd-x64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -254,7 +254,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-freebsd-arm64')
         const bindingPackageVersion = require('@opendal/lib-freebsd-arm64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -275,7 +275,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-x64-musl')
           const bindingPackageVersion = require('@opendal/lib-linux-x64-musl/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -291,7 +291,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-x64-gnu')
           const bindingPackageVersion = require('@opendal/lib-linux-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -309,7 +309,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-arm64-musl')
           const bindingPackageVersion = require('@opendal/lib-linux-arm64-musl/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -325,7 +325,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-arm64-gnu')
           const bindingPackageVersion = require('@opendal/lib-linux-arm64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -343,7 +343,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-arm-musleabihf')
           const bindingPackageVersion = require('@opendal/lib-linux-arm-musleabihf/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -359,7 +359,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-arm-gnueabihf')
           const bindingPackageVersion = require('@opendal/lib-linux-arm-gnueabihf/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -377,7 +377,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-riscv64-musl')
           const bindingPackageVersion = require('@opendal/lib-linux-riscv64-musl/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -393,7 +393,7 @@ function requireNative() {
         try {
           const binding = require('@opendal/lib-linux-riscv64-gnu')
           const bindingPackageVersion = require('@opendal/lib-linux-riscv64-gnu/package.json').version
-          if (bindingPackageVersion !== '0.49.0') {
+          if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
             throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
@@ -410,7 +410,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-linux-ppc64-gnu')
         const bindingPackageVersion = require('@opendal/lib-linux-ppc64-gnu/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -426,7 +426,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-linux-s390x-gnu')
         const bindingPackageVersion = require('@opendal/lib-linux-s390x-gnu/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -446,7 +446,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-openharmony-arm64')
         const bindingPackageVersion = require('@opendal/lib-openharmony-arm64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -462,7 +462,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-openharmony-x64')
         const bindingPackageVersion = require('@opendal/lib-openharmony-x64/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
@@ -478,7 +478,7 @@ function requireNative() {
       try {
         const binding = require('@opendal/lib-openharmony-arm')
         const bindingPackageVersion = require('@opendal/lib-openharmony-arm/package.json').version
-        if (bindingPackageVersion !== '0.49.0') {
+        if (bindingPackageVersion !== '0.49.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
           throw new Error(`Native binding package version mismatch, expected 0.49.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding

@@ -104,6 +104,7 @@ make docs
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
 - `OPENDAL_ENABLE_ASYNC`: Enable async support. Default: `OFF`
+- `FEATURES`: Specify OpenDAL services to include, like `"opendal/services-s3,opendal/services-memory"`. Default: `""`
 
 ## License and Trademarks
 

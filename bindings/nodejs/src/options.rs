@@ -339,7 +339,7 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
             concurrent: value.concurrent.unwrap_or_default() as usize,
             chunk: value.chunk.map(|chunk| chunk as usize),
             gap: value.gap.map(|gap| gap.get_u64().1 as usize),
-            prefetch: value.concurrent.unwrap_or_default() as usize,
+            prefetch: value.prefetch.unwrap_or_default() as usize,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,

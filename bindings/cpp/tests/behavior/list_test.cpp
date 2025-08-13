@@ -211,6 +211,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
+    }
     auto dir_path = random_dir_path();
     auto file1 = dir_path + "file-with.special_chars.txt";
     auto file2 = dir_path + "file with spaces.txt";

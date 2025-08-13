@@ -153,6 +153,13 @@ if (OPENDAL_ENABLE_ASYNC)
 endif()
 target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
 target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
+
+if(FEATURES MATCHES "services-rocksdb")
+    if(DEFINED ENV{ROCKSDB_LIB_DIR})
+        find_library(ROCKSDB_LIB rocksdb PATHS $ENV{ROCKSDB_LIB_DIR} NO_DEFAULT_PATH)
+        target_link_libraries(opendal_cpp PUBLIC ${ROCKSDB_LIB})
+    endif()
+endif()
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )

@@ -171,6 +171,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListManyFiles) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
+    }
     auto dir_path = random_dir_path();
     const int num_files = 100;
     std::vector<std::string> file_paths;

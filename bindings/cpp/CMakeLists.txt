@@ -160,6 +160,13 @@ if(FEATURES MATCHES "services-rocksdb")
         target_link_libraries(opendal_cpp PUBLIC ${ROCKSDB_LIB})
     endif()
 endif()
+
+if(FEATURES MATCHES "services-hdfs")
+    find_library(HDFS_LIB hdfs)
+    if(HDFS_LIB)
+        target_link_libraries(opendal_cpp PUBLIC ${HDFS_LIB})
+    endif()
+endif()
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )

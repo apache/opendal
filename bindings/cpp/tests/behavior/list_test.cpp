@@ -107,6 +107,9 @@ OPENDAL_TEST_F(ListBehaviorTest, ListNestedDirectories) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
+    }
     auto base_dir = random_dir_path();
     auto sub_dir = base_dir + "subdir/";
     auto file1 = base_dir + "file1.txt";

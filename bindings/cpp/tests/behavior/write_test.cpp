@@ -97,6 +97,9 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteBinaryData) {
 // Test overwriting existing file
 OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
+    }
     auto path = random_path();
     auto original_content = random_string(100);
     auto new_content = random_string(200);

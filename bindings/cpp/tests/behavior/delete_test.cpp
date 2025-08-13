@@ -99,6 +99,9 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteMultipleFiles) {
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteSpecialCharFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
+    }
     auto path = "test_with-special.chars_123/file-name_with.special.txt";
     auto content = random_string(100);
     

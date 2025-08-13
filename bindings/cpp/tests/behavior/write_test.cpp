@@ -242,6 +242,9 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteDifferentSizes) {
 // Test appending behavior (if supported)
 OPENDAL_TEST_F(WriteBehaviorTest, WriteAppendBehavior) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    if (TestConfig::instance().service_name() == "alluxio") {
+        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
+    }
     auto path = random_path();
     auto content1 = random_string(100);
     auto content2 = random_string(100);

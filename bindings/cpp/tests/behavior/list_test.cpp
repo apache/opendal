@@ -238,9 +238,6 @@ OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
-    }
     auto dir_path = random_dir_path();
     auto file1 = dir_path + "file-with.special_chars.txt";
     auto file2 = dir_path + "file with spaces.txt";
@@ -254,15 +251,24 @@ OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
     
     // List the directory
     auto entries = op_.List(dir_path);
-    
-    std::set<std::string> expected_paths = {dir_path, file1, file2, file3};
+    std::set<std::string> expected_paths = {file1, file2, file3};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : entries) {
         actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(entries.size(), 4); // directory + 3 files
+    } else {
+        EXPECT_EQ(entries.size(), 3); // only 3 files
+    }
 }
 
 // Test using lister iterator

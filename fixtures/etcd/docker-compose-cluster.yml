@@ -17,7 +17,7 @@
 
 services:
   etcd1:
-    image: gcr.io/etcd-development/etcd:v3.5.21
+    image: gcr.io/etcd-development/etcd:v3.6.4
     ports:
       - "23790:2379"
       - "23800:2380"
@@ -33,7 +33,7 @@ services:
       - --initial-cluster-state=new
       - --max-request-bytes=10485760
   etcd2:
-    image: gcr.io/etcd-development/etcd:v3.5.21
+    image: gcr.io/etcd-development/etcd:v3.6.4
     ports:
       - "23791:2379"
       - "23801:2380"
@@ -49,7 +49,7 @@ services:
       - --initial-cluster-state=new
       - --max-request-bytes=10485760
   etcd3:
-    image: gcr.io/etcd-development/etcd:v3.5.21
+    image: gcr.io/etcd-development/etcd:v3.6.4
     ports:
       - "23792:2379"
       - "23802:2380"

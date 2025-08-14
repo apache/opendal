@@ -17,7 +17,7 @@
 
 services:
   etcd:
-    image: gcr.io/etcd-development/etcd:v3.5.21
+    image: gcr.io/etcd-development/etcd:v3.6.4
     ports:
       - "2379:2379"
       - "2380:2380"

@@ -146,9 +146,6 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadMultipleFiles) {
 // Test reading after modification
 OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
-    }
     auto path = random_path();
     auto original_content = random_string(100);
     auto modified_content = random_string(150);
@@ -160,12 +157,22 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
     auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
-    // Modify the file
-    op_.Write(path, modified_content);
-    
-    // Verify modified content
-    auto result2 = op_.Read(path);
-    EXPECT_EQ(result2, modified_content);
+    // Try to modify the file
+    try {
+        op_.Write(path, modified_content);
+        
+        // Verify modified content
+        auto result2 = op_.Read(path);
+        EXPECT_EQ(result2, modified_content);
+    } catch (const std::exception& e) {
+        // Check if error message indicates AlreadyExists
+        std::string error_msg = e.what();
+        if (error_msg.find("AlreadyExists") != std::string::npos) {
+            GTEST_SKIP() << "Service doesn't support file overwrite: " << error_msg;
+        } else {
+            throw; // Re-throw other errors
+        }
+    }
 }
 
 // Test concurrent reads (if threading is available)

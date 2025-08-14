@@ -43,7 +43,7 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_MEMCACHED_ENDPOINT=tcp://127.0.0.1:11211
-        OPENDAL_MEMCACHED_ROOT=/memcached/
+        OPENDAL_MEMCACHED_ROOT=/
         OPENDAL_MEMCACHED_USERNAME=test
         OPENDAL_MEMCACHED_PASSWORD=test
         EOF

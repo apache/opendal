@@ -17,13 +17,11 @@
 
 services:
   memcached:
-    image: bitnami/memcached
+    # Using ubuntu/memcached which supports SASL authentication
+    image: ubuntu/memcached:latest
+    command: ["memcached", "-I", "16m", "-u", "memcache", "-S"]
     environment:
-      # memcache's max item size is 1MiB, But opendal's behavior tests
-      # will produce larger file.
-      #
-      # Specify the setting here to make our test happy.
-      MEMCACHED_MAX_ITEM_SIZE: 16777216
+      # Authentication credentials for SASL
       MEMCACHED_USERNAME: "test"
       MEMCACHED_PASSWORD: "test"
     ports:

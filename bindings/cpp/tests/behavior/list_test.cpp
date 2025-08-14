@@ -276,9 +276,6 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
-    }
     auto dir_path = random_dir_path();
     auto file1_path = dir_path + "file1.txt";
     auto file2_path = dir_path + "file2.txt";
@@ -290,8 +287,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
     
     // Use lister
     auto lister = op_.List(dir_path);
-    
-    std::set<std::string> expected_paths = {dir_path, file1_path, file2_path};
+    std::set<std::string> expected_paths = {file1_path, file2_path};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : lister) {
@@ -305,7 +301,17 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
         }
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(actual_paths.size(), 3); // directory + 2 files
+    } else {
+        EXPECT_EQ(actual_paths.size(), 2); // only 2 files
+    }
 }
 
 // Test listing root directory

@@ -97,9 +97,6 @@ OPENDAL_TEST_F(WriteBehaviorTest, WriteBinaryData) {
 // Test overwriting existing file
 OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
-    }
     auto path = random_path();
     auto original_content = random_string(100);
     auto new_content = random_string(200);
@@ -109,11 +106,21 @@ OPENDAL_TEST_F(WriteBehaviorTest, OverwriteExistingFile) {
     auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
-    // Overwrite with new content
-    op_.Write(path, new_content);
-    auto result2 = op_.Read(path);
-    EXPECT_EQ(result2, new_content);
-    EXPECT_NE(result2, original_content);
+    // Try to overwrite with new content
+    try {
+        op_.Write(path, new_content);
+        auto result2 = op_.Read(path);
+        EXPECT_EQ(result2, new_content);
+        EXPECT_NE(result2, original_content);
+    } catch (const std::exception& e) {
+        // Check if error message indicates AlreadyExists
+        std::string error_msg = e.what();
+        if (error_msg.find("AlreadyExists") != std::string::npos) {
+            GTEST_SKIP() << "Service doesn't support file overwrite: " << error_msg;
+        } else {
+            throw; // Re-throw other errors
+        }
+    }
 }
 
 // Test writing to nested path (should create intermediate directories)

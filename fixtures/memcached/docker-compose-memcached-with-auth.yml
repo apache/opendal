@@ -17,12 +17,10 @@
 
 services:
   memcached:
-    # Using ubuntu/memcached which supports SASL authentication
-    image: ubuntu/memcached:latest
-    command: ["memcached", "-I", "16m", "-u", "memcache", "-S"]
+    image: ubuntu/memcached
     environment:
-      # Authentication credentials for SASL
-      MEMCACHED_USERNAME: "test"
-      MEMCACHED_PASSWORD: "test"
+      - MEMCACHED_CACHE_SIZE=64MB
+      - MEMCACHED_USERNAME=test
+      - MEMCACHED_PASSWORD=test
     ports:
       - "11211:11211"

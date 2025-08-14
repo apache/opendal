@@ -20,6 +20,8 @@ services:
     image: ubuntu/memcached
     environment:
       - MEMCACHED_CACHE_SIZE=64MB
+      - MEMCACHED_MAX_CONNECTIONS=1024
+      - MEMCACHED_THREADS=4
       - MEMCACHED_USERNAME=test
       - MEMCACHED_PASSWORD=test
     ports:

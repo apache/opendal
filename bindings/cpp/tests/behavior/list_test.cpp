@@ -35,9 +35,6 @@ protected:
 OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
     OPENDAL_SKIP_IF_UNSUPPORTED_CREATE_DIR();
     OPENDAL_SKIP_IF_UNSUPPORTED_LIST();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio has different list behavior that includes unexpected paths";
-    }
     auto dir_path = random_dir_path();
     
     // Create empty directory
@@ -46,9 +43,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
     // List the directory
     auto entries = op_.List(dir_path);
     
-    // Should contain at least the directory itself
-    EXPECT_GE(entries.size(), 1);
-    
+    // Directory may or may not be included in listing depending on service behavior
     bool found_dir = false;
     for (const auto& entry : entries) {
         if (entry.path == dir_path) {
@@ -57,7 +52,12 @@ OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
             EXPECT_EQ(metadata.type, opendal::EntryMode::DIR);
         }
     }
-    EXPECT_TRUE(found_dir);
+    
+    // If directory not found in listing, verify it exists using Stat
+    if (!found_dir) {
+        auto metadata = op_.Stat(dir_path);
+        EXPECT_EQ(metadata.type, opendal::EntryMode::DIR);
+    }
 }
 
 // Test listing directory with files

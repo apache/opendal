@@ -625,14 +625,14 @@ export declare class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = await op.presignRead(path, parseInt(expires));
+   * const req = await op.presignRead(path, BigInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignRead(path: string, expires: number): Promise<PresignedRequest>
+  presignRead(path: string, expires: bigint): Promise<PresignedRequest>
   /**
    * Get a presigned request for `write`.
    *
@@ -641,14 +641,14 @@ export declare class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = await op.presignWrite(path, parseInt(expires));
+   * const req = await op.presignWrite(path, BigInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignWrite(path: string, expires: number): Promise<PresignedRequest>
+  presignWrite(path: string, expires: bigint): Promise<PresignedRequest>
   /**
    * Get a presigned request for stat.
    *
@@ -657,14 +657,14 @@ export declare class Operator {
    * ### Example
    *
    * ```javascript
-   * const req = await op.presignStat(path, parseInt(expires));
+   * const req = await op.presignStat(path, BigInt(expires));
    *
    * console.log("method: ", req.method);
    * console.log("url: ", req.url);
    * console.log("headers: ", req.headers);
    * ```
    */
-  presignStat(path: string, expires: number): Promise<PresignedRequest>
+  presignStat(path: string, expires: bigint): Promise<PresignedRequest>
   /** Add a layer to this operator. */
   layer(layer: ExternalObject<Layer>): Operator
 }

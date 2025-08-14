@@ -642,17 +642,17 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = await op.presignRead(path, parseInt(expires));
+    /// const req = await op.presignRead(path, BigInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: String, expires: BigInt) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_read(&path, Duration::from_secs(expires as u64))
+            .presign_read(&path, Duration::from_secs(expires.get_u64().1))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -665,17 +665,17 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = await op.presignWrite(path, parseInt(expires));
+    /// const req = await op.presignWrite(path, BigInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_write(&self, path: String, expires: BigInt) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_write(&path, Duration::from_secs(expires as u64))
+            .presign_write(&path, Duration::from_secs(expires.get_u64().1))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -688,17 +688,17 @@ impl Operator {
     /// ### Example
     ///
     /// ```javascript
-    /// const req = await op.presignStat(path, parseInt(expires));
+    /// const req = await op.presignStat(path, BigInt(expires));
     ///
     /// console.log("method: ", req.method);
     /// console.log("url: ", req.url);
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: String, expires: BigInt) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_stat(&path, Duration::from_secs(expires as u64))
+            .presign_stat(&path, Duration::from_secs(expires.get_u64().1))
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))

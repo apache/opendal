@@ -131,27 +131,45 @@ OPENDAL_TEST_F(ListBehaviorTest, ListNestedDirectories) {
     
     // List base directory
     auto entries = op_.List(base_dir);
-    
-    std::set<std::string> expected_paths = {base_dir, sub_dir, file1};
+    std::set<std::string> expected_paths = {sub_dir, file1};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : entries) {
         actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All required paths should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing path: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(base_dir) > 0) {
+        EXPECT_EQ(entries.size(), 3); // directory + subdirectory + file
+    } else {
+        EXPECT_EQ(entries.size(), 2); // only subdirectory + file
+    }
     
     // List subdirectory
     auto sub_entries = op_.List(sub_dir);
-    
-    std::set<std::string> sub_expected_paths = {sub_dir, file2};
+    std::set<std::string> sub_expected_paths = {file2};
     std::set<std::string> sub_actual_paths;
     
     for (const auto& entry : sub_entries) {
         sub_actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(sub_actual_paths, sub_expected_paths);
+    // File should be present in subdirectory listing
+    for (const auto& expected_path : sub_expected_paths) {
+        EXPECT_TRUE(sub_actual_paths.count(expected_path) > 0) << "Missing path: " << expected_path;
+    }
+    
+    // Subdirectory may or may not be included depending on service behavior
+    if (sub_actual_paths.count(sub_dir) > 0) {
+        EXPECT_EQ(sub_entries.size(), 2); // subdirectory + file
+    } else {
+        EXPECT_EQ(sub_entries.size(), 1); // only file
+    }
 }
 
 // Test listing non-existent directory

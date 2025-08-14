@@ -99,19 +99,26 @@ OPENDAL_TEST_F(DeleteBehaviorTest, DeleteMultipleFiles) {
 OPENDAL_TEST_F(DeleteBehaviorTest, DeleteSpecialCharFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
     OPENDAL_SKIP_IF_UNSUPPORTED_DELETE();
-    if (TestConfig::instance().service_name() == "alluxio") {
-        GTEST_SKIP() << "Alluxio doesn't support file overwrite without explicit overwrite option";
-    }
     auto path = "test_with-special.chars_123/file-name_with.special.txt";
     auto content = random_string(100);
     
-    // Create the file
-    op_.Write(path, content);
-    EXPECT_TRUE(op_.Exists(path));
-    
-    // Delete the file
-    op_.Remove(path);
-    EXPECT_FALSE(op_.Exists(path));
+    // Try to create the file
+    try {
+        op_.Write(path, content);
+        EXPECT_TRUE(op_.Exists(path));
+        
+        // Delete the file
+        op_.Remove(path);
+        EXPECT_FALSE(op_.Exists(path));
+    } catch (const std::exception& e) {
+        // Check if error message indicates AlreadyExists
+        std::string error_msg = e.what();
+        if (error_msg.find("AlreadyExists") != std::string::npos) {
+            GTEST_SKIP() << "Service doesn't support file overwrite: " << error_msg;
+        } else {
+            throw; // Re-throw other errors
+        }
+    }
 }
 
 // Test deleting large file

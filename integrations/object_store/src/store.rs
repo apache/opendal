@@ -188,7 +188,7 @@ impl ObjectStore for OpendalStore {
     ) -> object_store::Result<PutResult> {
         let mut future_write = self.inner.write_with(
             &percent_decode_path(location.as_ref()),
-            Buffer::from_iter(bytes.into_iter()),
+            Buffer::from_iter(bytes),
         );
         let opts_mode = opts.mode.clone();
         match opts.mode {

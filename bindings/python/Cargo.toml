@@ -149,6 +149,31 @@ services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 services-compfs = ["opendal/services-compfs"]
+
+# Feature groups based on existing service classification
+# Reference: current default vs services-all distinction
+
+# Core subset - most fundamental services from default set
+core = ["services-fs", "services-memory", "services-s3", "services-http"]
+
+# Current default services - exact preservation of existing default
+stable = [
+  "services-azblob", "services-azdls", "services-cos", "services-fs",
+  "services-gcs", "services-ghac", "services-http", "services-ipmfs", 
+  "services-memory", "services-obs", "services-oss", "services-s3",
+  "services-webdav", "services-webhdfs"
+]
+
+# Database services from services-all (optional set)
+database = [
+  "core",
+  "services-mysql", "services-postgresql", "services-redis",
+  "services-mongodb", "services-gridfs", "services-sqlite"
+]
+
+# Minimal alias for core
+minimal = ["core"]
+
 # we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
 abi3 = ["pyo3/abi3-py311"]
 

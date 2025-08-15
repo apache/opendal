@@ -196,6 +196,13 @@ pub struct S3Config {
 
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     pub enable_request_payer: bool,
+
+    /// Enable Content-MD5 header for upload operations.
+    ///
+    /// When enabled, OpenDAL will calculate and include the Content-MD5 header
+    /// for PUT operations (single uploads, multipart parts, and append operations).
+    /// This header provides an additional layer of data integrity verification.
+    pub enable_content_md5: bool,
 }
 
 impl Debug for S3Config {

@@ -17,7 +17,7 @@
 
 services:
   etcd:
-    image: bitnami/etcd:latest
+    image: docker.io/bitnamilegacy/etcd:3.6.4-debian-12-r0
     ports:
       - "2379:2379"
       - "2380:2380"

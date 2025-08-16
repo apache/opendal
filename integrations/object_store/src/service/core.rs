@@ -23,6 +23,36 @@ use object_store::{
 use opendal::raw::*;
 use opendal::*;
 
+/// Parse OpStat arguments to object_store GetOptions for head requests
+pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
+    let mut options = GetOptions {
+        head: true, // This is a head request
+        ..Default::default()
+    };
+
+    if let Some(version) = args.version() {
+        options.version = Some(version.to_string());
+    }
+
+    if let Some(if_match) = args.if_match() {
+        options.if_match = Some(if_match.to_string());
+    }
+
+    if let Some(if_none_match) = args.if_none_match() {
+        options.if_none_match = Some(if_none_match.to_string());
+    }
+
+    if let Some(if_modified_since) = args.if_modified_since() {
+        options.if_modified_since = Some(if_modified_since);
+    }
+
+    if let Some(if_unmodified_since) = args.if_unmodified_since() {
+        options.if_unmodified_since = Some(if_unmodified_since);
+    }
+
+    Ok(options)
+}
+
 /// Parse OpRead arguments to object_store GetOptions
 pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
     let mut options = GetOptions::default();

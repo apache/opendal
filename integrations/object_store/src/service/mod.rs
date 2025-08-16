@@ -42,6 +42,7 @@ use reader::ObjectStoreReader;
 use writer::ObjectStoreWriter;
 
 use crate::service::core::format_metadata as parse_metadata;
+use crate::service::core::parse_op_stat;
 
 /// ObjectStore backend builder
 #[derive(Default)]
@@ -115,10 +116,15 @@ impl Access for ObjectStoreService {
         Arc::new(info)
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let path = ObjectStorePath::from(path);
-        let meta = self.store.head(&path).await.map_err(parse_error)?;
-        let metadata = parse_metadata(&meta);
+        let opts = parse_op_stat(&args)?;
+        let result = self
+            .store
+            .get_opts(&path, opts)
+            .await
+            .map_err(parse_error)?;
+        let metadata = parse_metadata(&result.meta);
         Ok(RpStat::new(metadata))
     }
 

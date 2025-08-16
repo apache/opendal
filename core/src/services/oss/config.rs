@@ -35,6 +35,10 @@ pub struct OssConfig {
     pub presign_endpoint: Option<String>,
     /// Bucket for oss.
     pub bucket: String,
+    /// Addressing style for oss.
+    pub addressing_style: Option<String>,
+    /// Pre sign addressing style for oss.
+    pub presign_addressing_style: Option<String>,
 
     /// is bucket versioning enabled for this bucket
     pub enable_versioning: bool,

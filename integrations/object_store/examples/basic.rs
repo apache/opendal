@@ -1,7 +1,7 @@
 use bytes::Bytes;
 #[cfg(feature = "services-s3")]
 use object_store::aws::AmazonS3Builder;
-use object_store::path::Path;
+use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
 use object_store_opendal::OpendalStore;
 
@@ -16,7 +16,7 @@ async fn main() {
         .with_secret_access_key("my_secret_access_key");
     let s3_store = OpendalStore::new_amazon_s3(builder).unwrap();
 
-    let path = Path::from("data/nested/test.txt");
+    let path = ObjectStorePath::from("data/nested/test.txt");
     let bytes = Bytes::from_static(b"hello, world! I am nested.");
 
     s3_store.put(&path, bytes.clone().into()).await.unwrap();

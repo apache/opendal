@@ -25,6 +25,8 @@ mod core;
 #[cfg(feature = "services-redis")]
 mod delete;
 #[cfg(feature = "services-redis")]
+mod lister;
+#[cfg(feature = "services-redis")]
 mod writer;
 
 #[cfg(feature = "services-redis")]

@@ -43,6 +43,10 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadNonExistentFile) {
 // Test reading empty file
 OPENDAL_TEST_F(ReadBehaviorTest, ReadEmptyFile) {
     OPENDAL_SKIP_IF_UNSUPPORTED_WRITE();
+    if (!op_.Info().write_can_empty) {
+        GTEST_SKIP() << "Service doesn't support writing empty content";
+        return;
+    }
     auto path = random_path();
     std::string empty_content = "";
     
@@ -153,12 +157,22 @@ OPENDAL_TEST_F(ReadBehaviorTest, ReadAfterModification) {
     auto result1 = op_.Read(path);
     EXPECT_EQ(result1, original_content);
     
-    // Modify the file
-    op_.Write(path, modified_content);
-    
-    // Verify modified content
-    auto result2 = op_.Read(path);
-    EXPECT_EQ(result2, modified_content);
+    // Try to modify the file
+    try {
+        op_.Write(path, modified_content);
+        
+        // Verify modified content
+        auto result2 = op_.Read(path);
+        EXPECT_EQ(result2, modified_content);
+    } catch (const std::exception& e) {
+        // Check if error message indicates AlreadyExists
+        std::string error_msg = e.what();
+        if (error_msg.find("AlreadyExists") != std::string::npos) {
+            GTEST_SKIP() << "Service doesn't support file overwrite: " << error_msg;
+        } else {
+            throw; // Re-throw other errors
+        }
+    }
 }
 
 // Test concurrent reads (if threading is available)

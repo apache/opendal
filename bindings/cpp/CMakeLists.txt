@@ -39,6 +39,7 @@ option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
 option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
+set(OPENDAL_FEATURES "" CACHE STRING "opendal features")
 
 if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)
@@ -123,8 +124,16 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if (OPENDAL_ENABLE_ASYNC)
-    list(APPEND CARGO_BUILD_FLAGS "--features" "async")
+    if (OPENDAL_FEATURES)
+        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},async")
+    else()
+        set(OPENDAL_FEATURES "async")
+    endif ()
 endif()
+
+if (OPENDAL_FEATURES)
+    list(APPEND CARGO_BUILD_FLAGS "--features" "${OPENDAL_FEATURES}")
+endif ()
 
 add_custom_target(cargo_build
         COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
@@ -144,6 +153,7 @@ if (OPENDAL_ENABLE_ASYNC)
 endif()
 target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
 target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
+
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )

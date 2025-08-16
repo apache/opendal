@@ -6,8 +6,11 @@
   "main": "index.cjs",
   "module": "index.mjs",
   "types": "index.d.ts",
-  "description": "Apache OpenDAL: Access data freely",
-  "repository": "git@github.com/apache/opendal.git",
+  "description": "Apache OpenDAL: One Layer, All Storage.",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/apache/opendal.git"
+  },
   "napi": {
     "binaryName": "opendal",
     "packageName": "@opendal/lib",
@@ -16,7 +19,6 @@
       "x86_64-pc-windows-msvc",
       "x86_64-unknown-linux-gnu",
       "x86_64-unknown-linux-musl",
-      "i686-pc-windows-msvc",
       "aarch64-apple-darwin",
       "aarch64-pc-windows-msvc",
       "aarch64-unknown-linux-gnu",
@@ -63,7 +65,7 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.468.0",
-    "@napi-rs/cli": "^3.0.4",
+    "@napi-rs/cli": "^3.1.3",
     "@swc-node/register": "^1.6.2",
     "@swc/core": "^1.3.38",
     "@types/node": "^18.14.5",
@@ -82,12 +84,14 @@
     "build": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release --js generated.js --dts generated.d.ts && node ./scripts/header.mjs",
     "build:debug": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --js generated.js --dts generated.d.ts && node ./scripts/header.mjs",
     "build:theme": "tsc -p ./tsconfig.theme.json",
+    "build:ci": "napi build --platform --features \"${NAPI_FEATURES:-}\" --target \"${NAPI_TARGET:-}\" --release  --js generated.js --dts generated.d.ts",
+    "build:header": "node ./scripts/header.mjs",
     "docs": "typedoc",
     "format": "prettier --write .",
     "test": "vitest",
     "bench": "node -r dotenv/config ./benchmark/node.js dotenv_config_path=./.env",
     "bench:deno": "deno bench --unstable-detect-cjs ./benchmark/deno.ts --allow-read --allow-ffi --allow-net --allow-env",
-    "prepublishOnly": "napi prepublish -t npm --skip-gh-release"
+    "prepublishOnly": "napi prepublish -t npm --no-gh-release"
   },
   "prettier": {
     "overrides": [

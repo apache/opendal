@@ -114,7 +114,7 @@ mod tests {
         let builder = Azblob::default()
             .container("container")
             .account_name("account_name")
-            .account_key("account_key")
+            .account_key("YWNjb3VudF9rZXk=") // Valid base64 encoding of "account_key"
             .endpoint("https://account_name.blob.core.windows.net");
 
         let operator = Operator::new(builder)?.finish();

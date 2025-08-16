@@ -165,12 +165,13 @@ class Operator {
   std::vector<Entry> List(std::string_view path);
 
   Lister GetLister(std::string_view path);
-
- private:
-  void Destroy() noexcept;
-
-  ffi::Operator *operator_{nullptr};
-};
+  Capability Info();
+ 
+  private:
+   void Destroy() noexcept;
+ 
+   ffi::Operator *operator_{nullptr};
+ };
 
 /**
  * @class Reader

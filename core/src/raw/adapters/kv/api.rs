@@ -46,7 +46,6 @@ pub struct ScanStdIter<I>(I);
 
 #[cfg(any(
     feature = "services-cloudflare-kv",
-    feature = "services-etcd",
     feature = "services-rocksdb",
     feature = "services-sled"
 ))]
@@ -73,11 +72,11 @@ where
 pub type Scanner = Box<dyn ScanDyn>;
 
 pub trait ScanDyn: Unpin + Send + Sync {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>>;
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<String>>>;
 }
 
 impl<T: Scan + ?Sized> ScanDyn for T {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>> {
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<String>>> {
         Box::pin(self.next())
     }
 }

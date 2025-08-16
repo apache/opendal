@@ -22,13 +22,12 @@ use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use opendal::raw::*;
 use opendal::*;
-use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use crate::service::core::format_metadata;
 
 pub struct ObjectStoreLister {
-    stream: Mutex<BoxStream<'static, object_store::Result<ObjectMeta>>>,
+    stream: BoxStream<'static, object_store::Result<ObjectMeta>>,
 }
 
 impl ObjectStoreLister {
@@ -54,16 +53,16 @@ impl ObjectStoreLister {
             stream = stream.take(limit).boxed();
         }
 
-        Ok(Self {
-            stream: Mutex::new(stream),
-        })
+        Ok(Self { stream })
     }
 }
 
+// ObjectStoreLister is safe to share between threads, because it only has &mut self API calls.
+unsafe impl Sync for ObjectStoreLister {}
+
 impl oio::List for ObjectStoreLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let mut stream = self.stream.lock().await;
-        match stream.next().await {
+        match self.stream.next().await {
             Some(Ok(meta)) => {
                 let metadata = format_metadata(&meta);
                 let entry = oio::Entry::new(meta.location.as_ref(), metadata.clone());

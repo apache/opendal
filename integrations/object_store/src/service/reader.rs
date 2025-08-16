@@ -25,14 +25,13 @@ use object_store::ObjectStore;
 
 use opendal::raw::*;
 use opendal::*;
-use tokio::sync::Mutex;
 
 use super::core::parse_op_read;
 use super::error::parse_error;
 
 /// ObjectStore reader
 pub struct ObjectStoreReader {
-    bytes_stream: Mutex<BoxStream<'static, object_store::Result<Bytes>>>,
+    bytes_stream: BoxStream<'static, object_store::Result<Bytes>>,
     meta: object_store::ObjectMeta,
     args: OpRead,
 }
@@ -47,7 +46,7 @@ impl ObjectStoreReader {
         let opts = parse_op_read(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
-        let bytes_stream = Mutex::new(result.into_stream());
+        let bytes_stream = result.into_stream();
         Ok(Self {
             bytes_stream,
             meta,
@@ -71,11 +70,13 @@ impl ObjectStoreReader {
     }
 }
 
+// ObjectStoreReader is safe to share between threads, because the `read()` method requires
+// `&mut self` and `rp()` is stateless.
+unsafe impl Sync for ObjectStoreReader {}
+
 impl oio::Read for ObjectStoreReader {
     async fn read(&mut self) -> Result<Buffer> {
-        let mut bytes_stream = self.bytes_stream.lock().await;
-        let bs = bytes_stream.try_next().await.map_err(parse_error)?;
+        let bs = self.bytes_stream.try_next().await.map_err(parse_error)?;
         Ok(bs.map(Buffer::from).unwrap_or_default())
     }
 }
-

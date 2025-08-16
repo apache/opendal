@@ -17,7 +17,7 @@
 
 use futures::Stream;
 use object_store::ObjectMeta;
-use opendal::{EntryMode, Metadata};
+use opendal::Metadata;
 use std::future::IntoFuture;
 
 /// Conditionally add the `Send` marker trait for the wrapped type.

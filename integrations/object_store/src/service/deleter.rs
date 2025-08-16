@@ -45,9 +45,7 @@ impl oio::BatchDelete for ObjectStoreDeleter {
     async fn delete_batch(&self, paths: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
         // convert paths to stream, then use [`ObjectStore::delete_stream`] to delete them in batch
         let stream = stream::iter(paths.iter())
-            .map(|(path, _)| {
-                Ok::<_, object_store::Error>(ObjectStorePath::from(path.as_str()))
-            })
+            .map(|(path, _)| Ok::<_, object_store::Error>(ObjectStorePath::from(path.as_str())))
             .boxed();
         let results = self.store.delete_stream(stream).collect::<Vec<_>>().await;
 

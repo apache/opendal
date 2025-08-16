@@ -18,6 +18,7 @@
 use std::sync::Arc;
 
 use futures::{stream::BoxStream, StreamExt};
+use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use opendal::raw::*;
 use opendal::*;
@@ -40,13 +41,13 @@ impl ObjectStoreLister {
         let mut stream = if let Some(start_after) = args.start_after() {
             store
                 .list_with_offset(
-                    Some(&object_store::path::Path::from(path)),
-                    &object_store::path::Path::from(start_after),
+                    Some(&ObjectStorePath::from(path)),
+                    &ObjectStorePath::from(start_after),
                 )
                 .boxed()
         } else {
             store
-                .list(Some(&object_store::path::Path::from(path)))
+                .list(Some(&ObjectStorePath::from(path)))
                 .boxed()
         };
 

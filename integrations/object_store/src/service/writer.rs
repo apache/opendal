@@ -20,6 +20,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+use object_store::path::Path as ObjectStorePath;
 use object_store::AttributeValue;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
@@ -36,7 +37,7 @@ use super::error::parse_error;
 
 pub struct ObjectStoreWriter {
     store: Arc<dyn ObjectStore + 'static>,
-    path: object_store::path::Path,
+    path: ObjectStorePath,
     args: OpWrite,
     upload: Mutex<Option<Box<dyn MultipartUpload>>>,
 }
@@ -45,7 +46,7 @@ impl ObjectStoreWriter {
     pub fn new(store: Arc<dyn ObjectStore + 'static>, path: &str, args: OpWrite) -> Self {
         Self {
             store,
-            path: object_store::path::Path::from(path),
+            path: ObjectStorePath::from(path),
             args,
             upload: Mutex::new(None),
         }

@@ -20,6 +20,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::TryStreamExt;
+use object_store::path::Path as ObjectStorePath;
 use object_store::GetRange;
 use object_store::ObjectStore;
 
@@ -42,7 +43,7 @@ impl ObjectStoreReader {
         path: &str,
         args: OpRead,
     ) -> Result<Self> {
-        let path = object_store::path::Path::from(path);
+        let path = ObjectStorePath::from(path);
         let opts = format_get_options(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();

@@ -26,7 +26,7 @@ use futures::stream::BoxStream;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use object_store::path::Path;
+use object_store::path::Path as ObjectStorePath;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -76,7 +76,7 @@ use tokio::sync::{Mutex, Notify};
 ///     // Create a new object store
 ///     let object_store = Arc::new(OpendalStore::new(operator));
 ///
-///     let path = Path::from("data/nested/test.txt");
+///     let path = ObjectStorePath::from("data/nested/test.txt");
 ///     let bytes = Bytes::from_static(b"hello, world! I am nested.");
 ///
 ///     object_store.put(&path, bytes.clone().into()).await.unwrap();

@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
 use opendal::raw::oio::BatchDeleter;
 use opendal::raw::oio::MultipartWriter;
@@ -114,7 +115,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
-        let path = object_store::path::Path::from(path);
+        let path = ObjectStorePath::from(path);
         let meta = self.store.head(&path).await.map_err(parse_error)?;
         let metadata = format_metadata(&meta);
         Ok(RpStat::new(metadata))

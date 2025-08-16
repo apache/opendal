@@ -15,24 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use object_store::path::Path as ObjectStorePath;
-use object_store::AttributeValue;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
-use object_store::PutOptions;
 use object_store::PutPayload;
-use object_store::{Attribute, PutResult};
+use object_store::{Attribute, AttributeValue};
 
 use opendal::raw::oio::MultipartPart;
 use opendal::raw::*;
 use opendal::*;
 use tokio::sync::Mutex;
 
+use super::core::{format_put_multipart_options, format_put_result, parse_op_write};
 use super::error::parse_error;
 
 pub struct ObjectStoreWriter {
@@ -68,7 +64,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
         let bytes = body.to_bytes();
         let payload = PutPayload::from(bytes);
-        let mut opts = format_put_options(&self.args)?;
+        let mut opts = parse_op_write(&self.args)?;
 
         // Add size metadata for tracking
         opts.attributes.insert(
@@ -97,8 +93,8 @@ impl oio::MultipartWrite for ObjectStoreWriter {
     // Generate a unique upload ID that we'll use to track this session
     async fn initiate_part(&self) -> Result<String> {
         // Start a new multipart upload using object_store
-        let opts = format_put_options(&self.args)?;
-        let multipart_opts = format_multipart_options(opts);
+        let opts = parse_op_write(&self.args)?;
+        let multipart_opts = format_put_multipart_options(opts);
         let upload = self
             .store
             .put_multipart_opts(&self.path, multipart_opts)
@@ -177,7 +173,6 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             ));
         }
 
-
         // Get the multipart upload for this upload_id
         let mut guard = self.upload.lock().await;
         let upload = guard
@@ -189,7 +184,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         *guard = None;
 
         // Build metadata from the result
-        let metadata = format_metadata_with_put_result(result);
+        let metadata = format_put_result(result);
         Ok(metadata)
     }
 
@@ -207,57 +202,3 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         Ok(())
     }
 }
-
-pub(crate) fn format_put_options(args: &OpWrite) -> Result<PutOptions> {
-    let mut opts = PutOptions::default();
-
-    if let Some(content_type) = args.content_type() {
-        opts.attributes.insert(
-            Attribute::ContentType,
-            AttributeValue::from(content_type.to_string()),
-        );
-    }
-
-    if let Some(content_disposition) = args.content_disposition() {
-        opts.attributes.insert(
-            Attribute::ContentDisposition,
-            AttributeValue::from(content_disposition.to_string()),
-        );
-    }
-
-    if let Some(cache_control) = args.cache_control() {
-        opts.attributes.insert(
-            Attribute::CacheControl,
-            AttributeValue::from(cache_control.to_string()),
-        );
-    }
-
-    if let Some(user_metadata) = args.user_metadata() {
-        for (key, value) in user_metadata {
-            opts.attributes.insert(
-                Attribute::Metadata(Cow::from(key.to_string())),
-                AttributeValue::from(value.to_string()),
-            );
-        }
-    }
-    Ok(opts)
-}
-
-fn format_multipart_options(opts: PutOptions) -> object_store::PutMultipartOptions {
-    object_store::PutMultipartOptions {
-        attributes: opts.attributes,
-        ..Default::default()
-    }
-}
-
-fn format_metadata_with_put_result(result: PutResult) -> Metadata {
-    let mut metadata = Metadata::new(EntryMode::FILE);
-    if let Some(etag) = &result.e_tag {
-        metadata.set_etag(etag);
-    }
-    if let Some(version) = &result.version {
-        metadata.set_version(version);
-    }
-    metadata
-}
-

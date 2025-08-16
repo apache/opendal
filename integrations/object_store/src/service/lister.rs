@@ -25,7 +25,7 @@ use opendal::*;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
-use crate::utils::format_metadata;
+use crate::service::core::format_metadata;
 
 pub struct ObjectStoreLister {
     stream: Mutex<BoxStream<'static, object_store::Result<ObjectMeta>>>,
@@ -46,9 +46,7 @@ impl ObjectStoreLister {
                 )
                 .boxed()
         } else {
-            store
-                .list(Some(&ObjectStorePath::from(path)))
-                .boxed()
+            store.list(Some(&ObjectStorePath::from(path))).boxed()
         };
 
         // Process listing arguments

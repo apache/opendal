@@ -21,13 +21,13 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::TryStreamExt;
 use object_store::path::Path as ObjectStorePath;
-use object_store::GetRange;
 use object_store::ObjectStore;
 
 use opendal::raw::*;
 use opendal::*;
 use tokio::sync::Mutex;
 
+use super::core::parse_op_read;
 use super::error::parse_error;
 
 /// ObjectStore reader
@@ -44,7 +44,7 @@ impl ObjectStoreReader {
         args: OpRead,
     ) -> Result<Self> {
         let path = ObjectStorePath::from(path);
-        let opts = format_get_options(&args)?;
+        let opts = parse_op_read(&args)?;
         let result = store.get_opts(&path, opts).await.map_err(parse_error)?;
         let meta = result.meta.clone();
         let bytes_stream = Mutex::new(result.into_stream());
@@ -79,40 +79,3 @@ impl oio::Read for ObjectStoreReader {
     }
 }
 
-fn format_get_options(args: &OpRead) -> Result<object_store::GetOptions> {
-    let mut options = object_store::GetOptions::default();
-
-    if let Some(version) = args.version() {
-        options.version = Some(version.to_string());
-    }
-
-    if let Some(if_match) = args.if_match() {
-        options.if_match = Some(if_match.to_string());
-    }
-
-    if let Some(if_none_match) = args.if_none_match() {
-        options.if_none_match = Some(if_none_match.to_string());
-    }
-
-    if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = Some(if_modified_since);
-    }
-
-    if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = Some(if_unmodified_since);
-    }
-
-    if !args.range().is_full() {
-        let range = args.range();
-        match range.size() {
-            Some(size) => {
-                options.range = Some(GetRange::Bounded(range.offset()..range.offset() + size));
-            }
-            None => {
-                options.range = Some(GetRange::Offset(range.offset()));
-            }
-        }
-    }
-
-    Ok(options)
-}

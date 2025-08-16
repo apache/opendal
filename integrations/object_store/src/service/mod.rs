@@ -28,6 +28,7 @@ use opendal::Error;
 use opendal::ErrorKind;
 use opendal::*;
 
+mod core;
 mod deleter;
 mod error;
 mod lister;
@@ -40,7 +41,7 @@ use lister::ObjectStoreLister;
 use reader::ObjectStoreReader;
 use writer::ObjectStoreWriter;
 
-use crate::utils::format_metadata;
+use crate::service::core::format_metadata as parse_metadata;
 
 /// ObjectStore backend builder
 #[derive(Default)]
@@ -117,7 +118,7 @@ impl Access for ObjectStoreService {
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let path = ObjectStorePath::from(path);
         let meta = self.store.head(&path).await.map_err(parse_error)?;
-        let metadata = format_metadata(&meta);
+        let metadata = parse_metadata(&meta);
         Ok(RpStat::new(metadata))
     }
 

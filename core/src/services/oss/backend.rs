@@ -152,6 +152,18 @@ impl OssBuilder {
         self
     }
 
+    /// Set security_token for this backend.
+    ///
+    /// - If security_token is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    pub fn security_token(mut self, security_token: &str) -> Self {
+        if !security_token.is_empty() {
+            self.config.security_token = Some(security_token.to_string())
+        }
+
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -374,6 +386,10 @@ impl Builder for OssBuilder {
 
         if let Some(v) = self.config.access_key_secret {
             cfg.access_key_secret = Some(v);
+        }
+
+        if let Some(v) = self.config.security_token {
+            cfg.security_token = Some(v);
         }
 
         if let Some(v) = self.config.role_arn {

@@ -244,7 +244,7 @@ class ReaderStream : public std::istream {
       }
 
       // Update the buffer start position to current reader position
-      buffer_start_pos_ += (egptr() - eback());
+      buffer_start_pos_ += static_cast<std::streamoff>(egptr() - eback());
 
       std::streamsize n = reader_.Read(buffer_, sizeof(buffer_));
       if (n <= 0) {
@@ -267,7 +267,7 @@ class ReaderStream : public std::istream {
                            std::ios_base::openmode which) override {
       if (dir == std::ios_base::cur && off == 0) {
         // tellg() case - return current position
-        return buffer_start_pos_ + (gptr() - eback());
+        return buffer_start_pos_ + static_cast<std::streamoff>(gptr() - eback());
       }
 
       // Actual seek operation

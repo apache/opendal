@@ -146,7 +146,7 @@ enum ErrorStatus {
     ///
     /// For example, underlying services kept returning network errors.
     ///
-    /// Users MAY retry this operation but it's highly possible to error again.
+    /// Users MAY retry this operation, but it's highly possible to error again.
     Persistent,
 }
 
@@ -377,6 +377,8 @@ impl Error {
     }
 
     /// Set permanent status for error.
+    ///
+    /// By set permanent, we indicate the retry should be stopped.
     pub fn set_permanent(mut self) -> Self {
         self.status = ErrorStatus::Permanent;
         self
@@ -390,16 +392,6 @@ impl Error {
         self
     }
 
-    /// Set temporary status for error by given temporary.
-    ///
-    /// By set temporary, we indicate this error is retryable.
-    pub(crate) fn with_temporary(mut self, temporary: bool) -> Self {
-        if temporary {
-            self.status = ErrorStatus::Temporary;
-        }
-        self
-    }
-
     /// Set persistent status for error.
     ///
     /// By setting persistent, we indicate the retry should be stopped.
@@ -408,14 +400,54 @@ impl Error {
         self
     }
 
+    /// Set permanent status for error by given permanent.
+    ///
+    /// By set permanent, we indicate the retry should be stopped.
+    pub fn with_permanent(mut self, permanent: bool) -> Self {
+        if permanent {
+            self.status = ErrorStatus::Permanent;
+        }
+        self
+    }
+
+    /// Set temporary status for error by given temporary.
+    ///
+    /// By set temporary, we indicate this error is retryable.
+    pub fn with_temporary(mut self, temporary: bool) -> Self {
+        if temporary {
+            self.status = ErrorStatus::Temporary;
+        }
+        self
+    }
+
+    /// Set persistent status for error by given persistent.
+    ///
+    /// By set persistent, we indicate the retry should be stopped.
+    pub fn with_persistent(mut self, persistent: bool) -> Self {
+        if persistent {
+            self.status = ErrorStatus::Persistent;
+        }
+        self
+    }
+
     /// Return error's kind.
     pub fn kind(&self) -> ErrorKind {
         self.kind
     }
 
+    /// Check if this error is permanent.
+    pub fn is_permanent(&self) -> bool {
+        self.status == ErrorStatus::Permanent
+    }
+
     /// Check if this error is temporary.
     pub fn is_temporary(&self) -> bool {
         self.status == ErrorStatus::Temporary
+    }
+
+    /// Check if this error is persistent.
+    pub fn is_persistent(&self) -> bool {
+        self.status == ErrorStatus::Persistent
     }
 
     /// Return error's backtrace.

@@ -26,7 +26,7 @@ use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-#[cxx::bridge]
+#[cxx::bridge(namespace = opendal::ffi::async_opendal)]
 mod ffi {
     struct HashMapValue {
         key: String,
@@ -71,47 +71,54 @@ mod ffi {
     }
 
     extern "C++" {
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureRead = super::RustFutureRead;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureWrite = super::RustFutureWrite;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureList = super::RustFutureList;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureBool = super::RustFutureBool;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureReaderId = super::RustFutureReaderId;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureListerId = super::RustFutureListerId;
+        #[namespace = opendal::ffi::async_opendal]
         type RustFutureEntryOption = super::RustFutureEntryOption;
     }
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureRead {
     type Output = Vec<u8>;
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureWrite {
     type Output = ();
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureList {
     type Output = Vec<String>;
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureBool {
     type Output = bool;
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureReaderId {
     type Output = usize;
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureListerId {
     type Output = usize;
 }
 
-#[cxx_async::bridge]
+#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
 unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }

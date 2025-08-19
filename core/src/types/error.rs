@@ -134,7 +134,7 @@ enum ErrorStatus {
     ///
     /// For example, underlying services returns a not found error.
     ///
-    /// Users SHOULD never retry this operation.
+    /// Users MUST never retry this operation.
     Permanent,
     /// Temporary means this error is returned for temporary.
     ///
@@ -146,7 +146,7 @@ enum ErrorStatus {
     ///
     /// For example, underlying services kept returning network errors.
     ///
-    /// Users MAY retry this operation, but it's highly possible to error again.
+    /// Users SHOULD NOT retry this operation, since it's highly possible to error again.
     Persistent,
 }
 
@@ -378,7 +378,7 @@ impl Error {
 
     /// Set permanent status for error.
     ///
-    /// By set permanent, we indicate the retry should be stopped.
+    /// By set permanent, we indicate the retry must be stopped.
     pub fn set_permanent(mut self) -> Self {
         self.status = ErrorStatus::Permanent;
         self
@@ -402,7 +402,7 @@ impl Error {
 
     /// Set permanent status for error by given permanent.
     ///
-    /// By set permanent, we indicate the retry should be stopped.
+    /// By set permanent, we indicate the retry must be stopped.
     pub fn with_permanent(mut self, permanent: bool) -> Self {
         if permanent {
             self.status = ErrorStatus::Permanent;

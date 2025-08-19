@@ -22,12 +22,13 @@
 #include "rust/cxx.h"
 #include "rust/cxx_async.h"
 
-CXXASYNC_DEFINE_FUTURE(rust::Vec<uint8_t>, opendal, ffi, async, RustFutureRead);
-CXXASYNC_DEFINE_FUTURE(void, opendal, ffi, async, RustFutureWrite);
-CXXASYNC_DEFINE_FUTURE(rust::Vec<rust::String>, opendal, ffi, async,
+CXXASYNC_DEFINE_FUTURE(rust::Vec<uint8_t>, opendal, ffi, async_opendal,
+                       RustFutureRead);
+CXXASYNC_DEFINE_FUTURE(void, opendal, ffi, async_opendal, RustFutureWrite);
+CXXASYNC_DEFINE_FUTURE(rust::Vec<rust::String>, opendal, ffi, async_opendal,
                        RustFutureList);
-CXXASYNC_DEFINE_FUTURE(bool, opendal, ffi, async, RustFutureBool);
-CXXASYNC_DEFINE_FUTURE(size_t, opendal, ffi, async, RustFutureReaderId);
-CXXASYNC_DEFINE_FUTURE(size_t, opendal, ffi, async, RustFutureListerId);
-CXXASYNC_DEFINE_FUTURE(rust::String, opendal, ffi, async,
+CXXASYNC_DEFINE_FUTURE(bool, opendal, ffi, async_opendal, RustFutureBool);
+CXXASYNC_DEFINE_FUTURE(size_t, opendal, ffi, async_opendal, RustFutureReaderId);
+CXXASYNC_DEFINE_FUTURE(size_t, opendal, ffi, async_opendal, RustFutureListerId);
+CXXASYNC_DEFINE_FUTURE(rust::String, opendal, ffi, async_opendal,
                        RustFutureEntryOption);

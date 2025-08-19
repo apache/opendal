@@ -26,7 +26,7 @@ use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-#[cxx::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
     struct HashMapValue {
         key: String,
@@ -71,54 +71,54 @@ mod ffi {
     }
 
     extern "C++" {
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureRead = super::RustFutureRead;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureWrite = super::RustFutureWrite;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureList = super::RustFutureList;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureBool = super::RustFutureBool;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureReaderId = super::RustFutureReaderId;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureListerId = super::RustFutureListerId;
-        #[namespace = opendal::ffi::async_opendal]
+        #[namespace = opendal::ffi::async_op]
         type RustFutureEntryOption = super::RustFutureEntryOption;
     }
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureRead {
     type Output = Vec<u8>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureWrite {
     type Output = ();
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureList {
     type Output = Vec<String>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureBool {
     type Output = bool;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureReaderId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureListerId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async_opendal)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }

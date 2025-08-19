@@ -29,16 +29,16 @@
 
 using namespace opendal::async;
 
-static rust::Box<opendal::ffi::async::Operator> new_operator(
+static rust::Box<opendal::ffi::async_opendal::Operator> new_operator(
     std::string_view scheme,
     const std::unordered_map<std::string, std::string> &config) {
-  auto rust_map = rust::Vec<opendal::ffi::async::HashMapValue>();
+  auto rust_map = rust::Vec<opendal::ffi::async_opendal::HashMapValue>();
   rust_map.reserve(config.size());
   for (auto &[k, v] : config) {
     rust_map.push_back({RUST_STRING(k), RUST_STRING(v)});
   }
 
-  return opendal::ffi::async::new_operator(RUST_STR(scheme), rust_map);
+  return opendal::ffi::async_opendal::new_operator(RUST_STR(scheme), rust_map);
 }
 
 Operator::Operator(std::string_view scheme,
@@ -46,8 +46,8 @@ Operator::Operator(std::string_view scheme,
     : operator_(new_operator(scheme, config)) {}
 
 Operator::ReadFuture Operator::Read(std::string_view path) {
-  return opendal::ffi::async::operator_read(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_read(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::WriteFuture Operator::Write(std::string_view path,
@@ -55,52 +55,52 @@ Operator::WriteFuture Operator::Write(std::string_view path,
   rust::Vec<uint8_t> vec;
   std::copy(data.begin(), data.end(), std::back_inserter(vec));
 
-  return opendal::ffi::async::operator_write(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path), vec);
+  return opendal::ffi::async_opendal::operator_write(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path), vec);
 }
 
 Operator::ListFuture Operator::List(std::string_view path) {
-  return opendal::ffi::async::operator_list(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_list(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::ExistsFuture Operator::Exists(std::string_view path) {
-  return opendal::ffi::async::operator_exists(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_exists(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::CreateDirFuture Operator::CreateDir(std::string_view path) {
-  return opendal::ffi::async::operator_create_dir(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_create_dir(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::CopyFuture Operator::Copy(std::string_view from,
                                     std::string_view to) {
-  return opendal::ffi::async::operator_copy(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
+  return opendal::ffi::async_opendal::operator_copy(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(from),
       RUST_STRING(to));
 }
 
 Operator::RenameFuture Operator::Rename(std::string_view from,
                                         std::string_view to) {
-  return opendal::ffi::async::operator_rename(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(from),
+  return opendal::ffi::async_opendal::operator_rename(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(from),
       RUST_STRING(to));
 }
 
 Operator::DeleteFuture Operator::DeletePath(std::string_view path) {
-  return opendal::ffi::async::operator_delete(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_delete(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::ReaderFuture Operator::GetReader(std::string_view path) {
-  return opendal::ffi::async::operator_reader(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_reader(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 Operator::ListerFuture Operator::GetLister(std::string_view path) {
-  return opendal::ffi::async::operator_lister(
-      opendal::ffi::async::OperatorPtr{&*operator_}, RUST_STRING(path));
+  return opendal::ffi::async_opendal::operator_lister(
+      opendal::ffi::async_opendal::OperatorPtr{&*operator_}, RUST_STRING(path));
 }
 
 // Reader implementation
@@ -122,15 +122,15 @@ Reader::~Reader() noexcept { Destroy(); }
 
 void Reader::Destroy() noexcept {
   if (reader_id_ != 0) {
-    opendal::ffi::async::delete_reader(
-        opendal::ffi::async::ReaderPtr{reader_id_});
+    opendal::ffi::async_opendal::delete_reader(
+        opendal::ffi::async_opendal::ReaderPtr{reader_id_});
     reader_id_ = 0;
   }
 }
 
 Reader::ReadFuture Reader::Read(uint64_t start, uint64_t len) {
-  return opendal::ffi::async::reader_read(
-      opendal::ffi::async::ReaderPtr{reader_id_}, start, len);
+  return opendal::ffi::async_opendal::reader_read(
+      opendal::ffi::async_opendal::ReaderPtr{reader_id_}, start, len);
 }
 
 // Lister implementation
@@ -152,13 +152,13 @@ Lister::~Lister() noexcept { Destroy(); }
 
 void Lister::Destroy() noexcept {
   if (lister_id_ != 0) {
-    opendal::ffi::async::delete_lister(
-        opendal::ffi::async::ListerPtr{lister_id_});
+    opendal::ffi::async_opendal::delete_lister(
+        opendal::ffi::async_opendal::ListerPtr{lister_id_});
     lister_id_ = 0;
   }
 }
 
 Lister::NextFuture Lister::Next() {
-  return opendal::ffi::async::lister_next(
-      opendal::ffi::async::ListerPtr{lister_id_});
+  return opendal::ffi::async_opendal::lister_next(
+      opendal::ffi::async_opendal::ListerPtr{lister_id_});
 }

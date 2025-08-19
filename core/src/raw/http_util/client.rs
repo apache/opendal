@@ -53,7 +53,7 @@ pub(crate) static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> =
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
-/// An HTTP client instance for OpenDAL's services.
+/// A HTTP client instance for OpenDAL's services.
 ///
 /// # Notes
 ///
@@ -189,18 +189,11 @@ impl HttpFetch for reqwest::Client {
         }
 
         let mut resp = req_builder.send().await.map_err(|err| {
-            let is_temporary = is_temporary_error(&err);
-
-            let mut err = Error::new(ErrorKind::Unexpected, "send http request")
+            Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("http_util::Client::send")
                 .with_context("url", uri.to_string())
-                .set_source(err);
-
-            if is_temporary {
-                err = err.set_temporary()
-            }
-
-            err
+                .with_temporary(is_temporary_error(&err))
+                .set_source(err)
         })?;
 
         // Get content length from header so that we can check it.
@@ -233,18 +226,11 @@ impl HttpFetch for reqwest::Client {
                 .try_filter(|v| future::ready(!v.is_empty()))
                 .map_ok(Buffer::from)
                 .map_err(move |err| {
-                    let is_temporary = is_temporary_error(&err);
-
-                    let mut err = Error::new(ErrorKind::Unexpected, "read data from http response")
+                    Error::new(ErrorKind::Unexpected, "read data from http response")
                         .with_operation("http_util::Client::send")
                         .with_context("url", uri.to_string())
-                        .set_source(err);
-
-                    if is_temporary {
-                        err = err.set_temporary();
-                    }
-
-                    err
+                        .with_temporary(is_temporary_error(&err))
+                        .set_source(err)
                 }),
             content_length,
         );

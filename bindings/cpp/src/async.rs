@@ -21,11 +21,12 @@ use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-#[cxx::bridge(namespace = "opendal::ffi::async")]
+#[cxx::bridge]
 mod ffi {
     struct HashMapValue {
         key: String,
@@ -49,8 +50,6 @@ mod ffi {
 
     extern "Rust" {
         type Operator;
-        type Reader;
-        type Lister;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
@@ -82,50 +81,42 @@ mod ffi {
     }
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureRead {
     type Output = Vec<u8>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureWrite {
     type Output = ();
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureList {
     type Output = Vec<String>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureBool {
     type Output = bool;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureReaderId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureListerId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge]
 unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }
 
 pub struct Operator(od::Operator);
-pub struct Reader {
-    reader: Arc<od::Reader>,
-    id: usize,
-}
-pub struct Lister {
-    lister: Arc<Mutex<od::Lister>>,
-    id: usize,
-}
 
 // Global storage for readers and listers to avoid Send issues with raw pointers
 static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();

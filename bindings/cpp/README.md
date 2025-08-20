@@ -69,6 +69,7 @@ Support for more package managers is coming soon!
 
 - CMake >= 3.22
 - C++ compiler with C++17 support
+- **Currently only Clang or AppleClang are supported**
 
 ### Build
 
@@ -76,9 +77,13 @@ Support for more package managers is coming soon!
 mkdir build
 cd build
 # Add -DOPENDAL_DEV=ON to make development environment for OpenDAL
-cmake ..
+cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..
 make
 ```
+
+### Dev Setup
+
+We provide a default VSCode configuration in `.vscode/settings.json` at the project root. After installing the clangd extension in VSCode, restart the editor to enable proper code completion and IntelliSense support.
 
 ### Test
 
@@ -103,7 +108,7 @@ make docs
 - `OPENDAL_ENABLE_DOCUMENTATION`: Enable documentation. Default: `OFF`
 - `OPENDAL_DOCS_ONLY`: Only build documentation. Default: `OFF`
 - `OPENDAL_ENABLE_TESTING`: Enable testing. Default: `OFF`
-- `OPENDAL_ENABLE_ASYNC`: Enable async support. Default: `OFF`
+- `OPENDAL_ENABLE_ASYNC`: Enable async support. Requires Clang or AppleClang with C++20. Default: `OFF`
 - `OPENDAL_FEATURES`: Specify OpenDAL services to include, like `"opendal/services-s3,opendal/services-memory"`. Default: `""`
 
 ## License and Trademarks

@@ -17,7 +17,7 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-# CMP0135: set the timestamps of all extracted contents 
+# CMP0135: set the timestamps of all extracted contents
 # to the time of the extraction in FetchContent
 if (POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
@@ -28,8 +28,6 @@ project(opendal-cpp LANGUAGES CXX)
 include(FetchContent)
 set(OPENDAL_GOOGLETEST_VERSION 1.15.2 CACHE STRING "version of GoogleTest, 'external' to fallback to find_package()")
 set(OPENDAL_CPPCORO_VERSION a4ef65281814b18fdd1ac5457d3e219347ec6cb8 CACHE STRING "version of cppcoro")
-set(ENV{LANG} en_US.UTF-8)
-set(ENV{LC_ALL} en_US.UTF-8)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -105,11 +103,11 @@ set(CPP_INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/src
                     ${CARGO_TARGET_DIR}/cxxbridge
                     ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src)
-file(GLOB CPP_SOURCE_FILE 
+file(GLOB CPP_SOURCE_FILE
     "src/*.cpp"
-    "src/utils/*.cpp"    
+    "src/utils/*.cpp"
 )
-file(GLOB CPP_HEADER_FILE 
+file(GLOB CPP_HEADER_FILE
     "include/*.hpp"
     "src/*.hpp"
     "src/utils/*.hpp"
@@ -117,7 +115,7 @@ file(GLOB CPP_HEADER_FILE
 if (NOT OPENDAL_ENABLE_ASYNC)
     file (GLOB ASYNC_SOURCE_FILE "src/*async*.cpp")
     list(REMOVE_ITEM CPP_SOURCE_FILE ${ASYNC_SOURCE_FILE})
-    
+
     file(GLOB ASYNC_HEADER_FILE "include/*async*.hpp")
     list(REMOVE_ITEM CPP_HEADER_FILE ${ASYNC_HEADER_FILE})
 endif()
@@ -153,9 +151,6 @@ target_include_directories(opendal_cpp PUBLIC ${CPP_INCLUDE_DIR})
 if (OPENDAL_ENABLE_ASYNC)
     target_include_directories(opendal_cpp PUBLIC ${CARGO_TARGET_DIR}/cxxbridge)
     target_compile_options(opendal_cpp PUBLIC -include ${PROJECT_SOURCE_DIR}/include/async_defs.hpp)
-    target_compile_options(opendal_cpp PRIVATE
-        "-Wno-deprecated-this-capture"
-    )
 endif()
 target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
 target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
@@ -185,7 +180,7 @@ endif()
 # Tests
 if (OPENDAL_ENABLE_TESTING)
     enable_testing()
-    
+
     if(OPENDAL_GOOGLETEST_VERSION STREQUAL "external")
         find_package(GTest REQUIRED)
     else()
@@ -214,13 +209,13 @@ if (OPENDAL_ENABLE_TESTING)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()
-    
+
     # Behavior tests
     list(APPEND TEST_SOURCE_FILE tests/behavior/read_test.cpp)
     list(APPEND TEST_SOURCE_FILE tests/behavior/write_test.cpp)
     list(APPEND TEST_SOURCE_FILE tests/behavior/delete_test.cpp)
     list(APPEND TEST_SOURCE_FILE tests/behavior/list_test.cpp)
-    
+
     # Async behavior tests (only if async is enabled)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/behavior/async_read_test.cpp)
@@ -234,9 +229,6 @@ if (OPENDAL_ENABLE_TESTING)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
     if (OPENDAL_ENABLE_ASYNC)
         target_link_libraries(opendal_cpp_test cppcoro)
-        target_compile_options(opendal_cpp_test PRIVATE
-            "-Wno-deprecated-this-capture"
-        )
     endif()
 
     # enable address sanitizers

@@ -16,5 +16,13 @@
     "${workspaceFolder}/bin/ofs/Cargo.toml"
   ],
   "java.compile.nullAnalysis.mode": "automatic",
-  "cmake.ignoreCMakeListsMissing": true
+  "cmake.ignoreCMakeListsMissing": true,
+  "clangd.arguments": [
+    "--background-index=true",
+    "--pch-storage=memory",
+    "--header-insertion=never",
+    "--clang-tidy",
+    "--cross-file-rename=true",
+    "--compile-commands-dir=${workspaceFolder}/bindings/cpp/build/"
+  ]
 }

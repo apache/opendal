@@ -44,38 +44,38 @@ class Operator {
   Operator &operator=(Operator &&) = default;
   ~Operator() = default;
 
-  using ReadFuture = opendal::ffi::async::RustFutureRead;
+  using ReadFuture = opendal::ffi::async_op::RustFutureRead;
   ReadFuture Read(std::string_view path);
 
-  using WriteFuture = opendal::ffi::async::RustFutureWrite;
+  using WriteFuture = opendal::ffi::async_op::RustFutureWrite;
   WriteFuture Write(std::string_view path, std::span<uint8_t> data);
 
-  using ListFuture = opendal::ffi::async::RustFutureList;
+  using ListFuture = opendal::ffi::async_op::RustFutureList;
   ListFuture List(std::string_view path);
 
-  using ExistsFuture = opendal::ffi::async::RustFutureBool;
+  using ExistsFuture = opendal::ffi::async_op::RustFutureBool;
   ExistsFuture Exists(std::string_view path);
 
-  using CreateDirFuture = opendal::ffi::async::RustFutureWrite;
+  using CreateDirFuture = opendal::ffi::async_op::RustFutureWrite;
   CreateDirFuture CreateDir(std::string_view path);
 
-  using CopyFuture = opendal::ffi::async::RustFutureWrite;
+  using CopyFuture = opendal::ffi::async_op::RustFutureWrite;
   CopyFuture Copy(std::string_view from, std::string_view to);
 
-  using RenameFuture = opendal::ffi::async::RustFutureWrite;
+  using RenameFuture = opendal::ffi::async_op::RustFutureWrite;
   RenameFuture Rename(std::string_view from, std::string_view to);
 
-  using DeleteFuture = opendal::ffi::async::RustFutureWrite;
+  using DeleteFuture = opendal::ffi::async_op::RustFutureWrite;
   DeleteFuture DeletePath(std::string_view path);
 
-  using ReaderFuture = opendal::ffi::async::RustFutureReaderId;
+  using ReaderFuture = opendal::ffi::async_op::RustFutureReaderId;
   ReaderFuture GetReader(std::string_view path);
 
-  using ListerFuture = opendal::ffi::async::RustFutureListerId;
+  using ListerFuture = opendal::ffi::async_op::RustFutureListerId;
   ListerFuture GetLister(std::string_view path);
 
  private:
-  rust::Box<opendal::ffi::async::Operator> operator_;
+  rust::Box<opendal::ffi::async_op::Operator> operator_;
 };
 
 /**
@@ -98,7 +98,7 @@ class Reader {
   // Constructor from ID (for tests and advanced usage)
   explicit Reader(size_t reader_id) noexcept;
 
-  using ReadFuture = opendal::ffi::async::RustFutureRead;
+  using ReadFuture = opendal::ffi::async_op::RustFutureRead;
 
   /**
    * @brief Read data from the specified range
@@ -136,7 +136,7 @@ class Lister {
   // Constructor from ID (for tests and advanced usage)
   explicit Lister(size_t lister_id) noexcept;
 
-  using NextFuture = opendal::ffi::async::RustFutureEntryOption;
+  using NextFuture = opendal::ffi::async_op::RustFutureEntryOption;
 
   /**
    * @brief Get the next entry in the listing

@@ -41,7 +41,7 @@ pub struct Config {
 ///
 /// The reason why we don't use `fs::canonicalize` here is `fs::canonicalize`
 /// will return an error if the path does not exist, which is unwanted.
-pub fn resolve_relative_path(path: &Path) -> Cow<Path> {
+pub fn resolve_relative_path(path: &Path) -> Cow<'_, Path> {
     // NOTE: `path.is_absolute()` cannot handle cases like "/tmp/../a"
     if path
         .components()

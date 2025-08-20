@@ -21,10 +21,10 @@ use log::debug;
 
 use super::backend::IpmfsBackend;
 use super::core::IpmfsCore;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;
-
 impl Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;
 
@@ -124,12 +124,11 @@ impl IpmfsBuilder {
 }
 
 impl Builder for IpmfsBuilder {
-    const SCHEME: Scheme = Scheme::Ipmfs;
     type Config = IpmfsConfig;
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let endpoint = self
             .config
@@ -138,11 +137,10 @@ impl Builder for IpmfsBuilder {
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Ipmfs)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
 
                 read: true,
 
@@ -150,7 +148,6 @@ impl Builder for IpmfsBuilder {
                 delete: true,
 
                 list: true,
-                list_has_content_length: true,
 
                 shared: true,
 

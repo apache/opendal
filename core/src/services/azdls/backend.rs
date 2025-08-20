@@ -33,19 +33,25 @@ use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
-
-/// Known endpoint suffix Azure Data Lake Storage Gen2 URI syntax.
-/// Azure public cloud: https://accountname.dfs.core.windows.net
-/// Azure US Government: https://accountname.dfs.core.usgovcloudapi.net
-/// Azure China: https://accountname.dfs.core.chinacloudapi.cn
-const KNOWN_AZDLS_ENDPOINT_SUFFIX: &[&str] = &[
-    "dfs.core.windows.net",
-    "dfs.core.usgovcloudapi.net",
-    "dfs.core.chinacloudapi.cn",
-];
+impl From<AzureStorageConfig> for AzdlsConfig {
+    fn from(config: AzureStorageConfig) -> Self {
+        AzdlsConfig {
+            endpoint: config.endpoint,
+            account_name: config.account_name,
+            account_key: config.account_key,
+            client_secret: config.client_secret,
+            tenant_id: config.tenant_id,
+            client_id: config.client_id,
+            sas_token: config.sas_token,
+            authority_host: config.authority_host,
+            ..Default::default()
+        }
+    }
+}
 
 impl Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
@@ -212,17 +218,44 @@ impl AzdlsBuilder {
         self.http_client = Some(client);
         self
     }
+
+    /// Create a new `AzdlsBuilder` instance from an [Azure Storage connection string][1].
+    ///
+    /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+    ///
+    /// # Example
+    /// ```
+    /// use opendal::Builder;
+    /// use opendal::services::Azdls;
+    ///
+    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    ///
+    /// let mut config = Azdls::from_connection_string(&conn_str)
+    ///     .unwrap()
+    ///     // Add additional configuration if needed
+    ///     .filesystem("myFilesystem")
+    ///     .client_id("myClientId")
+    ///     .client_secret("myClientSecret")
+    ///     .tenant_id("myTenantId")
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn from_connection_string(conn_str: &str) -> Result<Self> {
+        let config =
+            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::Adls)?;
+
+        Ok(AzdlsConfig::from(config).into_builder())
+    }
 }
 
 impl Builder for AzdlsBuilder {
-    const SCHEME: Scheme = Scheme::Azdls;
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         // Handle endpoint, region and container name.
         let filesystem = match self.config.filesystem.is_empty() {
@@ -246,7 +279,7 @@ impl Builder for AzdlsBuilder {
                 .config
                 .account_name
                 .clone()
-                .or_else(|| infer_storage_name_from_endpoint(endpoint.as_str())),
+                .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
             sas_token: self.config.sas_token,
             client_id: self.config.client_id.clone(),
@@ -262,20 +295,11 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azdls)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
 
                             read: true,
 
@@ -289,9 +313,6 @@ impl Builder for AzdlsBuilder {
                             rename: true,
 
                             list: true,
-                            list_has_etag: true,
-                            list_has_content_length: true,
-                            list_has_last_modified: true,
 
                             shared: true,
 
@@ -410,45 +431,5 @@ impl Access for AzdlsBackend {
             StatusCode::CREATED => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-fn infer_storage_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let storage_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if KNOWN_AZDLS_ENDPOINT_SUFFIX.contains(&endpoint_suffix.as_str()) {
-        storage_name.map(|s| s.to_string())
-    } else {
-        None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::infer_storage_name_from_endpoint;
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint() {
-        let endpoint = "https://account.dfs.core.windows.net";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
-    }
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint_with_trailing_slash() {
-        let endpoint = "https://account.dfs.core.windows.net/";
-        let storage_name = infer_storage_name_from_endpoint(endpoint);
-        assert_eq!(storage_name, Some("account".to_string()));
     }
 }

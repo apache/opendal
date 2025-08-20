@@ -96,7 +96,6 @@ impl TikvBuilder {
 }
 
 impl Builder for TikvBuilder {
-    const SCHEME: Scheme = Scheme::Tikv;
     type Config = TikvConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -116,7 +115,7 @@ impl Builder for TikvBuilder {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
                     .with_context("service", Scheme::Tikv)
-                    .with_context("endpoints", format!("{:?}", endpoints)),
+                    .with_context("endpoints", format!("{endpoints:?}")),
             )?;
         }
 

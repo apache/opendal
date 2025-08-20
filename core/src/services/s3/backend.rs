@@ -50,6 +50,7 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -643,7 +644,7 @@ impl S3Builder {
             endpoint.to_string()
         } else {
             // Prefix https if endpoint doesn't start with scheme.
-            format!("https://{}", endpoint)
+            format!("https://{endpoint}")
         };
 
         // Remove bucket name from endpoint.
@@ -716,7 +717,6 @@ impl S3Builder {
 }
 
 impl Builder for S3Builder {
-    const SCHEME: Scheme = Scheme::S3;
     type Config = S3Config;
 
     fn build(mut self) -> Result<impl Access> {
@@ -789,7 +789,7 @@ impl Builder for S3Builder {
             v => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!("{:?} is not a supported checksum_algorithm.", v),
+                    format!("{v:?} is not a supported checksum_algorithm."),
                 ))
             }
         };
@@ -904,12 +904,11 @@ impl Builder for S3Builder {
             core: Arc::new(S3Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::S3)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_encoding: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
                             stat_with_if_modified_since: true,
@@ -924,16 +923,6 @@ impl Builder for S3Builder {
                                 .config
                                 .disable_stat_with_override,
                             stat_with_version: self.config.enable_versioning,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-                            stat_has_user_metadata: true,
-                            stat_has_version: true,
 
                             read: true,
                             read_with_if_match: true,
@@ -982,10 +971,6 @@ impl Builder for S3Builder {
                             list_with_recursive: true,
                             list_with_versions: self.config.enable_versioning,
                             list_with_deleted: self.config.enable_versioning,
-                            list_has_etag: true,
-                            list_has_content_md5: true,
-                            list_has_content_length: true,
-                            list_has_last_modified: true,
 
                             presign: true,
                             presign_stat: true,
@@ -1276,7 +1261,7 @@ mod tests {
 
         for (name, endpoint, bucket, expected) in cases {
             let region = S3Builder::detect_region(endpoint, bucket).await;
-            assert_eq!(region.as_deref(), expected, "{}", name);
+            assert_eq!(region.as_deref(), expected, "{name}");
         }
     }
 }

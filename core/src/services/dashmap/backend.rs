@@ -17,14 +17,20 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
 use dashmap::DashMap;
+use log::debug;
 
-use crate::raw::adapters::typed_kv;
-use crate::raw::Access;
+use super::core::DashmapCore;
+use super::delete::DashmapDeleter;
+use super::lister::DashmapLister;
+use super::writer::DashmapWriter;
+use super::DEFAULT_SCHEME;
+use crate::raw::oio;
+use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
-
 impl Configurator for DashmapConfig {
     type Builder = DashmapBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -37,6 +43,14 @@ impl Configurator for DashmapConfig {
 #[derive(Default)]
 pub struct DashmapBuilder {
     config: DashmapConfig,
+}
+
+impl Debug for DashmapBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DashmapBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl DashmapBuilder {
@@ -53,77 +67,137 @@ impl DashmapBuilder {
 }
 
 impl Builder for DashmapBuilder {
-    const SCHEME: Scheme = Scheme::Dashmap;
     type Config = DashmapConfig;
 
     fn build(self) -> Result<impl Access> {
-        let mut backend = DashmapBackend::new(Adapter {
-            inner: DashMap::default(),
+        debug!("backend build started: {:?}", &self);
+
+        let root = normalize_root(
+            self.config
+                .root
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
+        );
+
+        debug!("backend build finished: {:?}", self.config);
+
+        let core = DashmapCore {
+            cache: DashMap::new(),
+        };
+
+        Ok(DashmapAccessor::new(core, root))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DashmapAccessor {
+    core: Arc<DashmapCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
+}
+
+impl DashmapAccessor {
+    fn new(core: DashmapCore, root: String) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(DEFAULT_SCHEME);
+        info.set_name("dashmap");
+        info.set_root(&root);
+        info.set_native_capability(Capability {
+            read: true,
+
+            write: true,
+            write_can_empty: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_disposition: true,
+            write_with_content_encoding: true,
+
+            delete: true,
+            stat: true,
+            list: true,
+            shared: false,
+            ..Default::default()
         });
-        if let Some(v) = self.config.root {
-            backend = backend.with_root(&v);
-        }
 
-        Ok(backend)
+        Self {
+            core: Arc::new(core),
+            root,
+            info: Arc::new(info),
+        }
     }
 }
 
-/// Backend is used to serve `Accessor` support in dashmap.
-pub type DashmapBackend = typed_kv::Backend<Adapter>;
+impl Access for DashmapAccessor {
+    type Reader = Buffer;
+    type Writer = DashmapWriter;
+    type Lister = oio::HierarchyLister<DashmapLister>;
+    type Deleter = oio::OneShotDeleter<DashmapDeleter>;
 
-#[derive(Clone)]
-pub struct Adapter {
-    inner: DashMap<String, typed_kv::Value>,
-}
-
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DashmapAdapter")
-            .field("size", &self.inner.len())
-            .finish_non_exhaustive()
-    }
-}
-
-impl typed_kv::Adapter for Adapter {
-    fn info(&self) -> typed_kv::Info {
-        typed_kv::Info::new(
-            Scheme::Dashmap,
-            "dashmap",
-            typed_kv::Capability {
-                get: true,
-                set: true,
-                scan: true,
-                delete: true,
-                shared: false,
-            },
-        )
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.get(path) {
-            None => Ok(None),
-            Some(bs) => Ok(Some(bs.value().to_owned())),
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        match self.core.get(&p)? {
+            Some(value) => {
+                let metadata = value.metadata;
+                Ok(RpStat::new(metadata))
+            }
+            None => {
+                if p.ends_with('/') {
+                    let has_children = self.core.cache.iter().any(|kv| kv.key().starts_with(&p));
+                    if has_children {
+                        return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+                    }
+                }
+                Err(Error::new(ErrorKind::NotFound, "key not found in dashmap"))
+            }
         }
     }
 
-    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.insert(path.to_string(), value);
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
 
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.inner.remove(path);
-
-        Ok(())
-    }
-
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let keys = self.inner.iter().map(|kv| kv.key().to_string());
-        if path.is_empty() {
-            Ok(keys.collect())
-        } else {
-            Ok(keys.filter(|k| k.starts_with(path)).collect())
+        match self.core.get(&p)? {
+            Some(value) => {
+                let buffer = if args.range().is_full() {
+                    value.content
+                } else {
+                    let range = args.range();
+                    let start = range.offset() as usize;
+                    let end = match range.size() {
+                        Some(size) => (range.offset() + size) as usize,
+                        None => value.content.len(),
+                    };
+                    value.content.slice(start..end.min(value.content.len()))
+                };
+                Ok((RpRead::new(), buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "key not found in dashmap")),
         }
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((
+            RpWrite::new(),
+            DashmapWriter::new(self.core.clone(), p, args),
+        ))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(DashmapDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = DashmapLister::new(self.core.clone(), self.root.clone(), path.to_string());
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+        Ok((RpList::default(), lister))
     }
 }

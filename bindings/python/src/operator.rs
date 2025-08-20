@@ -84,7 +84,7 @@ impl Operator {
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
@@ -99,19 +99,41 @@ impl Operator {
     }
 
     /// Open a file-like reader for the given path.
-    pub fn open(&self, path: PathBuf, mode: String) -> PyResult<File> {
-        let path = path.to_string_lossy().to_string();
+    #[pyo3(signature = (path, mode, *, **kwargs))]
+    pub fn open(
+        &self,
+        path: PathBuf,
+        mode: String,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<File> {
         let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReadOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         if mode == "rb" {
-            let r = this
-                .reader(&path)
-                .map_err(format_pyerr)?
-                .into_std_read(..)
+            let range = reader_opts.make_range();
+            let reader = this
+                .reader_options(&path, reader_opts.into())
+                .map_err(format_pyerr)?;
+
+            let r = reader
+                .into_std_read(range.to_range())
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
-            let w = this.writer(&path).map_err(format_pyerr)?;
-            Ok(File::new_writer(w))
+            let writer = this
+                .writer_options(&path, writer_opts.into())
+                .map_err(format_pyerr)?;
+            Ok(File::new_writer(writer))
         } else {
             Err(Unsupported::new_err(format!(
                 "OpenDAL doesn't support mode: {mode}"
@@ -120,13 +142,25 @@ impl Operator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy().to_string();
-        let buffer = self.core.read(&path).map_err(format_pyerr)?.to_vec();
+        let kwargs = kwargs.unwrap_or_default();
+        let buffer = self
+            .core
+            .read_options(&path, kwargs.into())
+            .map_err(format_pyerr)?
+            .to_vec();
+
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Write bytes into given path.
+    /// Write bytes into a given path.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
@@ -137,16 +171,21 @@ impl Operator {
             .map_err(format_pyerr)
     }
 
-    /// Get current path's metadata **without cache** directly.
-    pub fn stat(&self, path: PathBuf) -> PyResult<Metadata> {
+    /// Get metadata for the current path **without cache** directly.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn stat(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs
+            .map(|v| v.extract::<StatOptions>())
+            .transpose()?
+            .unwrap_or_default();
         self.core
-            .stat(&path)
+            .stat_options(&path, kwargs.into())
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
 
-    /// Copy source to target.
+    /// Copy the source to the target.
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
@@ -160,19 +199,19 @@ impl Operator {
         self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
-    /// Remove all file
+    /// Remove all files
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.remove_all(&path).map_err(format_pyerr)
     }
 
-    /// Create a dir at given path.
+    /// Create a dir at the given path.
     ///
     /// # Notes
     ///
     /// To indicate that a path is a directory, it is compulsory to include
     /// a trailing / in the path. Failure to do so may result in
-    /// `NotADirectory` error being returned by OpenDAL.
+    ///  a ` NotADirectory ` error being returned by OpenDAL.
     ///
     /// # Behavior
     ///
@@ -193,7 +232,7 @@ impl Operator {
         self.core.delete(&path).map_err(format_pyerr)
     }
 
-    /// Check given path is exists.
+    /// Checks if the given path exists.
     ///
     /// # Notes
     ///
@@ -204,36 +243,35 @@ impl Operator {
     }
 
     /// List current dir path.
-    #[pyo3(signature = (path, *, start_after=None))]
-    pub fn list(&self, path: PathBuf, start_after: Option<String>) -> PyResult<BlockingLister> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn list(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
+
+        let kwargs = kwargs
+            .map(|v| v.extract::<ListOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         let l = self
             .core
-            .lister_options(
-                &path,
-                ocore::options::ListOptions {
-                    start_after,
-                    ..Default::default()
-                },
-            )
+            .lister_options(&path, kwargs.into())
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
-    /// List dir in flat way.
-    pub fn scan(&self, path: PathBuf) -> PyResult<BlockingLister> {
-        let path = path.to_string_lossy().to_string();
-        let l = self
-            .core
-            .lister_options(
-                &path,
-                ocore::options::ListOptions {
-                    recursive: true,
-                    ..Default::default()
-                },
-            )
-            .map_err(format_pyerr)?;
-        Ok(BlockingLister::new(l))
+    /// List dir in a flat way.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn scan<'p>(
+        &self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<BlockingLister> {
+        let d = PyDict::new(py);
+        let kwargs = kwargs.unwrap_or(&d);
+        kwargs.set_item("recursive", true)?;
+
+        self.list(path, Some(kwargs))
     }
 
     pub fn capability(&self) -> PyResult<capability::Capability> {
@@ -312,7 +350,7 @@ impl AsyncOperator {
         })
     }
 
-    /// Add new layers upon existing operator
+    /// Add new layers upon the existing operator
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
@@ -323,27 +361,46 @@ impl AsyncOperator {
     }
 
     /// Open a file-like reader for the given path.
+    #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         mode: String,
+        kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
+        let reader_opts = kwargs
+            .map(|v| v.extract::<ReadOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
             if mode == "rb" {
-                let r = this
-                    .reader(&path)
+                let range = reader_opts.make_range();
+                let reader = this
+                    .reader_options(&path, reader_opts.into())
                     .await
-                    .map_err(format_pyerr)?
-                    .into_futures_async_read(..)
+                    .map_err(format_pyerr)?;
+
+                let r = reader
+                    .into_futures_async_read(range.to_range())
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
-                let w = this.writer(&path).await.map_err(format_pyerr)?;
+                let writer = this
+                    .writer_options(&path, writer_opts.into())
+                    .await
+                    .map_err(format_pyerr)?;
+                let w = writer.into_futures_async_write();
                 Ok(AsyncFile::new_writer(w))
             } else {
                 Err(Unsupported::new_err(format!(
@@ -354,11 +411,26 @@ impl AsyncOperator {
     }
 
     /// Read the whole path into bytes.
-    pub fn read<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn read<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<ReadOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs.unwrap_or_default();
         future_into_py(py, async move {
-            let res: Vec<u8> = this.read(&path).await.map_err(format_pyerr)?.to_vec();
+            let range = kwargs.make_range();
+            let res = this
+                .reader_options(&path, kwargs.into())
+                .await
+                .map_err(format_pyerr)?
+                .read(range.to_range())
+                .await
+                .map_err(format_pyerr)?
+                .to_vec();
             Python::with_gil(|py| Buffer::new(res).into_bytes(py))
         })
     }
@@ -400,13 +472,24 @@ impl AsyncOperator {
         })
     }
 
-    /// Get current path's metadata **without cache** directly.
-    pub fn stat<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    /// Get metadata for the current path **without cache** directly.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn stat<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs
+            .map(|v| v.extract::<StatOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
             let res: Metadata = this
-                .stat(&path)
+                .stat_options(&path, kwargs.into())
                 .await
                 .map_err(format_pyerr)
                 .map(Metadata::new)?;
@@ -509,38 +592,44 @@ impl AsyncOperator {
     }
 
     /// List current dir path.
-    #[pyo3(signature = (path, *, start_after=None))]
+    #[pyo3(signature = (path, **kwargs))]
     pub fn list<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        start_after: Option<String>,
+        kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let kwargs = kwargs
+            .map(|v| v.extract::<ListOptions>())
+            .transpose()?
+            .unwrap_or_default();
+
         future_into_py(py, async move {
-            let mut builder = this.lister_with(&path);
-            if let Some(start_after) = start_after {
-                builder = builder.start_after(&start_after);
-            }
-            let lister = builder.await.map_err(format_pyerr)?;
+            let lister = this
+                .lister_options(&path, kwargs.into())
+                .await
+                .map_err(format_pyerr)?;
             let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
 
             Ok(pylister)
         })
     }
 
-    /// List dir in flat way.
-    pub fn scan<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
-        let this = self.core.clone();
-        let path = path.to_string_lossy().to_string();
-        future_into_py(py, async move {
-            let builder = this.lister_with(&path).recursive(true);
-            let lister = builder.await.map_err(format_pyerr)?;
-            let pylister: PyObject =
-                Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
-            Ok(pylister)
-        })
+    /// List dir in a flat way.
+    #[pyo3(signature = (path, **kwargs))]
+    pub fn scan<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let d = PyDict::new(py);
+        let kwargs = kwargs.unwrap_or(&d);
+        kwargs.set_item("recursive", true)?;
+
+        self.list(py, path, Some(kwargs))
     }
 
     /// Presign an operation for stat(head) which expires after `expire_second` seconds.

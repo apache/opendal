@@ -29,7 +29,6 @@ use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
 use tokio::sync::OnceCell;
-use uuid::Uuid;
 
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
@@ -37,10 +36,10 @@ use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::FtpConfig;
 use crate::*;
-
 impl Configurator for FtpConfig {
     type Builder = FtpBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -110,7 +109,6 @@ impl FtpBuilder {
 }
 
 impl Builder for FtpBuilder {
-    const SCHEME: Scheme = Scheme::Ftp;
     type Config = FtpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -163,12 +161,10 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme(Scheme::Ftp)
+            .set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -180,8 +176,6 @@ impl Builder for FtpBuilder {
                 create_dir: true,
 
                 list: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 shared: true,
 
@@ -304,13 +298,7 @@ impl Access for FtpBackend {
             }
         }
 
-        let tmp_path = if op.append() {
-            None
-        } else {
-            let uuid = Uuid::new_v4().to_string();
-            Some(format!("{}.{}", path, uuid))
-        };
-
+        let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
         let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))

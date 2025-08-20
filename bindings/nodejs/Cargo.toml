@@ -24,7 +24,7 @@ edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.80"
+rust-version = "1.82"
 
 [features]
 default = [
@@ -145,6 +145,7 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
+services-compfs = ["opendal/services-compfs"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -152,11 +153,11 @@ doc = false
 
 [dependencies]
 futures = "0.3.28"
-napi = { version = "2.11.3", default-features = false, features = [
+napi = { version = "3.2.2", default-features = false, features = [
   "napi6",
   "async",
 ] }
-napi-derive = "2.14.6"
+napi-derive = "3.2.2"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",

@@ -62,23 +62,23 @@ impl Write for () {
 }
 
 pub trait WriteDyn: Unpin + Send + Sync {
-    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>>;
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<'_, Result<()>>;
 
-    fn close_dyn(&mut self) -> BoxedFuture<Result<Metadata>>;
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>>;
 
-    fn abort_dyn(&mut self) -> BoxedFuture<Result<()>>;
+    fn abort_dyn(&mut self) -> BoxedFuture<'_, Result<()>>;
 }
 
 impl<T: Write + ?Sized> WriteDyn for T {
-    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<Result<()>> {
+    fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<'_, Result<()>> {
         Box::pin(self.write(bs))
     }
 
-    fn close_dyn(&mut self) -> BoxedFuture<Result<Metadata>> {
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>> {
         Box::pin(self.close())
     }
 
-    fn abort_dyn(&mut self) -> BoxedFuture<Result<()>> {
+    fn abort_dyn(&mut self) -> BoxedFuture<'_, Result<()>> {
         Box::pin(self.abort())
     }
 }

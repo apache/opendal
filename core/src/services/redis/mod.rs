@@ -15,11 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for redis service.
+#[cfg(feature = "services-redis")]
+pub(super) const DEFAULT_SCHEME: &str = "redis";
 #[cfg(feature = "services-redis")]
 mod backend;
 #[cfg(feature = "services-redis")]
-pub use backend::RedisBuilder as Redis;
-mod config;
-#[cfg(feature = "services-redis")]
 mod core;
+#[cfg(feature = "services-redis")]
+mod delete;
+#[cfg(feature = "services-redis")]
+mod writer;
+
+#[cfg(feature = "services-redis")]
+pub use backend::RedisBuilder as Redis;
+
+mod config;
 pub use config::RedisConfig;

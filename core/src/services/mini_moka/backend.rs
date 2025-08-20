@@ -16,17 +16,22 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 use std::time::Duration;
 
 use log::debug;
-use mini_moka::sync::Cache;
-use mini_moka::sync::CacheBuilder;
 
-use crate::raw::adapters::typed_kv;
-use crate::raw::Access;
+use super::core::*;
+use super::delete::MiniMokaDeleter;
+use super::lister::MiniMokaLister;
+use super::writer::MiniMokaWriter;
+use super::DEFAULT_SCHEME;
+use crate::raw::oio;
+use crate::raw::oio::HierarchyLister;
+use crate::raw::*;
 use crate::services::MiniMokaConfig;
 use crate::*;
-
 impl Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -36,12 +41,25 @@ impl Configurator for MiniMokaConfig {
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct MiniMokaBuilder {
     config: MiniMokaConfig,
 }
 
+impl Debug for MiniMokaBuilder {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MiniMokaBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
+}
+
 impl MiniMokaBuilder {
+    /// Create a [`MiniMokaBuilder`] with default configuration.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Sets the max capacity of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
@@ -85,94 +103,158 @@ impl MiniMokaBuilder {
 }
 
 impl Builder for MiniMokaBuilder {
-    const SCHEME: Scheme = Scheme::MiniMoka;
     type Config = MiniMokaConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let mut builder: CacheBuilder<String, typed_kv::Value, _> = Cache::builder();
+        let mut builder: mini_moka::sync::CacheBuilder<String, MiniMokaValue, _> =
+            mini_moka::sync::Cache::builder();
+
         // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.size()) as u32);
+        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
+
         if let Some(v) = self.config.max_capacity {
-            builder = builder.max_capacity(v)
+            builder = builder.max_capacity(v);
         }
         if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v)
+            builder = builder.time_to_live(v);
         }
         if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v)
+            builder = builder.time_to_idle(v);
         }
 
-        debug!("backend build finished: {:?}", &self);
-        let mut backend = MiniMokaBackend::new(Adapter {
-            inner: builder.build(),
-        });
-        if let Some(v) = self.config.root {
-            backend = backend.with_root(&v);
-        }
+        let cache = builder.build();
 
-        Ok(backend)
+        let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
+
+        let core = Arc::new(MiniMokaCore { cache });
+
+        debug!("backend build finished: {root}");
+        Ok(MiniMokaBackend::new(core, root))
     }
 }
 
-/// Backend is used to serve `Accessor` support in mini-moka.
-pub type MiniMokaBackend = typed_kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    inner: Cache<String, typed_kv::Value>,
+#[derive(Debug)]
+struct MiniMokaBackend {
+    core: Arc<MiniMokaCore>,
+    root: String,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("size", &self.inner.weighted_size())
-            .field("count", &self.inner.entry_count())
-            .finish()
+impl MiniMokaBackend {
+    fn new(core: Arc<MiniMokaCore>, root: String) -> Self {
+        Self { core, root }
     }
 }
 
-impl typed_kv::Adapter for Adapter {
-    fn info(&self) -> typed_kv::Info {
-        typed_kv::Info::new(
-            Scheme::MiniMoka,
-            "mini-moka",
-            typed_kv::Capability {
-                get: true,
-                set: true,
+impl Access for MiniMokaBackend {
+    type Reader = Buffer;
+    type Writer = MiniMokaWriter;
+    type Lister = HierarchyLister<MiniMokaLister>;
+    type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        let info = AccessorInfo::default();
+        info.set_scheme(DEFAULT_SCHEME)
+            .set_root(&self.root)
+            .set_native_capability(Capability {
+                stat: true,
+                read: true,
+                write: true,
+                write_can_empty: true,
                 delete: true,
-                scan: true,
-                shared: false,
-            },
-        )
+                list: true,
+
+                ..Default::default()
+            });
+
+        Arc::new(info)
     }
 
-    async fn get(&self, path: &str) -> Result<Option<typed_kv::Value>> {
-        match self.inner.get(&path.to_string()) {
-            None => Ok(None),
-            Some(bs) => Ok(Some(bs)),
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        // Check if path exists directly in cache
+        match self.core.get(&p) {
+            Some(value) => {
+                let mut metadata = value.metadata.clone();
+                if p.ends_with('/') {
+                    metadata.set_mode(EntryMode::DIR);
+                } else {
+                    metadata.set_mode(EntryMode::FILE);
+                }
+                Ok(RpStat::new(metadata))
+            }
+            None => {
+                if p.ends_with('/') {
+                    let is_prefix = self
+                        .core
+                        .cache
+                        .iter()
+                        .any(|entry| entry.key().starts_with(&p) && entry.key() != &p);
+
+                    if is_prefix {
+                        let mut metadata = Metadata::default();
+                        metadata.set_mode(EntryMode::DIR);
+                        return Ok(RpStat::new(metadata));
+                    }
+                }
+
+                Err(Error::new(ErrorKind::NotFound, "path not found"))
+            }
         }
     }
 
-    async fn set(&self, path: &str, value: typed_kv::Value) -> Result<()> {
-        self.inner.insert(path.to_string(), value);
+    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
 
-        Ok(())
-    }
+        match self.core.get(&p) {
+            Some(value) => {
+                let range = op.range();
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.inner.invalidate(&path.to_string());
+                // If range is full, return the content buffer directly
+                if range.is_full() {
+                    return Ok((RpRead::new(), value.content));
+                }
 
-        Ok(())
-    }
+                let offset = range.offset() as usize;
+                if offset >= value.content.len() {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range start offset exceeds content length",
+                    ));
+                }
 
-    async fn scan(&self, path: &str) -> Result<Vec<String>> {
-        let keys = self.inner.iter().map(|kv| kv.key().to_string());
-        if path.is_empty() {
-            Ok(keys.collect())
-        } else {
-            Ok(keys.filter(|k| k.starts_with(path)).collect())
+                let size = range.size().map(|s| s as usize);
+                let end = size.map_or(value.content.len(), |s| {
+                    (offset + s).min(value.content.len())
+                });
+                let sliced_content = value.content.slice(offset..end);
+
+                Ok((RpRead::new(), sliced_content))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "path not found")),
         }
+    }
+
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        let writer = MiniMokaWriter::new(self.core.clone(), p, op);
+        Ok((RpWrite::new(), writer))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter =
+            oio::OneShotDeleter::new(MiniMokaDeleter::new(self.core.clone(), self.root.clone()));
+        Ok((RpDelete::default(), deleter))
+    }
+
+    async fn list(&self, path: &str, op: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_abs_path(&self.root, path);
+
+        let mini_moka_lister = MiniMokaLister::new(self.core.clone(), self.root.clone(), p);
+        let lister = HierarchyLister::new(mini_moka_lister, path, op.recursive());
+
+        Ok((RpList::default(), lister))
     }
 }

@@ -33,11 +33,11 @@ use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
 use crate::*;
-
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
@@ -234,14 +234,13 @@ impl GcsBuilder {
 }
 
 impl Builder for GcsBuilder {
-    const SCHEME: Scheme = Scheme::Gcs;
     type Config = GcsConfig;
 
     fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", self);
+        debug!("backend build started: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         // Handle endpoint and bucket name
         let bucket = match self.config.bucket.is_empty() {
@@ -308,21 +307,13 @@ impl Builder for GcsBuilder {
             core: Arc::new(GcsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Gcs)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_last_modified: true,
-                            stat_has_user_metadata: true,
-                            stat_has_cache_control: true,
 
                             read: true,
 
@@ -359,11 +350,6 @@ impl Builder for GcsBuilder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_has_etag: true,
-                            list_has_content_md5: true,
-                            list_has_content_length: true,
-                            list_has_content_type: true,
-                            list_has_last_modified: true,
 
                             presign: true,
                             presign_stat: true,

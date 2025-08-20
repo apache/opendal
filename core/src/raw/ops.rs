@@ -441,6 +441,8 @@ pub struct OpReader {
     chunk: Option<usize>,
     /// The gap size of each request.
     gap: Option<usize>,
+    /// The maximum number of buffers that can be prefetched.
+    prefetch: usize,
 }
 
 impl Default for OpReader {
@@ -449,6 +451,7 @@ impl Default for OpReader {
             concurrent: 1,
             chunk: None,
             gap: None,
+            prefetch: 0,
         }
     }
 }
@@ -491,6 +494,17 @@ impl OpReader {
     pub fn gap(&self) -> Option<usize> {
         self.gap
     }
+
+    /// Set the prefetch of the option
+    pub fn with_prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = prefetch;
+        self
+    }
+
+    /// Get prefetch from option
+    pub fn prefetch(&self) -> usize {
+        self.prefetch
+    }
 }
 
 impl From<options::ReadOptions> for (OpRead, OpReader) {
@@ -512,6 +526,7 @@ impl From<options::ReadOptions> for (OpRead, OpReader) {
                 concurrent: value.concurrent.max(1),
                 chunk: value.chunk,
                 gap: value.gap,
+                prefetch: 0,
             },
         )
     }
@@ -536,6 +551,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 concurrent: value.concurrent.max(1),
                 chunk: value.chunk,
                 gap: value.gap,
+                prefetch: value.prefetch,
             },
         )
     }
@@ -864,12 +880,28 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 
 /// Args for `copy` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpCopy {}
+pub struct OpCopy {
+    if_not_exists: bool,
+}
 
 impl OpCopy {
     /// Create a new `OpCopy`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the if_not_exists flag for the operation.
+    ///
+    /// When set to true, the copy operation will only proceed if the destination
+    /// doesn't already exist.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Get if_not_exists flag.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
     }
 }
 

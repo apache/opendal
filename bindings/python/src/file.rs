@@ -25,6 +25,7 @@ use std::sync::Arc;
 
 use futures::AsyncReadExt;
 use futures::AsyncSeekExt;
+use futures::AsyncWriteExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
@@ -267,8 +268,7 @@ impl File {
 
     fn close(&mut self) -> PyResult<()> {
         if let FileState::Writer(w) = &mut self.0 {
-            w.close()
-                .map_err(|err| PyIOError::new_err(err.to_string()))?;
+            w.close().map_err(format_pyerr_from_io_error)?;
         };
         self.0 = FileState::Closed;
         Ok(())
@@ -335,7 +335,7 @@ pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
     Reader(ocore::FuturesAsyncReader),
-    Writer(ocore::Writer),
+    Writer(ocore::FuturesAsyncWriter),
     Closed,
 }
 
@@ -344,7 +344,7 @@ impl AsyncFile {
         Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
     }
 
-    pub fn new_writer(writer: ocore::Writer) -> Self {
+    pub fn new_writer(writer: ocore::FuturesAsyncWriter) -> Self {
         Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
     }
 }
@@ -422,7 +422,7 @@ impl AsyncFile {
 
             let len = bs.len();
             writer
-                .write(bs)
+                .write_all(&bs)
                 .await
                 .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))
@@ -513,9 +513,7 @@ impl AsyncFile {
         future_into_py(py, async move {
             let mut state = state.lock().await;
             if let AsyncFileState::Writer(w) = &mut *state {
-                w.close()
-                    .await
-                    .map_err(|err| PyIOError::new_err(err.to_string()))?;
+                w.close().await.map_err(format_pyerr_from_io_error)?;
             }
             *state = AsyncFileState::Closed;
             Ok(())

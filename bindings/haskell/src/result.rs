@@ -65,7 +65,7 @@ impl<T> FFIResult<T> {
     }
 
     pub fn err_with_source(error_message: &str, source: od::Error) -> Self {
-        let msg = format!("{}, source error: {}", error_message, source);
+        let msg = format!("{error_message}, source error: {source}");
         let c_string = CString::new(msg).unwrap();
         FFIResult {
             code: source.kind().into(),

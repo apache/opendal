@@ -25,10 +25,10 @@ use log::debug;
 
 use super::core::HttpCore;
 use super::error::parse_error;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
-
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
 
@@ -129,7 +129,6 @@ impl HttpBuilder {
 }
 
 impl Builder for HttpBuilder {
-    const SCHEME: Scheme = Scheme::Http;
     type Config = HttpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -144,7 +143,7 @@ impl Builder for HttpBuilder {
         };
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut auth = None;
         if let Some(username) = &self.config.username {
@@ -158,21 +157,12 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Http)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
                 stat_with_if_match: true,
                 stat_with_if_none_match: true,
-                stat_has_cache_control: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_content_encoding: true,
-                stat_has_content_range: true,
-                stat_has_etag: true,
-                stat_has_content_md5: true,
-                stat_has_last_modified: true,
-                stat_has_content_disposition: true,
 
                 read: true,
 

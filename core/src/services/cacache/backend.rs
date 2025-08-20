@@ -16,20 +16,18 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str;
+use std::sync::Arc;
 
-use cacache;
+use chrono::DateTime;
 
-use crate::raw::adapters::kv;
-use crate::raw::Access;
+use crate::raw::*;
 use crate::services::CacacheConfig;
-use crate::Builder;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
 use crate::*;
 
+use super::core::CacacheCore;
+use super::delete::CacacheDeleter;
+use super::writer::CacacheWriter;
+use super::DEFAULT_SCHEME;
 impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -53,7 +51,6 @@ impl CacacheBuilder {
 }
 
 impl Builder for CacacheBuilder {
-    const SCHEME: Scheme = Scheme::Cacache;
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -62,73 +59,102 @@ impl Builder for CacacheBuilder {
                 .with_context("service", Scheme::Cacache)
         })?;
 
-        Ok(CacacheBackend::new(Adapter {
-            datadir: datadir_path,
-        }))
+        let core = CacacheCore {
+            path: datadir_path.clone(),
+        };
+
+        let info = AccessorInfo::default();
+        info.set_scheme(DEFAULT_SCHEME);
+        info.set_name(&datadir_path);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            write: true,
+            delete: true,
+            stat: true,
+            rename: false,
+            list: false,
+            shared: false,
+            ..Default::default()
+        });
+
+        Ok(CacacheAccessor {
+            core: Arc::new(core),
+            info: Arc::new(info),
+        })
     }
 }
 
 /// Backend for cacache services.
-pub type CacacheBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    datadir: String,
+#[derive(Debug, Clone)]
+pub struct CacacheAccessor {
+    core: Arc<CacacheCore>,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("path", &self.datadir);
-        ds.finish()
-    }
-}
+impl Access for CacacheAccessor {
+    type Reader = Buffer;
+    type Writer = CacacheWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<CacacheDeleter>;
 
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Cacache,
-            &self.datadir,
-            Capability {
-                read: true,
-                write: true,
-                delete: true,
-                shared: false,
-                ..Default::default()
-            },
-        )
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let result = cacache::read(&self.datadir, path)
-            .await
-            .map_err(parse_error)?;
-        Ok(Some(Buffer::from(result)))
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let metadata = self.core.metadata(path).await?;
+
+        match metadata {
+            Some(meta) => {
+                let mut md = Metadata::new(EntryMode::FILE);
+                md.set_content_length(meta.size as u64);
+                // Convert u128 milliseconds to DateTime<Utc>
+                let millis = meta.time;
+                let secs = (millis / 1000) as i64;
+                let nanos = ((millis % 1000) * 1_000_000) as u32;
+                if let Some(dt) = DateTime::from_timestamp(secs, nanos) {
+                    md.set_last_modified(dt);
+                }
+                Ok(RpStat::new(md))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+        }
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        cacache::write(&self.datadir, path, value.to_vec())
-            .await
-            .map_err(parse_error)?;
-        Ok(())
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let data = self.core.get(path).await?;
+
+        match data {
+            Some(bytes) => {
+                let range = args.range();
+                let buffer = if range.is_full() {
+                    Buffer::from(bytes)
+                } else {
+                    let start = range.offset() as usize;
+                    let end = match range.size() {
+                        Some(size) => (range.offset() + size) as usize,
+                        None => bytes.len(),
+                    };
+                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
+                };
+                Ok((RpRead::new(), buffer))
+            }
+            None => Err(Error::new(ErrorKind::NotFound, "entry not found")),
+        }
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        cacache::remove(&self.datadir, path)
-            .await
-            .map_err(parse_error)?;
-
-        Ok(())
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::new(),
+            CacacheWriter::new(self.core.clone(), path.to_string()),
+        ))
     }
-}
 
-fn parse_error(err: cacache::Error) -> Error {
-    let kind = match err {
-        cacache::Error::EntryNotFound(_, _) => ErrorKind::NotFound,
-        _ => ErrorKind::Unexpected,
-    };
-
-    Error::new(kind, "error from cacache").set_source(err)
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(CacacheDeleter::new(self.core.clone())),
+        ))
+    }
 }

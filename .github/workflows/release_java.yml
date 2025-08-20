@@ -42,7 +42,7 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             classifier: linux-aarch_64
           - os: windows-latest
             classifier: windows-x86_64
@@ -73,16 +73,8 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup linux for zigbuild
-        if: "contains(matrix.os, 'ubuntu-latest')"
+        if: ${{ contains(matrix.os, 'ubuntu') }}
         run: pip install cargo-zigbuild
-
-      - name: Setup linux-aarch_64
-        if: "contains(matrix.classifier, 'linux-aarch_64')"
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          # Setup for cargo
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Local staging
         working-directory: bindings/java

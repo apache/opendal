@@ -34,11 +34,11 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
-
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
 
@@ -164,14 +164,13 @@ impl CosBuilder {
 }
 
 impl Builder for CosBuilder {
-    const SCHEME: Scheme = Scheme::Cos;
     type Config = CosConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),
@@ -222,30 +221,21 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Cos)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
                             stat_with_version: self.config.enable_versioning,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-                            stat_has_version: true,
-                            stat_has_user_metadata: true,
 
                             read: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
                             read_with_version: self.config.enable_versioning,
 
                             write: true,
@@ -279,7 +269,6 @@ impl Builder for CosBuilder {
                             list_with_recursive: true,
                             list_with_versions: self.config.enable_versioning,
                             list_with_deleted: self.config.enable_versioning,
-                            list_has_content_length: true,
 
                             presign: true,
                             presign_stat: true,

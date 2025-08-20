@@ -116,7 +116,11 @@ public class Operator extends NativeObject {
     }
 
     public Metadata stat(String path) {
-        return stat(nativeHandle, path);
+        return stat(nativeHandle, path, StatOptions.builder().build());
+    }
+
+    public Metadata stat(String path, StatOptions options) {
+        return stat(nativeHandle, path, options);
     }
 
     public void createDir(String path) {
@@ -154,7 +158,7 @@ public class Operator extends NativeObject {
 
     private static native void delete(long op, String path);
 
-    private static native Metadata stat(long op, String path);
+    private static native Metadata stat(long op, String path, StatOptions options);
 
     private static native long createDir(long op, String path);
 

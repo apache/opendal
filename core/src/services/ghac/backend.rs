@@ -26,11 +26,11 @@ use sha2::Digest;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
 use crate::*;
-
 fn value_or_env(
     explicit_value: Option<String>,
     env_var_name: &str,
@@ -41,10 +41,7 @@ fn value_or_env(
     }
 
     env::var(env_var_name).map_err(|err| {
-        let text = format!(
-            "{} not found, maybe not in github action environment?",
-            env_var_name
-        );
+        let text = format!("{env_var_name} not found, maybe not in github action environment?");
         Error::new(ErrorKind::ConfigInvalid, text)
             .with_operation(operation)
             .set_source(err)
@@ -139,17 +136,16 @@ impl GhacBuilder {
 }
 
 impl Builder for GhacBuilder {
-    const SCHEME: Scheme = Scheme::Ghac;
     type Config = GhacConfig;
 
     fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", self);
+        debug!("backend build started: {self:?}");
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let service_version = get_cache_service_version();
-        debug!("backend use service version {:?}", service_version);
+        debug!("backend use service version {service_version:?}");
 
         let mut version = self
             .config
@@ -160,7 +156,7 @@ impl Builder for GhacBuilder {
         // ghac requires to use hex digest of Sha256 as version.
         if matches!(service_version, GhacVersion::V2) {
             let hash = sha2::Sha256::digest(&version);
-            version = format!("{:x}", hash);
+            version = format!("{hash:x}");
         }
 
         let cache_url = self
@@ -177,20 +173,11 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Ghac)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {
                         stat: true,
-                        stat_has_cache_control: true,
-                        stat_has_content_length: true,
-                        stat_has_content_type: true,
-                        stat_has_content_encoding: true,
-                        stat_has_content_range: true,
-                        stat_has_etag: true,
-                        stat_has_content_md5: true,
-                        stat_has_last_modified: true,
-                        stat_has_content_disposition: true,
 
                         read: true,
 

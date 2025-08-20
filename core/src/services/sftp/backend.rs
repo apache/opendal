@@ -35,10 +35,10 @@ use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SftpConfig;
 use crate::*;
-
 impl Configurator for SftpConfig {
     type Builder = SftpBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -141,7 +141,6 @@ impl SftpBuilder {
 }
 
 impl Builder for SftpBuilder {
-    const SCHEME: Scheme = Scheme::Sftp;
     type Config = SftpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -172,7 +171,7 @@ impl Builder for SftpBuilder {
                 } else {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
-                        format!("unknown known_hosts strategy: {}", v).as_str(),
+                        format!("unknown known_hosts strategy: {v}").as_str(),
                     ));
                 }
             }
@@ -181,11 +180,9 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(Scheme::Sftp)
+            .set_scheme(DEFAULT_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_last_modified: true,
 
                 read: true,
 
@@ -197,8 +194,6 @@ impl Builder for SftpBuilder {
 
                 list: true,
                 list_with_limit: true,
-                list_has_content_length: true,
-                list_has_last_modified: true,
 
                 copy: self.config.enable_copy,
                 rename: true,
@@ -343,7 +338,7 @@ impl Access for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let file_path = format!("./{}", path);
+        let file_path = format!("./{path}");
 
         let dir = match fs.open_dir(&file_path).await {
             Ok(dir) => dir,

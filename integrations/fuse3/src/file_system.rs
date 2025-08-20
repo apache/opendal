@@ -129,11 +129,7 @@ impl Filesystem {
         }
 
         log::trace!(
-            "check_flags: is_read={}, is_write={}, is_trunc={}, is_append={}",
-            is_read,
-            is_write,
-            is_trunc,
-            is_append
+            "check_flags: is_read={is_read}, is_write={is_write}, is_trunc={is_trunc}, is_append={is_append}"
         );
         Ok((is_read, is_trunc, is_append))
     }
@@ -143,7 +139,7 @@ impl Filesystem {
         &self,
         key: FileKey,
         path: Option<&OsStr>,
-    ) -> Result<sharded_slab::Entry<OpenedFile>> {
+    ) -> Result<sharded_slab::Entry<'_, OpenedFile>> {
         let file = self
             .opened_files
             .get(key.0)
@@ -174,7 +170,7 @@ impl PathFilesystem for Filesystem {
     async fn destroy(&self, _req: Request) {}
 
     async fn lookup(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<ReplyEntry> {
-        log::debug!("lookup(parent={:?}, name={:?})", parent, name);
+        log::debug!("lookup(parent={parent:?}, name={name:?})");
 
         let path = PathBuf::from(parent).join(name);
         let metadata = self
@@ -196,7 +192,7 @@ impl PathFilesystem for Filesystem {
         fh: Option<u64>,
         flags: u32,
     ) -> Result<ReplyAttr> {
-        log::debug!("getattr(path={:?}, fh={:?}, flags={:?})", path, fh, flags);
+        log::debug!("getattr(path={path:?}, fh={fh:?}, flags={flags:?})");
 
         let fh_path = fh.and_then(|fh| {
             self.opened_files
@@ -233,12 +229,7 @@ impl PathFilesystem for Filesystem {
         fh: Option<u64>,
         set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
-        log::debug!(
-            "setattr(path={:?}, fh={:?}, set_attr={:?})",
-            path,
-            fh,
-            set_attr
-        );
+        log::debug!("setattr(path={path:?}, fh={fh:?}, set_attr={set_attr:?})");
 
         self.getattr(_req, path, fh, 0).await
     }
@@ -250,12 +241,7 @@ impl PathFilesystem for Filesystem {
         name: &OsStr,
         link_path: &OsStr,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "symlink(parent={:?}, name={:?}, link_path={:?})",
-            parent,
-            name,
-            link_path
-        );
+        log::debug!("symlink(parent={parent:?}, name={name:?}, link_path={link_path:?})");
         Err(libc::EOPNOTSUPP.into())
     }
 
@@ -267,12 +253,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         _rdev: u32,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "mknod(parent={:?}, name={:?}, mode=0o{:o})",
-            parent,
-            name,
-            mode
-        );
+        log::debug!("mknod(parent={parent:?}, name={name:?}, mode=0o{mode:o})");
         Err(libc::EOPNOTSUPP.into())
     }
 
@@ -284,12 +265,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "mkdir(parent={:?}, name={:?}, mode=0o{:o})",
-            parent,
-            name,
-            mode
-        );
+        log::debug!("mkdir(parent={parent:?}, name={name:?}, mode=0o{mode:o})");
 
         let mut path = PathBuf::from(parent).join(name);
         path.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
@@ -305,7 +281,7 @@ impl PathFilesystem for Filesystem {
     }
 
     async fn unlink(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<()> {
-        log::debug!("unlink(parent={:?}, name={:?})", parent, name);
+        log::debug!("unlink(parent={parent:?}, name={name:?})");
 
         let path = PathBuf::from(parent).join(name);
         self.op
@@ -317,7 +293,7 @@ impl PathFilesystem for Filesystem {
     }
 
     async fn rmdir(&self, _req: Request, parent: &OsStr, name: &OsStr) -> Result<()> {
-        log::debug!("rmdir(parent={:?}, name={:?})", parent, name);
+        log::debug!("rmdir(parent={parent:?}, name={name:?})");
 
         let path = PathBuf::from(parent).join(name);
         self.op
@@ -337,11 +313,7 @@ impl PathFilesystem for Filesystem {
         name: &OsStr,
     ) -> Result<()> {
         log::debug!(
-            "rename(p={:?}, name={:?}, newp={:?}, newname={:?})",
-            origin_parent,
-            origin_name,
-            parent,
-            name
+            "rename(p={origin_parent:?}, name={origin_name:?}, newp={parent:?}, newname={name:?})"
         );
 
         if !self.op.info().full_capability().rename {
@@ -366,22 +338,17 @@ impl PathFilesystem for Filesystem {
         new_parent: &OsStr,
         new_name: &OsStr,
     ) -> Result<ReplyEntry> {
-        log::debug!(
-            "link(path={:?}, new_parent={:?}, new_name={:?})",
-            path,
-            new_parent,
-            new_name
-        );
+        log::debug!("link(path={path:?}, new_parent={new_parent:?}, new_name={new_name:?})");
         Err(libc::EOPNOTSUPP.into())
     }
 
     async fn opendir(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
-        log::debug!("opendir(path={:?}, flags=0x{:x})", path, flags);
+        log::debug!("opendir(path={path:?}, flags=0x{flags:x})");
         Ok(ReplyOpen { fh: 0, flags })
     }
 
     async fn open(&self, _req: Request, path: &OsStr, flags: u32) -> Result<ReplyOpen> {
-        log::debug!("open(path={:?}, flags=0x{:x})", path, flags);
+        log::debug!("open(path={path:?}, flags=0x{flags:x})");
 
         let (is_read, is_trunc, is_append) = self.check_flags(flags)?;
         if flags & libc::O_CREAT as u32 != 0 {
@@ -435,13 +402,7 @@ impl PathFilesystem for Filesystem {
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
-        log::debug!(
-            "read(path={:?}, fh={}, offset={}, size={})",
-            path,
-            fh,
-            offset,
-            size
-        );
+        log::debug!("read(path={path:?}, fh={fh}, offset={offset}, size={size})");
 
         let file_path = {
             let file = self.get_opened_file(FileKey::try_from(fh)?, path)?;
@@ -518,12 +479,7 @@ impl PathFilesystem for Filesystem {
         flush: bool,
     ) -> Result<()> {
         log::debug!(
-            "release(path={:?}, fh={}, flags=0x{:x}, lock_owner={}, flush={})",
-            path,
-            fh,
-            flags,
-            lock_owner,
-            flush
+            "release(path={path:?}, fh={fh}, flags=0x{flags:x}, lock_owner={lock_owner}, flush={flush})"
         );
 
         // Just take and forget it.
@@ -542,12 +498,7 @@ impl PathFilesystem for Filesystem {
         fh: u64,
         lock_owner: u64,
     ) -> Result<()> {
-        log::debug!(
-            "flush(path={:?}, fh={}, lock_owner={})",
-            path,
-            fh,
-            lock_owner,
-        );
+        log::debug!("flush(path={path:?}, fh={fh}, lock_owner={lock_owner})");
 
         let file = self
             .opened_files
@@ -576,7 +527,7 @@ impl PathFilesystem for Filesystem {
         fh: u64,
         offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream<'a>>> {
-        log::debug!("readdir(path={:?}, fh={}, offset={})", path, fh, offset);
+        log::debug!("readdir(path={path:?}, fh={fh}, offset={offset})");
 
         let mut current_dir = PathBuf::from(path);
         current_dir.push(""); // ref https://users.rust-lang.org/t/trailing-in-paths/43166
@@ -625,7 +576,7 @@ impl PathFilesystem for Filesystem {
     }
 
     async fn access(&self, _req: Request, path: &OsStr, mask: u32) -> Result<()> {
-        log::debug!("access(path={:?}, mask=0x{:x})", path, mask);
+        log::debug!("access(path={path:?}, mask=0x{mask:x})");
 
         self.op
             .stat(&path.to_string_lossy())
@@ -643,13 +594,7 @@ impl PathFilesystem for Filesystem {
         mode: u32,
         flags: u32,
     ) -> Result<ReplyCreated> {
-        log::debug!(
-            "create(parent={:?}, name={:?}, mode=0o{:o}, flags=0x{:x})",
-            parent,
-            name,
-            mode,
-            flags
-        );
+        log::debug!("create(parent={parent:?}, name={name:?}, mode=0o{mode:o}, flags=0x{flags:x})");
 
         let (is_read, is_trunc, is_append) = self.check_flags(flags | libc::O_CREAT as u32)?;
 
@@ -699,12 +644,7 @@ impl PathFilesystem for Filesystem {
         offset: u64,
         _lock_owner: u64,
     ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream<'a>>> {
-        log::debug!(
-            "readdirplus(parent={:?}, fh={}, offset={})",
-            parent,
-            fh,
-            offset
-        );
+        log::debug!("readdirplus(parent={parent:?}, fh={fh}, offset={offset})");
 
         let now = SystemTime::now();
         let mut current_dir = PathBuf::from(parent);
@@ -779,11 +719,7 @@ impl PathFilesystem for Filesystem {
         _flags: u32,
     ) -> Result<()> {
         log::debug!(
-            "rename2(origin_parent={:?}, origin_name={:?}, parent={:?}, name={:?})",
-            origin_parent,
-            origin_name,
-            parent,
-            name
+            "rename2(origin_parent={origin_parent:?}, origin_name={origin_name:?}, parent={parent:?}, name={name:?})"
         );
         self.rename(req, origin_parent, origin_name, parent, name)
             .await
@@ -802,15 +738,7 @@ impl PathFilesystem for Filesystem {
         flags: u64,
     ) -> Result<ReplyCopyFileRange> {
         log::debug!(
-            "copy_file_range(from_path={:?}, fh_in={}, offset_in={}, to_path={:?}, fh_out={}, offset_out={}, length={}, flags={})",
-            from_path,
-            fh_in,
-            offset_in,
-            to_path,
-            fh_out,
-            offset_out,
-            length,
-            flags
+            "copy_file_range(from_path={from_path:?}, fh_in={fh_in}, offset_in={offset_in}, to_path={to_path:?}, fh_out={fh_out}, offset_out={offset_out}, length={length}, flags={flags})"
         );
         let data = self
             .read(req, from_path, fh_in, offset_in, length as _)
@@ -826,7 +754,7 @@ impl PathFilesystem for Filesystem {
     }
 
     async fn statfs(&self, _req: Request, path: &OsStr) -> Result<ReplyStatFs> {
-        log::debug!("statfs(path={:?})", path);
+        log::debug!("statfs(path={path:?})");
         Ok(ReplyStatFs {
             blocks: 1,
             bfree: 0,
@@ -880,7 +808,7 @@ const fn dummy_file_attr(kind: FileType, now: SystemTime, uid: u32, gid: u32) ->
 }
 
 fn opendal_error2errno(err: opendal::Error) -> fuse3::Errno {
-    log::trace!("opendal_error2errno: {:?}", err);
+    log::trace!("opendal_error2errno: {err:?}");
     match err.kind() {
         ErrorKind::Unsupported => Errno::from(libc::EOPNOTSUPP),
         ErrorKind::IsADirectory => Errno::from(libc::EISDIR),

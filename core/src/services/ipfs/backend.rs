@@ -27,10 +27,10 @@ use prost::Message;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;
-
 impl Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
 
@@ -106,7 +106,6 @@ impl IpfsBuilder {
 }
 
 impl Builder for IpfsBuilder {
-    const SCHEME: Scheme = Scheme::Ipfs;
     type Config = IpfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -121,7 +120,7 @@ impl Builder for IpfsBuilder {
             .with_context("service", Scheme::Ipfs)
             .with_context("root", &root));
         }
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -132,14 +131,10 @@ impl Builder for IpfsBuilder {
         debug!("backend use endpoint {}", &endpoint);
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Ipfs)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
-                stat_has_content_length: true,
-                stat_has_content_type: true,
-                stat_has_etag: true,
-                stat_has_content_disposition: true,
 
                 read: true,
 

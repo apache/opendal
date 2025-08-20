@@ -35,10 +35,10 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::*;
-
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;
 
@@ -154,14 +154,13 @@ impl ObsBuilder {
 }
 
 impl Builder for ObsBuilder {
-    const SCHEME: Scheme = Scheme::Obs;
     type Config = ObsConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let bucket = match &self.config.bucket {
             Some(bucket) => Ok(bucket.to_string()),
@@ -233,23 +232,13 @@ impl Builder for ObsBuilder {
             core: Arc::new(ObsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Obs)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-                            stat_has_user_metadata: true,
 
                             read: true,
 
@@ -281,7 +270,6 @@ impl Builder for ObsBuilder {
 
                             list: true,
                             list_with_recursive: true,
-                            list_has_content_length: true,
 
                             presign: true,
                             presign_stat: true,

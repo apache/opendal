@@ -121,7 +121,6 @@ impl SqliteBuilder {
 }
 
 impl Builder for SqliteBuilder {
-    const SCHEME: Scheme = Scheme::Sqlite;
     type Config = SqliteConfig;
 
     fn build(self) -> Result<impl Access> {

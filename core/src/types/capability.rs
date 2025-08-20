@@ -82,28 +82,6 @@ pub struct Capability {
     pub stat_with_override_content_type: bool,
     /// Indicates if versions stat operations are supported.
     pub stat_with_version: bool,
-    /// Indicates whether cache control information is available in stat response
-    pub stat_has_cache_control: bool,
-    /// Indicates whether content disposition information is available in stat response
-    pub stat_has_content_disposition: bool,
-    /// Indicates whether content length information is available in stat response
-    pub stat_has_content_length: bool,
-    /// Indicates whether content MD5 checksum is available in stat response
-    pub stat_has_content_md5: bool,
-    /// Indicates whether content range information is available in stat response
-    pub stat_has_content_range: bool,
-    /// Indicates whether content type information is available in stat response
-    pub stat_has_content_type: bool,
-    /// Indicates whether content encoding information is available in stat response
-    pub stat_has_content_encoding: bool,
-    /// Indicates whether entity tag is available in stat response
-    pub stat_has_etag: bool,
-    /// Indicates whether last modified timestamp is available in stat response
-    pub stat_has_last_modified: bool,
-    /// Indicates whether version information is available in stat response
-    pub stat_has_version: bool,
-    /// Indicates whether user-defined metadata is available in stat response
-    pub stat_has_user_metadata: bool,
 
     /// Indicates if the operator supports read operations.
     pub read: bool,
@@ -170,6 +148,8 @@ pub struct Capability {
 
     /// Indicates if copy operations are supported.
     pub copy: bool,
+    /// Indicates if conditional copy operations with if-not-exists are supported.
+    pub copy_with_if_not_exists: bool,
 
     /// Indicates if rename operations are supported.
     pub rename: bool,
@@ -189,26 +169,6 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
-    /// Indicates whether cache control information is available in list response
-    pub list_has_cache_control: bool,
-    /// Indicates whether content disposition information is available in list response
-    pub list_has_content_disposition: bool,
-    /// Indicates whether content length information is available in list response
-    pub list_has_content_length: bool,
-    /// Indicates whether content MD5 checksum is available in list response
-    pub list_has_content_md5: bool,
-    /// Indicates whether content range information is available in list response
-    pub list_has_content_range: bool,
-    /// Indicates whether content type information is available in list response
-    pub list_has_content_type: bool,
-    /// Indicates whether entity tag is available in list response
-    pub list_has_etag: bool,
-    /// Indicates whether last modified timestamp is available in list response
-    pub list_has_last_modified: bool,
-    /// Indicates whether version information is available in list response
-    pub list_has_version: bool,
-    /// Indicates whether user-defined metadata is available in list response
-    pub list_has_user_metadata: bool,
 
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,

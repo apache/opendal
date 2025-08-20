@@ -29,10 +29,10 @@ use super::delete::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebdavConfig;
 use crate::*;
-
 impl Configurator for WebdavConfig {
     type Builder = WebdavBuilder;
 
@@ -135,7 +135,6 @@ impl WebdavBuilder {
 }
 
 impl Builder for WebdavBuilder {
-    const SCHEME: Scheme = Scheme::Webdav;
     type Config = WebdavConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -160,7 +159,7 @@ impl Builder for WebdavBuilder {
             .to_string();
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let mut authorization = None;
         if let Some(username) = &self.config.username {
@@ -176,14 +175,10 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Webdav)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
-                        stat_has_content_length: true,
-                        stat_has_content_type: true,
-                        stat_has_etag: true,
-                        stat_has_last_modified: true,
 
                         read: true,
 
@@ -198,10 +193,6 @@ impl Builder for WebdavBuilder {
                         rename: true,
 
                         list: true,
-                        list_has_content_length: true,
-                        list_has_content_type: true,
-                        list_has_etag: true,
-                        list_has_last_modified: true,
 
                         // We already support recursive list but some details still need to polish.
                         // list_with_recursive: true,

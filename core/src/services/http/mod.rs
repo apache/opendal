@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for http service.
+#[cfg(feature = "services-http")]
+pub(super) const DEFAULT_SCHEME: &str = "http";
 #[cfg(feature = "services-http")]
 mod error;
 

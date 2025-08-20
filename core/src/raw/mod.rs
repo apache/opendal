@@ -29,6 +29,19 @@
 mod accessor;
 pub use accessor::*;
 
+#[cfg(any(
+    feature = "services-azblob",
+    feature = "services-azdls",
+    feature = "services-azfile"
+))]
+mod azure;
+#[cfg(any(
+    feature = "services-azblob",
+    feature = "services-azdls",
+    feature = "services-azfile"
+))]
+pub(crate) use azure::*;
+
 mod layer;
 pub use layer::*;
 

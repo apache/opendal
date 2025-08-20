@@ -32,12 +32,22 @@ use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;
-
-/// Default endpoint of Azure File services.
-const DEFAULT_AZFILE_ENDPOINT_SUFFIX: &str = "file.core.windows.net";
+impl From<AzureStorageConfig> for AzfileConfig {
+    fn from(config: AzureStorageConfig) -> Self {
+        AzfileConfig {
+            account_name: config.account_name,
+            account_key: config.account_key,
+            sas_token: config.sas_token,
+            endpoint: config.endpoint,
+            root: None,                // root is not part of AzureStorageConfig
+            share_name: String::new(), // share_name is not part of AzureStorageConfig
+        }
+    }
+}
 
 impl Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
@@ -143,17 +153,41 @@ impl AzfileBuilder {
         self.http_client = Some(client);
         self
     }
+
+    /// Create a new `AfileBuilder` instance from an [Azure Storage connection string][1].
+    ///
+    /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
+    ///
+    /// # Example
+    /// ```
+    /// use opendal::Builder;
+    /// use opendal::services::Azfile;
+    ///
+    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    ///
+    /// let mut config = Azfile::from_connection_string(&conn_str)
+    ///     .unwrap()
+    ///     // Add additional configuration if needed
+    ///     .share_name("myShare")
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn from_connection_string(conn_str: &str) -> Result<Self> {
+        let config =
+            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::File)?;
+
+        Ok(AzfileConfig::from(config).into_builder())
+    }
 }
 
 impl Builder for AzfileBuilder {
-    const SCHEME: Scheme = Scheme::Azfile;
     type Config = AzfileConfig;
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
@@ -167,7 +201,7 @@ impl Builder for AzfileBuilder {
             .config
             .account_name
             .clone()
-            .or_else(|| infer_account_name_from_endpoint(endpoint.as_str()));
+            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()));
 
         let account_name = match account_name_option {
             Some(account_name) => Ok(account_name),
@@ -191,19 +225,10 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azfile)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
 
                             read: true,
 
@@ -213,9 +238,6 @@ impl Builder for AzfileBuilder {
                             rename: true,
 
                             list: true,
-                            list_has_etag: true,
-                            list_has_last_modified: true,
-                            list_has_content_length: true,
 
                             shared: true,
 
@@ -237,27 +259,6 @@ impl Builder for AzfileBuilder {
                 share_name: self.config.share_name.clone(),
             }),
         })
-    }
-}
-
-fn infer_account_name_from_endpoint(endpoint: &str) -> Option<String> {
-    let endpoint: &str = endpoint
-        .strip_prefix("http://")
-        .or_else(|| endpoint.strip_prefix("https://"))
-        .unwrap_or(endpoint);
-
-    let mut parts = endpoint.splitn(2, '.');
-    let account_name = parts.next();
-    let endpoint_suffix = parts
-        .next()
-        .unwrap_or_default()
-        .trim_end_matches('/')
-        .to_lowercase();
-
-    if endpoint_suffix == DEFAULT_AZFILE_ENDPOINT_SUFFIX {
-        account_name.map(|s| s.to_string())
-    } else {
-        None
     }
 }
 
@@ -367,31 +368,6 @@ impl Access for AzfileBackend {
         match status {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_infer_storage_name_from_endpoint() {
-        let cases = vec![
-            (
-                "test infer account name from endpoint",
-                "https://account.file.core.windows.net",
-                "account",
-            ),
-            (
-                "test infer account name from endpoint with trailing slash",
-                "https://account.file.core.windows.net/",
-                "account",
-            ),
-        ];
-        for (desc, endpoint, expected) in cases {
-            let account_name = infer_account_name_from_endpoint(endpoint);
-            assert_eq!(account_name, Some(expected.to_string()), "{}", desc);
         }
     }
 }

@@ -45,12 +45,13 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: 1password is only supported on linux
+      # TODO: 1Password doesn't support Windows
       #
-      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
+      # Enable this step when the issue is resolved:
+      # https://github.com/1Password/load-secrets-action/issues/46 is resolved
       - name: Setup 1Password Connect
         if: runner.os == 'Linux'
-        uses: 1password/load-secrets-action/configure@v1
+        uses: 1password/load-secrets-action/configure@v2
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
@@ -58,16 +59,13 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs

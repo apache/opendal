@@ -35,10 +35,10 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::OssConfig;
 use crate::*;
-
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for OssConfig {
@@ -318,7 +318,6 @@ impl OssBuilder {
 }
 
 impl Builder for OssBuilder {
-    const SCHEME: Scheme = Scheme::Oss;
     type Config = OssConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -411,25 +410,14 @@ impl Builder for OssBuilder {
             core: Arc::new(OssCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Oss)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_has_cache_control: true,
-                            stat_has_content_length: true,
-                            stat_has_content_type: true,
-                            stat_has_content_encoding: true,
-                            stat_has_content_range: true,
                             stat_with_version: self.config.enable_versioning,
-                            stat_has_etag: true,
-                            stat_has_content_md5: true,
-                            stat_has_last_modified: true,
-                            stat_has_content_disposition: true,
-                            stat_has_user_metadata: true,
-                            stat_has_version: true,
 
                             read: true,
 
@@ -473,12 +461,8 @@ impl Builder for OssBuilder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_has_etag: true,
-                            list_has_content_md5: true,
                             list_with_versions: self.config.enable_versioning,
                             list_with_deleted: self.config.enable_versioning,
-                            list_has_content_length: true,
-                            list_has_last_modified: true,
 
                             presign: true,
                             presign_stat: true,

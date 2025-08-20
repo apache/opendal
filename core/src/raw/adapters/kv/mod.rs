@@ -25,8 +25,6 @@ pub use api::Info;
 pub use api::Scan;
 #[cfg(any(
     feature = "services-cloudflare-kv",
-    feature = "services-etcd",
-    feature = "services-nebula-graph",
     feature = "services-rocksdb",
     feature = "services-sled"
 ))]

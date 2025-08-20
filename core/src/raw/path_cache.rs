@@ -81,7 +81,7 @@ impl<Q: PathQuery> PathCacher<Q> {
         self
     }
 
-    async fn lock(&self) -> Option<MutexGuard<()>> {
+    async fn lock(&self) -> Option<MutexGuard<'_, ()>> {
         if let Some(l) = &self.lock {
             Some(l.lock().await)
         } else {
@@ -238,7 +238,7 @@ mod tests {
             let cache = PathCacher::new(TestQuery {});
 
             let actual = cache.get(input).await.unwrap();
-            assert_eq!(actual.as_deref(), expect, "{}", name)
+            assert_eq!(actual.as_deref(), expect, "{name}")
         }
     }
 }

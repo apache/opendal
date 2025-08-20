@@ -31,10 +31,10 @@ use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::GithubConfig;
 use crate::*;
-
 impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
 
@@ -119,7 +119,6 @@ impl GithubBuilder {
 }
 
 impl Builder for GithubBuilder {
-    const SCHEME: Scheme = Scheme::Github;
     type Config = GithubConfig;
 
     /// Builds the backend and returns the result of GithubBackend.
@@ -151,12 +150,10 @@ impl Builder for GithubBuilder {
             core: Arc::new(GithubCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Github)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_etag: true,
 
                             read: true,
 
@@ -169,8 +166,6 @@ impl Builder for GithubBuilder {
 
                             list: true,
                             list_with_recursive: true,
-                            list_has_content_length: true,
-                            list_has_etag: true,
 
                             shared: true,
 
@@ -215,7 +210,7 @@ impl Access for GithubBackend {
 
         let resp = self
             .core
-            .upload(&format!("{}.gitkeep", path), empty_bytes)
+            .upload(&format!("{path}.gitkeep"), empty_bytes)
             .await?;
 
         let status = resp.status();

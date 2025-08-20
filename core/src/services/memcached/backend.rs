@@ -85,7 +85,6 @@ impl MemcachedBuilder {
 }
 
 impl Builder for MemcachedBuilder {
-    const SCHEME: Scheme = Scheme::Memcached;
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -258,7 +257,6 @@ impl MemcacheConnectionManager {
     }
 }
 
-#[async_trait::async_trait]
 impl bb8::ManageConnection for MemcacheConnectionManager {
     type Connection = binary::Connection;
     type Error = Error;

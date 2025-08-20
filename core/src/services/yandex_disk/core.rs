@@ -269,11 +269,11 @@ impl YandexDiskCore {
         );
 
         if let Some(limit) = limit {
-            url = format!("{}&limit={}", url, limit);
+            url = format!("{url}&limit={limit}");
         }
 
         if let Some(offset) = offset {
-            url = format!("{}&offset={}", url, offset);
+            url = format!("{url}&offset={offset}");
         }
 
         let req = Request::get(url);

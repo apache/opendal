@@ -61,7 +61,7 @@ impl oio::PageList for SeafileLister {
                                 .with_content_length(info.size.unwrap_or(0));
                             Entry::new(&rel_path, meta)
                         } else {
-                            let path = format!("{}/", rel_path);
+                            let path = format!("{rel_path}/");
                             Entry::new(&path, Metadata::new(EntryMode::DIR))
                         };
 

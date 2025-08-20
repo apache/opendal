@@ -97,7 +97,6 @@ impl RedbBuilder {
 }
 
 impl Builder for RedbBuilder {
-    const SCHEME: Scheme = Scheme::Redb;
     type Config = RedbConfig;
 
     fn build(self) -> Result<impl Access> {

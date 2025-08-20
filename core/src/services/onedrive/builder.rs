@@ -27,6 +27,7 @@ use services::onedrive::core::OneDriveSigner;
 use tokio::sync::Mutex;
 
 use super::backend::OnedriveBackend;
+use super::DEFAULT_SCHEME;
 use crate::raw::normalize_root;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
@@ -34,7 +35,6 @@ use crate::raw::HttpClient;
 use crate::services::OnedriveConfig;
 use crate::Scheme;
 use crate::*;
-
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -137,15 +137,14 @@ impl OnedriveBuilder {
 }
 
 impl Builder for OnedriveBuilder {
-    const SCHEME: Scheme = Scheme::Onedrive;
     type Config = OnedriveConfig;
 
     fn build(self) -> Result<impl Access> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
-        debug!("backend use root {}", root);
+        debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Onedrive)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,
@@ -163,9 +162,6 @@ impl Builder for OnedriveBuilder {
 
                 stat: true,
                 stat_with_if_none_match: true,
-                stat_has_content_length: true,
-                stat_has_etag: true,
-                stat_has_last_modified: true,
                 stat_with_version: self.config.enable_versioning,
 
                 delete: true,
@@ -174,10 +170,6 @@ impl Builder for OnedriveBuilder {
                 list: true,
                 list_with_limit: true,
                 list_with_versions: self.config.enable_versioning,
-                list_has_content_length: true,
-                list_has_etag: true,
-                list_has_last_modified: true,
-                list_has_version: self.config.enable_versioning, // same as `list_with_versions`?
 
                 shared: true,
 

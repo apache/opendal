@@ -188,7 +188,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
 }
 
 pub struct ErrorContextWrapper<T> {
-    scheme: Scheme,
+    scheme: &'static str,
     path: String,
     inner: T,
     range: BytesRange,
@@ -196,7 +196,7 @@ pub struct ErrorContextWrapper<T> {
 }
 
 impl<T> ErrorContextWrapper<T> {
-    fn new(scheme: Scheme, path: String, inner: T) -> Self {
+    fn new(scheme: &'static str, path: String, inner: T) -> Self {
         Self {
             scheme,
             path,

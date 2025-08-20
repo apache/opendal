@@ -88,7 +88,7 @@ impl<W: PositionWrite> PositionWriter<W> {
             next_offset: 0,
             cache: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin(async move {
                     let fut = input.w.write_all_at(input.offset, input.bytes.clone());
                     match input.executor.timeout() {
@@ -254,7 +254,7 @@ mod tests {
                 match w.write(bs.clone().into()).await {
                     Ok(_) => break,
                     Err(e) => {
-                        println!("write error: {:?}", e);
+                        println!("write error: {e:?}");
                         continue;
                     }
                 }
@@ -264,11 +264,11 @@ mod tests {
         loop {
             match w.close().await {
                 Ok(n) => {
-                    println!("close: {:?}", n);
+                    println!("close: {n:?}");
                     break;
                 }
                 Err(e) => {
-                    println!("close error: {:?}", e);
+                    println!("close error: {e:?}");
                     continue;
                 }
             }

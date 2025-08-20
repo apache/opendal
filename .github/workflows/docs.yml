@@ -108,15 +108,13 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs
@@ -149,7 +147,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
@@ -522,10 +520,11 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
 
@@ -686,7 +685,7 @@ jobs:
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        uses: burnett01/rsync-deployments@5.2
+        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr
@@ -707,7 +706,7 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        uses: burnett01/rsync-deployments@5.2
+        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
         with:
           switches: -avzr --delete

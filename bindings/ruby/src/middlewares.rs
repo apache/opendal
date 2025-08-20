@@ -52,7 +52,7 @@ where
     let guard = inner.lock().map_err(|_| {
         Error::new(
             ruby.exception_runtime_error(),
-            format!("poisoned {} mutex", name),
+            format!("poisoned {name} mutex"),
         )
     })?;
 

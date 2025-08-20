@@ -1033,11 +1033,11 @@ impl S3Core {
                 .expect("write into string must succeed");
         }
         if !delimiter.is_empty() {
-            write!(url, "&delimiter={}", delimiter).expect("write into string must succeed");
+            write!(url, "&delimiter={delimiter}").expect("write into string must succeed");
         }
 
         if let Some(limit) = limit {
-            write!(url, "&max-keys={}", limit).expect("write into string must succeed");
+            write!(url, "&max-keys={limit}").expect("write into string must succeed");
         }
         if !key_marker.is_empty() {
             write!(url, "&key-marker={}", percent_encode_path(key_marker))

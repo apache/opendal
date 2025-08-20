@@ -27,7 +27,6 @@ project(opendal-cpp LANGUAGES CXX)
 
 include(FetchContent)
 set(OPENDAL_GOOGLETEST_VERSION 1.15.2 CACHE STRING "version of GoogleTest, 'external' to fallback to find_package()")
-set(OPENDAL_BOOST_VERSION 1.86.0 CACHE STRING "version of Boost, 'external' to fallback to find_package()")
 set(OPENDAL_CPPCORO_VERSION a4ef65281814b18fdd1ac5457d3e219347ec6cb8 CACHE STRING "version of cppcoro")
 set(ENV{LANG} en_US.UTF-8)
 set(ENV{LC_ALL} en_US.UTF-8)
@@ -43,6 +42,7 @@ option(OPENDAL_DOCS_ONLY "Only build documentation (dev only for quick ci)" OFF)
 option(OPENDAL_ENABLE_TESTING "Enable building test binary for opendal" OFF)
 option(OPENDAL_DEV "Enable dev mode" OFF)
 option(OPENDAL_ENABLE_ASYNC "Enable async mode (requires C++20)" OFF)
+set(OPENDAL_FEATURES "" CACHE STRING "opendal features")
 
 if(OPENDAL_ENABLE_ASYNC)
     set(CMAKE_CXX_STANDARD 20)
@@ -127,8 +127,16 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if (OPENDAL_ENABLE_ASYNC)
-    list(APPEND CARGO_BUILD_FLAGS "--features" "async")
+    if (OPENDAL_FEATURES)
+        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},async")
+    else()
+        set(OPENDAL_FEATURES "async")
+    endif ()
 endif()
+
+if (OPENDAL_FEATURES)
+    list(APPEND CARGO_BUILD_FLAGS "--features" "${OPENDAL_FEATURES}")
+endif ()
 
 add_custom_target(cargo_build
         COMMAND cargo build --manifest-path ${CARGO_MANIFEST} ${CARGO_BUILD_FLAGS}
@@ -137,20 +145,6 @@ add_custom_target(cargo_build
         USES_TERMINAL
         COMMENT "Running cargo..."
 )
-
-if(OPENDAL_BOOST_VERSION STREQUAL "external")
-    find_package(Boost REQUIRED COMPONENTS date_time iostreams)
-else()
-    # fetch Boost
-    FetchContent_Declare(
-        Boost
-        URL https://github.com/boostorg/boost/releases/download/boost-${OPENDAL_BOOST_VERSION}/boost-${OPENDAL_BOOST_VERSION}-cmake.zip
-    )
-
-    set(BOOST_INCLUDE_LIBRARIES date_time iostreams system)
-    set(BOOST_ENABLE_CMAKE ON)
-    FetchContent_MakeAvailable(Boost)
-endif()
 
 add_library(opendal_cpp STATIC ${CPP_SOURCE_FILE} ${RUST_BRIDGE_CPP})
 target_sources(opendal_cpp PUBLIC ${CPP_HEADER_FILE})
@@ -163,8 +157,9 @@ if (OPENDAL_ENABLE_ASYNC)
         "-Wno-deprecated-this-capture"
     )
 endif()
-target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB} Boost::date_time Boost::iostreams)
+target_link_libraries(opendal_cpp PUBLIC ${RUST_LIB})
 target_link_libraries(opendal_cpp PRIVATE ${CMAKE_DL_LIBS})
+
 set_target_properties(opendal_cpp
         PROPERTIES ADDITIONAL_CLEAN_FILES ${CARGO_TARGET_DIR}
 )
@@ -215,13 +210,27 @@ if (OPENDAL_ENABLE_TESTING)
         )
     endif()
 
-    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/basic_test.cpp tests/metadata_test.cpp tests/test_main.cpp)
     if (OPENDAL_ENABLE_ASYNC)
         list(APPEND TEST_SOURCE_FILE tests/async_test.cpp)
     endif()
+    
+    # Behavior tests
+    list(APPEND TEST_SOURCE_FILE tests/behavior/read_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/write_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/delete_test.cpp)
+    list(APPEND TEST_SOURCE_FILE tests/behavior/list_test.cpp)
+    
+    # Async behavior tests (only if async is enabled)
+    if (OPENDAL_ENABLE_ASYNC)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_read_test.cpp)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_write_test.cpp)
+        list(APPEND TEST_SOURCE_FILE tests/behavior/async_list_test.cpp)
+    endif()
+
     add_executable(opendal_cpp_test ${TEST_SOURCE_FILE})
-    target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS})
-    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest_main opendal_cpp)
+    target_include_directories(opendal_cpp_test PUBLIC ${CPP_INCLUDE_DIR} ${GTEST_INCLUDE_DIRS} tests)
+    target_link_libraries(opendal_cpp_test ${GTEST_LDFLAGS} GTest::gtest opendal_cpp)
     target_compile_options(opendal_cpp_test PRIVATE ${GTEST_CFLAGS})
     if (OPENDAL_ENABLE_ASYNC)
         target_link_libraries(opendal_cpp_test cppcoro)

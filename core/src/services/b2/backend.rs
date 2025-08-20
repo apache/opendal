@@ -34,10 +34,10 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::B2Config;
 use crate::*;
-
 impl Configurator for B2Config {
     type Builder = B2Builder;
 
@@ -136,7 +136,6 @@ impl B2Builder {
 }
 
 impl Builder for B2Builder {
-    const SCHEME: Scheme = Scheme::B2;
     type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
@@ -192,13 +191,10 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::B2)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
-                            stat_has_content_length: true,
-                            stat_has_content_md5: true,
-                            stat_has_content_type: true,
 
                             read: true,
 
@@ -226,9 +222,6 @@ impl Builder for B2Builder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_has_content_length: true,
-                            list_has_content_md5: true,
-                            list_has_content_type: true,
 
                             presign: true,
                             presign_read: true,

@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check typos
-        uses: crate-ci/typos@v1.31.1
+        uses: crate-ci/typos@v1.34.0
 
   licenses:
     runs-on: ubuntu-latest
@@ -94,16 +94,13 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: "website/pnpm-lock.yaml"
-
-      - name: Corepack
-        working-directory: website
-        run: npm i -g --force corepack && corepack enable
 
       - name: Install Dependencies
         working-directory: website

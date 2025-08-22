@@ -55,7 +55,11 @@ pub struct S3Config {
     /// - If endpoint is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
     /// - If still not set, default to `https://s3.amazonaws.com`.
-    #[serde(alias = "aws_endpoint", alias = "aws_endpoint_url", alias = "endpoint_url")]
+    #[serde(
+        alias = "aws_endpoint",
+        alias = "aws_endpoint_url",
+        alias = "endpoint_url"
+    )]
     pub endpoint: Option<String>,
     /// Region represent the signing region of this endpoint. This is required
     /// if you are using the default AWS S3 endpoint.
@@ -161,7 +165,10 @@ pub struct S3Config {
     ///
     /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
     /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
-    #[serde(alias = "aws_virtual_hosted_style_request", alias = "virtual_hosted_style_request")]
+    #[serde(
+        alias = "aws_virtual_hosted_style_request",
+        alias = "virtual_hosted_style_request"
+    )]
     pub enable_virtual_host_style: bool,
     /// Set maximum batch operations of this backend.
     ///
@@ -238,13 +245,16 @@ mod tests {
             "endpoint": "https://s3.amazonaws.com",
             "session_token": "test-token"
         }"#;
-        
+
         let config1: S3Config = serde_json::from_str(json1).unwrap();
         assert_eq!(config1.bucket, "test-bucket");
         assert_eq!(config1.access_key_id, Some("test-key".to_string()));
         assert_eq!(config1.secret_access_key, Some("test-secret".to_string()));
         assert_eq!(config1.region, Some("us-west-2".to_string()));
-        assert_eq!(config1.endpoint, Some("https://s3.amazonaws.com".to_string()));
+        assert_eq!(
+            config1.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
         assert_eq!(config1.session_token, Some("test-token".to_string()));
 
         // Test config with AWS-prefixed aliases
@@ -256,13 +266,16 @@ mod tests {
             "aws_endpoint": "https://s3.amazonaws.com",
             "aws_session_token": "test-token"
         }"#;
-        
+
         let config2: S3Config = serde_json::from_str(json2).unwrap();
         assert_eq!(config2.bucket, "test-bucket");
         assert_eq!(config2.access_key_id, Some("test-key".to_string()));
         assert_eq!(config2.secret_access_key, Some("test-secret".to_string()));
         assert_eq!(config2.region, Some("us-west-2".to_string()));
-        assert_eq!(config2.endpoint, Some("https://s3.amazonaws.com".to_string()));
+        assert_eq!(
+            config2.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
         assert_eq!(config2.session_token, Some("test-token".to_string()));
 
         // Test additional aliases
@@ -274,14 +287,17 @@ mod tests {
             "aws_checksum_algorithm": "crc32c",
             "request_payer": true
         }"#;
-        
+
         let config3: S3Config = serde_json::from_str(json3).unwrap();
         assert_eq!(config3.bucket, "test-bucket");
         assert_eq!(config3.session_token, Some("test-token".to_string()));
-        assert_eq!(config3.endpoint, Some("https://s3.amazonaws.com".to_string()));
-        assert_eq!(config3.enable_virtual_host_style, true);
+        assert_eq!(
+            config3.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
+        assert!(config3.enable_virtual_host_style);
         assert_eq!(config3.checksum_algorithm, Some("crc32c".to_string()));
-        assert_eq!(config3.enable_request_payer, true);
+        assert!(config3.enable_request_payer);
 
         // Test encryption aliases
         let json4 = r#"{
@@ -290,11 +306,17 @@ mod tests {
             "aws_sse_kms_key_id": "test-kms-key",
             "aws_sse_customer_key_base64": "dGVzdC1jdXN0b21lci1rZXk="
         }"#;
-        
+
         let config4: S3Config = serde_json::from_str(json4).unwrap();
         assert_eq!(config4.bucket, "test-bucket");
         assert_eq!(config4.server_side_encryption, Some("aws:kms".to_string()));
-        assert_eq!(config4.server_side_encryption_aws_kms_key_id, Some("test-kms-key".to_string()));
-        assert_eq!(config4.server_side_encryption_customer_key, Some("dGVzdC1jdXN0b21lci1rZXk=".to_string()));
+        assert_eq!(
+            config4.server_side_encryption_aws_kms_key_id,
+            Some("test-kms-key".to_string())
+        );
+        assert_eq!(
+            config4.server_side_encryption_customer_key,
+            Some("dGVzdC1jdXN0b21lci1rZXk=".to_string())
+        );
     }
 }

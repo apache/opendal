@@ -503,10 +503,6 @@ impl Builder for AzblobBuilder {
             config_loader.authority_host = Some(v);
         }
 
-        // Note: The following features are present in our config but not yet supported by reqsign 0.16.5:
-        // - bearer_token, use_emulator, msi_endpoint, use_azure_cli, skip_signature, use_fabric_endpoint, disable_tagging
-        // These may be supported in future versions of reqsign
-
         if let Some(v) = self.config.object_id.clone() {
             config_loader.object_id = Some(v);
         }

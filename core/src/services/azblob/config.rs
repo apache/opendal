@@ -298,8 +298,7 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
-    fn test_config_aliases() {
-        // Test account_name aliases
+    fn test_account_name_aliases() {
         let mut map = HashMap::new();
         map.insert(
             "azure_storage_account_name".to_string(),
@@ -308,8 +307,11 @@ mod tests {
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.account_name, Some("testaccount".to_string()));
+    }
 
-        // Test account_key aliases
+    #[test]
+    fn test_account_key_aliases() {
+        // Test azure_storage_account_key
         let mut map = HashMap::new();
         map.insert(
             "azure_storage_account_key".to_string(),
@@ -319,25 +321,31 @@ mod tests {
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
 
+        // Test access_key alias
         let mut map = HashMap::new();
         map.insert("access_key".to_string(), "dGVzdGtleQ==".to_string());
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
 
+        // Test master_key alias
         let mut map = HashMap::new();
         map.insert("master_key".to_string(), "dGVzdGtleQ==".to_string());
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+    }
 
-        // Test SAS token aliases
+    #[test]
+    fn test_sas_token_aliases() {
+        // Test sas_key alias
         let mut map = HashMap::new();
         map.insert("sas_key".to_string(), "sv=2021-06-08&ss=b".to_string());
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.sas_token, Some("sv=2021-06-08&ss=b".to_string()));
 
+        // Test azure_storage_sas_token alias
         let mut map = HashMap::new();
         map.insert(
             "azure_storage_sas_token".to_string(),
@@ -346,8 +354,10 @@ mod tests {
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.sas_token, Some("sv=2021-06-08&ss=b".to_string()));
+    }
 
-        // Test OAuth aliases
+    #[test]
+    fn test_oauth_aliases() {
         let mut map = HashMap::new();
         map.insert("azure_client_id".to_string(), "client-id-123".to_string());
         map.insert(
@@ -368,15 +378,20 @@ mod tests {
             config.authority_host,
             Some("https://login.microsoftonline.com".to_string())
         );
+    }
 
-        // Test alternative tenant_id aliases
+    #[test]
+    fn test_tenant_id_aliases() {
+        // Test authority_id alias
         let mut map = HashMap::new();
         map.insert("authority_id".to_string(), "alt-tenant-id".to_string());
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.tenant_id, Some("alt-tenant-id".to_string()));
+    }
 
-        // Test managed identity aliases
+    #[test]
+    fn test_managed_identity_aliases() {
         let mut map = HashMap::new();
         map.insert("azure_object_id".to_string(), "object-id-123".to_string());
         map.insert(
@@ -395,8 +410,10 @@ mod tests {
             config.msi_endpoint,
             Some("http://169.254.169.254".to_string())
         );
+    }
 
-        // Test workload identity aliases
+    #[test]
+    fn test_workload_identity_aliases() {
         let mut map = HashMap::new();
         map.insert(
             "azure_federated_token_file".to_string(),
@@ -408,11 +425,11 @@ mod tests {
             config.federated_token_file,
             Some("/var/run/secrets/tokens/azure-identity-token".to_string())
         );
+    }
 
-        // TODO: Boolean parsing from strings needs investigation
-        // Skipping boolean tests for now - they may require custom deserializer
-
-        // Test bearer token aliases
+    #[test]
+    fn test_bearer_token_aliases() {
+        // Test azure_storage_token alias
         let mut map = HashMap::new();
         map.insert(
             "azure_storage_token".to_string(),
@@ -422,13 +439,17 @@ mod tests {
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.bearer_token, Some("bearer-token-123".to_string()));
 
+        // Test token alias
         let mut map = HashMap::new();
         map.insert("token".to_string(), "token-123".to_string());
         map.insert("container".to_string(), "test-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.bearer_token, Some("token-123".to_string()));
+    }
 
-        // Test endpoint aliases
+    #[test]
+    fn test_endpoint_aliases() {
+        // Test azure_storage_endpoint alias
         let mut map = HashMap::new();
         map.insert(
             "azure_storage_endpoint".to_string(),
@@ -441,6 +462,7 @@ mod tests {
             Some("https://test.blob.core.windows.net".to_string())
         );
 
+        // Test azure_endpoint alias
         let mut map = HashMap::new();
         map.insert(
             "azure_endpoint".to_string(),
@@ -452,8 +474,11 @@ mod tests {
             config.endpoint,
             Some("https://alt.blob.core.windows.net".to_string())
         );
+    }
 
-        // Test container aliases
+    #[test]
+    fn test_container_aliases() {
+        // Test azure_container_name alias
         let mut map = HashMap::new();
         map.insert(
             "azure_container_name".to_string(),
@@ -462,6 +487,7 @@ mod tests {
         let config = AzblobConfig::from_iter(map).unwrap();
         assert_eq!(config.container, "azure-container".to_string());
 
+        // Test container_name alias
         let mut map = HashMap::new();
         map.insert("container_name".to_string(), "named-container".to_string());
         let config = AzblobConfig::from_iter(map).unwrap();

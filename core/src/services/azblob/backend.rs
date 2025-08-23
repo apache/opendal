@@ -286,6 +286,9 @@ impl AzblobBuilder {
     }
 
     /// Set bearer_token of this backend for authorization.
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn bearer_token(mut self, bearer_token: &str) -> Self {
         if !bearer_token.is_empty() {
             self.config.bearer_token = Some(bearer_token.to_string());
@@ -294,12 +297,18 @@ impl AzblobBuilder {
     }
 
     /// Set if the Azure emulator should be used (defaults to false).
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn use_emulator(mut self, use_emulator: bool) -> Self {
         self.config.use_emulator = Some(use_emulator);
         self
     }
 
     /// Set the endpoint for acquiring managed identity token.
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn msi_endpoint(mut self, msi_endpoint: &str) -> Self {
         if !msi_endpoint.is_empty() {
             self.config.msi_endpoint = Some(msi_endpoint.to_string());
@@ -332,12 +341,18 @@ impl AzblobBuilder {
     }
 
     /// Set if the Azure CLI should be used for acquiring access token.
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn use_azure_cli(mut self, use_azure_cli: bool) -> Self {
         self.config.use_azure_cli = Some(use_azure_cli);
         self
     }
 
     /// Set if request signing should be skipped.
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn skip_signature(mut self, skip_signature: bool) -> Self {
         self.config.skip_signature = Some(skip_signature);
         self
@@ -345,12 +360,18 @@ impl AzblobBuilder {
 
     /// Set if Microsoft Fabric url scheme should be used.
     /// When enabled uses https://{account}.dfs.fabric.microsoft.com
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn use_fabric_endpoint(mut self, use_fabric_endpoint: bool) -> Self {
         self.config.use_fabric_endpoint = Some(use_fabric_endpoint);
         self
     }
 
     /// Set if object tagging should be disabled.
+    ///
+    /// TODO: This feature requires reqsign >= 0.17.0 for full functionality.
+    /// Currently stored in config but not passed to reqsign.
     pub fn disable_tagging(mut self, disable_tagging: bool) -> Self {
         self.config.disable_tagging = Some(disable_tagging);
         self

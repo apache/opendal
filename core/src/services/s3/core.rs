@@ -114,8 +114,6 @@ pub struct S3Core {
     pub unsigned_payload: bool,
     pub skip_signature: bool,
     #[allow(dead_code)]
-    pub disable_tagging: bool,
-    #[allow(dead_code)]
     pub bucket_key_enabled: Option<bool>,
 }
 
@@ -392,8 +390,7 @@ impl S3Core {
         }
 
         // TODO: Implement S3 tagging functionality
-        // When implemented, check self.disable_tagging flag here
-        // to conditionally skip adding x-amz-tagging headers
+        // When implemented, add x-amz-tagging headers here
         req
     }
 
@@ -894,8 +891,7 @@ impl S3Core {
         }
 
         // TODO: Implement S3 tagging functionality
-        // When implemented, check self.disable_tagging flag here
-        // to conditionally skip adding x-amz-tagging headers
+        // When implemented, add x-amz-tagging headers here
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);

@@ -631,12 +631,6 @@ impl S3Builder {
         self
     }
 
-    /// Disable adding tags to objects during write operations.
-    /// Some S3-compatible services don't support tagging or have limited tagging capabilities.
-    pub fn enable_disable_tagging(mut self) -> Self {
-        self.config.disable_tagging = true;
-        self
-    }
 
     /// Enable the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
@@ -1081,7 +1075,6 @@ impl Builder for S3Builder {
                 checksum_algorithm,
                 unsigned_payload: self.config.unsigned_payload,
                 skip_signature: self.config.skip_signature,
-                disable_tagging: self.config.disable_tagging,
                 bucket_key_enabled: self.config.bucket_key_enabled,
             }),
         })
@@ -1416,21 +1409,6 @@ mod tests {
         assert_eq!(builder_enabled.config.skip_signature, true);
     }
 
-    #[test]
-    fn test_disable_tagging_config() {
-        // Default should be false
-        let default_builder = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1");
-        assert_eq!(default_builder.config.disable_tagging, false);
-
-        // Test enable
-        let builder_enabled = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1")
-            .enable_disable_tagging();
-        assert_eq!(builder_enabled.config.disable_tagging, true);
-    }
 
     #[test]
     fn test_bucket_key_enabled_config() {
@@ -1476,7 +1454,6 @@ mod tests {
             "aws_imdsv1_fallback": true,
             "aws_unsigned_payload": true,
             "aws_skip_signature": true,
-            "aws_disable_tagging": true,
             "aws_sse_bucket_key_enabled": true
         }"#;
 
@@ -1489,7 +1466,6 @@ mod tests {
         assert_eq!(config.imdsv1_fallback, true);
         assert_eq!(config.unsigned_payload, true);
         assert_eq!(config.skip_signature, true);
-        assert_eq!(config.disable_tagging, true);
         assert_eq!(config.bucket_key_enabled, Some(true));
     }
 
@@ -1503,7 +1479,6 @@ mod tests {
             "imdsv1_fallback": true,
             "unsigned_payload": true,
             "skip_signature": true,
-            "disable_tagging": true,
             "bucket_key_enabled": false
         }"#;
 
@@ -1516,7 +1491,71 @@ mod tests {
         assert_eq!(config.imdsv1_fallback, true);
         assert_eq!(config.unsigned_payload, true);
         assert_eq!(config.skip_signature, true);
-        assert_eq!(config.disable_tagging, true);
         assert_eq!(config.bucket_key_enabled, Some(false));
+    }
+
+    #[test]
+    fn test_default_region_alias() {
+        // Test aws_default_region alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_default_region": "us-west-2"
+        }"#;
+        
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.default_region, Some("us-west-2".to_string()));
+    }
+
+    #[test]
+    fn test_imdsv1_fallback_alias() {
+        // Test aws_imdsv1_fallback alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_imdsv1_fallback": true
+        }"#;
+        
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.imdsv1_fallback, true);
+    }
+
+    #[test]
+    fn test_unsigned_payload_alias() {
+        // Test aws_unsigned_payload alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_unsigned_payload": true
+        }"#;
+        
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.unsigned_payload, true);
+    }
+
+    #[test]
+    fn test_skip_signature_alias() {
+        // Test aws_skip_signature alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_skip_signature": true
+        }"#;
+        
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.skip_signature, true);
+    }
+
+    #[test]
+    fn test_bucket_key_enabled_alias() {
+        // Test aws_sse_bucket_key_enabled alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_sse_bucket_key_enabled": true
+        }"#;
+        
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.bucket_key_enabled, Some(true));
     }
 }

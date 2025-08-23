@@ -29,7 +29,11 @@ pub struct GcsConfig {
     /// root URI, all operations happens under `root`
     pub root: Option<String>,
     /// bucket name
-    #[serde(alias = "google_bucket", alias = "google_bucket_name", alias = "bucket_name")]
+    #[serde(
+        alias = "google_bucket",
+        alias = "google_bucket_name",
+        alias = "bucket_name"
+    )]
     pub bucket: String,
     /// endpoint URI of GCS service,
     /// default is `https://storage.googleapis.com`
@@ -37,7 +41,11 @@ pub struct GcsConfig {
     /// Scope for gcs.
     pub scope: Option<String>,
     /// Service Account for gcs.
-    #[serde(alias = "google_service_account", alias = "google_service_account_path", alias = "service_account_path")]
+    #[serde(
+        alias = "google_service_account",
+        alias = "google_service_account_path",
+        alias = "service_account_path"
+    )]
     pub service_account: Option<String>,
     /// Credentials string for GCS service OAuth2 authentication.
     #[serde(alias = "google_service_account_key", alias = "service_account_key")]
@@ -101,9 +109,12 @@ mod tests {
 
         let sa_path_config = r#"{"service_account_path": "/path/to/sa2.json"}"#;
         let config: GcsConfig = serde_json::from_str(sa_path_config).unwrap();
-        assert_eq!(Some("/path/to/sa2.json".to_string()), config.service_account);
+        assert_eq!(
+            Some("/path/to/sa2.json".to_string()),
+            config.service_account
+        );
 
-        // Test credential aliases  
+        // Test credential aliases
         let cred_config = r#"{"google_service_account_key": "key-content"}"#;
         let config: GcsConfig = serde_json::from_str(cred_config).unwrap();
         assert_eq!(Some("key-content".to_string()), config.credential);
@@ -115,7 +126,10 @@ mod tests {
         // Test credential_path aliases
         let app_cred_config = r#"{"google_application_credentials": "/path/to/app.json"}"#;
         let config: GcsConfig = serde_json::from_str(app_cred_config).unwrap();
-        assert_eq!(Some("/path/to/app.json".to_string()), config.credential_path);
+        assert_eq!(
+            Some("/path/to/app.json".to_string()),
+            config.credential_path
+        );
 
         // Test allow_anonymous aliases
         let skip_sig_config = r#"{"google_skip_signature": true}"#;

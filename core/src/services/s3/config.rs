@@ -235,9 +235,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_s3_config_aliases() {
-        // Test basic config with original field names
-        let json1 = r#"{
+    fn test_s3_config_original_field_names() {
+        let json = r#"{
             "bucket": "test-bucket",
             "access_key_id": "test-key",
             "secret_access_key": "test-secret",
@@ -246,19 +245,21 @@ mod tests {
             "session_token": "test-token"
         }"#;
 
-        let config1: S3Config = serde_json::from_str(json1).unwrap();
-        assert_eq!(config1.bucket, "test-bucket");
-        assert_eq!(config1.access_key_id, Some("test-key".to_string()));
-        assert_eq!(config1.secret_access_key, Some("test-secret".to_string()));
-        assert_eq!(config1.region, Some("us-west-2".to_string()));
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.access_key_id, Some("test-key".to_string()));
+        assert_eq!(config.secret_access_key, Some("test-secret".to_string()));
+        assert_eq!(config.region, Some("us-west-2".to_string()));
         assert_eq!(
-            config1.endpoint,
+            config.endpoint,
             Some("https://s3.amazonaws.com".to_string())
         );
-        assert_eq!(config1.session_token, Some("test-token".to_string()));
+        assert_eq!(config.session_token, Some("test-token".to_string()));
+    }
 
-        // Test config with AWS-prefixed aliases
-        let json2 = r#"{
+    #[test]
+    fn test_s3_config_aws_prefixed_aliases() {
+        let json = r#"{
             "aws_bucket": "test-bucket",
             "aws_access_key_id": "test-key",
             "aws_secret_access_key": "test-secret",
@@ -267,19 +268,21 @@ mod tests {
             "aws_session_token": "test-token"
         }"#;
 
-        let config2: S3Config = serde_json::from_str(json2).unwrap();
-        assert_eq!(config2.bucket, "test-bucket");
-        assert_eq!(config2.access_key_id, Some("test-key".to_string()));
-        assert_eq!(config2.secret_access_key, Some("test-secret".to_string()));
-        assert_eq!(config2.region, Some("us-west-2".to_string()));
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.access_key_id, Some("test-key".to_string()));
+        assert_eq!(config.secret_access_key, Some("test-secret".to_string()));
+        assert_eq!(config.region, Some("us-west-2".to_string()));
         assert_eq!(
-            config2.endpoint,
+            config.endpoint,
             Some("https://s3.amazonaws.com".to_string())
         );
-        assert_eq!(config2.session_token, Some("test-token".to_string()));
+        assert_eq!(config.session_token, Some("test-token".to_string()));
+    }
 
-        // Test additional aliases
-        let json3 = r#"{
+    #[test]
+    fn test_s3_config_additional_aliases() {
+        let json = r#"{
             "bucket_name": "test-bucket",
             "token": "test-token",
             "endpoint_url": "https://s3.amazonaws.com",
@@ -288,34 +291,36 @@ mod tests {
             "request_payer": true
         }"#;
 
-        let config3: S3Config = serde_json::from_str(json3).unwrap();
-        assert_eq!(config3.bucket, "test-bucket");
-        assert_eq!(config3.session_token, Some("test-token".to_string()));
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.session_token, Some("test-token".to_string()));
         assert_eq!(
-            config3.endpoint,
+            config.endpoint,
             Some("https://s3.amazonaws.com".to_string())
         );
-        assert!(config3.enable_virtual_host_style);
-        assert_eq!(config3.checksum_algorithm, Some("crc32c".to_string()));
-        assert!(config3.enable_request_payer);
+        assert!(config.enable_virtual_host_style);
+        assert_eq!(config.checksum_algorithm, Some("crc32c".to_string()));
+        assert!(config.enable_request_payer);
+    }
 
-        // Test encryption aliases
-        let json4 = r#"{
+    #[test]
+    fn test_s3_config_encryption_aliases() {
+        let json = r#"{
             "bucket": "test-bucket",
             "aws_server_side_encryption": "aws:kms",
             "aws_sse_kms_key_id": "test-kms-key",
             "aws_sse_customer_key_base64": "dGVzdC1jdXN0b21lci1rZXk="
         }"#;
 
-        let config4: S3Config = serde_json::from_str(json4).unwrap();
-        assert_eq!(config4.bucket, "test-bucket");
-        assert_eq!(config4.server_side_encryption, Some("aws:kms".to_string()));
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.server_side_encryption, Some("aws:kms".to_string()));
         assert_eq!(
-            config4.server_side_encryption_aws_kms_key_id,
+            config.server_side_encryption_aws_kms_key_id,
             Some("test-kms-key".to_string())
         );
         assert_eq!(
-            config4.server_side_encryption_customer_key,
+            config.server_side_encryption_customer_key,
             Some("dGVzdC1jdXN0b21lci1rZXk=".to_string())
         );
     }

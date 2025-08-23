@@ -30,6 +30,7 @@ pub struct AzblobConfig {
     pub root: Option<String>,
 
     /// The container name of Azblob service backend.
+    #[serde(alias = "azure_container_name", alias = "container_name")]
     pub container: String,
 
     /// The endpoint of Azblob service backend.
@@ -38,12 +39,21 @@ pub struct AzblobConfig {
     ///
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
+    #[serde(alias = "azure_storage_endpoint", alias = "azure_endpoint")]
     pub endpoint: Option<String>,
 
     /// The account name of Azblob service backend.
+    #[serde(alias = "azure_storage_account_name")]
     pub account_name: Option<String>,
 
     /// The account key of Azblob service backend.
+    #[serde(
+        alias = "azure_storage_account_key",
+        alias = "azure_storage_access_key",
+        alias = "azure_storage_master_key",
+        alias = "access_key",
+        alias = "master_key"
+    )]
     pub account_key: Option<String>,
 
     /// The encryption key of Azblob service backend.
@@ -56,6 +66,11 @@ pub struct AzblobConfig {
     pub encryption_algorithm: Option<String>,
 
     /// The sas token of Azblob service backend.
+    #[serde(
+        alias = "azure_storage_sas_key",
+        alias = "azure_storage_sas_token",
+        alias = "sas_key"
+    )]
     pub sas_token: Option<String>,
 
     /// The maximum batch operations of Azblob service backend.
@@ -81,5 +96,125 @@ impl Debug for AzblobConfig {
         }
 
         ds.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_container_name_aliases() {
+        // Test original container field
+        let json = r#"{"container": "test-container"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.container, "test-container");
+
+        // Test azure_container_name alias
+        let json = r#"{"azure_container_name": "test-container"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.container, "test-container");
+
+        // Test container_name alias
+        let json = r#"{"container_name": "test-container"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.container, "test-container");
+    }
+
+    #[test]
+    fn test_account_name_aliases() {
+        // Test original account_name field
+        let json = r#"{"container": "test", "account_name": "testaccount"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_name, Some("testaccount".to_string()));
+
+        // Test azure_storage_account_name alias
+        let json = r#"{"container": "test", "azure_storage_account_name": "testaccount"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_name, Some("testaccount".to_string()));
+    }
+
+    #[test]
+    fn test_account_key_aliases() {
+        // Test original account_key field
+        let json = r#"{"container": "test", "account_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+
+        // Test azure_storage_account_key alias
+        let json = r#"{"container": "test", "azure_storage_account_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+
+        // Test azure_storage_access_key alias
+        let json = r#"{"container": "test", "azure_storage_access_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+
+        // Test azure_storage_master_key alias
+        let json = r#"{"container": "test", "azure_storage_master_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+
+        // Test access_key alias
+        let json = r#"{"container": "test", "access_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+
+        // Test master_key alias
+        let json = r#"{"container": "test", "master_key": "dGVzdGtleQ=="}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.account_key, Some("dGVzdGtleQ==".to_string()));
+    }
+
+    #[test]
+    fn test_sas_token_aliases() {
+        // Test original sas_token field
+        let json = r#"{"container": "test", "sas_token": "test-token"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.sas_token, Some("test-token".to_string()));
+
+        // Test azure_storage_sas_key alias
+        let json = r#"{"container": "test", "azure_storage_sas_key": "test-token"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.sas_token, Some("test-token".to_string()));
+
+        // Test azure_storage_sas_token alias
+        let json = r#"{"container": "test", "azure_storage_sas_token": "test-token"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.sas_token, Some("test-token".to_string()));
+
+        // Test sas_key alias
+        let json = r#"{"container": "test", "sas_key": "test-token"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.sas_token, Some("test-token".to_string()));
+    }
+
+    #[test]
+    fn test_endpoint_aliases() {
+        // Test original endpoint field
+        let json = r#"{"container": "test", "endpoint": "https://test.blob.core.windows.net"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.endpoint,
+            Some("https://test.blob.core.windows.net".to_string())
+        );
+
+        // Test azure_storage_endpoint alias
+        let json = r#"{"container": "test", "azure_storage_endpoint": "https://test.blob.core.windows.net"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.endpoint,
+            Some("https://test.blob.core.windows.net".to_string())
+        );
+
+        // Test azure_endpoint alias
+        let json =
+            r#"{"container": "test", "azure_endpoint": "https://test.blob.core.windows.net"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.endpoint,
+            Some("https://test.blob.core.windows.net".to_string())
+        );
     }
 }

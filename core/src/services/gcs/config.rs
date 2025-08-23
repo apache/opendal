@@ -60,21 +60,39 @@ pub struct GcsConfig {
     pub token: Option<String>,
 
     /// Only use HTTP/1 connections
+    #[serde(alias = "google_http1_only", alias = "gcs_http1_only")]
     pub http1_only: bool,
 
-    /// Only use HTTP/2 connections
+    /// Only use HTTP/2 connections  
+    #[serde(alias = "google_http2_only", alias = "gcs_http2_only")]
     pub http2_only: bool,
 
     /// Interval for HTTP/2 Ping frames to keep connections alive
+    #[serde(
+        alias = "google_http2_keep_alive_interval",
+        alias = "gcs_http2_keep_alive_interval"
+    )]
     pub http2_keep_alive_interval: Option<Duration>,
 
     /// Timeout for receiving acknowledgement of HTTP/2 keep-alive pings
+    #[serde(
+        alias = "google_http2_keep_alive_timeout",
+        alias = "gcs_http2_keep_alive_timeout"
+    )]
     pub http2_keep_alive_timeout: Option<Duration>,
 
     /// Enable HTTP/2 keep-alive pings for idle connections
+    #[serde(
+        alias = "google_http2_keep_alive_while_idle",
+        alias = "gcs_http2_keep_alive_while_idle"
+    )]
     pub http2_keep_alive_while_idle: bool,
 
     /// Maximum frame size for HTTP/2 connections
+    #[serde(
+        alias = "google_http2_max_frame_size",
+        alias = "gcs_http2_max_frame_size"
+    )]
     pub http2_max_frame_size: Option<u32>,
 }
 

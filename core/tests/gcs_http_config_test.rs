@@ -36,18 +36,44 @@ async fn test_gcs_http1_only_configuration() {
 }
 
 #[tokio::test]
-async fn test_gcs_http2_keep_alive_configuration() {
-    // Test HTTP/2 keep-alive configurations
+async fn test_gcs_http2_keep_alive_interval_configuration() {
+    // Test HTTP/2 keep-alive interval configuration
     let mut config = GcsConfig::default();
     config.bucket = "test-bucket".to_string();
     config.allow_anonymous = true;
     config.http2_keep_alive_interval = Some(Duration::from_secs(30));
+
+    let op = Operator::from_config(config).unwrap().finish();
+
+    // The operator should be created successfully with HTTP/2 keep-alive interval configuration
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_keep_alive_timeout_configuration() {
+    // Test HTTP/2 keep-alive timeout configuration
+    let mut config = GcsConfig::default();
+    config.bucket = "test-bucket".to_string();
+    config.allow_anonymous = true;
     config.http2_keep_alive_timeout = Some(Duration::from_secs(5));
+
+    let op = Operator::from_config(config).unwrap().finish();
+
+    // The operator should be created successfully with HTTP/2 keep-alive timeout configuration
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_keep_alive_while_idle_configuration() {
+    // Test HTTP/2 keep-alive while idle configuration
+    let mut config = GcsConfig::default();
+    config.bucket = "test-bucket".to_string();
+    config.allow_anonymous = true;
     config.http2_keep_alive_while_idle = true;
 
     let op = Operator::from_config(config).unwrap().finish();
 
-    // The operator should be created successfully with HTTP/2 keep-alive configuration
+    // The operator should be created successfully with HTTP/2 keep-alive while idle configuration
     assert_eq!(op.info().name(), "test-bucket");
 }
 
@@ -80,23 +106,103 @@ async fn test_gcs_http2_only_configuration() {
 }
 
 #[tokio::test]
-async fn test_gcs_builder_http_configuration_methods() {
+async fn test_gcs_http1_only_builder_method() {
     use opendal::services::Gcs;
 
-    // Test builder methods for HTTP configuration
+    // Test http1_only builder method
     let op = Operator::new(
         Gcs::default()
             .bucket("test-bucket")
             .allow_anonymous()
-            .http1_only()
-            .http2_keep_alive_interval(Duration::from_secs(60))
-            .http2_keep_alive_timeout(Duration::from_secs(10))
-            .http2_keep_alive_while_idle()
+            .http1_only(),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_only_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test http2_only builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .http2_only(),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_keep_alive_interval_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test http2_keep_alive_interval builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .http2_keep_alive_interval(Duration::from_secs(60)),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_keep_alive_timeout_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test http2_keep_alive_timeout builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .http2_keep_alive_timeout(Duration::from_secs(10)),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_keep_alive_while_idle_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test http2_keep_alive_while_idle builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .http2_keep_alive_while_idle(),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_http2_max_frame_size_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test http2_max_frame_size builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
             .http2_max_frame_size(16384), // 16KB
     )
     .unwrap()
     .finish();
 
-    // The operator should be created successfully using builder methods
     assert_eq!(op.info().name(), "test-bucket");
 }

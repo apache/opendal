@@ -1239,6 +1239,7 @@ impl Access for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1412,5 +1413,59 @@ mod tests {
 
         assert_eq!(builder.config.default_region, Some("us-west-2".to_string()));
         assert_eq!(builder.config.region, None);
+    }
+
+    #[test]
+    fn test_config_aliases() {
+        // Test AWS-prefixed aliases using direct JSON with proper types
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_default_region": "us-west-1",
+            "aws_imdsv1_fallback": true,
+            "aws_unsigned_payload": true,
+            "aws_skip_signature": true,
+            "aws_disable_tagging": true,
+            "aws_sse_bucket_key_enabled": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+
+        // Verify all AWS aliases work correctly
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.region, Some("us-east-1".to_string()));
+        assert_eq!(config.default_region, Some("us-west-1".to_string()));
+        assert_eq!(config.imdsv1_fallback, true);
+        assert_eq!(config.unsigned_payload, true);
+        assert_eq!(config.skip_signature, true);
+        assert_eq!(config.disable_tagging, true);
+        assert_eq!(config.bucket_key_enabled, Some(true));
+    }
+
+    #[test]
+    fn test_config_short_aliases() {
+        // Test short aliases (without aws_ prefix) using direct JSON with proper types
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "default_region": "us-west-2",
+            "imdsv1_fallback": true,
+            "unsigned_payload": true,
+            "skip_signature": true,
+            "disable_tagging": true,
+            "bucket_key_enabled": false
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+
+        // Verify all short aliases work correctly
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.region, Some("us-east-1".to_string()));
+        assert_eq!(config.default_region, Some("us-west-2".to_string()));
+        assert_eq!(config.imdsv1_fallback, true);
+        assert_eq!(config.unsigned_payload, true);
+        assert_eq!(config.skip_signature, true);
+        assert_eq!(config.disable_tagging, true);
+        assert_eq!(config.bucket_key_enabled, Some(false));
     }
 }

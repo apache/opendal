@@ -64,6 +64,7 @@ pub struct S3Config {
     pub region: Option<String>,
     /// Default region to use when region detection fails or when no region is explicitly set.
     /// Falls back to this region if region detection from endpoint or environment fails.
+    #[serde(alias = "aws_default_region", alias = "default_region")]
     pub default_region: Option<String>,
 
     /// access_key_id of this backend.
@@ -201,18 +202,23 @@ pub struct S3Config {
     pub enable_request_payer: bool,
     /// When set to true, allows IMDSv1 fallback for retrieving credentials from instance metadata.
     /// By default, only IMDSv2 is used as AWS recommends against IMDSv1 for security reasons.
+    #[serde(alias = "aws_imdsv1_fallback", alias = "imdsv1_fallback")]
     pub imdsv1_fallback: bool,
     /// When set to true, uses unsigned payload for request signing to avoid computing body checksum.
     /// This can improve performance for large uploads but may not be suitable for all use cases.
+    #[serde(alias = "aws_unsigned_payload", alias = "unsigned_payload")]
     pub unsigned_payload: bool,
     /// When set to true, requests will not be signed. Useful for public buckets or when using
     /// pre-signed URLs or custom authentication mechanisms.
+    #[serde(alias = "aws_skip_signature", alias = "skip_signature")]
     pub skip_signature: bool,
     /// When set to true, disables adding tags to objects during write operations.
     /// Some S3-compatible services don't support tagging or have limited tagging capabilities.
+    #[serde(alias = "aws_disable_tagging", alias = "disable_tagging")]
     pub disable_tagging: bool,
     /// When set to true, enables the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
+    #[serde(alias = "aws_sse_bucket_key_enabled", alias = "bucket_key_enabled")]
     pub bucket_key_enabled: Option<bool>,
 }
 

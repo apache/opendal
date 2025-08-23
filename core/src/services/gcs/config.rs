@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -57,6 +58,24 @@ pub struct GcsConfig {
     ///
     /// Takes precedence over `credential` and `credential_path`.
     pub token: Option<String>,
+    
+    /// Only use HTTP/1 connections
+    pub http1_only: bool,
+    
+    /// Only use HTTP/2 connections
+    pub http2_only: bool,
+    
+    /// Interval for HTTP/2 Ping frames to keep connections alive
+    pub http2_keep_alive_interval: Option<Duration>,
+    
+    /// Timeout for receiving acknowledgement of HTTP/2 keep-alive pings
+    pub http2_keep_alive_timeout: Option<Duration>,
+    
+    /// Enable HTTP/2 keep-alive pings for idle connections
+    pub http2_keep_alive_while_idle: bool,
+    
+    /// Maximum frame size for HTTP/2 connections
+    pub http2_max_frame_size: Option<u32>,
 }
 
 impl Debug for GcsConfig {

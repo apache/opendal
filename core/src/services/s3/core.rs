@@ -351,9 +351,17 @@ impl S3Core {
                 if !tags.is_empty() {
                     let tags_string = tags
                         .iter()
-                        .map(|(k, v)| format!("{}={}", 
-                            k.replace('&', "%26").replace('=', "%3D").replace('+', "%2B"), 
-                            v.replace('&', "%26").replace('=', "%3D").replace('+', "%2B")))
+                        .map(|(k, v)| {
+                            format!(
+                                "{}={}",
+                                k.replace('&', "%26")
+                                    .replace('=', "%3D")
+                                    .replace('+', "%2B"),
+                                v.replace('&', "%26")
+                                    .replace('=', "%3D")
+                                    .replace('+', "%2B")
+                            )
+                        })
                         .collect::<Vec<String>>()
                         .join("&");
                     req = req.header("x-amz-tagging", tags_string);
@@ -1759,11 +1767,11 @@ mod tests {
 
     #[test]
     fn test_disable_tagging_functionality() {
+        use crate::raw::{AccessorInfo, OpWrite};
+        use reqsign::{AwsConfig, AwsDefaultLoader, AwsV4Signer};
         use std::collections::HashMap;
         use std::sync::atomic::AtomicBool;
         use std::sync::Arc;
-        use reqsign::{AwsV4Signer, AwsDefaultLoader, AwsConfig};
-        use crate::raw::{OpWrite, AccessorInfo};
 
         // Test with tagging enabled (default)
         let info = Arc::new(AccessorInfo::default());
@@ -1826,22 +1834,36 @@ mod tests {
 
         // Test with tagging enabled - should include x-amz-tagging header
         let req_builder = http::request::Builder::new();
-        let req_with_tags = core_with_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
+        let req_with_tags =
+            core_with_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
         let req_with_tags = req_with_tags.body(()).unwrap();
-        
+
         let tagging_header = req_with_tags.headers().get("x-amz-tagging");
-        assert!(tagging_header.is_some(), "Expected x-amz-tagging header when tagging is enabled");
-        
+        assert!(
+            tagging_header.is_some(),
+            "Expected x-amz-tagging header when tagging is enabled"
+        );
+
         let tagging_value = tagging_header.unwrap().to_str().unwrap();
-        assert!(tagging_value.contains("env=test"), "Expected tag env=test in tagging header");
-        assert!(tagging_value.contains("team=engineering"), "Expected tag team=engineering in tagging header");
+        assert!(
+            tagging_value.contains("env=test"),
+            "Expected tag env=test in tagging header"
+        );
+        assert!(
+            tagging_value.contains("team=engineering"),
+            "Expected tag team=engineering in tagging header"
+        );
 
         // Test with tagging disabled - should not include x-amz-tagging header
         let req_builder = http::request::Builder::new();
-        let req_without_tags = core_without_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
+        let req_without_tags =
+            core_without_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
         let req_without_tags = req_without_tags.body(()).unwrap();
-        
+
         let tagging_header = req_without_tags.headers().get("x-amz-tagging");
-        assert!(tagging_header.is_none(), "Expected no x-amz-tagging header when tagging is disabled");
+        assert!(
+            tagging_header.is_none(),
+            "Expected no x-amz-tagging header when tagging is disabled"
+        );
     }
 }

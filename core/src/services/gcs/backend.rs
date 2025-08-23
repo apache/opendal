@@ -232,39 +232,39 @@ impl GcsBuilder {
         self.config.allow_anonymous = true;
         self
     }
-    
+
     /// Only use HTTP/1 connections
     pub fn http1_only(mut self) -> Self {
         self.config.http1_only = true;
         self.config.http2_only = false;
         self
     }
-    
+
     /// Only use HTTP/2 connections
     pub fn http2_only(mut self) -> Self {
         self.config.http2_only = true;
         self.config.http1_only = false;
         self
     }
-    
+
     /// Set interval for HTTP/2 Ping frames to keep connections alive
     pub fn http2_keep_alive_interval(mut self, interval: Duration) -> Self {
         self.config.http2_keep_alive_interval = Some(interval);
         self
     }
-    
+
     /// Set timeout for receiving acknowledgement of HTTP/2 keep-alive pings
     pub fn http2_keep_alive_timeout(mut self, timeout: Duration) -> Self {
         self.config.http2_keep_alive_timeout = Some(timeout);
         self
     }
-    
+
     /// Enable HTTP/2 keep-alive pings for idle connections
     pub fn http2_keep_alive_while_idle(mut self) -> Self {
         self.config.http2_keep_alive_while_idle = true;
         self
     }
-    
+
     /// Set maximum frame size for HTTP/2 connections
     pub fn http2_max_frame_size(mut self, size: u32) -> Self {
         self.config.http2_max_frame_size = Some(size);
@@ -345,32 +345,32 @@ impl Builder for GcsBuilder {
         // Build custom HTTP client with HTTP configurations
         let http_client = {
             let mut builder = reqwest::ClientBuilder::new();
-            
+
             if self.config.http1_only {
                 builder = builder.http1_only();
             }
             // Note: reqwest 0.12 doesn't have http2_prior_knowledge, http2_only is used instead
             // But http2_only might not be available in this version, so we'll use default behavior
-            
+
             // Use TCP keep-alive as a substitute for HTTP/2 keep-alive interval
             if let Some(interval) = self.config.http2_keep_alive_interval {
                 builder = builder.tcp_keepalive(interval);
             }
-            
+
             // Pool idle timeout as a substitute for HTTP/2 keep-alive timeout
             if let Some(timeout) = self.config.http2_keep_alive_timeout {
                 builder = builder.pool_idle_timeout(timeout);
             }
-            
+
             // This method should be available in reqwest 0.12 for HTTP/2 keep-alive while idle
             if self.config.http2_keep_alive_while_idle {
                 // For compatibility, we'll configure the client to be more aggressive about connections
                 builder = builder.pool_max_idle_per_host(100);
             }
-            
+
             // Note: http2_max_frame_size is not available in reqwest 0.12
             // This would typically be handled at the HTTP/2 protocol level
-            
+
             #[allow(deprecated)]
             HttpClient::build(builder)?
         };
@@ -435,7 +435,7 @@ impl Builder for GcsBuilder {
 
                     // Configure HTTP client with HTTP/2 settings
                     am.update_http_client(|_| http_client);
-                    
+
                     // allow deprecated api here for compatibility
                     #[allow(deprecated)]
                     if let Some(client) = self.http_client {

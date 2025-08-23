@@ -17,9 +17,9 @@
 
 //! Test HTTP configuration features for GCS service
 
-use std::time::Duration;
 use opendal::services::GcsConfig;
 use opendal::Operator;
+use std::time::Duration;
 
 #[tokio::test]
 async fn test_gcs_http1_only_configuration() {
@@ -28,9 +28,9 @@ async fn test_gcs_http1_only_configuration() {
     config.bucket = "test-bucket".to_string();
     config.allow_anonymous = true;
     config.http1_only = true;
-    
+
     let op = Operator::from_config(config).unwrap().finish();
-    
+
     // The operator should be created successfully with HTTP/1 only configuration
     assert_eq!(op.info().name(), "test-bucket");
 }
@@ -44,9 +44,9 @@ async fn test_gcs_http2_keep_alive_configuration() {
     config.http2_keep_alive_interval = Some(Duration::from_secs(30));
     config.http2_keep_alive_timeout = Some(Duration::from_secs(5));
     config.http2_keep_alive_while_idle = true;
-    
+
     let op = Operator::from_config(config).unwrap().finish();
-    
+
     // The operator should be created successfully with HTTP/2 keep-alive configuration
     assert_eq!(op.info().name(), "test-bucket");
 }
@@ -58,9 +58,9 @@ async fn test_gcs_http2_max_frame_size_configuration() {
     config.bucket = "test-bucket".to_string();
     config.allow_anonymous = true;
     config.http2_max_frame_size = Some(32768); // 32KB
-    
+
     let op = Operator::from_config(config).unwrap().finish();
-    
+
     // The operator should be created successfully with HTTP/2 max frame size configuration
     assert_eq!(op.info().name(), "test-bucket");
 }
@@ -72,9 +72,9 @@ async fn test_gcs_http2_only_configuration() {
     config.bucket = "test-bucket".to_string();
     config.allow_anonymous = true;
     config.http2_only = true;
-    
+
     let op = Operator::from_config(config).unwrap().finish();
-    
+
     // The operator should be created successfully with HTTP/2 only configuration
     assert_eq!(op.info().name(), "test-bucket");
 }
@@ -82,7 +82,7 @@ async fn test_gcs_http2_only_configuration() {
 #[tokio::test]
 async fn test_gcs_builder_http_configuration_methods() {
     use opendal::services::Gcs;
-    
+
     // Test builder methods for HTTP configuration
     let op = Operator::new(
         Gcs::default()
@@ -92,9 +92,11 @@ async fn test_gcs_builder_http_configuration_methods() {
             .http2_keep_alive_interval(Duration::from_secs(60))
             .http2_keep_alive_timeout(Duration::from_secs(10))
             .http2_keep_alive_while_idle()
-            .http2_max_frame_size(16384)  // 16KB
-    ).unwrap().finish();
-    
+            .http2_max_frame_size(16384), // 16KB
+    )
+    .unwrap()
+    .finish();
+
     // The operator should be created successfully using builder methods
     assert_eq!(op.info().name(), "test-bucket");
 }

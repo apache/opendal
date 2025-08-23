@@ -88,56 +88,81 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_config_aliases() {
-        // Test bucket aliases
-        let bucket_config = r#"{"google_bucket": "test-bucket"}"#;
-        let config: GcsConfig = serde_json::from_str(bucket_config).unwrap();
+    fn test_bucket_aliases() {
+        // Test google_bucket alias
+        let config_json = r#"{"google_bucket": "test-bucket"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket", config.bucket);
 
-        let bucket_name_config = r#"{"google_bucket_name": "test-bucket-name"}"#;
-        let config: GcsConfig = serde_json::from_str(bucket_name_config).unwrap();
+        // Test google_bucket_name alias
+        let config_json = r#"{"google_bucket_name": "test-bucket-name"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket-name", config.bucket);
 
-        let bucket_alias_config = r#"{"bucket_name": "test-bucket-alias"}"#;
-        let config: GcsConfig = serde_json::from_str(bucket_alias_config).unwrap();
+        // Test bucket_name alias
+        let config_json = r#"{"bucket_name": "test-bucket-alias"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket-alias", config.bucket);
+    }
 
-        // Test service account aliases
-        let sa_config = r#"{"google_service_account": "/path/to/sa.json"}"#;
-        let config: GcsConfig = serde_json::from_str(sa_config).unwrap();
+    #[test]
+    fn test_service_account_aliases() {
+        // Test google_service_account alias
+        let config_json = r#"{"google_service_account": "/path/to/sa.json"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("/path/to/sa.json".to_string()), config.service_account);
 
-        let sa_path_config = r#"{"service_account_path": "/path/to/sa2.json"}"#;
-        let config: GcsConfig = serde_json::from_str(sa_path_config).unwrap();
+        // Test google_service_account_path alias
+        let config_json = r#"{"google_service_account_path": "/path/to/sa2.json"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(
             Some("/path/to/sa2.json".to_string()),
             config.service_account
         );
 
-        // Test credential aliases
-        let cred_config = r#"{"google_service_account_key": "key-content"}"#;
-        let config: GcsConfig = serde_json::from_str(cred_config).unwrap();
+        // Test service_account_path alias
+        let config_json = r#"{"service_account_path": "/path/to/sa3.json"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
+        assert_eq!(
+            Some("/path/to/sa3.json".to_string()),
+            config.service_account
+        );
+    }
+
+    #[test]
+    fn test_credential_aliases() {
+        // Test google_service_account_key alias
+        let config_json = r#"{"google_service_account_key": "key-content"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("key-content".to_string()), config.credential);
 
-        let cred_alias_config = r#"{"service_account_key": "key-content-2"}"#;
-        let config: GcsConfig = serde_json::from_str(cred_alias_config).unwrap();
+        // Test service_account_key alias
+        let config_json = r#"{"service_account_key": "key-content-2"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("key-content-2".to_string()), config.credential);
+    }
 
-        // Test credential_path aliases
-        let app_cred_config = r#"{"google_application_credentials": "/path/to/app.json"}"#;
-        let config: GcsConfig = serde_json::from_str(app_cred_config).unwrap();
+    #[test]
+    fn test_credential_path_aliases() {
+        // Test google_application_credentials alias
+        let config_json = r#"{"google_application_credentials": "/path/to/app.json"}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(
             Some("/path/to/app.json".to_string()),
             config.credential_path
         );
+    }
 
-        // Test allow_anonymous aliases
-        let skip_sig_config = r#"{"google_skip_signature": true}"#;
-        let config: GcsConfig = serde_json::from_str(skip_sig_config).unwrap();
+    #[test]
+    fn test_allow_anonymous_aliases() {
+        // Test google_skip_signature alias
+        let config_json = r#"{"google_skip_signature": true}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert!(config.allow_anonymous);
 
-        let skip_alias_config = r#"{"skip_signature": true}"#;
-        let config: GcsConfig = serde_json::from_str(skip_alias_config).unwrap();
+        // Test skip_signature alias
+        let config_json = r#"{"skip_signature": true}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert!(config.allow_anonymous);
     }
 }

@@ -137,16 +137,58 @@ fn test_gcs_config_with_multiple_aliases() {
 }
 
 #[test]
+fn test_gcs_allow_http_alias() {
+    // Test google_ alias
+    let json = r#"{"bucket": "test-bucket", "allow_anonymous": true, "google_allow_http": false}"#;
+    let config: GcsConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.allow_http, false);
+
+    // Test gcs_ alias
+    let json = r#"{"bucket": "test-bucket", "allow_anonymous": true, "gcs_allow_http": false}"#;
+    let config: GcsConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.allow_http, false);
+}
+
+#[test]
+fn test_gcs_randomize_addresses_alias() {
+    // Test google_ alias
+    let json = r#"{"bucket": "test-bucket", "allow_anonymous": true, "google_randomize_addresses": false}"#;
+    let config: GcsConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.randomize_addresses, false);
+
+    // Test gcs_ alias
+    let json =
+        r#"{"bucket": "test-bucket", "allow_anonymous": true, "gcs_randomize_addresses": false}"#;
+    let config: GcsConfig = serde_json::from_str(json).unwrap();
+    assert_eq!(config.randomize_addresses, false);
+}
+
+#[test]
+fn test_gcs_config_defaults() {
+    // Test that defaults are correctly set
+    let config = GcsConfig::default();
+    assert_eq!(config.allow_http, true); // Should default to true for GCS compatibility
+    assert_eq!(config.randomize_addresses, true); // Should default to true
+    assert_eq!(config.http1_only, false);
+    assert_eq!(config.http2_only, false);
+    assert_eq!(config.http2_keep_alive_while_idle, false);
+}
+
+#[test]
 fn test_gcs_config_original_field_names() {
     // Test that original field names still work alongside aliases
     let json = r#"{
         "bucket": "test-bucket",
         "allow_anonymous": true,
         "http1_only": true,
-        "http2_keep_alive_while_idle": true
+        "http2_keep_alive_while_idle": true,
+        "allow_http": false,
+        "randomize_addresses": false
     }"#;
 
     let config: GcsConfig = serde_json::from_str(json).unwrap();
     assert_eq!(config.http1_only, true);
     assert_eq!(config.http2_keep_alive_while_idle, true);
+    assert_eq!(config.allow_http, false);
+    assert_eq!(config.randomize_addresses, false);
 }

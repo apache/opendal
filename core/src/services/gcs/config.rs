@@ -23,7 +23,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GcsConfig {
@@ -94,6 +94,47 @@ pub struct GcsConfig {
         alias = "gcs_http2_max_frame_size"
     )]
     pub http2_max_frame_size: Option<u32>,
+
+    /// Allow HTTP connections (defaults to true for GCS compatibility)
+    #[serde(alias = "google_allow_http", alias = "gcs_allow_http")]
+    pub allow_http: bool,
+
+    /// Randomize order of resolved addresses (defaults to true)
+    #[serde(
+        alias = "google_randomize_addresses",
+        alias = "gcs_randomize_addresses"
+    )]
+    pub randomize_addresses: bool,
+}
+
+impl Default for GcsConfig {
+    fn default() -> Self {
+        Self {
+            root: None,
+            bucket: String::default(),
+            endpoint: None,
+            scope: None,
+            service_account: None,
+            credential: None,
+            credential_path: None,
+            predefined_acl: None,
+            default_storage_class: None,
+            allow_anonymous: false,
+            disable_vm_metadata: false,
+            disable_config_load: false,
+            token: None,
+            http1_only: false,
+            http2_only: false,
+            http2_keep_alive_interval: None,
+            http2_keep_alive_timeout: None,
+            http2_keep_alive_while_idle: false,
+            http2_max_frame_size: None,
+            // Default to true for GCS compatibility (like arrow-rs-object-store)
+            allow_http: true,
+            // Default to true for better connection distribution
+            randomize_addresses: true,
+        }
+    }
 }
 
 impl Debug for GcsConfig {

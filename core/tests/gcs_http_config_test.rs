@@ -206,3 +206,63 @@ async fn test_gcs_http2_max_frame_size_builder_method() {
 
     assert_eq!(op.info().name(), "test-bucket");
 }
+
+#[tokio::test]
+async fn test_gcs_allow_http_configuration() {
+    // Test allow_http configuration (default should be true)
+    let mut config = GcsConfig::default();
+    config.bucket = "test-bucket".to_string();
+    config.allow_anonymous = true;
+    assert_eq!(config.allow_http, true); // Default should be true
+
+    config.allow_http = false;
+    let op = Operator::from_config(config).unwrap().finish();
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_randomize_addresses_configuration() {
+    // Test randomize_addresses configuration (default should be true)
+    let mut config = GcsConfig::default();
+    config.bucket = "test-bucket".to_string();
+    config.allow_anonymous = true;
+    assert_eq!(config.randomize_addresses, true); // Default should be true
+
+    config.randomize_addresses = false;
+    let op = Operator::from_config(config).unwrap().finish();
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_allow_http_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test allow_http builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .allow_http(false),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}
+
+#[tokio::test]
+async fn test_gcs_randomize_addresses_builder_method() {
+    use opendal::services::Gcs;
+
+    // Test randomize_addresses builder method
+    let op = Operator::new(
+        Gcs::default()
+            .bucket("test-bucket")
+            .allow_anonymous()
+            .randomize_addresses(false),
+    )
+    .unwrap()
+    .finish();
+
+    assert_eq!(op.info().name(), "test-bucket");
+}

@@ -229,7 +229,11 @@ pub struct S3Config {
     /// Override for the container metadata URI base endpoint.
     ///
     /// Used to override the default http://169.254.170.2 endpoint, typically for testing.
-    #[serde(alias = "aws_container_metadata_uri_override")]
+    #[serde(
+        alias = "aws_container_metadata_uri_override",
+        alias = "aws_metadata_endpoint",
+        alias = "metadata_endpoint"
+    )]
     pub container_metadata_uri_override: Option<String>,
 }
 

@@ -342,7 +342,7 @@ impl Builder for AzblobBuilder {
             if let Err(e) = BASE64_STANDARD.decode(&v) {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!("invalid account_key: cannot decode as base64: {}", e),
+                    format!("invalid account_key: cannot decode as base64: {e}"),
                 )
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)

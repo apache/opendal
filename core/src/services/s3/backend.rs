@@ -39,6 +39,7 @@ use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
+use reqsign::ECSCredentialProvider;
 use reqwest::Url;
 
 use super::core::*;
@@ -402,6 +403,58 @@ impl S3Builder {
         self.session_token(token)
     }
 
+    /// Set container credentials relative URI for ECS Task IAM roles.
+    ///
+    /// Used in ECS environments where the base metadata endpoint is known.
+    /// Example: "/v2/credentials/my-role-name"
+    pub fn container_credentials_relative_uri(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_credentials_relative_uri = Some(uri.to_string());
+        }
+        self
+    }
+
+    /// Set container credentials endpoint for Fargate or custom setups.
+    ///
+    /// Complete URL for fetching credentials. Used in Fargate environments.
+    /// Example: "http://169.254.170.2/v2/credentials/my-role"
+    pub fn container_credentials_endpoint(mut self, endpoint: &str) -> Self {
+        if !endpoint.is_empty() {
+            self.config.container_credentials_endpoint = Some(endpoint.to_string());
+        }
+        self
+    }
+
+    /// Set authorization token for container credentials requests.
+    ///
+    /// Token used for authenticating with the container credentials endpoint.
+    pub fn container_authorization_token(mut self, token: &str) -> Self {
+        if !token.is_empty() {
+            self.config.container_authorization_token = Some(token.to_string());
+        }
+        self
+    }
+
+    /// Set path to file containing authorization token for container credentials.
+    ///
+    /// File should contain the authorization token for ECS credentials endpoint.
+    pub fn container_authorization_token_file(mut self, file_path: &str) -> Self {
+        if !file_path.is_empty() {
+            self.config.container_authorization_token_file = Some(file_path.to_string());
+        }
+        self
+    }
+
+    /// Set override for the container metadata URI base endpoint.
+    ///
+    /// Used to override the default http://169.254.170.2 endpoint, typically for testing.
+    pub fn container_metadata_uri_override(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_metadata_uri_override = Some(uri.to_string());
+        }
+        self
+    }
+
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///
@@ -493,6 +546,15 @@ impl S3Builder {
         self.config.enable_versioning = enabled;
 
         self
+    }
+
+    /// Check if ECS container credentials configuration is present
+    fn has_ecs_config(&self) -> bool {
+        self.config.container_credentials_endpoint.is_some()
+            || self.config.container_credentials_relative_uri.is_some()
+            || self.config.container_authorization_token.is_some()
+            || self.config.container_authorization_token_file.is_some()
+            || self.config.container_metadata_uri_override.is_some()
     }
 
     /// Check if `bucket` is valid
@@ -842,6 +904,33 @@ impl Builder for S3Builder {
         // If customized_credential_load is set, we will use it.
         if let Some(v) = self.customized_credential_load {
             loader = Some(v);
+        }
+
+        // If ECS container credentials are configured, use ECSCredentialProvider
+        if loader.is_none() && self.has_ecs_config() {
+            let mut ecs_provider = ECSCredentialProvider::new();
+
+            if let Some(ref endpoint) = self.config.container_credentials_endpoint {
+                ecs_provider = ecs_provider.with_endpoint(endpoint);
+            }
+
+            if let Some(ref relative_uri) = self.config.container_credentials_relative_uri {
+                ecs_provider = ecs_provider.with_relative_uri(relative_uri);
+            }
+
+            if let Some(ref token) = self.config.container_authorization_token {
+                ecs_provider = ecs_provider.with_auth_token(token);
+            }
+
+            if let Some(ref token_file) = self.config.container_authorization_token_file {
+                ecs_provider = ecs_provider.with_auth_token_file(token_file);
+            }
+
+            if let Some(ref uri_override) = self.config.container_metadata_uri_override {
+                ecs_provider = ecs_provider.with_metadata_uri_override(uri_override);
+            }
+
+            loader = Some(Box::new(ecs_provider));
         }
 
         // If role_arn is set, we must use AssumeRoleLoad.

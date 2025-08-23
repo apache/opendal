@@ -196,6 +196,41 @@ pub struct S3Config {
 
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     pub enable_request_payer: bool,
+
+    /// Container credentials relative URI for ECS Task IAM roles.
+    ///
+    /// Used in ECS environments where the base metadata endpoint is known.
+    /// Example: "/v2/credentials/my-role-name"
+    #[serde(alias = "aws_container_credentials_relative_uri")]
+    pub container_credentials_relative_uri: Option<String>,
+
+    /// Container credentials full endpoint for Fargate or custom setups.
+    ///
+    /// Complete URL for fetching credentials. Used in Fargate environments.
+    /// Example: "http://169.254.170.2/v2/credentials/my-role"
+    #[serde(
+        alias = "container_credentials_full_uri",
+        alias = "aws_container_credentials_full_uri"
+    )]
+    pub container_credentials_endpoint: Option<String>,
+
+    /// Authorization token for container credentials requests.
+    ///
+    /// Token used for authenticating with the container credentials endpoint.
+    #[serde(alias = "aws_container_authorization_token")]
+    pub container_authorization_token: Option<String>,
+
+    /// Path to file containing authorization token for container credentials.
+    ///
+    /// File should contain the authorization token for ECS credentials endpoint.
+    #[serde(alias = "aws_container_authorization_token_file")]
+    pub container_authorization_token_file: Option<String>,
+
+    /// Override for the container metadata URI base endpoint.
+    ///
+    /// Used to override the default http://169.254.170.2 endpoint, typically for testing.
+    #[serde(alias = "aws_container_metadata_uri_override")]
+    pub container_metadata_uri_override: Option<String>,
 }
 
 impl Debug for S3Config {

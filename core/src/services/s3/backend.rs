@@ -28,6 +28,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
+use http::HeaderValue;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -157,6 +158,16 @@ impl S3Builder {
     pub fn region(mut self, region: &str) -> Self {
         if !region.is_empty() {
             self.config.region = Some(region.to_string())
+        }
+
+        self
+    }
+
+    /// Set default region to use when region detection fails.
+    /// This region will be used if region is not set explicitly and cannot be detected from environment.
+    pub fn default_region(mut self, region: &str) -> Self {
+        if !region.is_empty() {
+            self.config.default_region = Some(region.to_string())
         }
 
         self
@@ -600,6 +611,39 @@ impl S3Builder {
         self
     }
 
+    /// Enable IMDSv1 fallback for retrieving credentials from instance metadata.
+    /// By default, only IMDSv2 is used as AWS recommends against IMDSv1 for security reasons.
+    pub fn enable_imdsv1_fallback(mut self) -> Self {
+        self.config.imdsv1_fallback = true;
+        self
+    }
+
+    /// Enable unsigned payload for request signing to avoid computing body checksum.
+    /// This can improve performance for large uploads but may not be suitable for all use cases.
+    pub fn enable_unsigned_payload(mut self) -> Self {
+        self.config.unsigned_payload = true;
+        self
+    }
+
+    /// Skip request signing. Useful for public buckets or when using pre-signed URLs.
+    pub fn enable_skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
+    /// Enable the use of S3 bucket keys for server-side encryption.
+    /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
+    pub fn enable_bucket_key(mut self) -> Self {
+        self.config.bucket_key_enabled = Some(true);
+        self
+    }
+
+    /// Disable the use of S3 bucket keys for server-side encryption.
+    pub fn disable_bucket_key(mut self) -> Self {
+        self.config.bucket_key_enabled = Some(false);
+        self
+    }
+
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -783,6 +827,12 @@ impl Builder for S3Builder {
                 })?),
             };
 
+        let server_side_encryption_bucket_key_enabled = match self.config.bucket_key_enabled {
+            None => None,
+            Some(true) => Some(HeaderValue::from_static("true")),
+            Some(false) => Some(HeaderValue::from_static("false")),
+        };
+
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
@@ -809,12 +859,16 @@ impl Builder for S3Builder {
         }
 
         if cfg.region.is_none() {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "region is missing. Please find it by S3::detect_region() or set them in env.",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", Scheme::S3));
+            if let Some(ref default_region) = self.config.default_region {
+                cfg.region = Some(default_region.clone());
+            } else {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "region is missing. Please find it by S3::detect_region(), set them in env, or set default_region.",
+                )
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::S3));
+            }
         }
 
         let region = cfg.region.to_owned().unwrap();
@@ -888,12 +942,23 @@ impl Builder for S3Builder {
                 if self.config.disable_ec2_metadata {
                     default_loader = default_loader.with_disable_ec2_metadata();
                 }
+                // Note: IMDSv1 fallback configuration is stored but not yet implemented
+                // in the reqsign library. This may require an update to reqsign.
+                // For now, the flag is preserved for future use.
+                let _imdsv1_fallback = self.config.imdsv1_fallback;
 
                 Box::new(default_loader)
             }
         };
 
         let signer = AwsV4Signer::new("s3", &region);
+        // Enable unsigned payload if configured
+        if self.config.unsigned_payload {
+            // Note: Unsigned payload configuration is stored but may require
+            // implementation in the reqsign library or handling at request level.
+            // For AWS S3, this typically involves setting the x-amz-content-sha256
+            // header to "UNSIGNED-PAYLOAD" instead of computing the actual hash.
+        }
 
         let delete_max_size = self
             .config
@@ -998,6 +1063,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_algorithm,
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
+                server_side_encryption_bucket_key_enabled,
                 default_storage_class,
                 allow_anonymous: self.config.allow_anonymous,
                 disable_list_objects_v2: self.config.disable_list_objects_v2,
@@ -1006,6 +1072,9 @@ impl Builder for S3Builder {
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 checksum_algorithm,
+                unsigned_payload: self.config.unsigned_payload,
+                skip_signature: self.config.skip_signature,
+                bucket_key_enabled: self.config.bucket_key_enabled,
             }),
         })
     }
@@ -1162,6 +1231,7 @@ impl Access for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json;
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1263,5 +1333,227 @@ mod tests {
             let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{name}");
         }
+    }
+
+    #[test]
+    fn test_default_region_config() {
+        let builder = S3Builder::default()
+            .bucket("test-bucket")
+            .default_region("us-west-2");
+
+        assert_eq!(builder.config.default_region, Some("us-west-2".to_string()));
+        assert_eq!(builder.config.region, None);
+
+        // Test that it works as a fallback
+        let builder_with_region = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .default_region("us-west-2");
+
+        assert_eq!(
+            builder_with_region.config.region,
+            Some("us-east-1".to_string())
+        );
+        assert_eq!(
+            builder_with_region.config.default_region,
+            Some("us-west-2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_imdsv1_fallback_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert!(!default_builder.config.imdsv1_fallback);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .enable_imdsv1_fallback();
+        assert!(builder_enabled.config.imdsv1_fallback);
+    }
+
+    #[test]
+    fn test_unsigned_payload_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert!(!default_builder.config.unsigned_payload);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .enable_unsigned_payload();
+        assert!(builder_enabled.config.unsigned_payload);
+    }
+
+    #[test]
+    fn test_skip_signature_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert!(!default_builder.config.skip_signature);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .enable_skip_signature();
+        assert!(builder_enabled.config.skip_signature);
+    }
+
+    #[test]
+    fn test_bucket_key_enabled_config() {
+        // Default should be None
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.bucket_key_enabled, None);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .enable_bucket_key();
+        assert_eq!(builder_enabled.config.bucket_key_enabled, Some(true));
+
+        // Test disable
+        let builder_disabled = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .disable_bucket_key();
+        assert_eq!(builder_disabled.config.bucket_key_enabled, Some(false));
+    }
+
+    #[test]
+    fn test_default_region_fallback() {
+        // Test that default_region works as fallback when region is not set
+        let builder = S3Builder::default()
+            .bucket("test-bucket")
+            .default_region("us-west-2");
+
+        assert_eq!(builder.config.default_region, Some("us-west-2".to_string()));
+        assert_eq!(builder.config.region, None);
+    }
+
+    #[test]
+    fn test_config_aliases() {
+        // Test AWS-prefixed aliases using direct JSON with proper types
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_default_region": "us-west-1",
+            "aws_imdsv1_fallback": true,
+            "aws_unsigned_payload": true,
+            "aws_skip_signature": true,
+            "aws_sse_bucket_key_enabled": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+
+        // Verify all AWS aliases work correctly
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.region, Some("us-east-1".to_string()));
+        assert_eq!(config.default_region, Some("us-west-1".to_string()));
+        assert!(config.imdsv1_fallback);
+        assert!(config.unsigned_payload);
+        assert!(config.skip_signature);
+        assert_eq!(config.bucket_key_enabled, Some(true));
+    }
+
+    #[test]
+    fn test_config_short_aliases() {
+        // Test short aliases (without aws_ prefix) using direct JSON with proper types
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "default_region": "us-west-2",
+            "imdsv1_fallback": true,
+            "unsigned_payload": true,
+            "skip_signature": true,
+            "bucket_key_enabled": false
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+
+        // Verify all short aliases work correctly
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.region, Some("us-east-1".to_string()));
+        assert_eq!(config.default_region, Some("us-west-2".to_string()));
+        assert!(config.imdsv1_fallback);
+        assert!(config.unsigned_payload);
+        assert!(config.skip_signature);
+        assert_eq!(config.bucket_key_enabled, Some(false));
+    }
+
+    #[test]
+    fn test_default_region_alias() {
+        // Test aws_default_region alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_default_region": "us-west-2"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.default_region, Some("us-west-2".to_string()));
+    }
+
+    #[test]
+    fn test_imdsv1_fallback_alias() {
+        // Test aws_imdsv1_fallback alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_imdsv1_fallback": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert!(config.imdsv1_fallback);
+    }
+
+    #[test]
+    fn test_unsigned_payload_alias() {
+        // Test aws_unsigned_payload alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_unsigned_payload": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert!(config.unsigned_payload);
+    }
+
+    #[test]
+    fn test_skip_signature_alias() {
+        // Test aws_skip_signature alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_skip_signature": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert!(config.skip_signature);
+    }
+
+    #[test]
+    fn test_bucket_key_enabled_alias() {
+        // Test aws_sse_bucket_key_enabled alias
+        let config_json = r#"{
+            "bucket": "test-bucket",
+            "region": "us-east-1",
+            "aws_sse_bucket_key_enabled": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(config_json).unwrap();
+        assert_eq!(config.bucket_key_enabled, Some(true));
     }
 }

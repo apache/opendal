@@ -631,7 +631,6 @@ impl S3Builder {
         self
     }
 
-
     /// Enable the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
     pub fn enable_bucket_key(mut self) -> Self {
@@ -1367,14 +1366,14 @@ mod tests {
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert_eq!(default_builder.config.imdsv1_fallback, false);
+        assert!(!default_builder.config.imdsv1_fallback);
 
         // Test enable
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_imdsv1_fallback();
-        assert_eq!(builder_enabled.config.imdsv1_fallback, true);
+        assert!(builder_enabled.config.imdsv1_fallback);
     }
 
     #[test]
@@ -1383,14 +1382,14 @@ mod tests {
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert_eq!(default_builder.config.unsigned_payload, false);
+        assert!(!default_builder.config.unsigned_payload);
 
         // Test enable
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_unsigned_payload();
-        assert_eq!(builder_enabled.config.unsigned_payload, true);
+        assert!(builder_enabled.config.unsigned_payload);
     }
 
     #[test]
@@ -1399,16 +1398,15 @@ mod tests {
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert_eq!(default_builder.config.skip_signature, false);
+        assert!(!default_builder.config.skip_signature);
 
         // Test enable
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_skip_signature();
-        assert_eq!(builder_enabled.config.skip_signature, true);
+        assert!(builder_enabled.config.skip_signature);
     }
-
 
     #[test]
     fn test_bucket_key_enabled_config() {
@@ -1463,9 +1461,9 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-1".to_string()));
-        assert_eq!(config.imdsv1_fallback, true);
-        assert_eq!(config.unsigned_payload, true);
-        assert_eq!(config.skip_signature, true);
+        assert!(config.imdsv1_fallback);
+        assert!(config.unsigned_payload);
+        assert!(config.skip_signature);
         assert_eq!(config.bucket_key_enabled, Some(true));
     }
 
@@ -1488,9 +1486,9 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
-        assert_eq!(config.imdsv1_fallback, true);
-        assert_eq!(config.unsigned_payload, true);
-        assert_eq!(config.skip_signature, true);
+        assert!(config.imdsv1_fallback);
+        assert!(config.unsigned_payload);
+        assert!(config.skip_signature);
         assert_eq!(config.bucket_key_enabled, Some(false));
     }
 
@@ -1502,7 +1500,7 @@ mod tests {
             "region": "us-east-1",
             "aws_default_region": "us-west-2"
         }"#;
-        
+
         let config: S3Config = serde_json::from_str(config_json).unwrap();
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
     }
@@ -1515,9 +1513,9 @@ mod tests {
             "region": "us-east-1",
             "aws_imdsv1_fallback": true
         }"#;
-        
+
         let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert_eq!(config.imdsv1_fallback, true);
+        assert!(config.imdsv1_fallback);
     }
 
     #[test]
@@ -1528,9 +1526,9 @@ mod tests {
             "region": "us-east-1",
             "aws_unsigned_payload": true
         }"#;
-        
+
         let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert_eq!(config.unsigned_payload, true);
+        assert!(config.unsigned_payload);
     }
 
     #[test]
@@ -1541,9 +1539,9 @@ mod tests {
             "region": "us-east-1",
             "aws_skip_signature": true
         }"#;
-        
+
         let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert_eq!(config.skip_signature, true);
+        assert!(config.skip_signature);
     }
 
     #[test]
@@ -1554,7 +1552,7 @@ mod tests {
             "region": "us-east-1",
             "aws_sse_bucket_key_enabled": true
         }"#;
-        
+
         let config: S3Config = serde_json::from_str(config_json).unwrap();
         assert_eq!(config.bucket_key_enabled, Some(true));
     }

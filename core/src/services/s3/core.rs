@@ -103,6 +103,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
+    pub disable_tagging: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
@@ -343,6 +344,23 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
+
+        // Set object tagging headers if tagging is enabled and tags are provided.
+        if !self.disable_tagging {
+            if let Some(tags) = args.tags() {
+                if !tags.is_empty() {
+                    let tags_string = tags
+                        .iter()
+                        .map(|(k, v)| format!("{}={}", 
+                            k.replace('&', "%26").replace('=', "%3D").replace('+', "%2B"), 
+                            v.replace('&', "%26").replace('=', "%3D").replace('+', "%2B")))
+                        .collect::<Vec<String>>()
+                        .join("&");
+                    req = req.header("x-amz-tagging", tags_string);
+                }
+            }
+        }
+
         req
     }
 
@@ -1737,5 +1755,93 @@ mod tests {
                 last_modified: "2009-10-15T17:50:30.000Z".to_owned(),
             },]
         );
+    }
+
+    #[test]
+    fn test_disable_tagging_functionality() {
+        use std::collections::HashMap;
+        use std::sync::atomic::AtomicBool;
+        use std::sync::Arc;
+        use reqsign::{AwsV4Signer, AwsDefaultLoader, AwsConfig};
+        use crate::raw::{OpWrite, AccessorInfo};
+
+        // Test with tagging enabled (default)
+        let info = Arc::new(AccessorInfo::default());
+        let client = reqwest::Client::new();
+        let config = AwsConfig::default();
+        let loader1 = Box::new(AwsDefaultLoader::new(client.clone(), config.clone()));
+        let loader2 = Box::new(AwsDefaultLoader::new(client, config));
+        let signer1 = AwsV4Signer::new("s3", "us-east-1");
+        let signer2 = AwsV4Signer::new("s3", "us-east-1");
+
+        let core_with_tagging = S3Core {
+            info: info.clone(),
+            bucket: "test-bucket".to_string(),
+            endpoint: "https://s3.amazonaws.com".to_string(),
+            root: "/".to_string(),
+            server_side_encryption: None,
+            server_side_encryption_aws_kms_key_id: None,
+            server_side_encryption_customer_algorithm: None,
+            server_side_encryption_customer_key: None,
+            server_side_encryption_customer_key_md5: None,
+            default_storage_class: None,
+            allow_anonymous: false,
+            disable_list_objects_v2: false,
+            enable_request_payer: false,
+            disable_tagging: false, // Tagging enabled
+            signer: signer1,
+            loader: loader1,
+            credential_loaded: AtomicBool::new(false),
+            checksum_algorithm: None,
+        };
+
+        // Test with tagging disabled
+        let core_without_tagging = S3Core {
+            info,
+            bucket: "test-bucket".to_string(),
+            endpoint: "https://s3.amazonaws.com".to_string(),
+            root: "/".to_string(),
+            server_side_encryption: None,
+            server_side_encryption_aws_kms_key_id: None,
+            server_side_encryption_customer_algorithm: None,
+            server_side_encryption_customer_key: None,
+            server_side_encryption_customer_key_md5: None,
+            default_storage_class: None,
+            allow_anonymous: false,
+            disable_list_objects_v2: false,
+            enable_request_payer: false,
+            disable_tagging: true, // Tagging disabled
+            signer: signer2,
+            loader: loader2,
+            credential_loaded: AtomicBool::new(false),
+            checksum_algorithm: None,
+        };
+
+        // Create test tags
+        let mut tags = HashMap::new();
+        tags.insert("env".to_string(), "test".to_string());
+        tags.insert("team".to_string(), "engineering".to_string());
+
+        let op_write = OpWrite::default().with_tags(tags.clone());
+
+        // Test with tagging enabled - should include x-amz-tagging header
+        let req_builder = http::request::Builder::new();
+        let req_with_tags = core_with_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
+        let req_with_tags = req_with_tags.body(()).unwrap();
+        
+        let tagging_header = req_with_tags.headers().get("x-amz-tagging");
+        assert!(tagging_header.is_some(), "Expected x-amz-tagging header when tagging is enabled");
+        
+        let tagging_value = tagging_header.unwrap().to_str().unwrap();
+        assert!(tagging_value.contains("env=test"), "Expected tag env=test in tagging header");
+        assert!(tagging_value.contains("team=engineering"), "Expected tag team=engineering in tagging header");
+
+        // Test with tagging disabled - should not include x-amz-tagging header
+        let req_builder = http::request::Builder::new();
+        let req_without_tags = core_without_tagging.insert_metadata_headers(req_builder, Some(1024), &op_write);
+        let req_without_tags = req_without_tags.body(()).unwrap();
+        
+        let tagging_header = req_without_tags.headers().get("x-amz-tagging");
+        assert!(tagging_header.is_none(), "Expected no x-amz-tagging header when tagging is disabled");
     }
 }

@@ -499,6 +499,27 @@ pub struct WriteOptions {
     /// - Better utilize available bandwidth
     /// - Trade memory for performance
     pub concurrent: usize,
+
+    /// Sets object tags for this write request.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::write_with_tags`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the tags will be attached to the object during write
+    /// - Accepts key-value pairs where both key and value are strings
+    /// - Services may have limitations for tags, for example:
+    ///   - Maximum number of tags per object
+    ///   - Key and value length restrictions
+    ///   - Character restrictions for keys and values
+    /// - If not supported or disabled, the tags will be ignored
+    ///
+    /// Object tags provide a way to categorize and manage objects using metadata.
+    /// Tags can be used for access control, cost allocation, and lifecycle management.
+    pub tags: Option<HashMap<String, String>>,
+
     /// Sets chunk size for buffered writes.
     ///
     /// ### Capability

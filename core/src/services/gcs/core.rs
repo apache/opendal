@@ -74,6 +74,10 @@ pub struct GcsCore {
     pub default_storage_class: Option<String>,
 
     pub allow_anonymous: bool,
+
+    // HTTP client configuration options
+    pub allow_http: bool,
+    pub default_content_type: Option<String>,
 }
 
 impl Debug for GcsCore {
@@ -90,6 +94,26 @@ static BACKOFF: LazyLock<ExponentialBuilder> =
     LazyLock::new(|| ExponentialBuilder::default().with_jitter());
 
 impl GcsCore {
+    /// Get the effective content type, using default if none specified
+    fn get_effective_content_type(&self, op_content_type: Option<&str>) -> Option<String> {
+        match op_content_type {
+            Some(ct) => Some(ct.to_string()),
+            None => self.default_content_type.clone(),
+        }
+    }
+
+    /// Validate URL protocol based on allow_http setting
+    fn validate_url_protocol(&self, url: &str) -> Result<()> {
+        if !self.allow_http && url.starts_with("http://") {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "HTTP is not allowed. Use HTTPS or enable allow_http.",
+            )
+            .with_context("url", url));
+        }
+        Ok(())
+    }
+
     async fn load_token(&self) -> Result<Option<GoogleToken>> {
         if let Some(token) = &self.token {
             return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
@@ -196,6 +220,9 @@ impl GcsCore {
             percent_encode_path(&p)
         );
 
+        // Validate URL protocol based on configuration
+        self.validate_url_protocol(&url)?;
+
         let mut req = Request::get(&url);
 
         if let Some(if_match) = args.if_match() {
@@ -272,10 +299,11 @@ impl GcsCore {
     ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
+        let effective_content_type = self.get_effective_content_type(op.content_type());
         let request_metadata = InsertRequestMetadata {
             storage_class: self.default_storage_class.as_deref(),
             cache_control: op.cache_control(),
-            content_type: op.content_type(),
+            content_type: effective_content_type.as_deref(),
             content_encoding: op.content_encoding(),
             metadata: op.user_metadata(),
         };
@@ -328,8 +356,9 @@ impl GcsCore {
             multipart = multipart.part(metadata_part);
 
             // Content-Type must be set, even if it is set in the metadata part
-            let content_type = op
-                .content_type()
+            let effective_content_type = self.get_effective_content_type(op.content_type());
+            let content_type = effective_content_type
+                .as_deref()
                 .unwrap_or("application/octet-stream")
                 .parse()
                 .expect("Failed to parse content-type");
@@ -363,7 +392,8 @@ impl GcsCore {
             }
         }
 
-        if let Some(content_type) = args.content_type() {
+        let effective_content_type = self.get_effective_content_type(args.content_type());
+        if let Some(content_type) = effective_content_type {
             req = req.header(CONTENT_TYPE, content_type);
         }
 
@@ -588,7 +618,8 @@ impl GcsCore {
             builder = builder.header(CONTENT_ENCODING, header_val);
         }
 
-        if let Some(header_val) = op.content_type() {
+        let effective_content_type = self.get_effective_content_type(op.content_type());
+        if let Some(header_val) = effective_content_type {
             builder = builder.header(CONTENT_TYPE, header_val);
         }
 

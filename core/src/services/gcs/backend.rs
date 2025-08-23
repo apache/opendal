@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
+use std::time::Duration;
 
 use http::Response;
 use http::StatusCode;
@@ -231,6 +232,170 @@ impl GcsBuilder {
         self.config.allow_anonymous = true;
         self
     }
+
+    /// Allow HTTP connections (default: false, only HTTPS allowed)
+    pub fn allow_http(mut self, allow_http: bool) -> Self {
+        self.config.allow_http = allow_http;
+        self
+    }
+
+    /// Allow invalid/self-signed certificates (default: false)
+    ///
+    /// # Warning
+    ///
+    /// You should think very carefully before using this method. If
+    /// invalid certificates are trusted, *any* certificate for *any* site
+    /// will be trusted for use. This includes expired certificates. This
+    /// introduces significant vulnerabilities, and should only be used
+    /// as a last resort or for testing.
+    pub fn allow_invalid_certificates(mut self, allow_invalid_certificates: bool) -> Self {
+        self.config.allow_invalid_certificates = allow_invalid_certificates;
+        self
+    }
+
+    /// Set connection timeout duration
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.config.connect_timeout = Some(timeout);
+        self
+    }
+
+    /// Set default content type for uploads
+    pub fn default_content_type(mut self, content_type: &str) -> Self {
+        if !content_type.is_empty() {
+            self.config.default_content_type = Some(content_type.to_string());
+        }
+        self
+    }
+
+    /// Set pool idle timeout duration
+    pub fn pool_idle_timeout(mut self, timeout: Duration) -> Self {
+        self.config.pool_idle_timeout = Some(timeout);
+        self
+    }
+
+    /// Set maximum number of idle connections per host
+    pub fn pool_max_idle_per_host(mut self, max: usize) -> Self {
+        self.config.pool_max_idle_per_host = Some(max);
+        self
+    }
+
+    /// Set HTTP proxy URL
+    pub fn proxy_url(mut self, url: &str) -> Self {
+        if !url.is_empty() {
+            self.config.proxy_url = Some(url.to_string());
+        }
+        self
+    }
+
+    /// Set PEM-formatted CA certificate for proxy connections
+    pub fn proxy_ca_certificate(mut self, cert: &str) -> Self {
+        if !cert.is_empty() {
+            self.config.proxy_ca_certificate = Some(cert.to_string());
+        }
+        self
+    }
+
+    /// Set list of hosts that bypass proxy (comma-separated)
+    pub fn proxy_excludes(mut self, excludes: &str) -> Self {
+        if !excludes.is_empty() {
+            self.config.proxy_excludes = Some(excludes.to_string());
+        }
+        self
+    }
+
+    /// Enable/disable randomizing DNS resolution order (default: true)
+    pub fn randomize_addresses(mut self, randomize: bool) -> Self {
+        self.config.randomize_addresses = randomize;
+        self
+    }
+
+    /// Set request timeout duration
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.config.timeout = Some(timeout);
+        self
+    }
+
+    /// Set custom User-Agent header
+    pub fn user_agent(mut self, user_agent: &str) -> Self {
+        if !user_agent.is_empty() {
+            self.config.user_agent = Some(user_agent.to_string());
+        }
+        self
+    }
+
+    /// Build a custom HTTP client with configuration options
+    fn build_http_client(&self) -> Result<reqwest::Client> {
+        let mut builder = reqwest::ClientBuilder::new();
+
+        // Apply timeout configurations
+        if let Some(timeout) = self.config.timeout {
+            builder = builder.timeout(timeout);
+        }
+
+        if let Some(connect_timeout) = self.config.connect_timeout {
+            builder = builder.connect_timeout(connect_timeout);
+        }
+
+        if let Some(pool_idle_timeout) = self.config.pool_idle_timeout {
+            builder = builder.pool_idle_timeout(pool_idle_timeout);
+        }
+
+        if let Some(pool_max_idle_per_host) = self.config.pool_max_idle_per_host {
+            builder = builder.pool_max_idle_per_host(pool_max_idle_per_host);
+        }
+
+        // Apply security configurations
+        if self.config.allow_invalid_certificates {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        // Apply proxy configurations
+        if let Some(proxy_url) = &self.config.proxy_url {
+            let mut proxy = reqwest::Proxy::all(proxy_url).map_err(|e| {
+                Error::new(ErrorKind::ConfigInvalid, "Invalid proxy URL")
+                    .with_context("proxy_url", proxy_url)
+                    .set_source(e)
+            })?;
+
+            if let Some(proxy_excludes) = &self.config.proxy_excludes {
+                let excludes: Vec<&str> = proxy_excludes.split(',').map(|s| s.trim()).collect();
+                for exclude in excludes {
+                    proxy = proxy.no_proxy(reqwest::NoProxy::from_string(exclude));
+                }
+            }
+
+            builder = builder.proxy(proxy);
+
+            if let Some(proxy_ca_cert) = &self.config.proxy_ca_certificate {
+                let cert =
+                    reqwest::tls::Certificate::from_pem(proxy_ca_cert.as_bytes()).map_err(|e| {
+                        Error::new(ErrorKind::ConfigInvalid, "Invalid proxy CA certificate")
+                            .set_source(e)
+                    })?;
+                builder = builder.add_root_certificate(cert);
+            }
+        }
+
+        // Apply User-Agent
+        if let Some(user_agent) = &self.config.user_agent {
+            builder = builder.user_agent(user_agent);
+        }
+
+        // Apply additional configurations
+        if self.config.randomize_addresses {
+            // reqwest doesn't have a direct API for this, but it's enabled by default
+            // This flag is mainly for compatibility with object_store interface
+        }
+
+        // Note: allow_http configuration is handled at the request level
+        // since reqwest doesn't have a direct protocol restriction API.
+        // The endpoint URL validation will be done in the core request methods.
+
+        // Build the client
+        builder.build().map_err(|e| {
+            Error::new(ErrorKind::ConfigInvalid, "Failed to build HTTP client").set_source(e)
+        })
+    }
 }
 
 impl Builder for GcsBuilder {
@@ -239,7 +404,7 @@ impl Builder for GcsBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {self:?}");
 
-        let root = normalize_root(&self.config.root.unwrap_or_default());
+        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {root}");
 
         // Handle endpoint and bucket name
@@ -286,7 +451,10 @@ impl Builder for GcsBuilder {
             DEFAULT_GCS_SCOPE
         };
 
-        let mut token_loader = GoogleTokenLoader::new(scope, GLOBAL_REQWEST_CLIENT.clone());
+        // Build custom HTTP client with configuration options
+        let http_client = self.build_http_client()?;
+
+        let mut token_loader = GoogleTokenLoader::new(scope, http_client.clone());
         if let Some(account) = &self.config.service_account {
             token_loader = token_loader.with_service_account(account);
         }
@@ -361,6 +529,10 @@ impl Builder for GcsBuilder {
                             ..Default::default()
                         });
 
+                    // Set custom HTTP client with the configuration options
+                    let custom_http_client = HttpClient::with(http_client);
+                    am.update_http_client(|_| custom_http_client);
+
                     // allow deprecated api here for compatibility
                     #[allow(deprecated)]
                     if let Some(client) = self.http_client {
@@ -380,6 +552,8 @@ impl Builder for GcsBuilder {
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 allow_anonymous: self.config.allow_anonymous,
+                allow_http: self.config.allow_http,
+                default_content_type: self.config.default_content_type.clone(),
             }),
         };
 

@@ -1344,64 +1344,115 @@ mod tests {
     }
 
     #[test]
-    fn test_new_s3_features() {
-        // Test DefaultRegion feature
-        let _builder = S3Builder::default()
+    fn test_default_region_config() {
+        let builder = S3Builder::default()
             .bucket("test-bucket")
             .default_region("us-west-2");
 
-        // Simulate missing region to test default_region fallback
-        let _config = AwsConfig {
-            region: None,
-            ..Default::default()
-        };
+        assert_eq!(builder.config.default_region, Some("us-west-2".to_string()));
+        assert_eq!(builder.config.region, None);
 
-        // Test IMDSv1Fallback feature
-        let builder_with_imdsv1 = S3Builder::default()
+        // Test that it works as a fallback
+        let builder_with_region = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1")
+            .default_region("us-west-2");
+
+        assert_eq!(
+            builder_with_region.config.region,
+            Some("us-east-1".to_string())
+        );
+        assert_eq!(
+            builder_with_region.config.default_region,
+            Some("us-west-2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_imdsv1_fallback_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.imdsv1_fallback, false);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_imdsv1_fallback();
-        assert!(builder_with_imdsv1.config.imdsv1_fallback);
+        assert_eq!(builder_enabled.config.imdsv1_fallback, true);
+    }
 
-        // Test UnsignedPayload feature
-        let builder_with_unsigned = S3Builder::default()
+    #[test]
+    fn test_unsigned_payload_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.unsigned_payload, false);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_unsigned_payload();
-        assert!(builder_with_unsigned.config.unsigned_payload);
+        assert_eq!(builder_enabled.config.unsigned_payload, true);
+    }
 
-        // Test SkipSignature feature
-        let builder_with_skip_sig = S3Builder::default()
+    #[test]
+    fn test_skip_signature_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.skip_signature, false);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_skip_signature();
-        assert!(builder_with_skip_sig.config.skip_signature);
+        assert_eq!(builder_enabled.config.skip_signature, true);
+    }
 
-        // Test DisableTagging feature
-        let builder_with_no_tags = S3Builder::default()
+    #[test]
+    fn test_disable_tagging_config() {
+        // Default should be false
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.disable_tagging, false);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_disable_tagging();
-        assert!(builder_with_no_tags.config.disable_tagging);
+        assert_eq!(builder_enabled.config.disable_tagging, true);
+    }
 
-        // Test BucketKeyEnabled feature
-        let builder_with_bucket_key = S3Builder::default()
+    #[test]
+    fn test_bucket_key_enabled_config() {
+        // Default should be None
+        let default_builder = S3Builder::default()
+            .bucket("test-bucket")
+            .region("us-east-1");
+        assert_eq!(default_builder.config.bucket_key_enabled, None);
+
+        // Test enable
+        let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_bucket_key();
-        assert_eq!(
-            builder_with_bucket_key.config.bucket_key_enabled,
-            Some(true)
-        );
+        assert_eq!(builder_enabled.config.bucket_key_enabled, Some(true));
 
-        let builder_without_bucket_key = S3Builder::default()
+        // Test disable
+        let builder_disabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .disable_bucket_key();
-        assert_eq!(
-            builder_without_bucket_key.config.bucket_key_enabled,
-            Some(false)
-        );
+        assert_eq!(builder_disabled.config.bucket_key_enabled, Some(false));
     }
 
     #[test]

@@ -147,3 +147,174 @@ impl Debug for GcsConfig {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn test_gcs_config_defaults() {
+        let config = GcsConfig::default();
+        assert!(config.allow_http); // Should default to true for GCS compatibility
+        assert!(config.randomize_addresses); // Should default to true
+        assert!(!config.http1_only);
+        assert!(!config.http2_only);
+        assert!(!config.http2_keep_alive_while_idle);
+        assert_eq!(config.http2_keep_alive_interval, None);
+        assert_eq!(config.http2_keep_alive_timeout, None);
+        assert_eq!(config.http2_max_frame_size, None);
+        assert_eq!(config.bucket, "");
+        assert!(!config.allow_anonymous);
+    }
+
+    #[test]
+    fn test_http1_only_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http1_only": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http1_only);
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http1_only": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http1_only);
+    }
+
+    #[test]
+    fn test_http2_only_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http2_only": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http2_only);
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http2_only": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http2_only);
+    }
+
+    #[test]
+    fn test_http2_keep_alive_interval_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http2_keep_alive_interval": {"secs": 30, "nanos": 0}}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.http2_keep_alive_interval,
+            Some(Duration::from_secs(30))
+        );
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http2_keep_alive_interval": {"secs": 45, "nanos": 0}}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.http2_keep_alive_interval,
+            Some(Duration::from_secs(45))
+        );
+    }
+
+    #[test]
+    fn test_http2_keep_alive_timeout_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http2_keep_alive_timeout": {"secs": 5, "nanos": 0}}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.http2_keep_alive_timeout,
+            Some(Duration::from_secs(5))
+        );
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http2_keep_alive_timeout": {"secs": 10, "nanos": 0}}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.http2_keep_alive_timeout,
+            Some(Duration::from_secs(10))
+        );
+    }
+
+    #[test]
+    fn test_http2_keep_alive_while_idle_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http2_keep_alive_while_idle": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http2_keep_alive_while_idle);
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http2_keep_alive_while_idle": true}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http2_keep_alive_while_idle);
+    }
+
+    #[test]
+    fn test_http2_max_frame_size_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_http2_max_frame_size": 32768}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.http2_max_frame_size, Some(32768));
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_http2_max_frame_size": 16384}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.http2_max_frame_size, Some(16384));
+    }
+
+    #[test]
+    fn test_allow_http_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_allow_http": false}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.allow_http);
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_allow_http": false}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.allow_http);
+    }
+
+    #[test]
+    fn test_randomize_addresses_alias() {
+        // Test google_ alias
+        let json = r#"{"bucket": "test-bucket", "google_randomize_addresses": false}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.randomize_addresses);
+
+        // Test gcs_ alias
+        let json = r#"{"bucket": "test-bucket", "gcs_randomize_addresses": false}"#;
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.randomize_addresses);
+    }
+
+    #[test]
+    fn test_config_with_multiple_aliases() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "google_http1_only": true,
+            "gcs_http2_keep_alive_interval": {"secs": 30, "nanos": 0},
+            "google_allow_http": false
+        }"#;
+
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert!(config.http1_only);
+        assert_eq!(
+            config.http2_keep_alive_interval,
+            Some(Duration::from_secs(30))
+        );
+        assert!(!config.allow_http);
+    }
+
+    #[test]
+    fn test_original_field_names() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "http1_only": true,
+            "allow_http": false,
+            "randomize_addresses": false
+        }"#;
+
+        let config: GcsConfig = serde_json::from_str(json).unwrap();
+        assert!(config.http1_only);
+        assert!(!config.allow_http);
+        assert!(!config.randomize_addresses);
+    }
+}

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -57,6 +58,43 @@ pub struct GcsConfig {
     ///
     /// Takes precedence over `credential` and `credential_path`.
     pub token: Option<String>,
+
+    // HTTP client configuration options
+    /// Allow HTTP connections (default: false, only HTTPS allowed)
+    pub allow_http: bool,
+
+    /// Allow invalid/self-signed certificates (default: false)
+    pub allow_invalid_certificates: bool,
+
+    /// Connection timeout duration
+    pub connect_timeout: Option<Duration>,
+
+    /// Default content type for uploads
+    pub default_content_type: Option<String>,
+
+    /// Pool idle timeout duration
+    pub pool_idle_timeout: Option<Duration>,
+
+    /// Maximum number of idle connections per host
+    pub pool_max_idle_per_host: Option<usize>,
+
+    /// HTTP proxy URL
+    pub proxy_url: Option<String>,
+
+    /// PEM-formatted CA certificate for proxy connections
+    pub proxy_ca_certificate: Option<String>,
+
+    /// List of hosts that bypass proxy (comma-separated)
+    pub proxy_excludes: Option<String>,
+
+    /// Randomize DNS resolution order (default: true)
+    pub randomize_addresses: bool,
+
+    /// Request timeout duration
+    pub timeout: Option<Duration>,
+
+    /// Custom User-Agent header
+    pub user_agent: Option<String>,
 }
 
 impl Debug for GcsConfig {

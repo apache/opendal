@@ -168,8 +168,8 @@ mod tests {
             GcsConfig::from_iter(config_map).expect("Failed to parse direct client config");
 
         assert_eq!(config.bucket, "test-bucket");
-        assert_eq!(config.allow_http, true);
-        assert_eq!(config.allow_invalid_certificates, false);
+        assert!(config.allow_http);
+        assert!(!config.allow_invalid_certificates);
         assert_eq!(
             config.default_content_type,
             Some("application/json".to_string())
@@ -184,7 +184,7 @@ mod tests {
             config.proxy_excludes,
             Some("localhost,127.0.0.1".to_string())
         );
-        assert_eq!(config.randomize_addresses, false);
+        assert!(!config.randomize_addresses);
         assert_eq!(config.user_agent, Some("TestApp/1.0".to_string()));
     }
 
@@ -228,8 +228,8 @@ mod tests {
             GcsConfig::from_iter(config_map).expect("Failed to parse google prefixed config");
 
         assert_eq!(config.bucket, "google-bucket");
-        assert_eq!(config.allow_http, false);
-        assert_eq!(config.allow_invalid_certificates, true);
+        assert!(!config.allow_http);
+        assert!(config.allow_invalid_certificates);
         assert_eq!(config.default_content_type, Some("text/plain".to_string()));
         assert_eq!(config.pool_max_idle_per_host, Some(20));
         assert_eq!(
@@ -241,7 +241,7 @@ mod tests {
             config.proxy_excludes,
             Some("internal.company.com,localhost".to_string())
         );
-        assert_eq!(config.randomize_addresses, true);
+        assert!(config.randomize_addresses);
         assert_eq!(config.user_agent, Some("GoogleTestApp/2.0".to_string()));
     }
 
@@ -303,7 +303,7 @@ mod tests {
         let config = GcsConfig::from_iter(config_map).expect("Failed to parse mixed config");
 
         assert_eq!(config.bucket, "mixed-bucket");
-        assert_eq!(config.allow_http, true);
+        assert!(config.allow_http);
         assert_eq!(
             config.proxy_url,
             Some("https://mixed-proxy.example.com:8080".to_string())
@@ -313,7 +313,7 @@ mod tests {
             config.credential_path,
             Some("/mixed/path/creds.json".to_string())
         );
-        assert_eq!(config.randomize_addresses, false);
+        assert!(!config.randomize_addresses);
     }
 
     /// Test edge cases and default values
@@ -324,9 +324,9 @@ mod tests {
         let config = GcsConfig::from_iter(empty_config).expect("Failed to parse empty config");
 
         assert_eq!(config.bucket, ""); // Default empty string
-        assert_eq!(config.allow_http, false); // Default false
-        assert_eq!(config.allow_invalid_certificates, false); // Default false
-        assert_eq!(config.randomize_addresses, false); // Default false
+        assert!(!config.allow_http); // Default false
+        assert!(!config.allow_invalid_certificates); // Default false
+        assert!(!config.randomize_addresses); // Default false
         assert_eq!(config.connect_timeout, None); // Default None
         assert_eq!(config.default_content_type, None); // Default None
 
@@ -443,14 +443,14 @@ mod tests {
             Some("bucketOwnerFullControl".to_string())
         );
         assert_eq!(config.default_storage_class, Some("STANDARD".to_string()));
-        assert_eq!(config.allow_anonymous, true);
-        assert_eq!(config.disable_vm_metadata, false);
-        assert_eq!(config.disable_config_load, true);
+        assert!(config.allow_anonymous);
+        assert!(!config.disable_vm_metadata);
+        assert!(config.disable_config_load);
         assert_eq!(config.token, Some("oauth2-access-token".to_string()));
 
         // Verify HTTP client settings
-        assert_eq!(config.allow_http, false);
-        assert_eq!(config.allow_invalid_certificates, false);
+        assert!(!config.allow_http);
+        assert!(!config.allow_invalid_certificates);
         assert_eq!(
             config.default_content_type,
             Some("application/octet-stream".to_string())
@@ -464,7 +464,7 @@ mod tests {
             config.proxy_excludes,
             Some("*.internal.com,localhost,127.0.0.1".to_string())
         );
-        assert_eq!(config.randomize_addresses, true);
+        assert!(config.randomize_addresses);
         assert_eq!(
             config.user_agent,
             Some("ComprehensiveTestApp/3.0".to_string())
@@ -511,7 +511,7 @@ mod tests {
             config.credential_path,
             Some("/migration/path/service-account.json".to_string())
         );
-        assert_eq!(config.allow_http, true);
+        assert!(config.allow_http);
         assert_eq!(
             config.proxy_url,
             Some("https://migration-proxy.example.com:3128".to_string())

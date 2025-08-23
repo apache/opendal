@@ -65,6 +65,8 @@ pub mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED: &str =
+        "x-amz-server-side-encryption-bucket-key-enabled";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
@@ -99,6 +101,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
+    pub server_side_encryption_bucket_key_enabled: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
@@ -108,6 +111,12 @@ pub struct S3Core {
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub unsigned_payload: bool,
+    pub skip_signature: bool,
+    #[allow(dead_code)]
+    pub disable_tagging: bool,
+    #[allow(dead_code)]
+    pub bucket_key_enabled: Option<bool>,
 }
 
 impl Debug for S3Core {
@@ -158,11 +167,26 @@ impl S3Core {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
+        // Skip signing if configured to do so
+        if self.skip_signature {
+            return Ok(());
+        }
+
         let cred = if let Some(cred) = self.load_credential().await? {
             cred
         } else {
             return Ok(());
         };
+
+        // Handle unsigned payload if configured
+        if self.unsigned_payload {
+            // Set the x-amz-content-sha256 header to UNSIGNED-PAYLOAD
+            // This tells AWS S3 not to verify the payload checksum
+            req.headers_mut().insert(
+                "x-amz-content-sha256",
+                HeaderValue::from_static("UNSIGNED-PAYLOAD"),
+            );
+        }
 
         self.signer
             .sign(req, &cred)
@@ -180,11 +204,26 @@ impl S3Core {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
+        // Skip signing if configured to do so
+        if self.skip_signature {
+            return Ok(());
+        }
+
         let cred = if let Some(cred) = self.load_credential().await? {
             cred
         } else {
             return Ok(());
         };
+
+        // Handle unsigned payload if configured
+        if self.unsigned_payload {
+            // Set the x-amz-content-sha256 header to UNSIGNED-PAYLOAD
+            // This tells AWS S3 not to verify the payload checksum
+            req.headers_mut().insert(
+                "x-amz-content-sha256",
+                HeaderValue::from_static("UNSIGNED-PAYLOAD"),
+            );
+        }
 
         self.signer
             .sign_query(req, duration, &cred)
@@ -231,6 +270,14 @@ impl S3Core {
 
                 req = req.header(
                     HeaderName::from_static(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID),
+                    v,
+                )
+            }
+            if let Some(v) = &self.server_side_encryption_bucket_key_enabled {
+                req = req.header(
+                    HeaderName::from_static(
+                        constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                    ),
                     v,
                 )
             }
@@ -343,6 +390,10 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
+
+        // TODO: Implement S3 tagging functionality
+        // When implemented, check self.disable_tagging flag here
+        // to conditionally skip adding x-amz-tagging headers
         req
     }
 
@@ -841,6 +892,10 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
+
+        // TODO: Implement S3 tagging functionality
+        // When implemented, check self.disable_tagging flag here
+        // to conditionally skip adding x-amz-tagging headers
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);

@@ -51,6 +51,13 @@ impl From<AzureStorageConfig> for AzblobConfig {
             account_name: value.account_name,
             account_key: value.account_key,
             sas_token: value.sas_token,
+            client_id: value.client_id,
+            client_secret: value.client_secret,
+            tenant_id: value.tenant_id,
+            authority_host: value.authority_host,
+            object_id: value.object_id,
+            msi_resource_id: value.msi_res_id,
+            federated_token_file: value.federated_token_file,
             ..Default::default()
         }
     }
@@ -245,6 +252,110 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set client_id of this backend for OAuth authentication.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        if !client_id.is_empty() {
+            self.config.client_id = Some(client_id.to_string());
+        }
+        self
+    }
+
+    /// Set client_secret of this backend for OAuth authentication.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        if !client_secret.is_empty() {
+            self.config.client_secret = Some(client_secret.to_string());
+        }
+        self
+    }
+
+    /// Set tenant_id of this backend for OAuth authentication.
+    pub fn tenant_id(mut self, tenant_id: &str) -> Self {
+        if !tenant_id.is_empty() {
+            self.config.tenant_id = Some(tenant_id.to_string());
+        }
+        self
+    }
+
+    /// Set authority_host of this backend for OAuth authentication.
+    /// Defaults to https://login.microsoftonline.com
+    pub fn authority_host(mut self, authority_host: &str) -> Self {
+        if !authority_host.is_empty() {
+            self.config.authority_host = Some(authority_host.to_string());
+        }
+        self
+    }
+
+    /// Set bearer_token of this backend for authorization.
+    pub fn bearer_token(mut self, bearer_token: &str) -> Self {
+        if !bearer_token.is_empty() {
+            self.config.bearer_token = Some(bearer_token.to_string());
+        }
+        self
+    }
+
+    /// Set if the Azure emulator should be used (defaults to false).
+    pub fn use_emulator(mut self, use_emulator: bool) -> Self {
+        self.config.use_emulator = Some(use_emulator);
+        self
+    }
+
+    /// Set the endpoint for acquiring managed identity token.
+    pub fn msi_endpoint(mut self, msi_endpoint: &str) -> Self {
+        if !msi_endpoint.is_empty() {
+            self.config.msi_endpoint = Some(msi_endpoint.to_string());
+        }
+        self
+    }
+
+    /// Set object_id for use with managed identity authentication.
+    pub fn object_id(mut self, object_id: &str) -> Self {
+        if !object_id.is_empty() {
+            self.config.object_id = Some(object_id.to_string());
+        }
+        self
+    }
+
+    /// Set msi_resource_id for use with managed identity authentication.
+    pub fn msi_resource_id(mut self, msi_resource_id: &str) -> Self {
+        if !msi_resource_id.is_empty() {
+            self.config.msi_resource_id = Some(msi_resource_id.to_string());
+        }
+        self
+    }
+
+    /// Set federated_token_file for Azure AD workload identity federation.
+    pub fn federated_token_file(mut self, federated_token_file: &str) -> Self {
+        if !federated_token_file.is_empty() {
+            self.config.federated_token_file = Some(federated_token_file.to_string());
+        }
+        self
+    }
+
+    /// Set if the Azure CLI should be used for acquiring access token.
+    pub fn use_azure_cli(mut self, use_azure_cli: bool) -> Self {
+        self.config.use_azure_cli = Some(use_azure_cli);
+        self
+    }
+
+    /// Set if request signing should be skipped.
+    pub fn skip_signature(mut self, skip_signature: bool) -> Self {
+        self.config.skip_signature = Some(skip_signature);
+        self
+    }
+
+    /// Set if Microsoft Fabric url scheme should be used.
+    /// When enabled uses https://{account}.dfs.fabric.microsoft.com
+    pub fn use_fabric_endpoint(mut self, use_fabric_endpoint: bool) -> Self {
+        self.config.use_fabric_endpoint = Some(use_fabric_endpoint);
+        self
+    }
+
+    /// Set if object tagging should be disabled.
+    pub fn disable_tagging(mut self, disable_tagging: bool) -> Self {
+        self.config.disable_tagging = Some(disable_tagging);
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -342,7 +453,7 @@ impl Builder for AzblobBuilder {
             if let Err(e) = BASE64_STANDARD.decode(&v) {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!("invalid account_key: cannot decode as base64: {}", e),
+                    format!("invalid account_key: cannot decode as base64: {e}"),
                 )
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)
@@ -353,6 +464,38 @@ impl Builder for AzblobBuilder {
 
         if let Some(v) = self.config.sas_token.clone() {
             config_loader.sas_token = Some(v);
+        }
+
+        if let Some(v) = self.config.client_id.clone() {
+            config_loader.client_id = Some(v);
+        }
+
+        if let Some(v) = self.config.client_secret.clone() {
+            config_loader.client_secret = Some(v);
+        }
+
+        if let Some(v) = self.config.tenant_id.clone() {
+            config_loader.tenant_id = Some(v);
+        }
+
+        if let Some(v) = self.config.authority_host.clone() {
+            config_loader.authority_host = Some(v);
+        }
+
+        // Note: The following features are present in our config but not yet supported by reqsign 0.16.5:
+        // - bearer_token, use_emulator, msi_endpoint, use_azure_cli, skip_signature, use_fabric_endpoint, disable_tagging
+        // These may be supported in future versions of reqsign
+
+        if let Some(v) = self.config.object_id.clone() {
+            config_loader.object_id = Some(v);
+        }
+
+        if let Some(v) = self.config.msi_resource_id.clone() {
+            config_loader.msi_res_id = Some(v);
+        }
+
+        if let Some(v) = self.config.federated_token_file.clone() {
+            config_loader.federated_token_file = Some(v);
         }
 
         let encryption_key =

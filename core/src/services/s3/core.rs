@@ -389,8 +389,6 @@ impl S3Core {
             }
         }
 
-        // TODO: Implement S3 tagging functionality
-        // When implemented, add x-amz-tagging headers here
         req
     }
 
@@ -889,9 +887,6 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
-
-        // TODO: Implement S3 tagging functionality
-        // When implemented, add x-amz-tagging headers here
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);

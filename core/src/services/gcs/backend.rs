@@ -342,8 +342,14 @@ impl Builder for GcsBuilder {
 
         let signer = GoogleSigner::new("storage");
 
-        // Build custom HTTP client with HTTP configurations
-        let http_client = {
+        // Build custom HTTP client only if HTTP configurations are set
+        let custom_http_client = if self.config.http1_only
+            || self.config.http2_only
+            || self.config.http2_keep_alive_interval.is_some()
+            || self.config.http2_keep_alive_timeout.is_some()
+            || self.config.http2_keep_alive_while_idle
+            || self.config.http2_max_frame_size.is_some()
+        {
             let mut builder = reqwest::ClientBuilder::new();
 
             if self.config.http1_only {
@@ -372,7 +378,9 @@ impl Builder for GcsBuilder {
             // This would typically be handled at the HTTP/2 protocol level
 
             #[allow(deprecated)]
-            HttpClient::build(builder)?
+            Some(HttpClient::build(builder)?)
+        } else {
+            None
         };
 
         let backend = GcsBackend {
@@ -433,8 +441,10 @@ impl Builder for GcsBuilder {
                             ..Default::default()
                         });
 
-                    // Configure HTTP client with HTTP/2 settings
-                    am.update_http_client(|_| http_client);
+                    // Configure HTTP client with HTTP/2 settings if a custom client was built
+                    if let Some(client) = custom_http_client {
+                        am.update_http_client(|_| client);
+                    }
 
                     // allow deprecated api here for compatibility
                     #[allow(deprecated)]

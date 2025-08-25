@@ -138,8 +138,8 @@ pub struct S3Config {
     pub server_side_encryption_customer_key_md5: Option<String>,
     /// Enable or disable S3 bucket keys for server-side encryption with KMS.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
-    #[serde(alias = "aws_sse_bucket_key_enabled", alias = "bucket_key_enabled")]
-    pub server_side_encryption_bucket_key_enabled: Option<bool>,
+    #[serde(alias = "aws_sse_bucket_key_enabled")]
+    pub server_side_encryption_bucket_key_enabled: bool,
     /// default storage_class for this backend.
     ///
     /// Available values:

@@ -22,7 +22,6 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -162,11 +161,6 @@ impl S3Core {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        // Skip signing if anonymous access is allowed and no credentials are loaded
-        if self.allow_anonymous && !self.credential_loaded.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-
         let cred = if let Some(cred) = self.load_credential().await? {
             cred
         } else {
@@ -190,11 +184,6 @@ impl S3Core {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        // Skip signing if anonymous access is allowed and no credentials are loaded
-        if self.allow_anonymous && !self.credential_loaded.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-
         let cred = if let Some(cred) = self.load_credential().await? {
             cred
         } else {

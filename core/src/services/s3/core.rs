@@ -167,7 +167,6 @@ impl S3Core {
             return Ok(());
         };
 
-
         self.signer
             .sign(req, &cred)
             .map_err(new_request_sign_error)?;
@@ -189,7 +188,6 @@ impl S3Core {
         } else {
             return Ok(());
         };
-
 
         self.signer
             .sign_query(req, duration, &cred)

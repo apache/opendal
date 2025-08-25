@@ -807,11 +807,12 @@ impl Builder for S3Builder {
                 })?),
             };
 
-        let server_side_encryption_bucket_key_enabled = if self.config.server_side_encryption_bucket_key_enabled {
-            Some(HeaderValue::from_static("true"))
-        } else {
-            None
-        };
+        let server_side_encryption_bucket_key_enabled =
+            if self.config.server_side_encryption_bucket_key_enabled {
+                Some(HeaderValue::from_static("true"))
+            } else {
+                None
+            };
 
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
@@ -1326,29 +1327,39 @@ mod tests {
         );
     }
 
-
-
     #[test]
     fn test_server_side_encryption_bucket_key_config() {
         // Default should be false
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert!(!default_builder.config.server_side_encryption_bucket_key_enabled);
+        assert!(
+            !default_builder
+                .config
+                .server_side_encryption_bucket_key_enabled
+        );
 
         // Test enable
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_server_side_encryption_bucket_key();
-        assert!(builder_enabled.config.server_side_encryption_bucket_key_enabled);
+        assert!(
+            builder_enabled
+                .config
+                .server_side_encryption_bucket_key_enabled
+        );
 
         // Test disable
         let builder_disabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .disable_server_side_encryption_bucket_key();
-        assert!(!builder_disabled.config.server_side_encryption_bucket_key_enabled);
+        assert!(
+            !builder_disabled
+                .config
+                .server_side_encryption_bucket_key_enabled
+        );
     }
 
     #[test]

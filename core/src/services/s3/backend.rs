@@ -611,12 +611,6 @@ impl S3Builder {
         self
     }
 
-    /// Enable IMDSv1 fallback for retrieving credentials from instance metadata.
-    /// By default, only IMDSv2 is used as AWS recommends against IMDSv1 for security reasons.
-    pub fn enable_imdsv1_fallback(mut self) -> Self {
-        self.config.imdsv1_fallback = true;
-        self
-    }
 
     /// Enable unsigned payload for request signing to avoid computing body checksum.
     /// This can improve performance for large uploads but may not be suitable for all use cases.
@@ -626,9 +620,9 @@ impl S3Builder {
     }
 
     /// Skip request signing. Useful for public buckets or when using pre-signed URLs.
-    pub fn enable_skip_signature(mut self) -> Self {
-        self.config.skip_signature = true;
-        self
+    /// This is an alias for allow_anonymous().
+    pub fn enable_skip_signature(self) -> Self {
+        self.allow_anonymous()
     }
 
     /// Enable the use of S3 bucket keys for server-side encryption.
@@ -942,10 +936,6 @@ impl Builder for S3Builder {
                 if self.config.disable_ec2_metadata {
                     default_loader = default_loader.with_disable_ec2_metadata();
                 }
-                // Note: IMDSv1 fallback configuration is stored but not yet implemented
-                // in the reqsign library. This may require an update to reqsign.
-                // For now, the flag is preserved for future use.
-                let _imdsv1_fallback = self.config.imdsv1_fallback;
 
                 Box::new(default_loader)
             }
@@ -1073,7 +1063,7 @@ impl Builder for S3Builder {
                 credential_loaded: AtomicBool::new(false),
                 checksum_algorithm,
                 unsigned_payload: self.config.unsigned_payload,
-                skip_signature: self.config.skip_signature,
+                skip_signature: self.config.allow_anonymous,
                 bucket_key_enabled: self.config.bucket_key_enabled,
             }),
         })
@@ -1360,21 +1350,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_imdsv1_fallback_config() {
-        // Default should be false
-        let default_builder = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1");
-        assert!(!default_builder.config.imdsv1_fallback);
-
-        // Test enable
-        let builder_enabled = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1")
-            .enable_imdsv1_fallback();
-        assert!(builder_enabled.config.imdsv1_fallback);
-    }
 
     #[test]
     fn test_unsigned_payload_config() {
@@ -1398,14 +1373,14 @@ mod tests {
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert!(!default_builder.config.skip_signature);
+        assert!(!default_builder.config.allow_anonymous);
 
-        // Test enable
+        // Test enable - enable_skip_signature is now an alias for allow_anonymous
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_skip_signature();
-        assert!(builder_enabled.config.skip_signature);
+        assert!(builder_enabled.config.allow_anonymous);
     }
 
     #[test]
@@ -1449,7 +1424,6 @@ mod tests {
             "bucket": "test-bucket",
             "region": "us-east-1",
             "aws_default_region": "us-west-1",
-            "aws_imdsv1_fallback": true,
             "aws_unsigned_payload": true,
             "aws_skip_signature": true,
             "aws_sse_bucket_key_enabled": true
@@ -1461,9 +1435,8 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-1".to_string()));
-        assert!(config.imdsv1_fallback);
         assert!(config.unsigned_payload);
-        assert!(config.skip_signature);
+        assert!(config.allow_anonymous);
         assert_eq!(config.bucket_key_enabled, Some(true));
     }
 
@@ -1474,7 +1447,6 @@ mod tests {
             "bucket": "test-bucket",
             "region": "us-east-1",
             "default_region": "us-west-2",
-            "imdsv1_fallback": true,
             "unsigned_payload": true,
             "skip_signature": true,
             "bucket_key_enabled": false
@@ -1486,9 +1458,8 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
-        assert!(config.imdsv1_fallback);
         assert!(config.unsigned_payload);
-        assert!(config.skip_signature);
+        assert!(config.allow_anonymous);
         assert_eq!(config.bucket_key_enabled, Some(false));
     }
 
@@ -1505,18 +1476,6 @@ mod tests {
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
     }
 
-    #[test]
-    fn test_imdsv1_fallback_alias() {
-        // Test aws_imdsv1_fallback alias
-        let config_json = r#"{
-            "bucket": "test-bucket",
-            "region": "us-east-1",
-            "aws_imdsv1_fallback": true
-        }"#;
-
-        let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert!(config.imdsv1_fallback);
-    }
 
     #[test]
     fn test_unsigned_payload_alias() {
@@ -1541,7 +1500,7 @@ mod tests {
         }"#;
 
         let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert!(config.skip_signature);
+        assert!(config.allow_anonymous);
     }
 
     #[test]

@@ -611,20 +611,6 @@ impl S3Builder {
         self
     }
 
-
-    /// Enable unsigned payload for request signing to avoid computing body checksum.
-    /// This can improve performance for large uploads but may not be suitable for all use cases.
-    pub fn enable_unsigned_payload(mut self) -> Self {
-        self.config.unsigned_payload = true;
-        self
-    }
-
-    /// Skip request signing. Useful for public buckets or when using pre-signed URLs.
-    /// This is an alias for allow_anonymous().
-    pub fn enable_skip_signature(self) -> Self {
-        self.allow_anonymous()
-    }
-
     /// Enable the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
     pub fn enable_bucket_key(mut self) -> Self {
@@ -942,13 +928,6 @@ impl Builder for S3Builder {
         };
 
         let signer = AwsV4Signer::new("s3", &region);
-        // Enable unsigned payload if configured
-        if self.config.unsigned_payload {
-            // Note: Unsigned payload configuration is stored but may require
-            // implementation in the reqsign library or handling at request level.
-            // For AWS S3, this typically involves setting the x-amz-content-sha256
-            // header to "UNSIGNED-PAYLOAD" instead of computing the actual hash.
-        }
 
         let delete_max_size = self
             .config
@@ -1062,7 +1041,6 @@ impl Builder for S3Builder {
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 checksum_algorithm,
-                unsigned_payload: self.config.unsigned_payload,
                 skip_signature: self.config.allow_anonymous,
                 bucket_key_enabled: self.config.bucket_key_enabled,
             }),
@@ -1351,37 +1329,6 @@ mod tests {
     }
 
 
-    #[test]
-    fn test_unsigned_payload_config() {
-        // Default should be false
-        let default_builder = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1");
-        assert!(!default_builder.config.unsigned_payload);
-
-        // Test enable
-        let builder_enabled = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1")
-            .enable_unsigned_payload();
-        assert!(builder_enabled.config.unsigned_payload);
-    }
-
-    #[test]
-    fn test_skip_signature_config() {
-        // Default should be false
-        let default_builder = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1");
-        assert!(!default_builder.config.allow_anonymous);
-
-        // Test enable - enable_skip_signature is now an alias for allow_anonymous
-        let builder_enabled = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1")
-            .enable_skip_signature();
-        assert!(builder_enabled.config.allow_anonymous);
-    }
 
     #[test]
     fn test_bucket_key_enabled_config() {
@@ -1424,7 +1371,6 @@ mod tests {
             "bucket": "test-bucket",
             "region": "us-east-1",
             "aws_default_region": "us-west-1",
-            "aws_unsigned_payload": true,
             "aws_skip_signature": true,
             "aws_sse_bucket_key_enabled": true
         }"#;
@@ -1435,7 +1381,6 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-1".to_string()));
-        assert!(config.unsigned_payload);
         assert!(config.allow_anonymous);
         assert_eq!(config.bucket_key_enabled, Some(true));
     }
@@ -1447,7 +1392,6 @@ mod tests {
             "bucket": "test-bucket",
             "region": "us-east-1",
             "default_region": "us-west-2",
-            "unsigned_payload": true,
             "skip_signature": true,
             "bucket_key_enabled": false
         }"#;
@@ -1458,7 +1402,6 @@ mod tests {
         assert_eq!(config.bucket, "test-bucket");
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
-        assert!(config.unsigned_payload);
         assert!(config.allow_anonymous);
         assert_eq!(config.bucket_key_enabled, Some(false));
     }
@@ -1474,20 +1417,6 @@ mod tests {
 
         let config: S3Config = serde_json::from_str(config_json).unwrap();
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
-    }
-
-
-    #[test]
-    fn test_unsigned_payload_alias() {
-        // Test aws_unsigned_payload alias
-        let config_json = r#"{
-            "bucket": "test-bucket",
-            "region": "us-east-1",
-            "aws_unsigned_payload": true
-        }"#;
-
-        let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert!(config.unsigned_payload);
     }
 
     #[test]

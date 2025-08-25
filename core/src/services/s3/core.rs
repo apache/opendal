@@ -111,7 +111,6 @@ pub struct S3Core {
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
-    pub unsigned_payload: bool,
     pub skip_signature: bool,
     #[allow(dead_code)]
     pub bucket_key_enabled: Option<bool>,
@@ -176,15 +175,6 @@ impl S3Core {
             return Ok(());
         };
 
-        // Handle unsigned payload if configured
-        if self.unsigned_payload {
-            // Set the x-amz-content-sha256 header to UNSIGNED-PAYLOAD
-            // This tells AWS S3 not to verify the payload checksum
-            req.headers_mut().insert(
-                "x-amz-content-sha256",
-                HeaderValue::from_static("UNSIGNED-PAYLOAD"),
-            );
-        }
 
         self.signer
             .sign(req, &cred)
@@ -213,15 +203,6 @@ impl S3Core {
             return Ok(());
         };
 
-        // Handle unsigned payload if configured
-        if self.unsigned_payload {
-            // Set the x-amz-content-sha256 header to UNSIGNED-PAYLOAD
-            // This tells AWS S3 not to verify the payload checksum
-            req.headers_mut().insert(
-                "x-amz-content-sha256",
-                HeaderValue::from_static("UNSIGNED-PAYLOAD"),
-            );
-        }
 
         self.signer
             .sign_query(req, duration, &cred)

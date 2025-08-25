@@ -106,7 +106,7 @@ pub struct S3Config {
     pub disable_ec2_metadata: bool,
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    #[serde(alias = "enable_skip_signature", alias = "aws_skip_signature", alias = "skip_signature")]
+    #[serde(alias = "aws_skip_signature", alias = "skip_signature")]
     pub allow_anonymous: bool,
     /// server_side_encryption for this backend.
     ///
@@ -201,10 +201,6 @@ pub struct S3Config {
 
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     pub enable_request_payer: bool,
-    /// When set to true, uses unsigned payload for request signing to avoid computing body checksum.
-    /// This can improve performance for large uploads but may not be suitable for all use cases.
-    #[serde(alias = "aws_unsigned_payload")]
-    pub unsigned_payload: bool,
     /// When set to true, enables the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
     #[serde(alias = "aws_sse_bucket_key_enabled")]

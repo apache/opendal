@@ -614,13 +614,13 @@ impl S3Builder {
     /// Enable the use of S3 bucket keys for server-side encryption.
     /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
     pub fn enable_bucket_key(mut self) -> Self {
-        self.config.bucket_key_enabled = Some(true);
+        self.config.server_side_encryption_bucket_key_enabled = Some(true);
         self
     }
 
     /// Disable the use of S3 bucket keys for server-side encryption.
     pub fn disable_bucket_key(mut self) -> Self {
-        self.config.bucket_key_enabled = Some(false);
+        self.config.server_side_encryption_bucket_key_enabled = Some(false);
         self
     }
 
@@ -807,7 +807,7 @@ impl Builder for S3Builder {
                 })?),
             };
 
-        let server_side_encryption_bucket_key_enabled = match self.config.bucket_key_enabled {
+        let server_side_encryption_bucket_key_enabled = match self.config.server_side_encryption_bucket_key_enabled {
             None => None,
             Some(true) => Some(HeaderValue::from_static("true")),
             Some(false) => Some(HeaderValue::from_static("false")),
@@ -1041,8 +1041,6 @@ impl Builder for S3Builder {
                 loader,
                 credential_loaded: AtomicBool::new(false),
                 checksum_algorithm,
-                skip_signature: self.config.allow_anonymous,
-                bucket_key_enabled: self.config.bucket_key_enabled,
             }),
         })
     }
@@ -1336,21 +1334,21 @@ mod tests {
         let default_builder = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1");
-        assert_eq!(default_builder.config.bucket_key_enabled, None);
+        assert_eq!(default_builder.config.server_side_encryption_bucket_key_enabled, None);
 
         // Test enable
         let builder_enabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .enable_bucket_key();
-        assert_eq!(builder_enabled.config.bucket_key_enabled, Some(true));
+        assert_eq!(builder_enabled.config.server_side_encryption_bucket_key_enabled, Some(true));
 
         // Test disable
         let builder_disabled = S3Builder::default()
             .bucket("test-bucket")
             .region("us-east-1")
             .disable_bucket_key();
-        assert_eq!(builder_disabled.config.bucket_key_enabled, Some(false));
+        assert_eq!(builder_disabled.config.server_side_encryption_bucket_key_enabled, Some(false));
     }
 
     #[test]
@@ -1382,7 +1380,7 @@ mod tests {
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-1".to_string()));
         assert!(config.allow_anonymous);
-        assert_eq!(config.bucket_key_enabled, Some(true));
+        assert_eq!(config.server_side_encryption_bucket_key_enabled, Some(true));
     }
 
     #[test]
@@ -1403,7 +1401,7 @@ mod tests {
         assert_eq!(config.region, Some("us-east-1".to_string()));
         assert_eq!(config.default_region, Some("us-west-2".to_string()));
         assert!(config.allow_anonymous);
-        assert_eq!(config.bucket_key_enabled, Some(false));
+        assert_eq!(config.server_side_encryption_bucket_key_enabled, Some(false));
     }
 
     #[test]
@@ -1442,6 +1440,6 @@ mod tests {
         }"#;
 
         let config: S3Config = serde_json::from_str(config_json).unwrap();
-        assert_eq!(config.bucket_key_enabled, Some(true));
+        assert_eq!(config.server_side_encryption_bucket_key_enabled, Some(true));
     }
 }

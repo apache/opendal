@@ -22,6 +22,7 @@ use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -111,9 +112,6 @@ pub struct S3Core {
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
-    pub skip_signature: bool,
-    #[allow(dead_code)]
-    pub bucket_key_enabled: Option<bool>,
 }
 
 impl Debug for S3Core {
@@ -164,8 +162,8 @@ impl S3Core {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        // Skip signing if configured to do so
-        if self.skip_signature {
+        // Skip signing if anonymous access is allowed and no credentials are loaded
+        if self.allow_anonymous && !self.credential_loaded.load(Ordering::Relaxed) {
             return Ok(());
         }
 
@@ -192,8 +190,8 @@ impl S3Core {
     }
 
     pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        // Skip signing if configured to do so
-        if self.skip_signature {
+        // Skip signing if anonymous access is allowed and no credentials are loaded
+        if self.allow_anonymous && !self.credential_loaded.load(Ordering::Relaxed) {
             return Ok(());
         }
 

@@ -82,7 +82,7 @@ pub struct AzblobConfig {
     /// Supported keys:
     /// - `azure_use_fabric_endpoint`
     /// - `use_fabric_endpoint`
-    #[serde(alias = "azure_use_fabric_endpoint", default)]
+    #[serde(alias = "azure_use_fabric_endpoint")]
     pub use_fabric_endpoint: bool,
 
     /// The maximum batch operations of Azblob service backend.

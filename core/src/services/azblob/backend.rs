@@ -245,6 +245,13 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set if Microsoft Fabric url scheme should be used.
+    /// When enabled uses https://{account}.dfs.fabric.microsoft.com
+    pub fn use_fabric_endpoint(mut self, use_fabric_endpoint: bool) -> Self {
+        self.config.use_fabric_endpoint = use_fabric_endpoint;
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -318,13 +325,39 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use container {}", &container);
 
+        // Check for conflicting endpoint configuration
+        if self.config.endpoint.is_some() && self.config.use_fabric_endpoint {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "cannot set both endpoint and use_fabric_endpoint",
+            )
+            .with_operation("Builder::build")
+            .with_context("service", Scheme::Azblob));
+        }
+
         let endpoint = match &self.config.endpoint {
             Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)),
+            None => {
+                // Check if use_fabric_endpoint is set and we have an account_name
+                if self.config.use_fabric_endpoint {
+                    if let Some(ref account_name) = self.config.account_name {
+                        Ok(format!("https://{account_name}.dfs.fabric.microsoft.com"))
+                    } else {
+                        Err(Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "use_fabric_endpoint requires account_name",
+                        )
+                        .with_operation("Builder::build")
+                        .with_context("service", Scheme::Azblob))
+                    }
+                } else {
+                    Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                        .with_operation("Builder::build")
+                        .with_context("service", Scheme::Azblob))
+                }
+            }
         }?;
-        debug!("backend use endpoint {}", &container);
+        debug!("backend use endpoint {}", &endpoint);
 
         let mut config_loader = AzureStorageConfig::default().from_env();
 
@@ -587,5 +620,55 @@ impl Access for AzblobBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_endpoint_resolution_with_fabric_endpoint() {
+        // Test that use_fabric_endpoint generates the correct endpoint
+        let builder = AzblobBuilder::default()
+            .container("test-container")
+            .account_name("testaccount")
+            .use_fabric_endpoint(true);
+        
+        // Build should succeed with fabric endpoint
+        let result = builder.build();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_fabric_endpoint_requires_account_name() {
+        // Test that use_fabric_endpoint fails without account_name
+        let builder = AzblobBuilder::default()
+            .container("test-container")
+            .use_fabric_endpoint(true);
+        
+        // Build should fail without account_name
+        let result = builder.build();
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("use_fabric_endpoint requires account_name"));
+        }
+    }
+
+    #[test]
+    fn test_endpoint_and_fabric_endpoint_conflict() {
+        // Test that setting both endpoint and use_fabric_endpoint fails
+        let builder = AzblobBuilder::default()
+            .container("test-container")
+            .account_name("testaccount")
+            .endpoint("https://custom.endpoint.com")
+            .use_fabric_endpoint(true);
+        
+        // Build should fail when both are set
+        let result = builder.build();
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("cannot set both endpoint and use_fabric_endpoint"));
+        }
     }
 }

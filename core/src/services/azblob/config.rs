@@ -23,6 +23,8 @@ use serde::Serialize;
 
 /// Azure Storage Blob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
 pub struct AzblobConfig {
     /// The root of Azblob service backend.
     ///
@@ -39,6 +41,7 @@ pub struct AzblobConfig {
     ///
     /// - Azblob: `https://accountname.blob.core.windows.net`
     /// - Azurite: `http://127.0.0.1:10000/devstoreaccount1`
+    /// - To use Microsoft Fabric endpoint, there is also shortcut `use_fabric_endpoint`.
     #[serde(alias = "azure_storage_endpoint", alias = "azure_endpoint")]
     pub endpoint: Option<String>,
 
@@ -73,6 +76,15 @@ pub struct AzblobConfig {
     )]
     pub sas_token: Option<String>,
 
+    /// Use Microsoft Fabric url scheme.
+    /// When enabled uses https://{account}.dfs.fabric.microsoft.com
+    ///
+    /// Supported keys:
+    /// - `azure_use_fabric_endpoint`
+    /// - `use_fabric_endpoint`
+    #[serde(alias = "azure_use_fabric_endpoint", default)]
+    pub use_fabric_endpoint: bool,
+
     /// The maximum batch operations of Azblob service backend.
     pub batch_max_operations: Option<usize>,
 }
@@ -84,6 +96,9 @@ impl Debug for AzblobConfig {
         ds.field("root", &self.root);
         ds.field("container", &self.container);
         ds.field("endpoint", &self.endpoint);
+        if self.use_fabric_endpoint {
+            ds.field("use_fabric_endpoint", &self.use_fabric_endpoint);
+        }
 
         if self.account_name.is_some() {
             ds.field("account_name", &"<redacted>");
@@ -216,5 +231,23 @@ mod tests {
             config.endpoint,
             Some("https://test.blob.core.windows.net".to_string())
         );
+    }
+
+    #[test]
+    fn test_use_fabric_endpoint_aliases() {
+        // Test original use_fabric_endpoint field
+        let json = r#"{"container": "test", "use_fabric_endpoint": true}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert!(config.use_fabric_endpoint);
+
+        // Test azure_use_fabric_endpoint alias
+        let json = r#"{"container": "test", "azure_use_fabric_endpoint": true}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert!(config.use_fabric_endpoint);
+
+        // Test default value (should be false)
+        let json = r#"{"container": "test"}"#;
+        let config: AzblobConfig = serde_json::from_str(json).unwrap();
+        assert!(!config.use_fabric_endpoint);
     }
 }

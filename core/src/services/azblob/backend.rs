@@ -634,7 +634,7 @@ mod tests {
             .container("test-container")
             .account_name("testaccount")
             .use_fabric_endpoint(true);
-        
+
         // Build should succeed with fabric endpoint
         let result = builder.build();
         assert!(result.is_ok());
@@ -646,12 +646,14 @@ mod tests {
         let builder = AzblobBuilder::default()
             .container("test-container")
             .use_fabric_endpoint(true);
-        
+
         // Build should fail without account_name
         let result = builder.build();
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("use_fabric_endpoint requires account_name"));
+            assert!(e
+                .to_string()
+                .contains("use_fabric_endpoint requires account_name"));
         }
     }
 
@@ -663,12 +665,14 @@ mod tests {
             .account_name("testaccount")
             .endpoint("https://custom.endpoint.com")
             .use_fabric_endpoint(true);
-        
+
         // Build should fail when both are set
         let result = builder.build();
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("cannot set both endpoint and use_fabric_endpoint"));
+            assert!(e
+                .to_string()
+                .contains("cannot set both endpoint and use_fabric_endpoint"));
         }
     }
 }

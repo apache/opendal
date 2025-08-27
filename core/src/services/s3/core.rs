@@ -103,6 +103,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
+    pub enable_content_md5: bool,
 
     pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
@@ -358,6 +359,18 @@ impl S3Core {
         }
         req
     }
+
+    pub fn insert_content_md5_header(
+        &self,
+        mut req: http::request::Builder,
+        body: &Buffer,
+    ) -> http::request::Builder {
+        if self.enable_content_md5 {
+            let content_md5 = format_content_md5(body.to_bytes().as_ref());
+            req = req.header("Content-MD5", content_md5);
+        }
+        req
+    }
 }
 
 impl S3Core {
@@ -563,6 +576,9 @@ impl S3Core {
             req = self.insert_checksum_header(req, &checksum);
         }
 
+        // Set Content-MD5 header if enabled.
+        req = self.insert_content_md5_header(req, &body);
+
         // Inject operation to the request.
         req = req.extension(Operation::Write);
 
@@ -599,6 +615,9 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set Content-MD5 header if enabled.
+        req = self.insert_content_md5_header(req, &body);
 
         // Inject operation to the request.
         req = req.extension(Operation::Write);
@@ -894,6 +913,9 @@ impl S3Core {
             // Set Checksum header.
             req = self.insert_checksum_header(req, &checksum);
         }
+
+        // Set Content-MD5 header if enabled.
+        req = self.insert_content_md5_header(req, &body);
 
         // Inject operation to the request.
         req = req.extension(Operation::Write);

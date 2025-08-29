@@ -32,7 +32,7 @@ doc = false
 name = "opendal_ruby"
 
 [dependencies]
-magnus = { version = "0.7.1", features = ["bytes"] }
+magnus = { version = "0.8", features = ["bytes", "io"] }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",

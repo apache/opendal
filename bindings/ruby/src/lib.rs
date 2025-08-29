@@ -17,7 +17,6 @@
 
 use std::sync::LazyLock;
 
-use magnus::exception;
 use magnus::function;
 use magnus::Error;
 use magnus::Ruby;
@@ -41,21 +40,21 @@ static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
         .unwrap()
 });
 
-pub fn format_magnus_error(err: ocore::Error) -> Error {
-    Error::new(exception::runtime_error(), err.to_string())
+pub fn format_magnus_error(ruby: &Ruby, err: ocore::Error) -> Error {
+    Error::new(ruby.exception_runtime_error(), err.to_string())
 }
 
 /// Apache OpenDAL™ Ruby binding
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
-    let gem_module = ruby.define_module("OpenDAL")?;
-    let _ = operator::include(&gem_module);
-    let _ = metadata::include(&gem_module);
-    let _ = capability::include(&gem_module);
-    let _ = io::include(&gem_module);
+    let gem_module = ruby.define_module("OpenDal")?;
+    let _ = operator::include(ruby, &gem_module);
+    let _ = metadata::include(ruby, &gem_module);
+    let _ = capability::include(ruby, &gem_module);
+    let _ = io::include(ruby, &gem_module);
     let _ = lister::include(ruby, &gem_module);
-    let _ = operator_info::include(&gem_module);
-    let _ = middlewares::include(&gem_module);
+    let _ = operator_info::include(ruby, &gem_module);
+    let _ = middlewares::include(ruby, &gem_module);
 
     Ok(())
 }

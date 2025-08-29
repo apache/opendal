@@ -22,25 +22,25 @@ require "test_helper"
 class MiddlewaresTest < ActiveSupport::TestCase
   test "builds a retry middleware" do
     assert_nothing_raised do
-      OpenDAL::RetryMiddleware.new
+      OpenDal::RetryMiddleware.new
     end
   end
 
   test "builds a concurrent limit middleware" do
     assert_nothing_raised do
-      OpenDAL::ConcurrentLimitMiddleware.new(10)
+      OpenDal::ConcurrentLimitMiddleware.new(10)
     end
   end
 
   test "builds a throttle middleware" do
     assert_nothing_raised do
-      OpenDAL::ThrottleMiddleware.new(100, 10)
+      OpenDal::ThrottleMiddleware.new(100, 10)
     end
   end
 
   test "builds a timeout middleware" do
     assert_nothing_raised do
-      OpenDAL::TimeoutMiddleware.new(1.23, 1.0)
+      OpenDal::TimeoutMiddleware.new(1.23, 1.0)
     end
   end
 end

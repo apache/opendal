@@ -1,0 +1,64 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Release Ruby Binding
+
+on:
+  workflow_dispatch: # allow repo collaborators to publish gem
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # use write if we want `rake release` to push the release tag
+  id-token: write # required for workflow to publish gem
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: bindings/ruby
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # required to run `rake release`.
+      - name: Setup Ruby and install dependencies
+        uses: ruby/setup-ruby@v1
+        with:
+          # setup-ruby implicitly uses .tool-versions
+          bundler-cache: true
+          working-directory: bindings/ruby # we must set it again because actions don't use the workflow's job defaults
+
+      # Run `rake release` to create git tag and push to repository.
+      # Then publish the new gem via trusted publishing
+      # Read more on https://guides.rubygems.org/trusted-publishing/releasing-gems/
+      - name: Publish gem
+        uses: rubygems/release-gem@v1
+
+      - name: Log Release
+        run: |
+          echo "## Ruby binding released! :rocket:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY" # this is a blank line
+          echo "Version: $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"

@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
@@ -98,8 +97,8 @@ define_accessors!(Capability, {
 });
 
 // includes class into the Ruby module
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("Capability", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("Capability", ruby.class_object())?;
     bind_methods_to_ruby!(class, {
         stat,
         stat_with_if_match,

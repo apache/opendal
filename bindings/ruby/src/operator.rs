@@ -25,7 +25,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::scan_args::get_kwargs;
@@ -290,8 +289,8 @@ impl Operator {
     }
 }
 
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("Operator", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("Operator", ruby.class_object())?;
     class.define_singleton_method("new", function!(Operator::new, 2))?;
     class.define_method("read", method!(Operator::read, 1))?;
     class.define_method("write", method!(Operator::write, 2))?;

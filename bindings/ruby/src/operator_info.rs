@@ -20,7 +20,6 @@
     reason = "YARD's syntax for documentation"
 )]
 
-use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
@@ -73,8 +72,8 @@ impl OperatorInfo {
     }
 }
 
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("OperatorInfo", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("OperatorInfo", ruby.class_object())?;
     class.define_method("scheme", method!(OperatorInfo::scheme, 0))?;
     class.define_method("root", method!(OperatorInfo::root, 0))?;
     class.define_method("name", method!(OperatorInfo::name, 0))?;

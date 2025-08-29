@@ -22,7 +22,6 @@
 #![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
 #![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
 
-use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
@@ -96,8 +95,8 @@ impl Metadata {
     }
 }
 
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("Metadata", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("Metadata", ruby.class_object())?;
     class.define_method("mode", method!(Metadata::mode, 0))?;
     class.define_method(
         "content_disposition",

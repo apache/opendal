@@ -29,7 +29,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
-use magnus::class;
 use magnus::io::FMode;
 use magnus::method;
 use magnus::prelude::*;
@@ -77,8 +76,8 @@ struct IoHandle {
     encoding_flags: i32,
 }
 
-pub fn format_io_error(err: std::io::Error) -> Error {
-    Error::new(exception::runtime_error(), err.to_string())
+pub fn format_io_error(ruby: &Ruby, err: std::io::Error) -> Error {
+    Error::new(ruby.exception_runtime_error(), err.to_string())
 }
 
 impl Io {
@@ -102,15 +101,15 @@ impl Io {
                 FileState::Reader(
                     operator
                         .reader(&path)
-                        .map_err(format_magnus_error)?
+                        .map_err(|err| format_magnus_error(ruby, err))?
                         .into_std_read(..)
-                        .map_err(format_magnus_error)?,
+                        .map_err(|err| format_magnus_error(ruby, err))?,
                 )
             } else if fmode.contains(FMode::WRITE) {
                 FileState::Writer(
                 operator
                     .writer(&path)
-                    .map_err(format_magnus_error)?
+                    .map_err(|err| format_magnus_error(ruby, err))?
                     .into_std_write(),
             )
         } else {
@@ -160,10 +159,10 @@ impl Io {
     /// @def close
     /// Close streams.
     /// @return [nil]
-    fn close(&self) -> Result<(), Error> {
-        let mut handle = self.0.borrow_mut();
+    fn close(ruby: &Ruby, rb_self: &Self) -> Result<(), Error> {
+        let mut handle = rb_self.0.borrow_mut();
         if let FileState::Writer(writer) = &mut handle.state {
-            writer.close().map_err(format_io_error)?;
+            writer.close().map_err(|err| format_io_error(ruby, err))?;
         }
         handle.state = FileState::Closed;
         Ok(())
@@ -185,10 +184,10 @@ impl Io {
     /// @def close_write
     /// Closes the write stream.
     /// @return [nil]
-    fn close_write(&self) -> Result<(), Error> {
-        let mut handle = self.0.borrow_mut();
+    fn close_write(ruby: &Ruby, rb_self: &Self) -> Result<(), Error> {
+        let mut handle = rb_self.0.borrow_mut();
         if let FileState::Writer(writer) = &mut handle.state {
-            writer.close().map_err(format_io_error)?;
+            writer.close().map_err(|err| format_io_error(ruby, err))?;
             handle.state = FileState::Closed;
         }
         Ok(())
@@ -246,7 +245,9 @@ impl Io {
                         ));
                     }
                     let mut bs = vec![0; size as usize];
-                    let n = reader.read(&mut bs).map_err(format_io_error)?;
+                    let n = reader
+                        .read(&mut bs)
+                        .map_err(|err| format_io_error(ruby, err))?;
                     if n == 0 && size > 0 {
                         // when called at end of file, read(positive_integer) returns nil.
                         None
@@ -257,15 +258,18 @@ impl Io {
                 }
                 None => {
                     let mut buffer = Vec::new();
-                    reader.read_to_end(&mut buffer).map_err(format_io_error)?;
+                    reader
+                        .read_to_end(&mut buffer)
+                        .map_err(|err| format_io_error(ruby, err))?;
                     Some(buffer.into())
                 }
             };
 
             // when provided the buffer parameter, append read buffer
             if let (Some(output_buffer), Some(inner)) =
-                (option_output_buffer.as_mut(), buffer.as_ref()) {
-                    output_buffer.cat(inner);
+                (option_output_buffer.as_mut(), buffer.as_ref())
+            {
+                output_buffer.cat(inner);
             }
 
             Ok(buffer)
@@ -287,7 +291,9 @@ impl Io {
 
         if let FileState::Reader(reader) = &mut handle.state {
             let mut buffer = String::new();
-            let size = reader.read_line(&mut buffer).map_err(format_io_error)?;
+            let size = reader
+                .read_line(&mut buffer)
+                .map_err(|err| format_io_error(ruby, err))?;
             if size == 0 {
                 return Err(Error::new(
                     ruby.exception_eof_error(),
@@ -314,7 +320,9 @@ impl Io {
 
         if let FileState::Writer(writer) = &mut handle.state {
             let bytes_written = bs.len();
-            writer.write_all(bs.as_bytes()).map_err(format_io_error)?;
+            writer
+                .write_all(bs.as_bytes())
+                .map_err(|err| format_io_error(ruby, err))?;
             Ok(bytes_written)
         } else {
             Err(Error::new(
@@ -354,7 +362,9 @@ impl Io {
                 }
                 1 => {
                     // SEEK_CUR - relative to current position
-                    let position = reader.stream_position().map_err(format_io_error)?;
+                    let position = reader
+                        .stream_position()
+                        .map_err(|err| format_io_error(ruby, err))?;
                     if offset < 0 && (-offset as u64) > position {
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
@@ -365,7 +375,9 @@ impl Io {
                 }
                 2 => {
                     // SEEK_END
-                    let end_pos = reader.seek(SeekFrom::End(0)).map_err(format_io_error)?;
+                    let end_pos = reader
+                        .seek(SeekFrom::End(0))
+                        .map_err(|err| format_io_error(ruby, err))?;
                     if offset < 0 && (-offset as u64) > end_pos {
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
@@ -397,7 +409,9 @@ impl Io {
         let mut handle = rb_self.0.borrow_mut();
 
         match &mut handle.state {
-            FileState::Reader(reader) => Ok(reader.stream_position().map_err(format_io_error)?),
+            FileState::Reader(reader) => Ok(reader
+                .stream_position()
+                .map_err(|err| format_io_error(ruby, err))?),
             FileState::Writer(_) => Err(Error::new(
                 ruby.exception_runtime_error(),
                 "I/O operation failed for reading on write only file.",
@@ -430,8 +444,8 @@ impl Io {
 /// automatically track such objects. Therefore, it is critical to work within Magnus's safety
 /// guidelines when integrating Rust objects with Ruby. Read more in the Magnus documentation:
 /// [Magnus Safety Documentation](https://github.com/matsadler/magnus#safety).
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("IO", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("IO", ruby.class_object())?;
     class.define_method("binmode", method!(Io::binary_mode, 0))?;
     class.define_method("binmode?", method!(Io::is_binary_mode, 0))?;
     class.define_method("close", method!(Io::close, 0))?;

@@ -102,14 +102,14 @@ class IOTest < ActiveSupport::TestCase
 
   test "#read raises ArgumentError with -1" do
     assert_raise(ArgumentError) do |err|
-    @io_read.read(-1)
+      @io_read.read(-1)
 
-    assert_equal "negative length -1 given", err.message
+      assert_equal "negative length -1 given", err.message
     end
   end
 
   test "#read reads to a buffer" do
-    buffer = "hi ".dup # unfreezes string literal
+    buffer = +"hi " # unfreezes string literal
     result = @io_read.read(6, buffer)
 
     assert_equal "Sample", result

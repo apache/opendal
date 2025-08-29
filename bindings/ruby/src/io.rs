@@ -33,9 +33,11 @@ use magnus::class;
 use magnus::io::FMode;
 use magnus::method;
 use magnus::prelude::*;
+use magnus::scan_args::scan_args;
 use magnus::Error;
 use magnus::RHash;
 use magnus::RModule;
+use magnus::RString;
 use magnus::Value;
 
 use crate::*;
@@ -223,29 +225,50 @@ impl Io {
 impl Io {
     /// Reads data from the stream.
     /// TODO:
-    ///   - support default parameters
     ///   - support encoding
     ///
-    /// @param size The maximum number of bytes to read. Reads all data if `None`.
-    fn read(ruby: &Ruby, rb_self: &Self, size: Option<usize>) -> Result<bytes::Bytes, Error> {
+    /// @param size [Integer, nil] The maximum number of bytes to read. Reads all data when not provided.
+    /// @param buffer [String, nil] The output buffer to append to.
+    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<bytes::Bytes>, Error> {
+        let args = scan_args::<(), (Option<Option<i64>>, Option<RString>), (), (), (), ()>(args)?;
+        let (option_size, mut option_output_buffer) = args.optional;
+        let size = option_size.unwrap_or_default(); // allow nil
+
         let mut handle = rb_self.0.borrow_mut();
 
         if let FileState::Reader(reader) = &mut handle.state {
-            let buffer = match size {
+            let buffer: Option<bytes::Bytes> = match size {
                 Some(size) => {
-                    let mut bs = vec![0; size];
+                    if size <= 0 {
+                        return Err(Error::new(
+                            ruby.exception_arg_error(),
+                            format!("negative length {} given", size),
+                        ));
+                    }
+                    let mut bs = vec![0; size as usize];
                     let n = reader.read(&mut bs).map_err(format_io_error)?;
-                    bs.truncate(n);
-                    bs
+                    if n == 0 && size > 0 {
+                        // when called at end of file, read(positive_integer) returns nil.
+                        None
+                    } else {
+                        bs.truncate(n);
+                        Some(bs.into())
+                    }
                 }
                 None => {
                     let mut buffer = Vec::new();
                     reader.read_to_end(&mut buffer).map_err(format_io_error)?;
-                    buffer
+                    Some(buffer.into())
                 }
             };
 
-            Ok(buffer.into())
+            // when provided the buffer parameter, append read buffer
+            if let (Some(output_buffer), Some(inner)) =
+                (option_output_buffer.as_mut(), buffer.as_ref()) {
+                    output_buffer.cat(inner);
+            }
+
+            Ok(buffer)
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),
@@ -417,7 +440,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("closed?", method!(Io::is_closed, 0))?;
     class.define_method("closed_read?", method!(Io::is_closed_read, 0))?;
     class.define_method("closed_write?", method!(Io::is_closed_write, 0))?;
-    class.define_method("read", method!(Io::read, 1))?;
+    class.define_method("read", method!(Io::read, -1))?;
     class.define_method("write", method!(Io::write, 1))?;
     class.define_method("readline", method!(Io::readline, 0))?;
     class.define_method("seek", method!(Io::seek, 2))?;

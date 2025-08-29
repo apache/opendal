@@ -29,6 +29,16 @@ Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
   ext.lib_dir = "lib/opendal_ruby"
+
+  ext.cross_compile = true
+  ext.cross_platform = %w[
+    x64-mingw-ucrt
+    x64-mingw32
+    x86_64-linux
+    arm64-linux
+    x86_64-darwin
+    arm64-darwin
+  ]
 end
 
 Rake::Task[:test].prerequisites << :compile
@@ -71,3 +81,16 @@ end
 
 task doc: "doc:default"
 task default: %i[clobber compile test standard]
+
+desc "report gem version"
+task :version do
+  print GEMSPEC.version
+end
+
+desc "Multi-arch release (overrides bundler)"
+task release: [
+  # we removed build and git tagging steps. Read more in `.release-ruby.yml`
+  # read more https://github.com/rubygems/rubygems/blob/master/bundler/lib/bundler/gem_helper.rb
+  "release:guard_clean",
+  "release:rubygem_push"
+]

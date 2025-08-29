@@ -38,7 +38,7 @@ use crate::*;
 
 /// @yard
 /// Entry returned by Lister to represent a path and it's relative metadata.
-#[magnus::wrap(class = "OpenDAL::Entry", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Entry", free_immediately, size)]
 pub struct Entry(ocore::Entry);
 
 impl Entry {
@@ -83,7 +83,7 @@ impl Entry {
 /// # Safety
 ///
 /// `Lister` is thread-safe.
-#[magnus::wrap(class = "OpenDAL::Lister", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Lister", free_immediately, size)]
 pub struct Lister(Arc<Mutex<ocore::blocking::Lister>>);
 
 impl Iterator for Lister {

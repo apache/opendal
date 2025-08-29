@@ -44,7 +44,7 @@ macro_rules! bind_methods_to_ruby {
 
 /// @yard
 /// Capability describes OpenDAL supported operations by current Operator.
-#[magnus::wrap(class = "OpenDAL::Capability", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Capability", free_immediately, size)]
 pub struct Capability(ocore::Capability);
 
 impl Capability {

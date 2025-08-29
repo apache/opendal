@@ -30,7 +30,7 @@ class IOTest < ActiveSupport::TestCase
         A line after title
       EOF
     )
-    @op = OpenDAL::Operator.new("fs", {"root" => @root})
+    @op = OpenDal::Operator.new("fs", {"root" => @root})
     @io_read = @op.open("sample", "r")
     @io_write = @op.open("sample_write", "w")
   end

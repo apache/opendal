@@ -45,7 +45,7 @@ use crate::*;
 
 /// @yard
 /// The entrypoint for operating with file services and files.
-#[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Operator", free_immediately, size)]
 pub struct Operator {
     // We keep a reference to an `Operator` because:
     // 1. Some builder functions exist only with the `Operator` struct.
@@ -232,7 +232,7 @@ impl Operator {
     /// @param path [String] file path
     /// @param mode [String] operation mode, e.g., `r`, `w`, or `rb`.
     /// @raise [ArgumentError] invalid mode, or when the mode is not unique
-    /// @return [OpenDAL::IO]
+    /// @return [OpenDal::IO]
     fn open(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Io, Error> {
         let args = scan_args::<(String,), (Option<Value>, Option<Value>), (), (), RHash, ()>(args)?;
         let (path,) = args.required;

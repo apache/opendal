@@ -41,7 +41,7 @@ use magnus::Value;
 
 use crate::*;
 
-// `Io` is the rust implementation for `OpenDAL::IO`. `Io` follows similar Ruby IO classes, such as:
+// `Io` is the rust implementation for `OpenDal::IO`. `Io` follows similar Ruby IO classes, such as:
 // - IO
 // - StringIO
 //
@@ -49,14 +49,14 @@ use crate::*;
 // TODO: implement encoding.
 //
 /// @yard
-/// `OpenDAL::IO` is similar to Ruby's `IO` and `StringIO` for accessing files.
+/// `OpenDal::IO` is similar to Ruby's `IO` and `StringIO` for accessing files.
 ///
-/// You can't create an instance of `OpenDAL::IO` except using {OpenDAL::Operator#open}.
+/// You can't create an instance of `OpenDal::IO` except using {OpenDal::Operator#open}.
 ///
 /// Constraints:
 /// - Only available for reading and writing
 /// - Writing doesn't support seek.
-#[magnus::wrap(class = "OpenDAL::IO", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::IO", free_immediately, size)]
 pub struct Io(RefCell<IoHandle>);
 
 enum FileState {
@@ -81,7 +81,7 @@ pub fn format_io_error(ruby: &Ruby, err: std::io::Error) -> Error {
 }
 
 impl Io {
-    /// Creates a new `OpenDAL::IO` object in Ruby.
+    /// Creates a new `OpenDal::IO` object in Ruby.
     ///
     /// See [`Operator::open`] for more information.
     pub fn new(
@@ -432,10 +432,10 @@ impl Io {
     // - puts
 }
 
-/// Defines the `OpenDAL::IO` class in the given Ruby module and binds its methods.
+/// Defines the `OpenDal::IO` class in the given Ruby module and binds its methods.
 ///
 /// This function uses Magnus's built-in Ruby thread-safety features to define the
-/// `OpenDAL::IO` class and its methods in the provided Ruby module (`gem_module`).
+/// `OpenDal::IO` class and its methods in the provided Ruby module (`gem_module`).
 ///
 /// # Ruby Object Lifetime and Safety
 ///

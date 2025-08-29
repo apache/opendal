@@ -64,7 +64,7 @@ where
 /// Adds retry for temporary failed operations.
 ///
 /// See [`opendal::layers::RetryLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::RetryMiddleware")]
+#[magnus::wrap(class = "OpenDal::RetryMiddleware")]
 struct RetryMiddleware(Arc<Mutex<ocore::layers::RetryLayer>>);
 
 impl RetryMiddleware {
@@ -81,7 +81,7 @@ impl RetryMiddleware {
 /// Adds concurrent request limit.
 ///
 /// See [`opendal::layers::ConcurrentLimitLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::ConcurrentLimitMiddleware")]
+#[magnus::wrap(class = "OpenDal::ConcurrentLimitMiddleware")]
 struct ConcurrentLimitMiddleware(Arc<Mutex<ocore::layers::ConcurrentLimitLayer>>);
 
 impl ConcurrentLimitMiddleware {
@@ -100,7 +100,7 @@ impl ConcurrentLimitMiddleware {
 /// Adds a bandwidth rate limiter to the underlying services.
 ///
 /// See [`opendal::layers::ThrottleLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::ThrottleMiddleware")]
+#[magnus::wrap(class = "OpenDal::ThrottleMiddleware")]
 struct ThrottleMiddleware(Arc<Mutex<ocore::layers::ThrottleLayer>>);
 
 impl ThrottleMiddleware {
@@ -128,7 +128,7 @@ fn parse_duration(ruby: &Ruby, val: f64) -> Result<Duration, Error> {
 /// Adds timeout for every operation to avoid slow or unexpected hang operations.
 ///
 /// See [`opendal::layers::TimeoutLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::TimeoutMiddleware")]
+#[magnus::wrap(class = "OpenDal::TimeoutMiddleware")]
 struct TimeoutMiddleware(Arc<Mutex<ocore::layers::TimeoutLayer>>);
 
 impl TimeoutMiddleware {

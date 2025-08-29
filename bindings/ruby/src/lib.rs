@@ -47,7 +47,7 @@ pub fn format_magnus_error(ruby: &Ruby, err: ocore::Error) -> Error {
 /// Apache OpenDAL™ Ruby binding
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
-    let gem_module = ruby.define_module("OpenDAL")?;
+    let gem_module = ruby.define_module("OpenDal")?;
     let _ = operator::include(ruby, &gem_module);
     let _ = metadata::include(ruby, &gem_module);
     let _ = capability::include(ruby, &gem_module);

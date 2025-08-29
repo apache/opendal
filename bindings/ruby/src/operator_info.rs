@@ -29,7 +29,7 @@ use crate::capability::Capability;
 use crate::*;
 
 /// Metadata for operator, users can use this metadata to get information of operator.
-#[magnus::wrap(class = "OpenDAL::OperatorInfo", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::OperatorInfo", free_immediately, size)]
 pub struct OperatorInfo(pub ocore::OperatorInfo);
 
 impl OperatorInfo {

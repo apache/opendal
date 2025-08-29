@@ -31,7 +31,7 @@ use crate::*;
 
 /// @yard
 /// Metadata about the file.
-#[magnus::wrap(class = "OpenDAL::Metadata", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Metadata", free_immediately, size)]
 pub struct Metadata(ocore::Metadata);
 
 impl Metadata {

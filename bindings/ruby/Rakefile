@@ -71,3 +71,8 @@ end
 
 task doc: "doc:default"
 task default: %i[clobber compile test standard]
+
+desc "report gem version"
+task :version do
+  print GEMSPEC.version
+end

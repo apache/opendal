@@ -373,6 +373,7 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "File",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
+  "FileSystemGetDirectoryOptions",
   "FileSystemGetFileOptions",
   "FileSystemWritableFileStream",
   "Navigator",

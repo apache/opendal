@@ -48,7 +48,7 @@ tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-datafusion = "48.0.0"
+datafusion = "49.0.2"
 libtest-mimic = "0.8.1"
 opendal = { version = "0.54.0", path = "../../core", features = [
   "services-memory",

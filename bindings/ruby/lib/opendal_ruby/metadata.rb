@@ -17,7 +17,7 @@
 
 # frozen_string_literal: true
 
-module OpenDAL
+module OpenDal
   class Metadata
     FILE = "File"
     DIRECTORY = "Directory"

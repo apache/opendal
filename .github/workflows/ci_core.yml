@@ -233,6 +233,7 @@ jobs:
           FEATURES=(
             services-azblob
             services-gdrive
+            services-opfs
             services-s3
           )
           rustup target add wasm32-unknown-unknown

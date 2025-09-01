@@ -15,16 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-opfs")]
-mod backend;
-#[cfg(feature = "services-opfs")]
-mod core;
+use wasm_bindgen::JsValue;
 
-#[cfg(feature = "services-opfs")]
-mod config;
+use crate::{Error, ErrorKind};
 
-#[cfg(feature = "services-opfs")]
-mod error;
-
-#[cfg(feature = "services-opfs")]
-mod utils;
+pub(crate) fn parse_js_error(msg: JsValue) -> Error {
+    Error::new(
+        ErrorKind::Unexpected,
+        msg.as_string().unwrap_or_else(String::new),
+    )
+}

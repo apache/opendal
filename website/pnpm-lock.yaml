@@ -13,10 +13,10 @@ dependencies:
     version: 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
   '@docusaurus/preset-classic':
     specifier: ^3.8.1
-    version: 3.8.1(@algolia/client-search@5.32.0)(@mdx-js/react@3.1.0)(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
+    version: 3.8.1(@algolia/client-search@5.36.0)(@mdx-js/react@3.1.0)(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
   '@mdx-js/react':
     specifier: ^3.1.0
-    version: 3.1.0(@types/react@19.1.8)(react@19.1.0)
+    version: 3.1.0(@types/react@19.1.12)(react@19.1.0)
   docusaurus-lunr-search:
     specifier: ^3.6.0
     version: 3.6.0(@docusaurus/core@3.8.1)(react-dom@19.1.0)(react@19.1.0)
@@ -44,55 +44,55 @@ devDependencies:
     specifier: ^3.8.1
     version: 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
   crates-llms-txt:
-    specifier: ^0.0.8
-    version: 0.0.8
+    specifier: ^0.1.1
+    version: 0.1.1
   docusaurus-plugin-llms-builder:
     specifier: ^0.1.13
     version: 0.1.13(@docusaurus/core@3.8.1)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
 
 packages:
 
-  /@algolia/autocomplete-core@1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)(search-insights@2.17.3):
+  /@algolia/autocomplete-core@1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)(search-insights@2.17.3):
     resolution: {integrity: sha512-O7BxrpLDPJWWHv/DLA9DRFWs+iY1uOJZkqUwjS5HSZAGcl0hIVCQ97LTLewiZmZ402JYUrun+8NqFP+hCknlbQ==}
     dependencies:
-      '@algolia/autocomplete-plugin-algolia-insights': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)(search-insights@2.17.3)
-      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)
+      '@algolia/autocomplete-plugin-algolia-insights': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)(search-insights@2.17.3)
+      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)
     transitivePeerDependencies:
       - '@algolia/client-search'
       - algoliasearch
       - search-insights
     dev: false
 
-  /@algolia/autocomplete-plugin-algolia-insights@1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)(search-insights@2.17.3):
+  /@algolia/autocomplete-plugin-algolia-insights@1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)(search-insights@2.17.3):
     resolution: {integrity: sha512-u1fEHkCbWF92DBeB/KHeMacsjsoI0wFhjZtlCq2ddZbAehshbZST6Hs0Avkc0s+4UyBGbMDnSuXHLuvRWK5iDQ==}
     peerDependencies:
       search-insights: '>= 1 < 3'
     dependencies:
-      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)
+      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)
       search-insights: 2.17.3
     transitivePeerDependencies:
       - '@algolia/client-search'
       - algoliasearch
     dev: false
 
-  /@algolia/autocomplete-preset-algolia@1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0):
+  /@algolia/autocomplete-preset-algolia@1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0):
     resolution: {integrity: sha512-Na1OuceSJeg8j7ZWn5ssMu/Ax3amtOwk76u4h5J4eK2Nx2KB5qt0Z4cOapCsxot9VcEN11ADV5aUSlQF4RhGjQ==}
     peerDependencies:
       '@algolia/client-search': '>= 4.9.1 < 6'
       algoliasearch: '>= 4.9.1 < 6'
     dependencies:
-      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)
-      '@algolia/client-search': 5.32.0
+      '@algolia/autocomplete-shared': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)
+      '@algolia/client-search': 5.36.0
       algoliasearch: 5.29.0
     dev: false
 
-  /@algolia/autocomplete-shared@1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0):
+  /@algolia/autocomplete-shared@1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0):
     resolution: {integrity: sha512-iDf05JDQ7I0b7JEA/9IektxN/80a2MZ1ToohfmNS3rfeuQnIKI3IJlIafD0xu4StbtQTghx9T3Maa97ytkXenQ==}
     peerDependencies:
       '@algolia/client-search': '>= 4.9.1 < 6'
       algoliasearch: '>= 4.9.1 < 6'
     dependencies:
-      '@algolia/client-search': 5.32.0
+      '@algolia/client-search': 5.36.0
       algoliasearch: 5.29.0
     dev: false
 
@@ -121,8 +121,8 @@ packages:
     engines: {node: '>= 14.0.0'}
     dev: false
 
-  /@algolia/client-common@5.32.0:
-    resolution: {integrity: sha512-w8L+rgyXMCPBKmEdOT+RfgMrF0mT6HK60vPYWLz8DBs/P7yFdGo7urn99XCJvVLMSKXrIbZ2FMZ/i50nZTXnuQ==}
+  /@algolia/client-common@5.36.0:
+    resolution: {integrity: sha512-fDsg9w6xXWQyNkm/VfiWF2D9wnpTPv0fRVei7lWtz7cXJewhOmP1kKE2GaDTI4QDxVxgDkoPJ1+3UVMIzTcjjQ==}
     engines: {node: '>= 14.0.0'}
     dev: false
 
@@ -166,14 +166,14 @@ packages:
       '@algolia/requester-node-http': 5.29.0
     dev: false
 
-  /@algolia/client-search@5.32.0:
-    resolution: {integrity: sha512-kmK5nVkKb4DSUgwbveMKe4X3xHdMsPsOVJeEzBvFJ+oS7CkBPmpfHAEq+CcmiPJs20YMv6yVtUT9yPWL5WgAhg==}
+  /@algolia/client-search@5.36.0:
+    resolution: {integrity: sha512-MLx32nSeDSNxfx28IfvwfHEfeo3AYe9JgEj0rLeYtJGmt0W30K6tCNokxhWGUUKrggQTH6H1lnohWsoj2OC2bw==}
     engines: {node: '>= 14.0.0'}
     dependencies:
-      '@algolia/client-common': 5.32.0
-      '@algolia/requester-browser-xhr': 5.32.0
-      '@algolia/requester-fetch': 5.32.0
-      '@algolia/requester-node-http': 5.32.0
+      '@algolia/client-common': 5.36.0
+      '@algolia/requester-browser-xhr': 5.36.0
+      '@algolia/requester-fetch': 5.36.0
+      '@algolia/requester-node-http': 5.36.0
     dev: false
 
   /@algolia/events@4.0.1:
@@ -217,11 +217,11 @@ packages:
       '@algolia/client-common': 5.29.0
     dev: false
 
-  /@algolia/requester-browser-xhr@5.32.0:
-    resolution: {integrity: sha512-eDp14z92Gt6JlFgiexImcWWH+Lk07s/FtxcoDaGrE4UVBgpwqOO6AfQM6dXh1pvHxlDFbMJihHc/vj3gBhPjqQ==}
+  /@algolia/requester-browser-xhr@5.36.0:
+    resolution: {integrity: sha512-weE9SImWIDmQrfGLb1pSPEfP3mioKQ84GaQRpUmjFxlxG/4nW2bSsmkV+kNp1s+iomL2gnxFknSmcQuuAy+kPA==}
     engines: {node: '>= 14.0.0'}
     dependencies:
-      '@algolia/client-common': 5.32.0
+      '@algolia/client-common': 5.36.0
     dev: false
 
   /@algolia/requester-fetch@5.29.0:
@@ -231,11 +231,11 @@ packages:
       '@algolia/client-common': 5.29.0
     dev: false
 
-  /@algolia/requester-fetch@5.32.0:
-    resolution: {integrity: sha512-rnWVglh/K75hnaLbwSc2t7gCkbq1ldbPgeIKDUiEJxZ4mlguFgcltWjzpDQ/t1LQgxk9HdIFcQfM17Hid3aQ6Q==}
+  /@algolia/requester-fetch@5.36.0:
+    resolution: {integrity: sha512-zGPI2sgzvOwCHTVMmDvc301iirOKCtJ+Egh+HQB/+DG0zTGUT1DpdwQVT25A7Yin/twnO8CkFpI/S+74FVYNjg==}
     engines: {node: '>= 14.0.0'}
     dependencies:
-      '@algolia/client-common': 5.32.0
+      '@algolia/client-common': 5.36.0
     dev: false
 
   /@algolia/requester-node-http@5.29.0:
@@ -245,11 +245,11 @@ packages:
       '@algolia/client-common': 5.29.0
     dev: false
 
-  /@algolia/requester-node-http@5.32.0:
-    resolution: {integrity: sha512-LbzQ04+VLkzXY4LuOzgyjqEv/46Gwrk55PldaglMJ4i4eDXSRXGKkwJpXFwsoU+c1HMQlHIyjJBhrfsfdyRmyQ==}
+  /@algolia/requester-node-http@5.36.0:
+    resolution: {integrity: sha512-dNbBGE/O6VG/6vFhv3CFm5za4rubAVrhQf/ef0YWiDqPMmalPxGEzIijw4xV1mU1JmX2ffyp/x8Kdtz24sDkOQ==}
     engines: {node: '>= 14.0.0'}
     dependencies:
-      '@algolia/client-common': 5.32.0
+      '@algolia/client-common': 5.36.0
     dev: false
 
   /@ampproject/remapping@2.3.0:
@@ -1321,8 +1321,8 @@ packages:
     dependencies:
       core-js-pure: 3.43.0
 
-  /@babel/runtime@7.27.6:
-    resolution: {integrity: sha512-vbavdySgbTTrmFE+EsiqUTzlOr5bzlnJtUv9PynGCAKvfQqjIXbvFdumPM/GxMDfyuGMJaJAU6TO4zc1Jf1i8Q==}
+  /@babel/runtime@7.28.3:
+    resolution: {integrity: sha512-9uIQ10o0WGdpP6GDhXcdOJPJuDgFtIDtN/9+ArJQ2NAfAmiuhTQdzkaTGR33v43GYS2UrSA0eX2pPPHoFVvpxA==}
     engines: {node: '>=6.9.0'}
 
   /@babel/template@7.27.2:
@@ -1801,7 +1801,7 @@ packages:
     resolution: {integrity: sha512-cQbnVbq0rrBwNAKegIac/t6a8nWoUAn8frnkLFW6YARaRmAQr5/Eoe6Ln2fqkUCZ40KpdrKbpSAmgrkviOxuWA==}
     dev: false
 
-  /@docsearch/react@3.9.0(@algolia/client-search@5.32.0)(@types/react@19.1.8)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
+  /@docsearch/react@3.9.0(@algolia/client-search@5.36.0)(@types/react@19.1.12)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
     resolution: {integrity: sha512-mb5FOZYZIkRQ6s/NWnM98k879vu5pscWqTLubLFBO87igYYT4VzVazh4h5o/zCvTIZgEt3PvsCOMOswOUo9yHQ==}
     peerDependencies:
       '@types/react': '>= 16.8.0 < 20.0.0'
@@ -1818,10 +1818,10 @@ packages:
       search-insights:
         optional: true
     dependencies:
-      '@algolia/autocomplete-core': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)(search-insights@2.17.3)
-      '@algolia/autocomplete-preset-algolia': 1.17.9(@algolia/client-search@5.32.0)(algoliasearch@5.29.0)
+      '@algolia/autocomplete-core': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)(search-insights@2.17.3)
+      '@algolia/autocomplete-preset-algolia': 1.17.9(@algolia/client-search@5.36.0)(algoliasearch@5.29.0)
       '@docsearch/css': 3.9.0
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
       algoliasearch: 5.29.0
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
@@ -1841,7 +1841,7 @@ packages:
       '@babel/preset-env': 7.27.2(@babel/core@7.27.4)
       '@babel/preset-react': 7.27.1(@babel/core@7.27.4)
       '@babel/preset-typescript': 7.27.1(@babel/core@7.27.4)
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       '@babel/runtime-corejs3': 7.27.6
       '@babel/traverse': 7.27.4
       '@docusaurus/logger': 3.8.1
@@ -1924,7 +1924,7 @@ packages:
       '@docusaurus/utils': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/utils-common': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/utils-validation': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
-      '@mdx-js/react': 3.1.0(@types/react@19.1.8)(react@19.1.0)
+      '@mdx-js/react': 3.1.0(@types/react@19.1.12)(react@19.1.0)
       boxen: 6.2.1
       chalk: 4.1.2
       chokidar: 3.6.0
@@ -2480,7 +2480,7 @@ packages:
       - webpack-cli
     dev: false
 
-  /@docusaurus/preset-classic@3.8.1(@algolia/client-search@5.32.0)(@mdx-js/react@3.1.0)(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
+  /@docusaurus/preset-classic@3.8.1(@algolia/client-search@5.36.0)(@mdx-js/react@3.1.0)(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
     resolution: {integrity: sha512-yJSjYNHXD8POMGc2mKQuj3ApPrN+eG0rO1UPgSx7jySpYU+n4WjBikbrA2ue5ad9A7aouEtMWUoiSRXTH/g7KQ==}
     engines: {node: '>=18.0'}
     peerDependencies:
@@ -2498,9 +2498,9 @@ packages:
       '@docusaurus/plugin-google-tag-manager': 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/plugin-sitemap': 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/plugin-svgr': 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
-      '@docusaurus/theme-classic': 3.8.1(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
+      '@docusaurus/theme-classic': 3.8.1(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/theme-common': 3.8.1(@docusaurus/plugin-content-docs@3.8.1)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
-      '@docusaurus/theme-search-algolia': 3.8.1(@algolia/client-search@5.32.0)(@mdx-js/react@3.1.0)(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
+      '@docusaurus/theme-search-algolia': 3.8.1(@algolia/client-search@5.36.0)(@mdx-js/react@3.1.0)(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
       '@docusaurus/types': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
@@ -2532,10 +2532,10 @@ packages:
     peerDependencies:
       react: '*'
     dependencies:
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
       react: 19.1.0
 
-  /@docusaurus/theme-classic@3.8.1(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0):
+  /@docusaurus/theme-classic@3.8.1(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0):
     resolution: {integrity: sha512-bqDUCNqXeYypMCsE1VcTXSI1QuO4KXfx8Cvl6rYfY0bhhqN6d2WZlRkyLg/p6pm+DzvanqHOyYlqdPyP0iz+iw==}
     engines: {node: '>=18.0'}
     peerDependencies:
@@ -2555,7 +2555,7 @@ packages:
       '@docusaurus/utils': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/utils-common': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/utils-validation': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
-      '@mdx-js/react': 3.1.0(@types/react@19.1.8)(react@19.1.0)
+      '@mdx-js/react': 3.1.0(@types/react@19.1.12)(react@19.1.0)
       clsx: 2.1.1
       copy-text-to-clipboard: 3.2.0
       infima: 0.2.0-alpha.45
@@ -2604,7 +2604,7 @@ packages:
       '@docusaurus/utils': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/utils-common': 3.8.1(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@types/history': 4.7.11
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
       '@types/react-router-config': 5.0.11
       clsx: 2.1.1
       parse-numeric-range: 1.3.0
@@ -2622,14 +2622,14 @@ packages:
       - webpack-cli
     dev: false
 
-  /@docusaurus/theme-search-algolia@3.8.1(@algolia/client-search@5.32.0)(@mdx-js/react@3.1.0)(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
+  /@docusaurus/theme-search-algolia@3.8.1(@algolia/client-search@5.36.0)(@mdx-js/react@3.1.0)(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3):
     resolution: {integrity: sha512-NBFH5rZVQRAQM087aYSRKQ9yGEK9eHd+xOxQjqNpxMiV85OhJDD4ZGz6YJIod26Fbooy54UWVdzNU0TFeUUUzQ==}
     engines: {node: '>=18.0'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
       react-dom: ^18.0.0 || ^19.0.0
     dependencies:
-      '@docsearch/react': 3.9.0(@algolia/client-search@5.32.0)(@types/react@19.1.8)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
+      '@docsearch/react': 3.9.0(@algolia/client-search@5.36.0)(@types/react@19.1.12)(react-dom@19.1.0)(react@19.1.0)(search-insights@2.17.3)
       '@docusaurus/core': 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       '@docusaurus/logger': 3.8.1
       '@docusaurus/plugin-content-docs': 3.8.1(@mdx-js/react@3.1.0)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
@@ -2686,7 +2686,7 @@ packages:
     dependencies:
       '@mdx-js/mdx': 3.1.0(acorn@8.15.0)
       '@types/history': 4.7.11
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
       commander: 5.1.0
       joi: 17.13.3
       react: 19.1.0
@@ -2952,14 +2952,14 @@ packages:
       - acorn
       - supports-color
 
-  /@mdx-js/react@3.1.0(@types/react@19.1.8)(react@19.1.0):
+  /@mdx-js/react@3.1.0(@types/react@19.1.12)(react@19.1.0):
     resolution: {integrity: sha512-QjHtSaoameoalGnKDT3FoIl4+9RwyTmo9ZJGBdLOks/YOiWHoRDI3PUwEzOE7kEmGcV3AFcp9K6dYu9rEuKLAQ==}
     peerDependencies:
       '@types/react': '>=16'
       react: '>=16'
     dependencies:
       '@types/mdx': 2.0.13
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
       react: 19.1.0
 
   /@nodelib/fs.scandir@2.1.5:
@@ -3029,7 +3029,7 @@ packages:
       react: ^16.6.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
       react-dom: ^16.6.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       invariant: 2.2.4
       prop-types: 15.8.1
       react: 19.1.0
@@ -3398,7 +3398,12 @@ packages:
     resolution: {integrity: sha512-jGjmu/ZqS7FjSH6owMcD5qpq19+1RS9DeVRqfl1FeBMxTDQAGwlMWOcs52NDoXaNKyG3d1cYQFMs9rCrb88o9Q==}
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.1.8
+      '@types/react': 19.1.12
+
+  /@types/react@19.1.12:
+    resolution: {integrity: sha512-cMoR+FoAf/Jyq6+Df2/Z41jISvGZZ2eTlnsaJRptmZ76Caldwy1odD4xTr/gNV9VLj0AWgg/nmkevIyUfIIq5w==}
+    dependencies:
+      csstype: 3.1.3
 
   /@types/react@19.1.8:
     resolution: {integrity: sha512-AwAfQ2Wa5bCx9WP8nZL2uMZWod7J7/JSplxbTmBQ5ms6QpqNYm672H0Vu9ZVKVngQ+ii4R/byguVEUZQyeg44g==}
@@ -4304,8 +4309,8 @@ packages:
       parse-json: 5.2.0
       path-type: 4.0.0
 
-  /crates-llms-txt-napi-darwin-arm64@0.0.8:
-    resolution: {integrity: sha512-wMpvUxXA5+RRqd69XNcFK4wEGMZdbgOZgJWXlToOeBL1GsSB6dVsJxXve+4mQNgaYSjrhmgTQ7qIp9YIly16pQ==}
+  /crates-llms-txt-napi-darwin-arm64@0.1.1:
+    resolution: {integrity: sha512-hirAssv9QO0xSZrGxBZgp1V77/4tfkw1Bedc2XuCNQqU5UV5w6ME1i+ZpWCBvfImRZmuExIarmdTZULaVIn80A==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -4313,8 +4318,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-darwin-x64@0.0.8:
-    resolution: {integrity: sha512-di2UhxHcVwNXLJzq+4JSgQJnyHNF2hDLz3jX1K84qn8H6mZxbi+jmNI08+XvVgbD7ExbNTbDwQ3taeYUb4b/LQ==}
+  /crates-llms-txt-napi-darwin-x64@0.1.1:
+    resolution: {integrity: sha512-9fGbE0gdmWFoG+msdvJbD3oABpVXU/AG3EuprF9ndxOaJKgdgnWW0qiQbwc+TUhX2xgaKNZG6psDkBlifHGoSg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -4322,8 +4327,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm-gnueabihf@0.0.8:
-    resolution: {integrity: sha512-OLFtG/0EBl1J76lY7T6uJcA2NnxWK34iTlthW61jXKtC97w/2COKNZ3VH8Wc87xWic4MMo9KjZR03R8dZr7pTg==}
+  /crates-llms-txt-napi-linux-arm-gnueabihf@0.1.1:
+    resolution: {integrity: sha512-q3R6k0ZDespSYZ7CWtgd38pYY1Lrlsw0UgcmEPlXMv2C999aBKAPZniVPDP2s06ZMzVSOd2pl8p3otPRVlG+Dw==}
     engines: {node: '>= 10'}
     cpu: [arm]
     os: [linux]
@@ -4331,8 +4336,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm64-gnu@0.0.8:
-    resolution: {integrity: sha512-zIPU/g9zIyyBLQjxxpGkNDkyXKGmfGFJOlFiO6BZvReHyd3/AkDUdd2cMbcuqFU1YVMS2b8to+iLBzMpbjW9TQ==}
+  /crates-llms-txt-napi-linux-arm64-gnu@0.1.1:
+    resolution: {integrity: sha512-80NTEqd26DVpRswkXpJlW71fYfrgPpMF4ihCMvdtLjzTC00Czi7x01ESQGaStjYxyxWVM5fh2wrDL+j06B8auA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -4340,8 +4345,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-arm64-musl@0.0.8:
-    resolution: {integrity: sha512-/2sIY1SKomg/iyWOw7Ft+e5+aZJG9DhmZZ5lOfA6DRFvR9gLeqk3ZEnsK8zy99gWN9h9/FZ6lz3wwcBINTZclg==}
+  /crates-llms-txt-napi-linux-arm64-musl@0.1.1:
+    resolution: {integrity: sha512-XOiN/OBtrUiPMHOfePPLoCgjnrrsOZr6XcoS7XsWhhcxZ15i8+FSFivE5retdNAS8VKwHeAz3PMfV7zDgTkVAw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -4349,8 +4354,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-x64-gnu@0.0.8:
-    resolution: {integrity: sha512-MCSmnmOUAeVDAOtWyy9sShfd/Ri46KrdIR2QBIOGwFqXVMkzqVkd+8dK4uf+6p8NF28zzZdE/HmZiUGZ1BEh0Q==}
+  /crates-llms-txt-napi-linux-x64-gnu@0.1.1:
+    resolution: {integrity: sha512-kvE9d+WR4vockEXoWjHezn0infLjU4EBrDIA2Z0eortsw38IXQr6rKhz7cSE7mGBGPp3fd+hxOilKeavzgGk6g==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -4358,8 +4363,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-linux-x64-musl@0.0.8:
-    resolution: {integrity: sha512-pzjyTF6LasFUs9Pf2oPyyzGF0Ld8C3rwJ9zFwzmVpw/OhsJaI8KDywBnlsl+YtAKTA22T2eIMPtzXXLehJJJOg==}
+  /crates-llms-txt-napi-linux-x64-musl@0.1.1:
+    resolution: {integrity: sha512-SEKbTcehTOISKkzHEoB/GkfZRync0LHyCoZ4Csaab2xO/HEOO3JXNJv0i2l17341tzmoBdqZz1e67nSVzJ4i/A==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -4367,8 +4372,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-arm64-msvc@0.0.8:
-    resolution: {integrity: sha512-pXjGxdmzG7uWuZo1dflpXnniC2TKvSqQUgGNUqOvaVavlEYfLHYM2I7SpW6kxLQRATtdZQJQlvI44Q1BXc9D/w==}
+  /crates-llms-txt-napi-win32-arm64-msvc@0.1.1:
+    resolution: {integrity: sha512-7cW00N3YhxOvr3XISzDVX7nXVNB7bBEzWupoBR03QUML45I3c1a5DQvfYjS9EdSbBQBXTMFy2x/7vlhG5R7dDA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -4376,8 +4381,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-ia32-msvc@0.0.8:
-    resolution: {integrity: sha512-NJB+VK5lo8X13RZ81utl4GCBumr6FjrCqtvsmfATXVaQzofDFkTwDFDsAxd4c/4+b+fpk+mB6SBkYgiolj2XWA==}
+  /crates-llms-txt-napi-win32-ia32-msvc@0.1.1:
+    resolution: {integrity: sha512-6YIvIG70M2ir6NWfVqO60iBWy9ttK8lxS6fFoyiO0Qpn3EfsEOy4IapRJkqkTLiyRtIMYye0lESzShvDniTXpQ==}
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -4385,8 +4390,8 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi-win32-x64-msvc@0.0.8:
-    resolution: {integrity: sha512-pJ2UTk982wOxOLOIp7OJnQlaYILqp/WJ5cgC6MVW78EWpRnfuQ6DS7L8eSLv9ahBFbM+8xohpUgGmDy89PTgow==}
+  /crates-llms-txt-napi-win32-x64-msvc@0.1.1:
+    resolution: {integrity: sha512-QVAY81v0diWDLCKgSuRZt9ZLDTR8kE8qIS6I2Xu6prjw2biIfJe24td2am+05bZjvvm9vuC/5uDGIdW/4Ghv/g==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -4394,26 +4399,20 @@ packages:
     dev: true
     optional: true
 
-  /crates-llms-txt-napi@0.0.8:
-    resolution: {integrity: sha512-6+TmJCO9k9kxpQ9ryXNEICDaf0dqZWL0Zqz27N40ffCjDBhL4wAJ/0M+yYJj/jP5iFg87kO+7jWUUuNYxYahng==}
+  /crates-llms-txt@0.1.1:
+    resolution: {integrity: sha512-ktrpeT8oNEF7VkxCSCFpcO39jGgCRoVVcenSPMfxhWzX4jWuPdD5Q2nUp1+5nyaJ7GrAZbuY9MUsABKWeBG4gQ==}
     engines: {node: '>= 10'}
     optionalDependencies:
-      crates-llms-txt-napi-darwin-arm64: 0.0.8
-      crates-llms-txt-napi-darwin-x64: 0.0.8
-      crates-llms-txt-napi-linux-arm-gnueabihf: 0.0.8
-      crates-llms-txt-napi-linux-arm64-gnu: 0.0.8
-      crates-llms-txt-napi-linux-arm64-musl: 0.0.8
-      crates-llms-txt-napi-linux-x64-gnu: 0.0.8
-      crates-llms-txt-napi-linux-x64-musl: 0.0.8
-      crates-llms-txt-napi-win32-arm64-msvc: 0.0.8
-      crates-llms-txt-napi-win32-ia32-msvc: 0.0.8
-      crates-llms-txt-napi-win32-x64-msvc: 0.0.8
-    dev: true
-
-  /crates-llms-txt@0.0.8:
-    resolution: {integrity: sha512-8CQJpU/UGmBhbjmJ7JoNIh5uEdLAv8C1h+e0XegqrTb2hXoYz+fgu+mbIKW73SJezNhluJnA+xX5JMIw0QWPiw==}
-    dependencies:
-      crates-llms-txt-napi: 0.0.8
+      crates-llms-txt-napi-darwin-arm64: 0.1.1
+      crates-llms-txt-napi-darwin-x64: 0.1.1
+      crates-llms-txt-napi-linux-arm-gnueabihf: 0.1.1
+      crates-llms-txt-napi-linux-arm64-gnu: 0.1.1
+      crates-llms-txt-napi-linux-arm64-musl: 0.1.1
+      crates-llms-txt-napi-linux-x64-gnu: 0.1.1
+      crates-llms-txt-napi-linux-x64-musl: 0.1.1
+      crates-llms-txt-napi-win32-arm64-msvc: 0.1.1
+      crates-llms-txt-napi-win32-ia32-msvc: 0.1.1
+      crates-llms-txt-napi-win32-x64-msvc: 0.1.1
     dev: true
 
   /cross-spawn@7.0.6:
@@ -4812,7 +4811,7 @@ packages:
     peerDependencies:
       '@docusaurus/theme-classic': '>=3.0.0'
     dependencies:
-      '@docusaurus/theme-classic': 3.8.1(@types/react@19.1.8)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
+      '@docusaurus/theme-classic': 3.8.1(@types/react@19.1.12)(acorn@8.15.0)(react-dom@19.1.0)(react@19.1.0)
       medium-zoom: 1.1.0
       validate-peer-dependencies: 2.2.0
     dev: false
@@ -5745,7 +5744,7 @@ packages:
   /history@4.10.1:
     resolution: {integrity: sha512-36nwAD620w12kuzPAsyINPWJqlNbij+hpK1k9XRloDtym8mxzGYl2c17LnV6IAGB2Dmg4tEa7G7DlawS0+qjew==}
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       loose-envify: 1.4.0
       resolve-pathname: 3.0.0
       tiny-invariant: 1.3.3
@@ -8320,7 +8319,7 @@ packages:
       react-loadable: '*'
       webpack: '>=4.41.1 || 5.x'
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       react-loadable: /@docusaurus/react-loadable@6.0.0(react@19.1.0)
       webpack: 5.99.9
 
@@ -8330,7 +8329,7 @@ packages:
       react: '>=15'
       react-router: '>=5'
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       react: 19.1.0
       react-router: 5.3.4(react@19.1.0)
 
@@ -8339,7 +8338,7 @@ packages:
     peerDependencies:
       react: '>=15'
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       history: 4.10.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
@@ -8353,7 +8352,7 @@ packages:
     peerDependencies:
       react: '>=15'
     dependencies:
-      '@babel/runtime': 7.27.6
+      '@babel/runtime': 7.28.3
       history: 4.10.1
       hoist-non-react-statics: 3.3.2
       loose-envify: 1.4.0

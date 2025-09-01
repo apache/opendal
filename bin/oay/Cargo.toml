@@ -47,7 +47,7 @@ dav-server = { version = "0.8", optional = true }
 dav-server-opendalfs = { version = "0.6.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
 log = { version = "0.4.27" }
-logforth = { version = "0.26.1", default-features = false }
+logforth = { version = "0.27.0", default-features = false }
 opendal = { version = "0.54.0", path = "../../core", features = [
   "services-fs",
 ] }

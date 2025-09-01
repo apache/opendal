@@ -955,9 +955,9 @@ checksum = "13dc2df351e3202783a1fe0d44375f7295ffb4049267b0f3018346dc122a1d94"
 
 [[package]]
 name = "logforth"
-version = "0.26.1"
+version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e16a0c5e66aa81bca950043fd9d5b226b8bfc96796b6e88643f59af725bfd449"
+checksum = "8bb3bacbca013b1a4d9f342501b6aa28eb32a6aa33bc804792fad83d661a59d5"
 dependencies = [
  "anyhow",
  "env_filter",

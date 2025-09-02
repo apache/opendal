@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "cloud_filter_opendal"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "anyhow",
  "bincode",
@@ -515,7 +515,7 @@ dependencies = [
 
 [[package]]
 name = "fuse3_opendal"
-version = "0.0.18"
+version = "0.0.19"
 dependencies = [
  "bytes",
  "fuse3",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "ofs"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "anyhow",
  "clap",
@@ -1216,7 +1216,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "opendal"
-version = "0.54.0"
+version = "0.54.1"
 dependencies = [
  "anyhow",
  "backon",

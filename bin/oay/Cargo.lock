@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "dav-server-opendalfs"
-version = "0.6.2"
+version = "0.6.3"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1055,7 +1055,7 @@ dependencies = [
 
 [[package]]
 name = "oay"
-version = "0.41.22"
+version = "0.41.23"
 dependencies = [
  "anyhow",
  "axum",
@@ -1090,7 +1090,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "opendal"
-version = "0.54.0"
+version = "0.54.1"
 dependencies = [
  "anyhow",
  "backon",

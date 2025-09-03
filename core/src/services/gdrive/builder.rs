@@ -219,6 +219,7 @@ impl Builder for GdriveBuilder {
             core: Arc::new(GdriveCore {
                 info: accessor_info.clone(),
                 root,
+                include_shared_files: self.config.shared_files.unwrap_or_default(),
                 signer: signer.clone(),
                 path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
                     .with_lock(),

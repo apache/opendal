@@ -41,6 +41,8 @@ pub struct GdriveCore {
 
     pub root: String,
 
+    pub include_shared_files: bool,
+
     pub signer: Arc<Mutex<GdriveSigner>>,
 
     /// Cache the mapping from path to file id
@@ -66,7 +68,7 @@ impl GdriveCore {
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
-            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
+            "https://www.googleapis.com/drive/v3/files/{file_id}?supportsAllDrives={}&fields=id,name,mimeType,size,modifiedTime",self.include_shared_files
         ))
             .extension(Operation::Stat)
             .body(Buffer::new())
@@ -83,7 +85,10 @@ impl GdriveCore {
             format!("path not found: {path}"),
         ))?;
 
-        let url: String = format!("https://www.googleapis.com/drive/v3/files/{path_id}?alt=media");
+        let url: String = format!(
+            "https://www.googleapis.com/drive/v3/files/{path_id}?supportsAllDrives={}&alt=media",
+            self.include_shared_files
+        );
 
         let mut req = Request::get(&url)
             .extension(Operation::Read)
@@ -104,6 +109,11 @@ impl GdriveCore {
         let q = format!("'{file_id}' in parents and trashed = false");
         let url = "https://www.googleapis.com/drive/v3/files";
         let mut url = QueryPairsWriter::new(url);
+        url = url.push("supportsAllDrives", &self.include_shared_files.to_string());
+        url = url.push(
+            "includeItemsFromAllDrives",
+            &self.include_shared_files.to_string(),
+        );
         url = url.push("pageSize", &page_size.to_string());
         url = url.push("q", &percent_encode_path(&q));
         if !next_page_token.is_empty() {

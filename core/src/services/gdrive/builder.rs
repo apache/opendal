@@ -120,6 +120,11 @@ impl GdriveBuilder {
         self
     }
 
+    /// Include shared files when fetching and listing files
+    pub fn include_shared(mut self, include_files: bool) -> Self {
+        self.config.shared_files = Some(include_files);
+        self
+    }
     /// Specify the http client that used by this service.
     ///
     /// # Notes

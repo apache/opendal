@@ -40,7 +40,7 @@ services:
     healthcheck:
       test: >
         etcdctl endpoint health
-        --endpoints=https://etcd:2379
+        --endpoints=https://127.0.0.1:2379
         --cacert=/etc/etcd/certs/ca.pem
         --cert=/etc/etcd/certs/client.pem
         --key=/etc/etcd/certs/client-key.pem

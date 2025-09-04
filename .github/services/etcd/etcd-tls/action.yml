@@ -31,6 +31,31 @@ runs:
       shell: bash
       working-directory: fixtures/etcd
       run: docker compose -f docker-compose-standalone-tls.yml up -d --wait
+    - name: Initialize etcd auth
+      shell: bash
+      working-directory: fixtures/etcd
+      env:
+        ETCD_ROOT_PASSWORD: opendal
+      run: |
+        function etcdctl_exec() {
+          docker compose -f docker-compose-standalone-tls.yml exec -T etcd \
+            env ETCDCTL_API=3 etcdctl \
+            --endpoints=https://127.0.0.1:2379 \
+            --cacert=/certs/ca.pem \
+            --cert=/certs/client.pem \
+            --key=/certs/client-key.pem "$@"
+        }
+
+        # wait etcd to be healthy
+        for i in {1..60}; do
+          etcdctl_exec endpoint health && break
+          sleep 1
+        done
+
+        # create root user and enable auth
+        etcdctl_exec user add root --interactive=false --password "${ETCD_ROOT_PASSWORD}" || true
+        etcdctl_exec user grant-role root root || true
+        etcdctl_exec auth enable || true
     - name: Setup
       shell: bash
       run: |

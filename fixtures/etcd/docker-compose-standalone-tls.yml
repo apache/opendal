@@ -27,39 +27,13 @@ services:
       - ./server-key.pem:/certs/server-key.pem
       - ./client-key.pem:/certs/client-key.pem
       - ./client.pem:/certs/client.pem
-    environment:
-      ETCD_NAME: etcd
-      ETCD_ROOT_PASSWORD: opendal
-      ETCD_LISTEN_CLIENT_URLS: https://0.0.0.0:2379
-      ETCD_ADVERTISE_CLIENT_URLS: https://etcd:2379
-      ETCD_MAX_REQUEST_BYTES: 10485760
-      ETCD_TRUSTED_CA_FILE: /certs/ca.pem
-      ETCD_KEY_FILE: /certs/server-key.pem
-      ETCD_CERT_FILE: /certs/server.pem
-      ETCDCTL_API: "3"
-      ETCDCTL_ENDPOINTS: https://127.0.0.1:2379
-      ETCDCTL_CACERT: /certs/ca.pem
-      ETCDCTL_CERT: /certs/client.pem
-      ETCDCTL_KEY: /certs/client-key.pem
-    command: >-
-      sh -c '
-        set -euo pipefail
-        etcd \
-          --name "${ETCD_NAME}" \
-          --listen-client-urls "${ETCD_LISTEN_CLIENT_URLS}" \
-          --advertise-client-urls "${ETCD_ADVERTISE_CLIENT_URLS}" \
-          --max-request-bytes "${ETCD_MAX_REQUEST_BYTES}" \
-          --client-cert-auth=true \
-          --trusted-ca-file="${ETCD_TRUSTED_CA_FILE}" \
-          --cert-file="${ETCD_CERT_FILE}" \
-          --key-file="${ETCD_KEY_FILE}" &
-        pid=$!
-        for i in $(seq 1 60); do
-          if etcdctl endpoint health; then break; fi
-          sleep 1
-        done
-        etcdctl user add root --interactive=false --password "${ETCD_ROOT_PASSWORD}" || true
-        etcdctl user grant-role root root || true
-        etcdctl auth enable || true
-        wait "$pid"
-      '
+    command:
+      - etcd
+      - --name=etcd
+      - --listen-client-urls=https://0.0.0.0:2379
+      - --advertise-client-urls=https://etcd:2379
+      - --max-request-bytes=10485760
+      - --client-cert-auth=true
+      - --trusted-ca-file=/certs/ca.pem
+      - --cert-file=/certs/server.pem
+      - --key-file=/certs/server-key.pem

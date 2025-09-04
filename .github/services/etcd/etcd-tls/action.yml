@@ -38,7 +38,7 @@ runs:
         ETCD_ROOT_PASSWORD: opendal
       run: |
         function etcdctl_exec() {
-          docker compose -f docker-compose-standalone-tls.yml exec -T -e ETCDCTL_API=3 etcd \
+          docker compose -f docker-compose-standalone-tls.yml exec -T etcd \
             etcdctl \
             --endpoints=https://127.0.0.1:2379 \
             --cacert=/certs/ca.pem \

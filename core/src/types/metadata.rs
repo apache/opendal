@@ -61,6 +61,7 @@ pub struct Metadata {
     content_range: Option<BytesContentRange>,
     content_type: Option<String>,
     content_encoding: Option<String>,
+    content_language: Option<String>,
     etag: Option<String>,
     last_modified: Option<DateTime<Utc>>,
     version: Option<String>,
@@ -82,6 +83,7 @@ impl Metadata {
             content_md5: None,
             content_type: None,
             content_encoding: None,
+            content_language: None,
             content_range: None,
             last_modified: None,
             etag: None,
@@ -292,6 +294,21 @@ impl Metadata {
     /// Set Content Encoding of this entry.
     pub fn set_content_encoding(&mut self, v: &str) -> &mut Self {
         self.content_encoding = Some(v.to_string());
+        self
+    }
+
+    /// Content Language of this entry.
+    ///
+    /// Content Language is defined by [RFC 7231](https://httpwg.org/specs/rfc7231.html#header.content-language)
+    ///
+    /// Refer to [MDN Content-Language](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Language) for more information.
+    pub fn content_language(&self) -> Option<&str> {
+        self.content_language.as_deref()
+    }
+
+    /// Set Content Language of this entry.
+    pub fn set_content_language(&mut self, v: &str) -> &mut Self {
+        self.content_language = Some(v.to_string());
         self
     }
 

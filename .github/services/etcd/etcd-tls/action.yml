@@ -40,10 +40,10 @@ runs:
         function etcdctl_exec() {
           docker compose -f docker-compose-standalone-tls.yml exec -T etcd \
             etcdctl \
-            --endpoints=https://127.0.0.1:2379 \
-            --cacert=/certs/ca.pem \
-            --cert=/certs/client.pem \
-            --key=/certs/client-key.pem "$@"
+            --endpoints=https://etcd:2379 \
+            --cacert=/etc/etcd/certs/ca.pem \
+            --cert=/etc/etcd/certs/client.pem \
+            --key=/etc/etcd/certs/client-key.pem "$@"
         }
 
         # wait etcd to be healthy

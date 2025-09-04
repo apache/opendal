@@ -38,8 +38,8 @@ runs:
         ETCD_ROOT_PASSWORD: opendal
       run: |
         function etcdctl_exec() {
-          docker compose -f docker-compose-standalone-tls.yml exec -T etcd \
-            env ETCDCTL_API=3 etcdctl \
+          docker compose -f docker-compose-standalone-tls.yml exec -T -e ETCDCTL_API=3 etcd \
+            etcdctl \
             --endpoints=https://127.0.0.1:2379 \
             --cacert=/certs/ca.pem \
             --cert=/certs/client.pem \
@@ -53,9 +53,9 @@ runs:
         done
 
         # create root user and enable auth
-        etcdctl_exec user add root --interactive=false --password "${ETCD_ROOT_PASSWORD}" || true
-        etcdctl_exec user grant-role root root || true
-        etcdctl_exec auth enable || true
+        etcdctl_exec user add root --interactive=false --password "${ETCD_ROOT_PASSWORD}"
+        etcdctl_exec user grant-role root root
+        etcdctl_exec auth enable
     - name: Setup
       shell: bash
       run: |

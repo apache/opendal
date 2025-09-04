@@ -47,7 +47,7 @@ runs:
         }
 
         # create root user and enable auth
-        etcdctl_exec user add root --interactive=false --password "${ETCD_ROOT_PASSWORD}"
+        etcdctl_exec user add root --new-user-password "${ETCD_ROOT_PASSWORD}"
         etcdctl_exec user grant-role root root
         etcdctl_exec auth enable
     - name: Setup

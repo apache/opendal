@@ -489,7 +489,7 @@ struct OperationLabels {
 }
 
 impl EncodeLabelSet for OperationLabels {
-    fn encode(&self, mut encoder: LabelSetEncoder) -> Result<(), fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder<'_>) -> Result<(), fmt::Error> {
         (observe::LABEL_SCHEME, self.labels.scheme).encode(encoder.encode_label())?;
         (observe::LABEL_NAMESPACE, self.labels.namespace.as_ref())
             .encode(encoder.encode_label())?;

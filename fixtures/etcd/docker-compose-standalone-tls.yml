@@ -38,12 +38,16 @@ services:
       - --cert-file=/etc/etcd/certs/server.pem
       - --key-file=/etc/etcd/certs/server-key.pem
     healthcheck:
-      test: >
-        etcdctl endpoint health
-        --endpoints=https://127.0.0.1:2379
-        --cacert=/etc/etcd/certs/ca.pem
-        --cert=/etc/etcd/certs/client.pem
-        --key=/etc/etcd/certs/client-key.pem
+      test: [
+        "CMD",
+        "/usr/local/bin/etcdctl",
+        "endpoint", "health",
+        "--endpoints=https://127.0.0.1:2379",
+        "--cacert=/etc/etcd/certs/ca.pem",
+        "--cert=/etc/etcd/certs/client.pem",
+        "--key=/etc/etcd/certs/client-key.pem"
+      ]
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 20s
+      retries: 5
+      start_period: 40s

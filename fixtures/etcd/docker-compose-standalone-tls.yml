@@ -31,7 +31,7 @@ services:
       - /usr/local/bin/etcd
       - --name=etcd
       - --listen-client-urls=https://0.0.0.0:2379
-      - --advertise-client-urls=https://etcd:2379
+      - --advertise-client-urls=https://127.0.0.1:2379
       - --max-request-bytes=10485760
       - --client-cert-auth
       - --trusted-ca-file=/etc/etcd/certs/ca.pem

@@ -21,8 +21,9 @@ import { randomUUID } from 'node:crypto'
 import { test, describe, expect, assert } from 'vitest'
 import { Writable } from 'node:stream'
 import { finished, pipeline } from 'node:stream/promises'
+import { setTimeout } from 'node:timers/promises'
 
-import { generateBytes, generateFixedBytes, sleep } from '../utils.mjs'
+import { generateBytes, generateFixedBytes } from '../utils.mjs'
 
 /**
  * @param {import("../../index").Operator} op
@@ -108,7 +109,7 @@ export function run(op) {
       const bs = await op.read(filename, { ifModifiedSince: sinceMinus.toISOString() })
       assert.equal(Buffer.compare(bs, content), 0)
 
-      await sleep(1000)
+      await setTimeout(1000)
 
       const sinceAdd = new Date(meta.lastModified)
       sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)
@@ -133,7 +134,7 @@ export function run(op) {
         'ConditionNotMatch',
       )
 
-      await sleep(1000)
+      await setTimeout(1000)
 
       const sinceAdd = new Date(meta.lastModified)
       sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)
@@ -275,7 +276,7 @@ export function run(op) {
       const buf = Buffer.concat(chunks)
       assert.equal(Buffer.compare(buf, content), 0)
 
-      await sleep(1000)
+      await setTimeout(1000)
 
       const sinceAdd = new Date(meta.lastModified)
       sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)
@@ -301,7 +302,7 @@ export function run(op) {
       const bs = Buffer.alloc(content.length)
       await expect(r.read(bs)).rejects.toThrowError('ConditionNotMatch')
 
-      await sleep(1000)
+      await setTimeout(1000)
 
       const sinceAdd = new Date(meta.lastModified)
       sinceAdd.setSeconds(sinceAdd.getSeconds() + 1)

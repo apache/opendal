@@ -59,7 +59,7 @@ impl Access for OpfsBackend {
             write_can_empty: true,
             write_can_append: true,
             write_can_multi: true,
-            // write_with_if_not_exists: true,
+
             create_dir: true,
             delete: true,
 

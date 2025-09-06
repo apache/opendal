@@ -202,3 +202,17 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
+  test_opfs:
+    name: core_opfs / ${{ matrix.os }}
+    needs: [plan]
+    if: fromJson(needs.plan.outputs.plan).components.core
+    secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.plan).core }}
+    uses: ./.github/workflows/test_behavior_opfs.yml
+    with:
+      os: ${{ matrix.os }}
+      cases: ${{ toJson(matrix.cases) }}

@@ -694,6 +694,7 @@ pub struct OpWrite {
     if_none_match: Option<String>,
     if_not_exists: bool,
     user_metadata: Option<HashMap<String, String>>,
+    tags: Option<HashMap<String, String>>,
 }
 
 impl OpWrite {
@@ -821,6 +822,17 @@ impl OpWrite {
     pub fn user_metadata(&self) -> Option<&HashMap<String, String>> {
         self.user_metadata.as_ref()
     }
+
+    /// Set the tags of the op
+    pub fn with_tags(mut self, tags: HashMap<String, String>) -> Self {
+        self.tags = Some(tags);
+        self
+    }
+
+    /// Get tags from the op
+    pub fn tags(&self) -> Option<&HashMap<String, String>> {
+        self.tags.as_ref()
+    }
 }
 
 /// Args for `writer` operation.
@@ -872,6 +884,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
                 if_none_match: value.if_none_match,
                 if_not_exists: value.if_not_exists,
                 user_metadata: value.user_metadata,
+                tags: value.tags,
             },
             OpWriter { chunk: value.chunk },
         )

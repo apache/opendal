@@ -496,6 +496,7 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
             cache_control: value.cache_control,
             content_encoding: value.content_encoding,
             user_metadata: value.user_metadata,
+            tags: None, // Tags not yet supported in Node.js bindings
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_not_exists: value.if_not_exists.unwrap_or_default(),

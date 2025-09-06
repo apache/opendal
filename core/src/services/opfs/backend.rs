@@ -17,34 +17,88 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use web_sys::FileSystemGetDirectoryOptions;
 
-use super::utils::*;
-use crate::raw::*;
+use super::core::OpfsCore;
+use super::reader::OpfsReader;
+use super::writer::OpfsWriter;
+use crate::raw::oio::OneShotDeleter;
+use crate::services::opfs::delete::OpfsDeleter;
+use crate::services::opfs::lister::OpfsLister;
 use crate::Result;
+use crate::{raw::*, Capability};
 
 /// OPFS Service backend
-#[derive(Default, Debug, Clone)]
-pub struct OpfsBackend {}
+#[derive(Debug, Clone)]
+pub struct OpfsBackend {
+    core: Arc<OpfsCore>,
+}
+
+impl OpfsBackend {
+    pub(crate) fn new(core: Arc<OpfsCore>) -> Self {
+        Self { core }
+    }
+}
 
 impl Access for OpfsBackend {
-    type Reader = ();
+    type Reader = OpfsReader;
 
-    type Writer = ();
+    type Writer = OpfsWriter;
 
-    type Lister = ();
+    type Lister = OpfsLister;
 
-    type Deleter = ();
+    type Deleter = OneShotDeleter<OpfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        Arc::new(AccessorInfo::default())
+        let info = AccessorInfo::default();
+        info.set_native_capability(Capability {
+            stat: true,
+
+            read: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_append: true,
+            write_can_multi: true,
+            // write_with_if_not_exists: true,
+            create_dir: true,
+            delete: true,
+
+            list: true,
+
+            ..Default::default()
+        });
+        Arc::new(info)
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let metadata = self.core.opfs_stat(path).await?;
+        Ok(RpStat::new(metadata))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let opt = FileSystemGetDirectoryOptions::new();
-        opt.set_create(true);
-        get_directory_handle(path, &opt).await?;
+        self.core.opfs_create_dir(path).await?;
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = OpfsWriter::new(self.core.clone(), path, op).await?;
+        Ok((RpWrite::default(), writer))
+    }
+
+    async fn read(&self, path: &str, op: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let reader = OpfsReader::new(self.core.clone(), path, &op).await?;
+        Ok((RpRead::default(), reader))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = OneShotDeleter::new(OpfsDeleter::new(self.core.clone()));
+        Ok((RpDelete::default(), deleter))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        // TODO: list all entries recursively
+        let lister = OpfsLister::new(self.core.clone(), path).await?;
+        Ok((RpList::default(), lister))
     }
 }

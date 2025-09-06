@@ -18,13 +18,25 @@
 #[cfg(feature = "services-opfs")]
 mod backend;
 #[cfg(feature = "services-opfs")]
+mod builder;
+#[cfg(feature = "services-opfs")]
 mod core;
 
 #[cfg(feature = "services-opfs")]
-mod config;
+mod delete;
 
 #[cfg(feature = "services-opfs")]
 mod error;
 
 #[cfg(feature = "services-opfs")]
+mod lister;
+#[cfg(feature = "services-opfs")]
+mod reader;
+#[cfg(feature = "services-opfs")]
+mod writer;
+
+#[cfg(feature = "services-opfs")]
 mod utils;
+
+mod config;
+pub use config::OpfsConfig;

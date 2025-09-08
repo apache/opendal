@@ -43,9 +43,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
     // List the directory
     auto entries = op_.List(dir_path);
     
-    // Should contain at least the directory itself
-    EXPECT_GE(entries.size(), 1);
-    
+    // Directory may or may not be included in listing depending on service behavior
     bool found_dir = false;
     for (const auto& entry : entries) {
         if (entry.path == dir_path) {
@@ -54,7 +52,12 @@ OPENDAL_TEST_F(ListBehaviorTest, ListEmptyDirectory) {
             EXPECT_EQ(metadata.type, opendal::EntryMode::DIR);
         }
     }
-    EXPECT_TRUE(found_dir);
+    
+    // If directory not found in listing, verify it exists using Stat
+    if (!found_dir) {
+        auto metadata = op_.Stat(dir_path);
+        EXPECT_EQ(metadata.type, opendal::EntryMode::DIR);
+    }
 }
 
 // Test listing directory with files
@@ -76,10 +79,8 @@ OPENDAL_TEST_F(ListBehaviorTest, ListDirectoryWithFiles) {
     // List the directory
     auto entries = op_.List(dir_path);
     
-    // Should contain directory and 3 files
-    EXPECT_EQ(entries.size(), 4);
-    
-    std::set<std::string> expected_paths = {dir_path, file1_path, file2_path, file3_path};
+    // Should contain 3 files, and possibly the directory itself depending on service behavior
+    std::set<std::string> expected_paths = {file1_path, file2_path, file3_path};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : entries) {
@@ -93,7 +94,17 @@ OPENDAL_TEST_F(ListBehaviorTest, ListDirectoryWithFiles) {
         }
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(entries.size(), 4); // directory + 3 files
+    } else {
+        EXPECT_EQ(entries.size(), 3); // only 3 files
+    }
 }
 
 // Test listing nested directories
@@ -114,27 +125,45 @@ OPENDAL_TEST_F(ListBehaviorTest, ListNestedDirectories) {
     
     // List base directory
     auto entries = op_.List(base_dir);
-    
-    std::set<std::string> expected_paths = {base_dir, sub_dir, file1};
+    std::set<std::string> expected_paths = {sub_dir, file1};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : entries) {
         actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All required paths should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing path: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(base_dir) > 0) {
+        EXPECT_EQ(entries.size(), 3); // directory + subdirectory + file
+    } else {
+        EXPECT_EQ(entries.size(), 2); // only subdirectory + file
+    }
     
     // List subdirectory
     auto sub_entries = op_.List(sub_dir);
-    
-    std::set<std::string> sub_expected_paths = {sub_dir, file2};
+    std::set<std::string> sub_expected_paths = {file2};
     std::set<std::string> sub_actual_paths;
     
     for (const auto& entry : sub_entries) {
         sub_actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(sub_actual_paths, sub_expected_paths);
+    // File should be present in subdirectory listing
+    for (const auto& expected_path : sub_expected_paths) {
+        EXPECT_TRUE(sub_actual_paths.count(expected_path) > 0) << "Missing path: " << expected_path;
+    }
+    
+    // Subdirectory may or may not be included depending on service behavior
+    if (sub_actual_paths.count(sub_dir) > 0) {
+        EXPECT_EQ(sub_entries.size(), 2); // subdirectory + file
+    } else {
+        EXPECT_EQ(sub_entries.size(), 1); // only file
+    }
 }
 
 // Test listing non-existent directory
@@ -178,20 +207,24 @@ OPENDAL_TEST_F(ListBehaviorTest, ListManyFiles) {
     
     // List the directory
     auto entries = op_.List(dir_path);
-    
-    // Should contain directory + num_files
-    EXPECT_EQ(entries.size(), num_files + 1);
-    
-    // Verify all files are present
     std::set<std::string> expected_paths(file_paths.begin(), file_paths.end());
-    expected_paths.insert(dir_path);
-    
     std::set<std::string> actual_paths;
+    
     for (const auto& entry : entries) {
         actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(entries.size(), num_files + 1); // directory + files
+    } else {
+        EXPECT_EQ(entries.size(), num_files); // only files
+    }
 }
 
 // Test listing with special character names
@@ -212,15 +245,24 @@ OPENDAL_TEST_F(ListBehaviorTest, ListSpecialCharNames) {
     
     // List the directory
     auto entries = op_.List(dir_path);
-    
-    std::set<std::string> expected_paths = {dir_path, file1, file2, file3};
+    std::set<std::string> expected_paths = {file1, file2, file3};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : entries) {
         actual_paths.insert(entry.path);
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(entries.size(), 4); // directory + 3 files
+    } else {
+        EXPECT_EQ(entries.size(), 3); // only 3 files
+    }
 }
 
 // Test using lister iterator
@@ -239,8 +281,7 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
     
     // Use lister
     auto lister = op_.List(dir_path);
-    
-    std::set<std::string> expected_paths = {dir_path, file1_path, file2_path};
+    std::set<std::string> expected_paths = {file1_path, file2_path};
     std::set<std::string> actual_paths;
     
     for (const auto& entry : lister) {
@@ -254,7 +295,17 @@ OPENDAL_TEST_F(ListBehaviorTest, ListerIterator) {
         }
     }
     
-    EXPECT_EQ(actual_paths, expected_paths);
+    // All files should be present
+    for (const auto& expected_path : expected_paths) {
+        EXPECT_TRUE(actual_paths.count(expected_path) > 0) << "Missing file: " << expected_path;
+    }
+    
+    // Directory may or may not be included depending on service behavior
+    if (actual_paths.count(dir_path) > 0) {
+        EXPECT_EQ(actual_paths.size(), 3); // directory + 2 files
+    } else {
+        EXPECT_EQ(actual_paths.size(), 2); // only 2 files
+    }
 }
 
 // Test listing root directory

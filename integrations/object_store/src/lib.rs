@@ -68,6 +68,10 @@ mod utils;
 #[cfg(feature = "services-s3")]
 mod amazon_s3;
 
+mod service;
+
+pub use service::{ObjectStoreBuilder, ObjectStoreService};
+
 // Make sure `send_wrapper` works as expected
 #[cfg(all(feature = "send_wrapper", test))]
 mod assert_send {

@@ -75,8 +75,7 @@ impl HdfsBuilder {
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
     pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.to_string())
         }
 
         self

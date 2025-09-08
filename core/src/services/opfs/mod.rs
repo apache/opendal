@@ -22,3 +22,9 @@ mod core;
 
 #[cfg(feature = "services-opfs")]
 mod config;
+
+#[cfg(feature = "services-opfs")]
+mod error;
+
+#[cfg(feature = "services-opfs")]
+mod utils;

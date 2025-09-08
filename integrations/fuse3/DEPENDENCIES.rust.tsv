@@ -31,7 +31,7 @@ fastrand@2.3.0		X							X
 fnv@1.0.7		X							X			
 form_urlencoded@1.2.1		X							X			
 fuse3@0.8.1									X			
-fuse3_opendal@0.0.18		X										
+fuse3_opendal@0.0.19		X										
 futures@0.3.31		X							X			
 futures-channel@0.3.31		X							X			
 futures-core@0.3.31		X							X			
@@ -83,14 +83,14 @@ nix@0.29.0									X
 num-traits@0.2.19		X							X			
 object@0.36.7		X							X			
 once_cell@1.21.3		X							X			
-opendal@0.54.0		X										
+opendal@0.54.1		X										
 parking@2.2.1		X							X			
 percent-encoding@2.3.1		X							X			
 pin-project-lite@0.2.16		X							X			
 pin-utils@0.1.0		X							X			
 potential_utf@0.1.2										X		
 proc-macro2@1.0.95		X							X			
-quick-xml@0.37.5									X			
+quick-xml@0.38.3									X			
 quote@1.0.40		X							X			
 r-efi@5.3.0		X						X	X			
 reqwest@0.12.22		X							X			
@@ -112,13 +112,14 @@ signal-hook-registry@1.4.5		X							X
 slab@0.4.10									X			
 smallvec@1.15.1		X							X			
 socket2@0.5.10		X							X			
+socket2@0.6.0		X							X			
 stable_deref_trait@1.2.0		X							X			
 subtle@2.6.1				X								
 syn@2.0.104		X							X			
 sync_wrapper@1.0.2		X										
 synstructure@0.13.2									X			
 tinystr@0.8.1										X		
-tokio@1.46.1									X			
+tokio@1.47.1									X			
 tokio-macros@2.5.0									X			
 tokio-rustls@0.26.2		X							X			
 tokio-util@0.7.15									X			

@@ -19,7 +19,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use magnus::class;
 use magnus::method;
 use magnus::prelude::*;
 use magnus::Error;
@@ -65,7 +64,7 @@ where
 /// Adds retry for temporary failed operations.
 ///
 /// See [`opendal::layers::RetryLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::RetryMiddleware")]
+#[magnus::wrap(class = "OpenDal::RetryMiddleware")]
 struct RetryMiddleware(Arc<Mutex<ocore::layers::RetryLayer>>);
 
 impl RetryMiddleware {
@@ -82,7 +81,7 @@ impl RetryMiddleware {
 /// Adds concurrent request limit.
 ///
 /// See [`opendal::layers::ConcurrentLimitLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::ConcurrentLimitMiddleware")]
+#[magnus::wrap(class = "OpenDal::ConcurrentLimitMiddleware")]
 struct ConcurrentLimitMiddleware(Arc<Mutex<ocore::layers::ConcurrentLimitLayer>>);
 
 impl ConcurrentLimitMiddleware {
@@ -101,7 +100,7 @@ impl ConcurrentLimitMiddleware {
 /// Adds a bandwidth rate limiter to the underlying services.
 ///
 /// See [`opendal::layers::ThrottleLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::ThrottleMiddleware")]
+#[magnus::wrap(class = "OpenDal::ThrottleMiddleware")]
 struct ThrottleMiddleware(Arc<Mutex<ocore::layers::ThrottleLayer>>);
 
 impl ThrottleMiddleware {
@@ -129,7 +128,7 @@ fn parse_duration(ruby: &Ruby, val: f64) -> Result<Duration, Error> {
 /// Adds timeout for every operation to avoid slow or unexpected hang operations.
 ///
 /// See [`opendal::layers::TimeoutLayer`] for more information.
-#[magnus::wrap(class = "OpenDAL::TimeoutMiddleware")]
+#[magnus::wrap(class = "OpenDal::TimeoutMiddleware")]
 struct TimeoutMiddleware(Arc<Mutex<ocore::layers::TimeoutLayer>>);
 
 impl TimeoutMiddleware {
@@ -145,21 +144,22 @@ impl TimeoutMiddleware {
     }
 }
 
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let retry = gem_module.define_class("RetryMiddleware", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let retry = gem_module.define_class("RetryMiddleware", ruby.class_object())?;
     retry.define_singleton_method("new", function!(RetryMiddleware::new, 0))?;
     retry.define_method("apply_to", method!(RetryMiddleware::apply_to, 1))?;
 
-    let concurrent_limit = gem_module.define_class("ConcurrentLimitMiddleware", class::object())?;
+    let concurrent_limit =
+        gem_module.define_class("ConcurrentLimitMiddleware", ruby.class_object())?;
     concurrent_limit
         .define_singleton_method("new", function!(ConcurrentLimitMiddleware::new, 1))?;
     concurrent_limit.define_method("apply_to", method!(ConcurrentLimitMiddleware::apply_to, 1))?;
 
-    let throttle_middleware = gem_module.define_class("ThrottleMiddleware", class::object())?;
+    let throttle_middleware = gem_module.define_class("ThrottleMiddleware", ruby.class_object())?;
     throttle_middleware.define_singleton_method("new", function!(ThrottleMiddleware::new, 2))?;
     throttle_middleware.define_method("apply_to", method!(ThrottleMiddleware::apply_to, 1))?;
 
-    let timeout_middleware = gem_module.define_class("TimeoutMiddleware", class::object())?;
+    let timeout_middleware = gem_module.define_class("TimeoutMiddleware", ruby.class_object())?;
     timeout_middleware.define_singleton_method("new", function!(TimeoutMiddleware::new, 2))?;
     timeout_middleware.define_method("apply_to", method!(TimeoutMiddleware::apply_to, 1))?;
 

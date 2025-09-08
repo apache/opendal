@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.82"
-version = "0.54.0"
+version = "0.54.1"
 
 [lints.clippy]
 unused_async = "warn"
@@ -373,6 +373,7 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "File",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
+  "FileSystemGetDirectoryOptions",
   "FileSystemGetFileOptions",
   "FileSystemWritableFileStream",
   "Navigator",
@@ -400,7 +401,7 @@ prometheus = { version = "0.14", features = ["process"], optional = true }
 # for layers-prometheus-client
 prometheus-client = { version = "0.23.1", optional = true }
 # for fastmetrics
-fastmetrics = { version = "0.3.0", optional = true }
+fastmetrics = { version = "0.4.0", optional = true }
 # for layers-tracing
 tracing = { version = "0.1", optional = true }
 # for layers-dtrace

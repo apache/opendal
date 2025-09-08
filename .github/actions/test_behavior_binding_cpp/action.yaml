@@ -49,6 +49,7 @@ runs:
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
                   -DOPENDAL_ENABLE_ASYNC=ON \
+                  -DFEATURES="opendal/${{ inputs.feature }}" \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..
                 cmake --build . --config Release
@@ -59,6 +60,7 @@ runs:
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
                   -DOPENDAL_ENABLE_ASYNC=ON \
+                  -DFEATURES="opendal/${{ inputs.feature }}" \
                   -DCMAKE_CXX_COMPILER=clang++ \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..
@@ -70,6 +72,7 @@ runs:
                   -DOPENDAL_ENABLE_TESTING=ON \
                   -DOPENDAL_DEV=ON \
                   -DOPENDAL_ENABLE_ASYNC=ON \
+                  -DFEATURES="opendal/${{ inputs.feature }}" \
                   -DCMAKE_CXX_COMPILER=clang++ \
                   -DCMAKE_CXX_STANDARD=20 \
                   ..

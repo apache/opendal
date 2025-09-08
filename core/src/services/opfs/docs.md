@@ -3,13 +3,13 @@
 This service can be used to:
 
 - [ ] stat
-- [ ] read
-- [ ] write
-- [ ] create_dir
-- [ ] delete
+- [x] read
+- [x] write
+- [x] create_dir
+- [x] delete
 - [ ] copy
 - [ ] rename
-- [ ] list
+- [x] list
 - [ ] presign
 - [ ] blocking
 

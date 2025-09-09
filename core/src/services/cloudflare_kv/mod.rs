@@ -16,6 +16,8 @@
 // under the License.
 
 #[cfg(feature = "services-cloudflare-kv")]
+pub(super) const DEFAULT_SCHEME: &str = "cloudflare_kv";
+#[cfg(feature = "services-cloudflare-kv")]
 mod error;
 
 #[cfg(feature = "services-cloudflare-kv")]

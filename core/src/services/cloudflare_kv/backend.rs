@@ -23,6 +23,7 @@ use std::time::Duration;
 use bytes::Buf;
 use http::StatusCode;
 
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::cloudflare_kv::core::CloudflareKvCore;
 use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
@@ -160,7 +161,7 @@ impl Builder for CloudflareKvBuilder {
                 expiration_ttl: self.config.default_ttl,
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::CloudflareKv)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             create_dir: true,

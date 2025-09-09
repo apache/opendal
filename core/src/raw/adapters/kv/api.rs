@@ -45,7 +45,6 @@ impl Scan for () {
 pub struct ScanStdIter<I>(I);
 
 #[cfg(any(
-    feature = "services-cloudflare-kv",
     feature = "services-rocksdb",
     feature = "services-sled"
 ))]

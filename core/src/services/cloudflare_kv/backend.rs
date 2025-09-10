@@ -17,16 +17,20 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Buf;
-use http::header;
-use http::Request;
 use http::StatusCode;
-use serde::Deserialize;
 
-use super::error::parse_error;
-use crate::raw::adapters::kv;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
+use crate::services::cloudflare_kv::core::CloudflareKvCore;
+use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
+use crate::services::cloudflare_kv::error::parse_error;
+use crate::services::cloudflare_kv::lister::CloudflareKvLister;
+use crate::services::cloudflare_kv::model::*;
+use crate::services::cloudflare_kv::writer::CloudflareWriter;
 use crate::services::CloudflareKvConfig;
 use crate::ErrorKind;
 use crate::*;
@@ -60,9 +64,9 @@ impl Debug for CloudflareKvBuilder {
 
 impl CloudflareKvBuilder {
     /// Set the token used to authenticate with CloudFlare.
-    pub fn token(mut self, token: &str) -> Self {
-        if !token.is_empty() {
-            self.config.token = Some(token.to_string())
+    pub fn api_token(mut self, api_token: &str) -> Self {
+        if !api_token.is_empty() {
+            self.config.api_token = Some(api_token.to_string())
         }
         self
     }
@@ -83,6 +87,14 @@ impl CloudflareKvBuilder {
         self
     }
 
+    /// Set the default ttl for cloudflare_kv services.
+    ///
+    /// If set, we will specify `EX` for write operations.
+    pub fn default_ttl(mut self, ttl: Duration) -> Self {
+        self.config.default_ttl = Some(ttl);
+        self
+    }
+
     /// Set the root within this backend.
     pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
@@ -99,9 +111,14 @@ impl Builder for CloudflareKvBuilder {
     type Config = CloudflareKvConfig;
 
     fn build(self) -> Result<impl Access> {
-        let authorization = match &self.config.token {
-            Some(token) => format_authorization_by_bearer(token)?,
-            None => return Err(Error::new(ErrorKind::ConfigInvalid, "token is required")),
+        let api_token = match &self.config.api_token {
+            Some(api_token) => format_authorization_by_bearer(api_token)?,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "api_token is required",
+                ))
+            }
         };
 
         let Some(account_id) = self.config.account_id.clone() else {
@@ -118,14 +135,15 @@ impl Builder for CloudflareKvBuilder {
             ));
         };
 
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", Scheme::CloudflareKv)
-            })?
-        };
+        // Validate default TTL is at least 60 seconds if specified
+        if let Some(ttl) = self.config.default_ttl {
+            if ttl < Duration::from_secs(60) {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "Default TTL must be at least 60 seconds",
+                ));
+            }
+        }
 
         let root = normalize_root(
             self.config
@@ -135,217 +153,361 @@ impl Builder for CloudflareKvBuilder {
                 .as_str(),
         );
 
-        let url_prefix = format!(
-            r"https://api.cloudflare.com/client/v4/accounts/{account_id}/storage/kv/namespaces/{namespace_id}"
-        );
+        Ok(CloudflareKvAccessor {
+            core: Arc::new(CloudflareKvCore {
+                api_token,
+                account_id,
+                namespace_id,
+                expiration_ttl: self.config.default_ttl,
+                info: {
+                    let am = AccessorInfo::default();
+                    am.set_scheme(DEFAULT_SCHEME)
+                        .set_root(&root)
+                        .set_native_capability(Capability {
+                            create_dir: true,
 
-        Ok(CloudflareKvBackend::new(Adapter {
-            authorization,
-            account_id,
-            namespace_id,
-            client,
-            url_prefix,
+                            stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+
+                            read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
+
+                            write: true,
+                            write_can_empty: true,
+                            write_total_max_size: Some(25 * 1024 * 1024),
+
+                            list: true,
+                            list_with_limit: true,
+                            list_with_recursive: true,
+
+                            delete: true,
+                            delete_max_size: Some(10000),
+
+                            shared: false,
+
+                            ..Default::default()
+                        });
+
+                    // allow deprecated api here for compatibility
+                    #[allow(deprecated)]
+                    if let Some(client) = self.http_client {
+                        am.update_http_client(|_| client);
+                    }
+
+                    am.into()
+                },
+            }),
         })
-        .with_normalized_root(root))
     }
 }
 
-pub type CloudflareKvBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    authorization: String,
-    account_id: String,
-    namespace_id: String,
-    client: HttpClient,
-    url_prefix: String,
+#[derive(Debug, Clone)]
+pub struct CloudflareKvAccessor {
+    core: std::sync::Arc<CloudflareKvCore>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("account_id", &self.account_id)
-            .field("namespace_id", &self.namespace_id)
-            .finish()
-    }
-}
+impl Access for CloudflareKvAccessor {
+    type Reader = Buffer;
+    type Writer = oio::OneShotWriter<CloudflareWriter>;
+    type Lister = oio::PageLister<CloudflareKvLister>;
+    type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
 
-impl Adapter {
-    fn sign<T>(&self, mut req: Request<T>) -> Result<Request<T>> {
-        req.headers_mut()
-            .insert(header::AUTHORIZATION, self.authorization.parse().unwrap());
-        Ok(req)
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = kv::Scanner;
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::CloudflareKv,
-            &self.namespace_id,
-            Capability {
-                read: true,
-                write: true,
-                list: true,
-                shared: true,
-
-                ..Default::default()
-            },
-        )
+    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+        self.core.info.clone()
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let url = format!("{}/values/{}", self.url_prefix, path);
-        let mut req = Request::get(&url);
-        req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(Some(resp.into_body())),
-            _ => Err(parse_error(resp)),
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        let path = build_abs_path(&self.core.info.root(), path);
+
+        if path == build_abs_path(&self.core.info.root(), "") {
+            return Ok(RpCreateDir::default());
         }
-    }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let url = format!("{}/values/{}", self.url_prefix, path);
-        let req = Request::put(&url);
-        let multipart = Multipart::new();
-        let multipart = multipart
-            .part(FormDataPart::new("metadata").content(serde_json::Value::Null.to_string()))
-            .part(FormDataPart::new("value").content(value.to_vec()));
-        let mut req = multipart.apply(req)?;
-        req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
+        // Split path into segments and create directories for each level
+        let segments: Vec<&str> = path
+            .trim_start_matches('/')
+            .trim_end_matches('/')
+            .split('/')
+            .collect();
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        let url = format!("{}/values/{}", self.url_prefix, path);
-        let mut req = Request::delete(&url);
-        req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
-
-    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let mut url = format!("{}/keys", self.url_prefix);
-        if !path.is_empty() {
-            url = format!("{url}?prefix={path}");
-        }
-        let mut req = Request::get(&url);
-        req = req.header(header::CONTENT_TYPE, "application/json");
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        req = self.sign(req)?;
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK => {
-                let body = resp.into_body();
-                let response: CfKvScanResponse =
-                    serde_json::from_reader(body.reader()).map_err(|e| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            format!("failed to parse error response: {e}"),
-                        )
-                    })?;
-                Ok(Box::new(kv::ScanStdIter::new(
-                    response.result.into_iter().map(|r| Ok(r.name)),
-                )))
+        // Create each directory level
+        let mut current_path = String::from("/");
+        for segment in segments {
+            // Build the current directory path
+            if !current_path.ends_with('/') {
+                current_path.push('/');
             }
-            _ => Err(parse_error(resp)),
+            current_path.push_str(segment);
+            current_path.push('/');
+
+            // Create metadata for current directory
+            let cf_kv_metadata = CfKvMetadata {
+                etag: build_tmp_path_of(&current_path),
+                last_modified: chrono::Local::now().to_rfc3339(),
+                content_length: 0,
+                is_dir: true,
+            };
+
+            // Set the directory entry
+            self.core
+                .set(&current_path, Buffer::new(), cf_kv_metadata)
+                .await?;
         }
-    }
-}
 
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvResponse {
-    pub(super) errors: Vec<CfKvError>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvScanResponse {
-    result: Vec<CfKvScanResult>,
-    // According to https://developers.cloudflare.com/api/operations/workers-kv-namespace-list-a-namespace'-s-keys, result_info is used to determine if there are more keys to be listed
-    // result_info: Option<CfKvResultInfo>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CfKvScanResult {
-    name: String,
-}
-
-// #[derive(Debug, Deserialize)]
-// struct CfKvResultInfo {
-//     count: i64,
-//     cursor: String,
-// }
-
-#[derive(Debug, Deserialize)]
-pub(super) struct CfKvError {
-    pub(super) code: i32,
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_deserialize_scan_json_response() {
-        let json_str = r#"{
-			"errors": [],
-			"messages": [],
-			"result": [
-				{
-				"expiration": 1577836800,
-				"metadata": {
-					"someMetadataKey": "someMetadataValue"
-				},
-				"name": "My-Key"
-				}
-			],
-			"success": true,
-			"result_info": {
-				"count": 1,
-				"cursor": "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw"
-			}
-		}"#;
-
-        let response: CfKvScanResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
-
-        assert_eq!(response.result.len(), 1);
-        assert_eq!(response.result[0].name, "My-Key");
-        // assert!(response.result_info.is_some());
-        // if let Some(result_info) = response.result_info {
-        //     assert_eq!(result_info.count, 1);
-        //     assert_eq!(result_info.cursor, "6Ck1la0VxJ0djhidm1MdX2FyDGxLKVeeHZZmORS_8XeSuhz9SjIJRaSa2lnsF01tQOHrfTGAP3R5X1Kv5iVUuMbNKhWNAXHOl6ePB0TUL8nw");
-        // }
+        Ok(RpCreateDir::default())
     }
 
-    #[test]
-    fn test_deserialize_json_response() {
-        let json_str = r#"{
-			"errors": [],
-			"messages": [],
-			"result": {},
-			"success": true
-		}"#;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let path = build_abs_path(&self.core.info.root(), path);
+        let new_path = path.trim_end_matches('/');
 
-        let response: CfKvResponse = serde_json::from_slice(json_str.as_bytes()).unwrap();
+        let resp = self.core.metadata(new_path).await?;
 
-        assert_eq!(response.errors.len(), 0);
+        // Handle non-OK response
+        if resp.status() != StatusCode::OK {
+            // Special handling for potential directory paths
+            if path.ends_with('/') && resp.status() == StatusCode::NOT_FOUND {
+                // Try listing the path to check if it's a directory
+                let list_resp = self.core.list(&path, None, None).await?;
+
+                if list_resp.status() == StatusCode::OK {
+                    let list_body = list_resp.into_body();
+                    let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                    // If listing returns results, treat as directory
+                    if let Some(entries) = list_result.result {
+                        if !entries.is_empty() {
+                            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+                        }
+                    }
+
+                    // Empty or no results means not found
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "key not found in CloudFlare KV",
+                    ));
+                }
+            }
+
+            // For all other error cases, parse the error response
+            return Err(parse_error(resp));
+        }
+
+        let resp_body = resp.into_body();
+        let cf_response: CfKvStatResponse =
+            serde_json::from_reader(resp_body.reader()).map_err(new_json_deserialize_error)?;
+
+        if !cf_response.success {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "cloudflare_kv stat this key failed for reason we don't know",
+            ));
+        }
+
+        let metadata = match cf_response.result {
+            Some(metadata) => {
+                if path.ends_with('/') && !metadata.is_dir {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "key not found in CloudFlare KV",
+                    ));
+                } else {
+                    metadata
+                }
+            }
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "key not found in CloudFlare KV",
+                ));
+            }
+        };
+
+        // Check if_match condition
+        if let Some(if_match) = &args.if_match() {
+            if if_match != &metadata.etag {
+                return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+            }
+        }
+
+        // Check if_none_match condition
+        if let Some(if_none_match) = &args.if_none_match() {
+            if if_none_match == &metadata.etag {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "etag match when expected none match",
+                ));
+            }
+        }
+
+        // Parse since time once for both time-based conditions
+        let last_modified = chrono::DateTime::parse_from_rfc3339(&metadata.last_modified)
+            .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+
+        // Check modified_since condition
+        if let Some(modified_since) = &args.if_modified_since() {
+            if !last_modified.gt(modified_since) {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "not modified since specified time",
+                ));
+            }
+        }
+
+        // Check unmodified_since condition
+        if let Some(unmodified_since) = &args.if_unmodified_since() {
+            if !last_modified.le(unmodified_since) {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "modified since specified time",
+                ));
+            }
+        }
+
+        let meta = Metadata::new(if metadata.is_dir {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        })
+        .with_etag(metadata.etag)
+        .with_content_length(metadata.content_length as u64)
+        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?);
+
+        Ok(RpStat::new(meta))
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let path = build_abs_path(&self.core.info.root(), path);
+        let resp = self.core.get(&path).await?;
+
+        let status = resp.status();
+
+        if status != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let resp_body = resp.into_body();
+
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_modified_since().is_some()
+            || args.if_unmodified_since().is_some()
+        {
+            let meta_resp = self.core.metadata(&path).await?;
+
+            if meta_resp.status() != StatusCode::OK {
+                return Err(parse_error(meta_resp));
+            }
+
+            let cf_response: CfKvStatResponse =
+                serde_json::from_reader(meta_resp.into_body().reader())
+                    .map_err(new_json_deserialize_error)?;
+
+            if !cf_response.success && cf_response.result.is_some() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "cloudflare_kv read this key failed for reason we don't know",
+                ));
+            }
+
+            let metadata = cf_response.result.unwrap();
+
+            // Check if_match condition
+            if let Some(if_match) = &args.if_match() {
+                if if_match != &metadata.etag {
+                    return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
+                }
+            }
+
+            // Check if_none_match condition
+            if let Some(if_none_match) = &args.if_none_match() {
+                if if_none_match == &metadata.etag {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "etag match when expected none match",
+                    ));
+                }
+            }
+
+            // Parse since time once for both time-based conditions
+            let last_modified = chrono::DateTime::parse_from_rfc3339(&metadata.last_modified)
+                .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
+
+            // Check modified_since condition
+            if let Some(modified_since) = &args.if_modified_since() {
+                if !last_modified.gt(modified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "not modified since specified time",
+                    ));
+                }
+            }
+
+            // Check unmodified_since condition
+            if let Some(unmodified_since) = &args.if_unmodified_since() {
+                if !last_modified.le(unmodified_since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "modified since specified time",
+                    ));
+                }
+            }
+        }
+
+        let range = args.range();
+        let buffer = if range.is_full() {
+            resp_body
+        } else {
+            let start = range.offset() as usize;
+            let end = match range.size() {
+                Some(size) => (range.offset() + size) as usize,
+                None => resp_body.len(),
+            };
+            resp_body.slice(start..end.min(resp_body.len()))
+        };
+        Ok((RpRead::new(), buffer))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let path = build_abs_path(&self.core.info.root(), path);
+        let writer = CloudflareWriter::new(self.core.clone(), path);
+
+        let w = oio::OneShotWriter::new(writer);
+
+        Ok((RpWrite::default(), w))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(CloudflareKvDeleter::new(self.core.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let path = build_abs_path(&self.core.info.root(), path);
+
+        let limit = match args.limit() {
+            Some(limit) => {
+                // The list limit of cloudflare_kv is limited to 10..1000.
+                if !(10..=1000).contains(&limit) {
+                    1000
+                } else {
+                    limit
+                }
+            }
+            None => 1000,
+        };
+
+        let l = CloudflareKvLister::new(self.core.clone(), &path, args.recursive(), Some(limit));
+
+        Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }

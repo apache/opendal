@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -25,11 +26,13 @@ use serde::Serialize;
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct CloudflareKvConfig {
     /// The token used to authenticate with CloudFlare.
-    pub token: Option<String>,
+    pub api_token: Option<String>,
     /// The account ID used to authenticate with CloudFlare. Used as URI path parameter.
     pub account_id: Option<String>,
     /// The namespace ID. Used as URI path parameter.
     pub namespace_id: Option<String>,
+    /// The default ttl for write operations.
+    pub default_ttl: Option<Duration>,
 
     /// Root within this backend.
     pub root: Option<String>,
@@ -43,8 +46,8 @@ impl Debug for CloudflareKvConfig {
         ds.field("account_id", &self.account_id);
         ds.field("namespace_id", &self.namespace_id);
 
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
+        if self.api_token.is_some() {
+            ds.field("api_token", &"<redacted>");
         }
 
         ds.finish()

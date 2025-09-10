@@ -303,6 +303,8 @@ impl Scheme {
             Scheme::Surrealdb,
             #[cfg(feature = "services-lakefs")]
             Scheme::Lakefs,
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv,
         ])
     }
 }

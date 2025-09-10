@@ -1002,6 +1002,7 @@ impl Builder for S3Builder {
                 allow_anonymous: self.config.allow_anonymous,
                 disable_list_objects_v2: self.config.disable_list_objects_v2,
                 enable_request_payer: self.config.enable_request_payer,
+                enable_content_md5: self.config.enable_content_md5,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),

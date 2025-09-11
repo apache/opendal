@@ -17,38 +17,16 @@
 
 use crate::raw::oio;
 use crate::raw::*;
+use crate::services::SqliteConfig;
 use crate::services::sqlite::core::SqliteCore;
 use crate::services::sqlite::delete::SqliteDeleter;
-use crate::services::sqlite::lister::SqliteLister;
 use crate::services::sqlite::writer::SqliteWriter;
-use crate::services::SqliteConfig;
 use crate::*;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
-use std::task::Context;
-use std::task::Poll;
-
-use futures::Stream;
-use futures::StreamExt;
-use futures::stream::BoxStream;
-use ouroboros::self_referencing;
-use sqlx::SqlitePool;
-use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
-
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::SqliteConfig;
-use crate::*;
-
-impl Configurator for SqliteConfig {
-    type Builder = SqliteBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SqliteBuilder { config: self }
-    }
-}
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -207,18 +185,18 @@ pub struct SqliteAccessor {
 impl SqliteAccessor {
     fn new(core: SqliteCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Sqlite);
+        info.set_scheme(Scheme::Sqlite.into());
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
             read: true,
             write: true,
+            create_dir: true,
             delete: true,
             stat: true,
             write_can_empty: true,
-            list: true,
+            list: false,
             shared: false,
-            list_with_recursive: true,
             ..Default::default()
         });
 
@@ -239,7 +217,7 @@ impl SqliteAccessor {
 impl Access for SqliteAccessor {
     type Reader = Buffer;
     type Writer = SqliteWriter;
-    type Lister = SqliteLister;
+    type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
 
     fn info(&self) -> std::sync::Arc<AccessorInfo> {
@@ -257,7 +235,29 @@ impl Access for SqliteAccessor {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::from_path(&p)).with_content_length(bs.len() as u64),
                 )),
-                None => Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+                None => {
+                    // Check if this might be a directory by looking for keys with this prefix
+                    let dir_path = if p.ends_with('/') {
+                        p.clone()
+                    } else {
+                        format!("{}/", p)
+                    };
+                    let count: i64 = sqlx::query_scalar(&format!(
+                        "SELECT COUNT(*) FROM `{}` WHERE `{}` LIKE $1 LIMIT 1",
+                        self.core.table, self.core.key_field
+                    ))
+                    .bind(format!("{}%", dir_path))
+                    .fetch_one(self.core.get_client().await?)
+                    .await
+                    .map_err(crate::services::sqlite::backend::parse_sqlite_error)?;
+
+                    if count > 0 {
+                        // Directory exists (has children)
+                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    } else {
+                        Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"))
+                    }
+                }
             }
         }
     }
@@ -301,12 +301,20 @@ impl Access for SqliteAccessor {
         ))
     }
 
-    async fn list(&self, path: &str, options: OpList) -> Result<(RpList, Self::Lister)> {
-        let path = build_abs_path(&self.root, path);
-        Ok((
-            RpList::default(),
-            SqliteLister::new(self.core.clone(), &path, self.root.clone(), options).await?,
-        ))
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let p = build_abs_path(&self.root, path);
+
+        // Ensure path ends with '/' for directory marker
+        let dir_path = if p.ends_with('/') {
+            p
+        } else {
+            format!("{}/", p)
+        };
+
+        // Store directory marker with empty content
+        self.core.set(&dir_path, Buffer::new()).await?;
+
+        Ok(RpCreateDir::default())
     }
 }
 
@@ -316,8 +324,7 @@ mod test {
     use sqlx::SqlitePool;
 
     async fn build_client() -> OnceCell<SqlitePool> {
-        let file = tempfile::NamedTempFile::new().unwrap();
-        let config = SqliteConnectOptions::from_str(file.path().to_str().unwrap()).unwrap();
+        let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
         let pool = SqlitePool::connect_with(config).await.unwrap();
         OnceCell::new_with(Some(pool))
     }
@@ -336,7 +343,10 @@ mod test {
 
         // Verify basic properties
         assert_eq!(accessor.root, "/");
-        assert_eq!(accessor.info.scheme(), Scheme::Sqlite);
+        assert_eq!(
+            accessor.info.scheme(),
+            <Scheme as Into<&'static str>>::into(Scheme::Sqlite)
+        );
         assert!(accessor.info.native_capability().read);
         assert!(accessor.info.native_capability().write);
         assert!(accessor.info.native_capability().delete);
@@ -357,28 +367,5 @@ mod test {
 
         assert_eq!(accessor.root, "/test/");
         assert_eq!(accessor.info.root(), "/test/".into());
-    }
-
-    #[test]
-    fn test_sqlite_builder_interface() {
-        // Test that SqliteBuilder still works with the new implementation
-        let file = tempfile::NamedTempFile::new().unwrap();
-        let builder = SqliteBuilder::default()
-            .connection_string(file.path().to_str().unwrap())
-            .table("test")
-            .key_field("key")
-            .value_field("value")
-            .root("/test");
-
-        // The builder should be able to create configuration
-        assert!(builder.config.connection_string.is_some());
-        assert_eq!(
-            builder.config.connection_string.as_ref().unwrap(),
-            &file.path().to_str().unwrap()
-        );
-        assert_eq!(builder.config.table.as_ref().unwrap(), "test");
-        assert_eq!(builder.config.key_field.as_ref().unwrap(), "key");
-        assert_eq!(builder.config.value_field.as_ref().unwrap(), "value");
-        assert_eq!(builder.config.root.as_ref().unwrap(), "/test");
     }
 }

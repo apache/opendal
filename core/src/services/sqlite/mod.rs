@@ -26,6 +26,4 @@ mod core;
 #[cfg(feature = "services-sqlite")]
 mod delete;
 #[cfg(feature = "services-sqlite")]
-mod lister;
-#[cfg(feature = "services-sqlite")]
 mod writer;

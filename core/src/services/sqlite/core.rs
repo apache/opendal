@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
 use std::fmt::Debug;
 use tokio::sync::OnceCell;
 

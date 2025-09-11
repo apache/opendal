@@ -25,6 +25,7 @@ async fn example(op: Operator) -> Result<()> {
 
     // Read data from s3.
     let bs = op.read("test.txt").await?;
+
     println!("read: {}", String::from_utf8(bs.to_vec()).unwrap());
 
     // Fetch metadata of s3.

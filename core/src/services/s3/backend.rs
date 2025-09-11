@@ -600,6 +600,15 @@ impl S3Builder {
         self
     }
 
+    /// Disable tagging objects during write operations.
+    ///
+    /// This can be desirable if not supported by the backing store or to reduce
+    /// request overhead when tags are not needed.
+    pub fn disable_tagging(mut self) -> Self {
+        self.config.disable_tagging = true;
+        self
+    }
+
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -945,6 +954,7 @@ impl Builder for S3Builder {
                             write_with_if_match: !self.config.disable_write_with_if_match,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
+                            write_with_tags: !self.config.disable_tagging,
 
                             // The min multipart size of S3 is 5 MiB.
                             //
@@ -1002,6 +1012,7 @@ impl Builder for S3Builder {
                 allow_anonymous: self.config.allow_anonymous,
                 disable_list_objects_v2: self.config.disable_list_objects_v2,
                 enable_request_payer: self.config.enable_request_payer,
+                disable_tagging: self.config.disable_tagging,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),

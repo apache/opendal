@@ -129,14 +129,13 @@ impl SqliteLister {
         } else {
             // Non-recursive listing under a specific path
             (format!(
-                "SELECT `{}` FROM `{}` WHERE (`{}` LIKE $1 OR `{}` = $2) AND (`{}` NOT LIKE $3 OR (`{}` LIKE $4 AND `{}` NOT LIKE $5))",
-                core.key_field, core.table, core.key_field, core.key_field, core.key_field, core.key_field, core.key_field
+                "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1 AND (`{}` NOT LIKE $2 OR (`{}` LIKE $3 AND `{}` NOT LIKE $4))",
+                core.key_field, core.table, core.key_field, core.key_field, core.key_field, core.key_field
             ), vec![
                 format!("{}%", path),
-                format!("{}/", path_clean),
-                format!("{}/%/%", path_clean),
-                format!("{}/%/", path_clean),
-                format!("{}/%/%/", path_clean),
+                format!("{}%/%", path),
+                format!("{}%/", path),
+                format!("{}%/%/%", path),
             ])
         };
 

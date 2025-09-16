@@ -9,6 +9,8 @@ I’m happy to announce that my personal project has been donated to the ASF and
 
 ## What is Reqsign?
 
+<!--truncate-->
+
 Reqsign stands for `Request Signing`. Its goal is to make signing API requests simple. Many APIs look straightforward, but they quickly become complicated once hidden behind complex abstractions.
 
 One major challenge is authentication. For example, AWS V4 requires users to build a signature from the request and sign it using HMAC with a secret key. Another challenge is credential loading. Cloud providers like AWS, Azure, and GCP support various types of credentials and loading methods to balance security and ease of use.

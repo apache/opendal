@@ -186,9 +186,9 @@ const config = {
 
                     return link.includes("source/src")
                       ? link.replace(
-                          /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
-                          "https://opendal.apache.org/docs/rust/src/opendal"
-                        ) + ".html"
+                        /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
+                        "https://opendal.apache.org/docs/rust/src/opendal"
+                      ) + ".html"
                       : link;
                   };
 

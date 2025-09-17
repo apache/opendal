@@ -23,11 +23,7 @@ mod api;
 pub use api::Adapter;
 pub use api::Info;
 pub use api::Scan;
-#[cfg(any(
-    feature = "services-cloudflare-kv",
-    feature = "services-rocksdb",
-    feature = "services-sled"
-))]
+#[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
 pub(crate) use api::ScanStdIter;
 pub use api::Scanner;
 

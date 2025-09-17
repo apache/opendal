@@ -41,7 +41,7 @@ runs:
           - name: Run Test Ofs
             shell: bash
             working-directory: bin/ofs
-            run: cargo test --features ${{ inputs.feature }} --no-default-features -- --nocapture
+            run: cargo test --features ${{ inputs.feature }} --no-default-features -- --no-capture
             env:
               OPENDAL_TEST: ${{ inputs.service }}
               # Remove me after we find out what happened

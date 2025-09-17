@@ -11,6 +11,8 @@ To compile OpenDAL d binding from source code, you need:
 - [dmd/ldc/gdc](https://dlang.org/download)
 
 ```bash
+# Test a specific backend
+export OPENDAL_TEST=memory
 # build libopendal_c (underneath call make -C ../c)
 dub build -b release
 # build and run unit tests

@@ -307,6 +307,8 @@ impl Scheme {
             Scheme::Lakefs,
             #[cfg(feature = "services-opfs")]
             Scheme::Opfs,
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv,
         ])
     }
 }

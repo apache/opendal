@@ -1,0 +1,213 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Release Ruby Binding
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*' # Triggers on version tags (v0.54.0, v0.54.0-rc.1, etc.)
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release_ruby.yml"
+  workflow_dispatch: # allow repo collaborators to publish gem
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write # required for workflow to publish gem if releasing
+
+defaults:
+  run:
+    working-directory: bindings/ruby
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          working-directory: bindings/ruby
+
+      - name: Build source gem (Ruby-only)
+        run: bundle exec rake build
+
+      - name: Show built gems
+        run: ls -la pkg/
+
+      - name: Upload artifact (source gem)
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendal-ruby-gem-source
+          path: bindings/ruby/pkg/*.gem
+          retention-days: 30
+
+      - name: Log Build Summary
+        run: |
+          echo "## Ruby gem built successfully! 📦" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Ref:** ${{ github.ref_name || github.ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
+
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: x86_64-linux
+            rust_target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            platform: aarch64-linux
+            rust_target: aarch64-unknown-linux-gnu
+          - os: macos-latest
+            platform: arm64-darwin
+            rust_target: aarch64-apple-darwin
+          - os: macos-latest
+            platform: x86_64-darwin
+            rust_target: x86_64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+    env:
+      RB_SYS_CARGO_TARGET: ${{ matrix.rust_target }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Setup Ruby and install dependencies
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
+
+      - name: Linux cross deps
+        if: runner.os == 'Linux' && matrix.platform == 'aarch64-linux'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build gem
+        if: runner.os != 'Linux' || matrix.platform != 'aarch64-linux'
+        run: bundle exec rake native gem
+
+      # For Linux aarch64, tell Cargo which linker to use
+      - name: Build aarch64-linux gem
+        if: runner.os == 'Linux' && matrix.platform == 'aarch64-linux'
+        run: |
+          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          bundle exec rake native gem
+
+      - name: Collect gems
+        run: |
+          echo "Built gem file:"
+          ls -la pkg/
+          echo ""
+          echo "Gem version:"
+          bundle exec rake version
+
+          mkdir -p pkg_out
+          cp -r pkg/*.gem pkg_out/
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendal-ruby-gem-${{ matrix.platform }}
+          path: bindings/ruby/pkg_out/*.gem
+          retention-days: 30
+
+  publish:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
+    needs: [build, build-native]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Ruby and install dependencies
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          working-directory: bindings/ruby
+
+      - name: Download gem artifact
+        if: github.event_name == 'push'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: opendal-ruby-gem-*
+          path: bindings/ruby/pkg/
+
+      # Adapted from rubygems/release-gem@v1. Changed:
+      # 1. publishing git tag
+      # 2. support custom working directory
+      #
+      # TODO: we can consider using rubygems/release-gem when the gem resolves:
+      # https://github.com/rubygems/release-gem/pull/12
+      - name: Attribute commits to last committer
+        run: |
+          git config --global user.email "$(git log -1 --pretty=format:'%ae')"
+          git config --global user.name "$(git log -1 --pretty=format:'%an')"
+
+      - name: Configure Git using cached credentials
+        run: |
+          git credential-cache --timeout=300 store <<EOF
+          protocol=https
+          host=github.com
+          username=x-access-token
+          password=${{ github.token }}
+
+          EOF
+          git config --local credential.helper 'cache --timeout=300'
+
+      - name: Configure trusted publishing credentials
+        uses: rubygems/configure-rubygems-credentials@v1.0.0
+
+      - name: Release gem
+        run: bundle exec rake release
+        env:
+          RUBYOPT: "${{ format('-r{0}/rubygems-attestation-patch.rb {1}', github.action_path, env.RUBYOPT) || env.RUBYOPT }}"
+
+      - name: Wait for release to propagate
+        run: gem exec rubygems-await pkg/*.gem
+
+      - name: Log Release
+        run: |
+          echo "## Ruby binding released! 🚀" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean up credentials
+        if: always()
+        run: git credential-cache exit || true

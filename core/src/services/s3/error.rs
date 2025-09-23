@@ -47,6 +47,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+        429 => (ErrorKind::RateLimited, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
@@ -114,6 +115,10 @@ pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
         // indicates a temporary issue with the service or server, such as high load,
         // maintenance, or an internal problem.
         "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+        // > Too Many Requests - rate limit exceeded.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
         _ => None,
     }
 }

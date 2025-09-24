@@ -391,21 +391,6 @@ struct DropboxDeleteArgs {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct DropboxDeleteBatchEntry {
-    path: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct DropboxDeleteBatchArgs {
-    entries: Vec<DropboxDeleteBatchEntry>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct DropboxDeleteBatchCheckArgs {
-    async_job_id: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
 struct DropboxCreateFolderArgs {
     path: String,
 }
@@ -508,28 +493,4 @@ pub struct DropboxListResponse {
     pub entries: Vec<DropboxMetadataResponse>,
     pub cursor: String,
     pub has_more: bool,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchResponse {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    pub async_job_id: Option<String>,
-    pub entries: Option<Vec<DropboxDeleteBatchResponseEntry>>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchResponseEntry {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
-    pub metadata: Option<DropboxMetadataResponse>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default)]
-pub struct DropboxDeleteBatchFailureResponseCause {
-    #[serde(rename(deserialize = ".tag"))]
-    pub tag: String,
 }

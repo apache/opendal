@@ -37,13 +37,6 @@ pub struct CfKvError {
     pub code: i32,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CfKvSetData {
-    pub key: String,
-    pub value: String,
-    pub metadata: CfKvMetadata,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct CfKvDeleteResult {
     pub successful_key_count: usize,

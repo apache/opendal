@@ -49,7 +49,10 @@ impl<P: List> List for Option<P> {
     }
 }
 
+/// ListDyn is the dyn version of [`List`]. Makes it possible to use as
+/// `Box<dyn ListDyn>`.
 pub trait ListDyn: Unpin + Send + Sync {
+    /// The dyn version of [`List::next`].
     fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<Entry>>>;
 }
 

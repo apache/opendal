@@ -42,6 +42,7 @@ impl Scan for () {
 }
 
 /// A Scan implementation for all trivial non-async iterators
+#[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
 pub struct ScanStdIter<I>(I);
 
 #[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
@@ -55,6 +56,7 @@ where
     }
 }
 
+#[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
 impl<I> Scan for ScanStdIter<I>
 where
     I: Iterator<Item = Result<String>> + Unpin + Send + Sync,

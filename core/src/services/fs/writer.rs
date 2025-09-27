@@ -210,3 +210,9 @@ fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.write_at(buf, offset).map_err(new_std_io_error)
 }
+
+#[cfg(target_os = "wasi")]
+fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
+    use std::os::wasi::fs::FileExt;
+    f.write_at(buf, offset).map_err(new_std_io_error)
+}

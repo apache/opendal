@@ -25,7 +25,11 @@ pub struct TokioExecutor {}
 impl Execute for TokioExecutor {
     /// Tokio's JoinHandle has its own `abort` support, so dropping handle won't cancel the task.
     fn execute(&self, f: BoxedStaticFuture<()>) {
+        #[cfg(not(target_arch = "wasm32"))]
         let _handle = tokio::task::spawn(f);
+
+        #[cfg(target_arch = "wasm32")]
+        let _handle = tokio::task::spawn_local(f);
     }
 }
 

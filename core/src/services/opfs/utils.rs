@@ -18,10 +18,7 @@
 use crate::Result;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    window, FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetDirectoryOptions,
-    FileSystemGetFileOptions,
-};
+use web_sys::{window, FileSystemDirectoryHandle, FileSystemGetDirectoryOptions};
 
 use super::error::*;
 
@@ -49,22 +46,4 @@ pub(crate) async fn get_directory_handle(
     }
 
     Ok(handle)
-}
-
-pub(crate) async fn get_handle_by_filename(filename: &str) -> Result<FileSystemFileHandle> {
-    let navigator = window().unwrap().navigator();
-    let storage_manager = navigator.storage();
-    let root: FileSystemDirectoryHandle = JsFuture::from(storage_manager.get_directory())
-        .await
-        .and_then(JsCast::dyn_into)
-        .map_err(parse_js_error)?;
-
-    // maybe the option should be exposed?
-    let opt = FileSystemGetFileOptions::new();
-    opt.set_create(true);
-
-    JsFuture::from(root.get_file_handle_with_options(filename, &opt))
-        .await
-        .and_then(JsCast::dyn_into)
-        .map_err(parse_js_error)
 }

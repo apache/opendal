@@ -66,6 +66,7 @@ use libunftp::storage::{self, StorageBackend};
 use opendal::Operator;
 
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {
@@ -211,6 +212,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             .into_futures_async_write()
             .compat_write();
         let len = tokio::io::copy(&mut input, &mut w).await?;
+        w.shutdown().await.unwrap();
         Ok(len)
     }
 

@@ -212,7 +212,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             .into_futures_async_write()
             .compat_write();
         let len = tokio::io::copy(&mut input, &mut w).await?;
-        w.shutdown().await.unwrap();
+        w.shutdown().await.map_err(convert_err)?;
         Ok(len)
     }
 

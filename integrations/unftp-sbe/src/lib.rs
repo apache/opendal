@@ -65,8 +65,8 @@ use libunftp::auth::UserDetail;
 use libunftp::storage::{self, StorageBackend};
 use opendal::Operator;
 
-use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 use tokio::io::AsyncWriteExt;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {

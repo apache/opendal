@@ -211,15 +211,26 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             .map_err(convert_err)?
             .into_futures_async_write()
             .compat_write();
-        let len = tokio::io::copy(&mut input, &mut w).await?;
-        w.shutdown().await.map_err(|e| {
-            Error::new(
+        let copy_result = tokio::io::copy(&mut input, &mut w).await;
+        let shutdown_result = w.shutdown().await;
+        match (copy_result, shutdown_result) {
+            (Ok(len), Ok(())) => Ok(len),
+            (Err(copy_err), Ok(())) => Err(Error::new(
                 storage::ErrorKind::LocalError,
-                format!("Failed to shutdown writer: {}", e),
-            )
-        })?;
-
-        Ok(len)
+                format!("Failed to copy data: {}", copy_err),
+            )),
+            (Ok(_), Err(shutdown_err)) => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                format!("Failed to shutdown writer: {}", shutdown_err),
+            )),
+            (Err(copy_err), Err(shutdown_err)) => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                format!(
+                    "Failed to copy data: {} AND failed to shutdown writer: {}",
+                    copy_err, shutdown_err
+                ),
+            )),
+        }
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {

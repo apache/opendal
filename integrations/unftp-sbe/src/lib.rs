@@ -212,7 +212,13 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             .into_futures_async_write()
             .compat_write();
         let len = tokio::io::copy(&mut input, &mut w).await?;
-        w.shutdown().await.map_err(convert_err)?;
+        w.shutdown().await.map_err(|e| {
+            Error::new(
+                storage::ErrorKind::LocalError,
+                format!("Failed to shutdown writer: {}", e),
+            )
+        })?;
+
         Ok(len)
     }
 

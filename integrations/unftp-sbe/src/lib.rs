@@ -62,7 +62,7 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
 use libunftp::auth::UserDetail;
-use libunftp::storage::{self, StorageBackend};
+use libunftp::storage::{self, Error, StorageBackend};
 use opendal::Operator;
 
 use tokio::io::AsyncWriteExt;

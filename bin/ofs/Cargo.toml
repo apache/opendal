@@ -51,7 +51,7 @@ libc = "0.2.154"
 nix = { version = "0.30.1", features = ["user"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-cloud-filter = { version = "0.0.5" }
+cloud-filter = { version = "0.0.6" }
 cloud_filter_opendal = { version = "0.0.12", path = "../../integrations/cloud_filter" }
 
 [features]

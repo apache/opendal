@@ -97,7 +97,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
     let mut err = Error::new(kind, &message);
 
-    err = with_error_response_context(err, parts);
+    err = with_azure_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();

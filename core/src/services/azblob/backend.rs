@@ -326,6 +326,9 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
+        #[cfg(target_arch = "wasm32")]
+        let mut config_loader = AzureStorageConfig::default();
+        #[cfg(not(target_arch = "wasm32"))]
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self

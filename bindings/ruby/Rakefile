@@ -78,7 +78,8 @@ namespace :doc do
 end
 
 task doc: "doc:default"
-task default: %i[clobber compile test standard]
+task default: %i[compile test standard]
+task purge: %i[clean clobber]
 
 desc "report gem version"
 task :version do

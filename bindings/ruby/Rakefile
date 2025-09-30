@@ -87,10 +87,14 @@ task :version do
   print GEMSPEC.version
 end
 
-desc "Multi-arch release (overrides bundler)"
+
+Rake::Task["release"].clear # clear the existing release task to allow override
+
+# overrides bundler's default rake release task
+# we removed build and git tagging steps. Read more in `.release-ruby.yml`
+# read more https://github.com/rubygems/rubygems/blob/master/bundler/lib/bundler/gem_helper.rb
+desc "Multi-arch release"
 task release: [
-  # we removed build and git tagging steps. Read more in `.release-ruby.yml`
-  # read more https://github.com/rubygems/rubygems/blob/master/bundler/lib/bundler/gem_helper.rb
   "release:guard_clean",
   "release:rubygem_push"
 ]

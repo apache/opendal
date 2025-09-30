@@ -264,6 +264,8 @@ jobs:
           echo "## Ruby binding released! 🚀" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check out the [RubyGems page](https://rubygems.org/gems/opendal) for more details." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clean up credentials
         if: always()

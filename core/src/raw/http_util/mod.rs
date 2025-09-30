@@ -56,6 +56,7 @@ mod uri;
 pub use uri::new_http_uri_invalid_error;
 pub use uri::percent_decode_path;
 pub use uri::percent_encode_path;
+pub(crate) use uri::query_pairs;
 pub use uri::QueryPairsWriter;
 
 mod error;

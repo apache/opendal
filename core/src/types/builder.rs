@@ -17,11 +17,13 @@
 
 use std::fmt::Debug;
 
+use http::Uri;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::raw::*;
 use crate::*;
+use types::operator::{OperatorFactory, OperatorRegistry};
 
 /// Builder is used to set up underlying services.
 ///
@@ -54,6 +56,15 @@ pub trait Builder: Default + 'static {
 
     /// Consume the accessor builder to build a service.
     fn build(self) -> Result<impl Access>;
+
+    /// Register this builder in the given registry.
+    fn register_in_registry(registry: &mut OperatorRegistry) {
+        let operator_factory: OperatorFactory = |uri, options| {
+            let config = Self::Config::from_uri(uri, options)?;
+            Ok(Operator::from_config(config)?.finish())
+        };
+        registry.register(Self::SCHEME.into_static(), operator_factory)
+    }
 }
 
 /// Dummy implementation of builder
@@ -132,6 +143,15 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
         Self::deserialize(cfg).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "failed to deserialize config").set_source(err)
         })
+    }
+
+    /// TODO: document this.
+    fn from_uri(uri: &Uri, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
+        let query_pairs = uri.query().map(query_pairs).unwrap_or_default();
+
+        let merged_options = query_pairs.into_iter().chain(options);
+
+        Self::from_iter(merged_options)
     }
 
     /// Convert this configuration into a service builder.

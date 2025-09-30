@@ -65,6 +65,18 @@ pub fn percent_decode_path(path: &str) -> String {
     }
 }
 
+/// query_pairs will parse a query string encoded as key-value pairs separated by `&` to a vector of key-value pairs.
+/// It also does percent decoding for both key and value.
+///
+/// Note that `?` is not allowed in the query string, and it will be treated as a part of the first key if included.
+pub(crate) fn query_pairs(query: &str) -> Vec<(String, String)> {
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(key, value)| (percent_decode_path(key), percent_decode_path(value)))
+        .collect()
+}
+
 /// QueryPairsWriter is used to write query pairs to a url.
 pub struct QueryPairsWriter {
     base: String,
@@ -183,6 +195,42 @@ mod tests {
 
         for (name, input, expected) in cases {
             let actual = percent_decode_path(input);
+
+            assert_eq!(actual, expected, "{name}");
+        }
+    }
+
+    #[test]
+    fn test_query_pairs() {
+        let cases =
+            vec![
+            (
+                "single pair",
+                "key=value",
+                vec![("key".into(), "value".into())],
+            ),
+            (
+                "multiple pairs",
+                "key=value&key2=value2&key3=value3",
+                vec![
+                    ("key".into(), "value".into()),
+                    ("key2".into(), "value2".into()),
+                    ("key3".into(), "value3".into()),
+                ],
+            ),
+            (
+                "Unicode Characters",
+                "unicode%20param=%E4%BD%A0%E5%A5%BD%EF%BC%8C%E4%B8%96%E7%95%8C%EF%BC%81%E2%9D%A4",
+                vec![("unicode param".into(), "你好，世界！❤".into())],
+            ),
+            ("empty value", "key=", vec![("key".into(), "".into())]),
+            ("no separator", "key", vec![]),
+            ("double separators","key=val1=val2", vec![("key".into(),"val1=val2".into())]),
+            ("empty input", "", vec![]),
+        ];
+
+        for (name, input, expected) in cases {
+            let actual = query_pairs(input);
 
             assert_eq!(actual, expected, "{name}");
         }

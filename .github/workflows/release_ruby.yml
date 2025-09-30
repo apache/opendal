@@ -254,7 +254,7 @@ jobs:
       - name: Release gem
         run: bundle exec rake release
         env:
-          RUBYOPT: "${{ format('-r{0}/rubygems-attestation-patch.rb {1}', github.action_path, env.RUBYOPT) || env.RUBYOPT }}"
+          RUBYOPT: "${{ format('-r{0}/bindings/ruby/rubygems-attestation-patch.rb {1}', github.workspace, env.RUBYOPT) || env.RUBYOPT }}"
 
       - name: Wait for release to propagate
         run: gem exec rubygems-await pkg/*.gem

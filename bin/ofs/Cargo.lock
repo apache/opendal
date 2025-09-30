@@ -270,9 +270,9 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "cloud-filter"
-version = "0.0.5"
+version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1539aee4f516aaa087c746280d5c6de8ade13223562de7b4bdda5af1f6819289"
+checksum = "e14c1f7a726923ec7bb56faa4ef71b8e7be56b98f2bb8e406d35cb7e5efe7894"
 dependencies = [
  "flagset",
  "memoffset",

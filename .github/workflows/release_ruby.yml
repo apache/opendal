@@ -101,6 +101,8 @@ jobs:
             rust_target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
+
     env:
       RB_SYS_CARGO_TARGET: ${{ matrix.rust_target }}
 

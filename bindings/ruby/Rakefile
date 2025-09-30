@@ -19,25 +19,23 @@
 
 require "bundler/gem_tasks"
 require "rake/testtask"
-require "rake/extensiontask"
+require "rb_sys/extensiontask"
 require "standard/rake"
 
 GEMSPEC = Gem::Specification.load("opendal.gemspec")
 CRATE_PACKAGE_NAME = "opendal-ruby"
 
-Rake::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
+RbSys::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
   ext.lib_dir = "lib/opendal_ruby"
 
   ext.cross_compile = true
   ext.cross_platform = %w[
-    x64-mingw-ucrt
-    x64-mingw32
     x86_64-linux
     arm64-linux
-    x86_64-darwin
     arm64-darwin
+    arm64-darwin23
   ]
 end
 
@@ -87,6 +85,27 @@ task :version do
   print GEMSPEC.version
 end
 
+desc "Resolve symlinks in core directory for gem packaging" # Read more in `.release-ruby.yml`
+task :resolve_symlinks do
+  puts "Changing symlinks in core directory to actual files for packaging..."
+  Dir.chdir("core") do # a symbolic link to OpenDAL core for packaging
+    Dir.glob("**/*", File::FNM_DOTMATCH).each do |file|
+      next unless File.symlink?(file)
+
+      link_target = File.readlink(file)
+      resolved_path = File.expand_path(link_target, File.dirname(file))
+
+      if File.exist?(resolved_path)
+        puts "Resolving symlink: #{file} -> #{link_target}"
+        File.delete(file)
+        FileUtils.cp(resolved_path, file)
+      end
+    end
+  end
+end
+
+# Hook into build task to resolve symlinks first
+Rake::Task["build"].enhance([:resolve_symlinks]) if Rake::Task.task_defined?("build")
 
 Rake::Task["release"].clear # clear the existing release task to allow override
 

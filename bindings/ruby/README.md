@@ -7,6 +7,10 @@ OpenDAL's Ruby gem.
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+Read OpenDAL's [ruby](https://opendal.apache.org/docs/ruby/) documentation.
+
+You can find Rust documentation [here](https://docs.rs/opendal/latest/opendal/index.html).
+
 ## Get started
 
 ### Installation
@@ -110,6 +114,15 @@ op.list("/").map do |e|
   puts e.inspect
 end
 ```
+
+## Documentation
+
+More detailed documentation is a work in progress.
+
+- OpenDAL's [ruby](https://opendal.apache.org/docs/ruby/) documentation
+- Rust [documentation](https://docs.rs/opendal/latest/opendal/index.html)
+- Rust documentation for [services](https://docs.rs/opendal/latest/opendal/services/index.html)
+- Rust documentation for [layers](https://docs.rs/opendal/latest/opendal/layers/index.html) (middlewares in Ruby)
 
 ## Development
 

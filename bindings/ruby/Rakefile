@@ -109,6 +109,7 @@ end
 Rake::Task["build"].enhance([:resolve_symlinks]) if Rake::Task.task_defined?("build")
 
 Rake::Task["release"].clear # clear the existing release task to allow override
+Rake::Task["release:rubygem_push"].clear if Rake::Task.task_defined?("release:rubygem_push")
 
 # overrides bundler's default rake release task
 # we removed build and git tagging steps. Read more in `.release-ruby.yml`
@@ -118,3 +119,24 @@ task release: [
   "release:guard_clean",
   "release:rubygem_push"
 ]
+
+namespace :release do
+  desc "Push all gems to RubyGems"
+  task :rubygem_push do
+    # Push all gem files (source + platform-specific) like Nokogiri does
+    # Bundler's built_gem_path only returns the last modified gem, so we glob all gems instead
+    gem_files = Gem::Util.glob_files_in_dir("#{GEMSPEC.name}-*.gem", "pkg").sort
+
+    if gem_files.empty?
+      abort "No gem files found in pkg/"
+    end
+
+    puts "Found #{gem_files.length} gem(s) to push:"
+    gem_files.each { |f| puts "  - #{File.basename(f)}" }
+
+    gem_files.each do |gem_file|
+      puts "\nPushing #{File.basename(gem_file)}..."
+      sh "gem push #{gem_file}"
+    end
+  end
+end

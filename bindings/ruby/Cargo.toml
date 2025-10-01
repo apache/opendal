@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.82"
-version = "0.1.0" # updates this version to bump Rubygem version during release process
+version = "0.1.6-rc.2" # updates this version to bump Rubygem version during release process
 
 [lib]
 crate-type = ["cdylib"]

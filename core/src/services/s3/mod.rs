@@ -17,7 +17,7 @@
 
 /// Default scheme for s3 service.
 #[cfg(feature = "services-s3")]
-pub(super) const DEFAULT_SCHEME: &str = "s3";
+pub const S3_SCHEME: &str = "s3";
 #[cfg(feature = "services-s3")]
 mod core;
 #[cfg(feature = "services-s3")]

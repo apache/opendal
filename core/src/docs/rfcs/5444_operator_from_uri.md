@@ -41,19 +41,19 @@ let op = Operator::from_uri("fs:///tmp/test", vec![])?;
 OpenDAL will, by default, register services enabled by features in a global `OperatorRegistry`. Users can also create custom operator registries to support their own schemes or additional options.
 
 ```rust
-// Using with custom registry
+// Using a custom registry
 let registry = OperatorRegistry::new();
-registry.register("custom", my_factory);
-let op = registry.parse("custom://endpoint", options)?;
 
-// The same service implementation can be registered under multiple schemes
-registry.register("s3", s3_factory);
-registry.register("minio", s3_factory);  // MinIO is S3-compatible
-registry.register("r2", s3_factory);     // Cloudflare R2 is S3-compatible
+// Register builtin builders under desired schemes
+registry.register::<services::S3>(services::S3_SCHEME);
+registry.register::<services::S3>("minio");  // MinIO is S3-compatible
+registry.register::<services::S3>("r2");     // Cloudflare R2 is S3-compatible
 
 // Users can define their own scheme names for internal use
-registry.register("company-storage", s3_factory);
-registry.register("backup-storage", azblob_factory);
+registry.register::<services::S3>("company-storage");
+registry.register::<services::Azblob>("backup-storage");
+
+let op = registry.load("company-storage://bucket/path", [])?;
 ```
 
 # Reference-level explanation
@@ -62,19 +62,21 @@ The implementation consists of three main components:
 
 1. The `OperatorFactory` and `OperatorRegistry`:
 
-`OperatorFactory` is a function type that takes a URI and a map of options and returns an `Operator`. `OperatorRegistry` manages operator factories for different schemes.
+`OperatorFactory` is a function type that takes a URI string plus options and returns an `Operator`. `OperatorRegistry` manages factories registered under different schemes.
+
+`OperatorFactory` is a function type that takes a URI string plus options and returns an `Operator`. `OperatorRegistry` manages factories registered under different schemes.
 
 ```rust
-type OperatorFactory = fn(http::Uri, HashMap<String, String>) -> Result<Operator>;
+type OperatorFactory = fn(&str, Vec<(String, String)>) -> Result<Operator>;
 
 pub struct OperatorRegistry { ... }
 
 impl OperatorRegistry {
-    fn register(&self, scheme: &str, factory: OperatorFactory) {
+    fn register<B: Builder>(&self, scheme: &str) {
         ...
     }
 
-    fn parse(&self, uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Operator> {
+    fn load(&self, uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Operator> {
         ...
     }
 }
@@ -86,7 +88,7 @@ impl OperatorRegistry {
 
 ```rust
 impl Configurator for S3Config {
-    fn from_uri(uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Self> {
+    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
         ...
     }
 }

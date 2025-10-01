@@ -19,7 +19,10 @@ use serde::Deserialize;
 use serde::Serialize;
 
 /// Config for OPFS.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct OPFSConfig {}
+pub struct OpfsConfig {
+    /// root dir for backend
+    pub root: Option<String>,
+}

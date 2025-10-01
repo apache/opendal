@@ -36,20 +36,13 @@ impl Configurator for FsConfig {
     fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
-        if map.contains_key("root") {
-            return Self::from_iter(map);
-        }
-
-        if let Some(root) = uri.root() {
-            let value = if uri.name().is_none() {
-                if root.starts_with('/') {
-                    root.to_string()
-                } else {
-                    format!("/{}", root)
-                }
-            } else {
-                root.to_string()
-            };
+        if let Some(value) = match (uri.name(), uri.root()) {
+            (Some(name), Some(rest)) if !rest.is_empty() => Some(format!("/{}/{}", name, rest)),
+            (Some(name), _) => Some(format!("/{}", name)),
+            (None, Some(rest)) if !rest.is_empty() => Some(format!("/{}", rest)),
+            (None, Some(rest)) => Some(rest.to_string()),
+            _ => None,
+        } {
             map.insert("root".to_string(), value);
         }
 

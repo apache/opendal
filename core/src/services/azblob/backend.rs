@@ -629,7 +629,7 @@ mod tests {
     #[test]
     fn from_uri_with_path_container() {
         let uri = OperatorUri::new(
-            "azblob:///my-container/nested/root".parse().unwrap(),
+            "azblob://my-container/nested/root".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

@@ -42,7 +42,7 @@ impl OperatorUri {
             .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "uri scheme is required"))?
             .to_ascii_lowercase();
 
-        let mut options = HashMap::new();
+        let mut options = HashMap::<String, String>::new();
 
         if let Some(query) = uri.query() {
             for pair in query.split('&') {

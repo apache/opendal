@@ -22,11 +22,11 @@ use std::time::Duration;
 
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::*;

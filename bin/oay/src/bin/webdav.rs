@@ -18,10 +18,10 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use oay::services::WebdavService;
 use oay::Config;
-use opendal::services::Fs;
+use oay::services::WebdavService;
 use opendal::Operator;
+use opendal::services::Fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

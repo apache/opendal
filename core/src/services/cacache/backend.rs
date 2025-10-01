@@ -24,10 +24,10 @@ use crate::raw::*;
 use crate::services::CacacheConfig;
 use crate::*;
 
+use super::DEFAULT_SCHEME;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
-use super::DEFAULT_SCHEME;
 impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;
     fn into_builder(self) -> Self::Builder {

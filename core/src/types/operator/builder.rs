@@ -310,7 +310,7 @@ impl Operator {
                     ErrorKind::Unsupported,
                     "scheme is not enabled or supported",
                 )
-                .with_context("scheme", v))
+                .with_context("scheme", v));
             }
         };
 

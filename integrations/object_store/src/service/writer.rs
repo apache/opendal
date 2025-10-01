@@ -17,10 +17,10 @@
 
 use std::sync::Arc;
 
-use object_store::path::Path as ObjectStorePath;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutPayload;
+use object_store::path::Path as ObjectStorePath;
 use object_store::{Attribute, AttributeValue};
 
 use opendal::raw::oio::MultipartPart;

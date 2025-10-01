@@ -26,13 +26,13 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::Mutex;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
@@ -167,7 +167,7 @@ impl Builder for AliyunDriveBuilder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "drive_type is invalid.",
-                ))
+                ));
             }
         };
         debug!("backend use drive_type {drive_type:?}");

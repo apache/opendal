@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use arrow::array::{ArrayRef, Int64Array, RecordBatch};
 
-use opendal::{services::S3Config, Operator};
-use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, AsyncArrowWriter};
+use opendal::{Operator, services::S3Config};
+use parquet::arrow::{AsyncArrowWriter, arrow_reader::ParquetRecordBatchReaderBuilder};
 use parquet_opendal::AsyncWriter;
 
 #[tokio::main]

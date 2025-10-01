@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
+use http::header;
 use serde::Deserialize;
 
 use super::backend::RepoType;

@@ -17,10 +17,13 @@
 
 use std::collections::HashMap;
 
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use chrono::DateTime;
 use chrono::Utc;
+use http::HeaderMap;
+use http::HeaderName;
+use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -30,17 +33,14 @@ use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
-use http::HeaderMap;
-use http::HeaderName;
-use http::HeaderValue;
 use md5::Digest;
 
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
 
 /// Parse redirect location from header map
 ///

@@ -23,8 +23,8 @@
 
 use std::collections::HashMap;
 
-use http::response::Parts;
 use http::Uri;
+use http::response::Parts;
 use reqsign::{AzureStorageConfig, AzureStorageCredential};
 
 use crate::{Error, ErrorKind, Result};
@@ -332,7 +332,7 @@ mod tests {
     use crate::raw::azure::censor_sas_uri;
 
     use super::{
-        azure_account_name_from_endpoint, azure_config_from_connection_string, AzureStorageService,
+        AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
     };
 
     #[test]

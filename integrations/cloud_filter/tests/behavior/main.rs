@@ -36,7 +36,7 @@ use cloud_filter::{
 };
 use cloud_filter_opendal::CloudFilter;
 use libtest_mimic::{Arguments, Trial};
-use opendal::{raw::tests, Operator};
+use opendal::{Operator, raw::tests};
 use tokio::runtime::Handle;
 
 const PROVIDER_NAME: &str = "ro-cloud_filter";

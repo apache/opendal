@@ -20,12 +20,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
+use oay::Config;
 use oay::services::S3Service;
 use oay::services::WebdavService;
-use oay::Config;
-use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::services::Fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

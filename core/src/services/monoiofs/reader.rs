@@ -19,14 +19,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use bytes::BytesMut;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::channel::mpsc;
+use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
 
-use super::core::MonoiofsCore;
 use super::core::BUFFER_SIZE;
+use super::core::MonoiofsCore;
 use crate::raw::*;
 use crate::*;
 

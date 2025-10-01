@@ -20,11 +20,11 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use chrono::Utc;
-use http::header::HeaderValue;
-use http::header::{self};
 use http::Method;
 use http::Request;
 use http::Response;
+use http::header::HeaderValue;
+use http::header::{self};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;

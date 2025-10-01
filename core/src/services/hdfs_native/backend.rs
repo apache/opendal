@@ -23,12 +23,12 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;

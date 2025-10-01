@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::services::S3;
 use opendal::Operator;
+use opendal::services::S3;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

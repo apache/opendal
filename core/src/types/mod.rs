@@ -43,13 +43,13 @@ mod execute;
 pub use execute::*;
 
 mod operator;
-pub use operator::operator_futures;
+pub use operator::DEFAULT_OPERATOR_REGISTRY;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;
 pub use operator::OperatorFactory;
 pub use operator::OperatorInfo;
 pub use operator::OperatorRegistry;
-pub use operator::DEFAULT_OPERATOR_REGISTRY;
+pub use operator::operator_futures;
 
 mod builder;
 pub use builder::Builder;

@@ -37,9 +37,9 @@ use http_body::Frame;
 use http_body::SizeHint;
 use raw::oio::Read;
 
+use super::HttpBody;
 use super::parse_content_encoding;
 use super::parse_content_length;
-use super::HttpBody;
 use crate::raw::*;
 use crate::*;
 

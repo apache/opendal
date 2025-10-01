@@ -26,13 +26,13 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;

@@ -21,6 +21,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
+use http::Request;
+use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -29,8 +31,6 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use http::Request;
-use http::Response;
 use reqsign::TencentCosCredential;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;

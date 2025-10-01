@@ -17,9 +17,9 @@
 
 use std::sync::LazyLock;
 
-use magnus::function;
 use magnus::Error;
 use magnus::Ruby;
+use magnus::function;
 
 // We will use `ocore::` to represents opendal rust core functionalities.
 // This convention aligns with the Python binding.

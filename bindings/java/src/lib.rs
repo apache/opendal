@@ -17,17 +17,17 @@
 
 use std::collections::HashMap;
 
+use jni::JNIEnv;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::jboolean;
 use jni::sys::jint;
 use jni::sys::jlong;
-use jni::JNIEnv;
-use opendal::raw::PresignedRequest;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
 use opendal::OperatorInfo;
+use opendal::raw::PresignedRequest;
 use opendal::{Capability, Error, ErrorKind};
 
 mod async_operator;
@@ -219,7 +219,7 @@ fn make_write_options<'a>(
                 ErrorKind::Unexpected,
                 format!("Concurrent must be positive, instead got: {v}"),
             )
-            .into())
+            .into());
         }
     };
     Ok(opendal::options::WriteOptions {

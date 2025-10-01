@@ -17,11 +17,11 @@
 
 use crate::Result;
 use chrono::{DateTime, Utc};
+use jni::JNIEnv;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::{JByteArray, JMap};
 use jni::sys::jlong;
-use jni::JNIEnv;
 use opendal::{Error, ErrorKind};
 use std::collections::HashMap;
 use std::ops::Bound;

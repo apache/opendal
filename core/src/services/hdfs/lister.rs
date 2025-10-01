@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
 
 pub struct HdfsLister {
     root: String,

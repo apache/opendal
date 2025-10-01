@@ -41,7 +41,7 @@ frontends-webdav = [
 
 [dependencies]
 anyhow = "1"
-axum = "0.7"
+axum = "0.8"
 chrono = "0.4.31"
 dav-server = { version = "0.8", optional = true }
 dav-server-opendalfs = { version = "0.6.0", path = "../../integrations/dav-server", optional = true }

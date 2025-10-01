@@ -293,11 +293,12 @@ mod tests {
     use super::*;
     use crate::types::OperatorUri;
     use crate::Configurator;
+    use http::Uri;
 
     #[test]
     fn from_uri_extracts_root() {
         let uri = OperatorUri::new(
-            "fs:///tmp/data".parse().unwrap(),
+            Uri::from_static("fs://tmp/data"),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

@@ -97,6 +97,20 @@ fn register_builtin_services(registry: &OperatorRegistry) {
     registry.register::<services::Fs>(services::FS_SCHEME);
     #[cfg(feature = "services-s3")]
     registry.register::<services::S3>(services::S3_SCHEME);
+    #[cfg(feature = "services-azblob")]
+    registry.register::<services::Azblob>(services::AZBLOB_SCHEME);
+    #[cfg(feature = "services-b2")]
+    registry.register::<services::B2>(services::B2_SCHEME);
+    #[cfg(feature = "services-cos")]
+    registry.register::<services::Cos>(services::COS_SCHEME);
+    #[cfg(feature = "services-gcs")]
+    registry.register::<services::Gcs>(services::GCS_SCHEME);
+    #[cfg(feature = "services-obs")]
+    registry.register::<services::Obs>(services::OBS_SCHEME);
+    #[cfg(feature = "services-oss")]
+    registry.register::<services::Oss>(services::OSS_SCHEME);
+    #[cfg(feature = "services-upyun")]
+    registry.register::<services::Upyun>(services::UPYUN_SCHEME);
 }
 
 /// Factory adapter that builds an operator from a configurator type.

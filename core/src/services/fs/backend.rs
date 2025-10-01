@@ -297,3 +297,18 @@ impl Access for FsBackend {
         Ok(RpRename::default())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use http::Uri;
+    use std::collections::HashMap;
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri: Uri = "fs:///tmp/data".parse().unwrap();
+        let cfg = FsConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+    }
+}

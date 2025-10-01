@@ -17,7 +17,7 @@
 
 /// Default scheme for upyun service.
 #[cfg(feature = "services-upyun")]
-pub(super) const DEFAULT_SCHEME: &str = "upyun";
+pub const UPYUN_SCHEME: &str = "upyun";
 #[cfg(feature = "services-upyun")]
 mod core;
 #[cfg(feature = "services-upyun")]

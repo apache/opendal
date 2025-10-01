@@ -1188,6 +1188,9 @@ impl Access for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Configurator;
+    use http::Uri;
+    use std::collections::HashMap;
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1289,5 +1292,13 @@ mod tests {
             let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{name}");
         }
+    }
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri: Uri = "s3://example-bucket/path/to/root".parse().unwrap();
+        let cfg = S3Config::from_uri(&uri, &HashMap::new()).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

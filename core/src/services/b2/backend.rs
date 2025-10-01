@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -22,7 +23,9 @@ use std::sync::Arc;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::Uri;
 use log::debug;
+use percent_encoding::percent_decode_str;
 use tokio::sync::RwLock;
 
 use super::core::constants;
@@ -34,12 +37,66 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
-use super::DEFAULT_SCHEME;
+use super::B2_SCHEME;
 use crate::raw::*;
 use crate::services::B2Config;
 use crate::*;
 impl Configurator for B2Config {
     type Builder = B2Builder;
+
+    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
+        let mut map = options.clone();
+
+        let has_bucket = map.get("bucket").map(|v| !v.is_empty()).unwrap_or(false);
+
+        let path = percent_decode_str(uri.path()).decode_utf8_lossy();
+
+        if has_bucket {
+            if !map.contains_key("root") {
+                let trimmed = path.trim_matches('/');
+                if !trimmed.is_empty() {
+                    map.insert("root".to_string(), trimmed.to_string());
+                }
+            }
+        } else if let Some(authority) = uri.authority() {
+            let host = authority.host();
+            if !host.is_empty() {
+                map.insert("bucket".to_string(), host.to_string());
+                if !map.contains_key("root") {
+                    let trimmed = path.trim_matches('/');
+                    if !trimmed.is_empty() {
+                        map.insert("root".to_string(), trimmed.to_string());
+                    }
+                }
+            }
+        }
+
+        if !map.contains_key("bucket") {
+            let trimmed = path.trim_matches('/');
+            if trimmed.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "b2 uri requires bucket",
+                ));
+            }
+            let mut segments = trimmed.splitn(2, '/');
+            let bucket = segments.next().unwrap();
+            if bucket.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "b2 uri requires bucket",
+                ));
+            }
+            map.insert("bucket".to_string(), bucket.to_string());
+            if let Some(rest) = segments.next() {
+                if !rest.is_empty() && !map.contains_key("root") {
+                    map.insert("root".to_string(), rest.to_string());
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -191,7 +248,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(B2_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -430,5 +487,25 @@ impl Access for B2Backend {
                 "operation is not supported",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use http::Uri;
+    use std::collections::HashMap;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri: Uri = "b2://example-bucket/path/to/root".parse().unwrap();
+        let mut options = HashMap::new();
+        options.insert("bucket_id".to_string(), "bucket-id".to_string());
+
+        let cfg = B2Config::from_uri(&uri, &options).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        assert_eq!(cfg.bucket_id, "bucket-id");
     }
 }

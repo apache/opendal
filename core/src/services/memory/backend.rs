@@ -193,6 +193,9 @@ impl Access for MemoryAccessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Configurator;
+    use http::Uri;
+    use std::collections::HashMap;
 
     #[test]
     fn test_accessor_metadata_name() {
@@ -201,5 +204,12 @@ mod tests {
 
         let b2 = MemoryBuilder::default().build().unwrap();
         assert_ne!(b1.info().name(), b2.info().name())
+    }
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri: Uri = "memory://localhost/path/to/root".parse().unwrap();
+        let cfg = MemoryConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

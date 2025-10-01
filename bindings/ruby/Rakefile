@@ -37,6 +37,13 @@ RbSys::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
     arm64-darwin
     arm64-darwin23
   ]
+
+  # Override Ruby version requirement for native gems
+  # This prevents automatic constraint to the build Ruby version (e.g., >= 3.3, < 3.4.dev)
+  ext.cross_compiling do |gem_spec|
+    # keep in sync with opendal.gemspec
+    gem_spec.required_ruby_version = ">= 3.2", "< 3.5.dev"
+  end
 end
 
 Rake::Task[:test].prerequisites << :compile

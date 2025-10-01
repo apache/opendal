@@ -23,6 +23,7 @@ use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::Mutex;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -40,6 +41,7 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
+use tokio::runtime::{Builder as RuntimeBuilder, Handle};
 
 use super::core::*;
 use super::delete::S3Deleter;
@@ -55,6 +57,9 @@ use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
 use crate::*;
+
+static REGION_CACHE: LazyLock<Mutex<HashMap<(String, String), Option<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
@@ -600,6 +605,48 @@ impl S3Builder {
         self
     }
 
+    fn detect_region_blocking(endpoint: &str, bucket: &str) -> Result<Option<String>> {
+        let key = (endpoint.to_string(), bucket.to_string());
+        if let Some(cached) = REGION_CACHE
+            .lock()
+            .expect("region cache poisoned")
+            .get(&key)
+            .cloned()
+        {
+            return Ok(cached);
+        }
+
+        let detected = match Handle::try_current() {
+            Ok(handle) => {
+                let region = handle.block_on(crate::services::S3::detect_region(endpoint, bucket));
+                debug!("auto detected region: {:#?}", region);
+                region
+            }
+            Err(_) => {
+                let runtime = RuntimeBuilder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|err| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to build runtime for region detection",
+                        )
+                        .with_operation("Builder::build")
+                        .with_context("service", Scheme::S3)
+                        .set_source(err)
+                    })?;
+                runtime.block_on(crate::services::S3::detect_region(endpoint, bucket))
+            }
+        };
+
+        REGION_CACHE
+            .lock()
+            .expect("region cache poisoned")
+            .insert(key, detected.clone());
+
+        Ok(detected)
+    }
+
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -808,20 +855,31 @@ impl Builder for S3Builder {
             cfg.region = Some(v.to_string());
         }
 
+        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
+        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
+
+        let detect_endpoint = self
+            .config
+            .endpoint
+            .clone()
+            .unwrap_or_else(|| "https://s3.amazonaws.com".to_string());
+
         if cfg.region.is_none() {
-            return Err(Error::new(
+            if let Some(region) = Self::detect_region_blocking(&detect_endpoint, bucket)? {
+                cfg.region = Some(region.clone());
+                self.config.region = Some(region);
+            }
+        }
+
+        let region = cfg.region.clone().ok_or_else(|| {
+            Error::new(
                 ErrorKind::ConfigInvalid,
                 "region is missing. Please find it by S3::detect_region() or set them in env.",
             )
             .with_operation("Builder::build")
-            .with_context("service", Scheme::S3));
-        }
-
-        let region = cfg.region.to_owned().unwrap();
+            .with_context("service", Scheme::S3)
+        })?;
         debug!("backend use region: {region}");
-
-        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
-        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
 
         // Building endpoint.
         let endpoint = self.build_endpoint(&region);

@@ -15,12 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-
-use http::Uri;
-use percent_encoding::percent_decode_str;
 
 use super::core::*;
 use super::delete::MemoryDeleter;
@@ -30,16 +26,16 @@ use super::MEMORY_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
 
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
         if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            if !path.is_empty() && path != "/" {
-                map.insert("root".to_string(), path.trim_start_matches('/').to_string());
+            if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+                map.insert("root".to_string(), root.to_string());
             }
         }
 
@@ -193,9 +189,8 @@ impl Access for MemoryAccessor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::OperatorUri;
     use crate::Configurator;
-    use http::Uri;
-    use std::collections::HashMap;
 
     #[test]
     fn test_accessor_metadata_name() {
@@ -208,8 +203,12 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri: Uri = "memory://localhost/path/to/root".parse().unwrap();
-        let cfg = MemoryConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "memory://localhost/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = MemoryConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

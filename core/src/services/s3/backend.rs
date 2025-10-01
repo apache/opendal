@@ -30,12 +30,10 @@ use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
 use http::Response;
 use http::StatusCode;
-use http::Uri;
 use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use percent_encoding::percent_decode_str;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
@@ -56,6 +54,7 @@ use super::S3_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
+use crate::types::OperatorUri;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -74,25 +73,15 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 impl Configurator for S3Config {
     type Builder = S3Builder;
 
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
 
-        let bucket_missing = map.get("bucket").map(|v| v.is_empty()).unwrap_or(true);
-        if bucket_missing {
-            let bucket = uri
-                .authority()
-                .map(|authority| authority.host())
-                .filter(|host| !host.is_empty())
-                .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "s3 uri requires bucket"))?;
-            map.insert("bucket".to_string(), bucket.to_string());
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
         }
 
-        if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            let trimmed = path.trim_matches('/');
-            if !trimmed.is_empty() {
-                map.insert("root".to_string(), trimmed.to_string());
-            }
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)
@@ -1188,9 +1177,8 @@ impl Access for S3Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::OperatorUri;
     use crate::Configurator;
-    use http::Uri;
-    use std::collections::HashMap;
 
     #[test]
     fn test_is_valid_bucket() {
@@ -1296,8 +1284,12 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {
-        let uri: Uri = "s3://example-bucket/path/to/root".parse().unwrap();
-        let cfg = S3Config::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "s3://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = S3Config::from_uri(&uri).unwrap();
         assert_eq!(cfg.bucket, "example-bucket");
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }

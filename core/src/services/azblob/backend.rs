@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -24,9 +23,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use http::Response;
 use http::StatusCode;
-use http::Uri;
 use log::debug;
-use percent_encoding::percent_decode_str;
 use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -44,6 +41,7 @@ use super::writer::AzblobWriters;
 use super::AZBLOB_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
+use crate::types::OperatorUri;
 use crate::*;
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
@@ -62,60 +60,15 @@ impl From<AzureStorageConfig> for AzblobConfig {
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
 
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
 
-        let has_container = map.get("container").map(|v| !v.is_empty()).unwrap_or(false);
-
-        let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-
-        if has_container {
-            if !map.contains_key("root") {
-                let trimmed = path.trim_matches('/');
-                if !trimmed.is_empty() {
-                    map.insert("root".to_string(), trimmed.to_string());
-                }
-            }
-        } else if let Some(authority) = uri.authority() {
-            let host = authority.host();
-            if host.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "azblob uri requires container",
-                ));
-            }
-            map.insert("container".to_string(), host.to_string());
-
-            if !map.contains_key("root") {
-                let trimmed = path.trim_matches('/');
-                if !trimmed.is_empty() {
-                    map.insert("root".to_string(), trimmed.to_string());
-                }
-            }
-        } else {
-            let trimmed = path.trim_matches('/');
-            if trimmed.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "azblob uri requires container",
-                ));
-            }
-
-            let mut segments = trimmed.splitn(2, '/');
-            let container = segments.next().unwrap();
-            if container.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "azblob uri requires container",
-                ));
-            }
+        if let Some(container) = uri.name() {
             map.insert("container".to_string(), container.to_string());
+        }
 
-            if let Some(rest) = segments.next() {
-                if !rest.is_empty() && !map.contains_key("root") {
-                    map.insert("root".to_string(), rest.to_string());
-                }
-            }
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)
@@ -658,22 +611,29 @@ impl Access for AzblobBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::OperatorUri;
     use crate::Configurator;
-    use http::Uri;
-    use std::collections::HashMap;
 
     #[test]
     fn from_uri_with_host_container() {
-        let uri: Uri = "azblob://my-container/path/to/root".parse().unwrap();
-        let cfg = AzblobConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "azblob://my-container/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = AzblobConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.container, "my-container");
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 
     #[test]
     fn from_uri_with_path_container() {
-        let uri: Uri = "azblob:///my-container/nested/root".parse().unwrap();
-        let cfg = AzblobConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "azblob:///my-container/nested/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = AzblobConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.container, "my-container");
         assert_eq!(cfg.root.as_deref(), Some("nested/root"));
     }

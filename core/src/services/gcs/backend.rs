@@ -15,16 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
-use http::Uri;
 use log::debug;
-use percent_encoding::percent_decode_str;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
@@ -40,6 +37,7 @@ use super::GCS_SCHEME;
 use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
+use crate::types::OperatorUri;
 use crate::*;
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -47,57 +45,15 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 impl Configurator for GcsConfig {
     type Builder = GcsBuilder;
 
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
 
-        let has_bucket = !map.get("bucket").map(|v| v.is_empty()).unwrap_or(true);
-
-        let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-
-        if has_bucket {
-            if !map.contains_key("root") {
-                let trimmed = path.trim_matches('/');
-                if !trimmed.is_empty() {
-                    map.insert("root".to_string(), trimmed.to_string());
-                }
-            }
-        } else if let Some(authority) = uri.authority() {
-            let host = authority.host();
-            if !host.is_empty() {
-                map.insert("bucket".to_string(), host.to_string());
-                if !map.contains_key("root") {
-                    let trimmed = path.trim_matches('/');
-                    if !trimmed.is_empty() {
-                        map.insert("root".to_string(), trimmed.to_string());
-                    }
-                }
-            }
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
         }
 
-        let has_bucket = !map.get("bucket").map(|v| v.is_empty()).unwrap_or(true);
-
-        if !has_bucket {
-            let trimmed = path.trim_matches('/');
-            if trimmed.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "gcs uri requires bucket",
-                ));
-            }
-            let mut segments = trimmed.splitn(2, '/');
-            let bucket = segments.next().unwrap();
-            if bucket.is_empty() {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "gcs uri requires bucket",
-                ));
-            }
-            map.insert("bucket".to_string(), bucket.to_string());
-            if let Some(rest) = segments.next() {
-                if !rest.is_empty() && !map.contains_key("root") {
-                    map.insert("root".to_string(), rest.to_string());
-                }
-            }
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)
@@ -560,14 +516,17 @@ impl Access for GcsBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::OperatorUri;
     use crate::Configurator;
-    use http::Uri;
-    use std::collections::HashMap;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {
-        let uri: Uri = "gcs://example-bucket/path/to/root".parse().unwrap();
-        let cfg = GcsConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "gcs://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = GcsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.bucket, "example-bucket");
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }

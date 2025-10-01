@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
-
-use http::Uri;
-use percent_encoding::percent_decode_str;
 
 use super::core::*;
 use super::delete::FsDeleter;
@@ -33,27 +29,28 @@ use super::writer::FsWriters;
 use super::FS_SCHEME;
 use crate::raw::*;
 use crate::services::FsConfig;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
 
-        if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            if path.is_empty() || path == "/" {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "fs uri requires absolute path",
-                ));
-            }
-            if !path.starts_with('/') {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "fs uri root must be absolute",
-                ));
-            }
-            map.insert("root".to_string(), path.to_string());
+        if map.contains_key("root") {
+            return Self::from_iter(map);
+        }
+
+        if let Some(root) = uri.root() {
+            let value = if uri.name().is_none() {
+                if root.starts_with('/') {
+                    root.to_string()
+                } else {
+                    format!("/{}", root)
+                }
+            } else {
+                root.to_string()
+            };
+            map.insert("root".to_string(), value);
         }
 
         Self::from_iter(map)
@@ -301,14 +298,17 @@ impl Access for FsBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::OperatorUri;
     use crate::Configurator;
-    use http::Uri;
-    use std::collections::HashMap;
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri: Uri = "fs:///tmp/data".parse().unwrap();
-        let cfg = FsConfig::from_uri(&uri, &HashMap::new()).unwrap();
+        let uri = OperatorUri::new(
+            "fs:///tmp/data".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
     }
 }

@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use crate::layers::*;
 use crate::raw::*;
+use crate::types::IntoOperatorUri;
 use crate::*;
 
 /// # Operator build API
@@ -141,16 +142,13 @@ impl Operator {
     /// use opendal::Operator;
     ///
     /// # fn example() -> Result<()> {
-    /// let op = Operator::from_uri("memory://localhost/", [])?;
+    /// let op = Operator::from_uri("memory://localhost/")?;
     /// # let _ = op;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_uri(
-        uri: &str,
-        options: impl IntoIterator<Item = (String, String)>,
-    ) -> Result<Operator> {
-        crate::DEFAULT_OPERATOR_REGISTRY.load(uri, options)
+    pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Operator> {
+        crate::DEFAULT_OPERATOR_REGISTRY.load(uri)
     }
 
     /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.

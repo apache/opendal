@@ -31,3 +31,6 @@ pub mod operator_futures;
 
 mod registry;
 pub use registry::{OperatorFactory, OperatorRegistry, DEFAULT_OPERATOR_REGISTRY};
+
+mod uri;
+pub use uri::{IntoOperatorUri, OperatorUri};

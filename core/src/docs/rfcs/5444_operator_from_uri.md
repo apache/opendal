@@ -24,18 +24,17 @@ The new API allows creating operators directly from URIs:
 
 ```rust
 // Create an operator using URI
-let op = Operator::from_uri("s3://my-bucket/path", vec![
-    ("endpoint".to_string(), "http://localhost:8080"to_string()),
-])?;
+let op = Operator::from_uri("s3://my-bucket/path")?;
 
 // Users can pass options through the URI along with additional key-value pairs
 // The extra options will override identical options specified in the URI
-let op = Operator::from_uri("s3://my-bucket/path?region=us-east-1", vec![
-    ("endpoint".to_string(), "http://localhost:8080"to_string()),
-])?;
+let op = Operator::from_uri((
+    "s3://my-bucket/path?region=us-east-1",
+    [("endpoint", "http://localhost:8080")],
+))?;
 
 // Create a file system operator
-let op = Operator::from_uri("fs:///tmp/test", vec![])?;
+let op = Operator::from_uri("fs:///tmp/test")?;
 ```
 
 OpenDAL will, by default, register services enabled by features in a global `OperatorRegistry`. Users can also create custom operator registries to support their own schemes or additional options.
@@ -53,7 +52,7 @@ registry.register::<services::S3>("r2");     // Cloudflare R2 is S3-compatible
 registry.register::<services::S3>("company-storage");
 registry.register::<services::Azblob>("backup-storage");
 
-let op = registry.load("company-storage://bucket/path", [])?;
+let op = registry.load("company-storage://bucket/path")?;
 ```
 
 # Reference-level explanation
@@ -62,12 +61,10 @@ The implementation consists of three main components:
 
 1. The `OperatorFactory` and `OperatorRegistry`:
 
-`OperatorFactory` is a function type that takes a URI string plus options and returns an `Operator`. `OperatorRegistry` manages factories registered under different schemes.
-
-`OperatorFactory` is a function type that takes a URI string plus options and returns an `Operator`. `OperatorRegistry` manages factories registered under different schemes.
+`OperatorFactory` is a function type that takes a parsed `OperatorUri` and returns an `Operator`. `OperatorRegistry` manages factories registered under different schemes.
 
 ```rust
-type OperatorFactory = fn(&str, Vec<(String, String)>) -> Result<Operator>;
+type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;
 
 pub struct OperatorRegistry { ... }
 
@@ -76,7 +73,7 @@ impl OperatorRegistry {
         ...
     }
 
-    fn load(&self, uri: &str, options: impl IntoIterator<Item = (String, String)>) -> Result<Operator> {
+    fn load(&self, uri: impl IntoOperatorUri) -> Result<Operator> {
         ...
     }
 }
@@ -84,11 +81,11 @@ impl OperatorRegistry {
 
 2. The `Configurator` trait extension:
 
-`Configurator` will add a new API to create a configuration from a URI and options. Services should only parse the URI components relevant to their configuration (host, path, query parameters) without concerning themselves with the scheme portion.
+`Configurator` will add a new API to create a configuration from a parsed `OperatorUri`. Services should only inspect the URI components relevant to their configuration (name, root, options) without concerning themselves with the scheme portion.
 
 ```rust
 impl Configurator for S3Config {
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         ...
     }
 }
@@ -102,10 +99,7 @@ The `Operator` trait will add a new `from_uri` method to create an operator from
 
 ```rust
 impl Operator {
-    pub fn from_uri(
-        uri: &str,
-        options: impl IntoIterator<Item = (String, String)>,
-    ) -> Result<Self> {
+    pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Self> {
         ...
     }
 }

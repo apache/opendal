@@ -68,8 +68,6 @@ mod foundationdb;
 pub use self::foundationdb::*;
 
 mod fs;
-#[cfg(feature = "services-fs")]
-pub use fs::FS_SCHEME;
 pub use fs::*;
 
 mod ftp;
@@ -118,8 +116,6 @@ mod memcached;
 pub use memcached::*;
 
 mod memory;
-#[cfg(feature = "services-memory")]
-pub use self::memory::MEMORY_SCHEME;
 pub use self::memory::*;
 
 mod mini_moka;
@@ -165,8 +161,6 @@ mod rocksdb;
 pub use self::rocksdb::*;
 
 mod s3;
-#[cfg(feature = "services-s3")]
-pub use s3::S3_SCHEME;
 pub use s3::*;
 
 mod seafile;

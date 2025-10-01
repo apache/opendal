@@ -1,9 +1,9 @@
 # Apache OpenDAL™ Ruby Binding
 
-![Gem Version](https://img.shields.io/gem/v/opendal)
-![Gem Downloads (for latest version)](https://img.shields.io/gem/dtv/opendal)
+[![Gem Version](https://img.shields.io/gem/v/opendal)](https://rubygems.org/gems/opendal)
+[![Gem Downloads (for latest version)](https://img.shields.io/gem/dtv/opendal)](https://rubygems.org/gems/opendal)
 
-OpenDAL's Ruby gem.
+OpenDAL's Ruby [gem](https://rubygems.org/gems/opendal).
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 

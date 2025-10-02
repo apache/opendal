@@ -60,8 +60,7 @@ use crate::services::S3Config;
 use crate::*;
 
 type RegionCacheKey = (String, String);
-type RegionCacheValue = Option<String>;
-type RegionCacheStore = HashMap<RegionCacheKey, RegionCacheValue>;
+type RegionCacheStore = HashMap<RegionCacheKey, String>;
 
 static REGION_CACHE: LazyLock<Mutex<RegionCacheStore>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -78,13 +77,15 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
 });
 
 #[derive(Debug, Clone)]
-struct RegionDetectTarget {
+struct RegionProbe {
     endpoint: String,
+    bucket: String,
     head_bucket_url: String,
 }
 
-impl RegionDetectTarget {
+impl RegionProbe {
     fn new(endpoint: &str, bucket: &str) -> Self {
+        let bucket = bucket.to_string();
         let endpoint = endpoint.trim_end_matches('/');
 
         let endpoint = if endpoint.starts_with("http") {
@@ -99,11 +100,31 @@ impl RegionDetectTarget {
 
         Self {
             endpoint,
+            bucket,
             head_bucket_url,
         }
     }
 
-    fn quick_detect(&self) -> Option<String> {
+    fn cache_key(&self) -> RegionCacheKey {
+        (self.endpoint.clone(), self.bucket.clone())
+    }
+
+    fn lookup_cache(&self) -> Option<String> {
+        REGION_CACHE
+            .lock()
+            .expect("region cache poisoned")
+            .get(&self.cache_key())
+            .cloned()
+    }
+
+    fn write_cache(&self, region: &str) {
+        REGION_CACHE
+            .lock()
+            .expect("region cache poisoned")
+            .insert(self.cache_key(), region.to_string());
+    }
+
+    fn heuristic_region(&self) -> Option<String> {
         let endpoint = self.endpoint.as_str();
 
         // Cloudflare R2 always uses the pseudo region `auto`.
@@ -696,29 +717,6 @@ impl S3Builder {
         self
     }
 
-    /// Helper to read region information from the cache or heuristics without invoking async runtimes.
-    fn detect_region_cached(endpoint: &str, bucket: &str) -> Result<Option<String>> {
-        let key: RegionCacheKey = (endpoint.to_string(), bucket.to_string());
-        if let Some(cached) = REGION_CACHE
-            .lock()
-            .expect("region cache poisoned")
-            .get(&key)
-            .cloned()
-        {
-            return Ok(cached);
-        }
-
-        let target = RegionDetectTarget::new(endpoint, bucket);
-        let detected = target.quick_detect();
-
-        REGION_CACHE
-            .lock()
-            .expect("region cache poisoned")
-            .insert(key, detected.clone());
-
-        Ok(detected)
-    }
-
     /// Detect region of S3 bucket.
     ///
     /// # Args
@@ -755,14 +753,19 @@ impl S3Builder {
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
     pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
-        let target = RegionDetectTarget::new(endpoint, bucket);
+        let target = RegionProbe::new(endpoint, bucket);
+
+        if let Some(region) = target.lookup_cache() {
+            return Some(region);
+        }
 
         debug!(
             "detect region with url: {}",
             target.head_bucket_url.as_str()
         );
 
-        if let Some(region) = target.quick_detect() {
+        if let Some(region) = target.heuristic_region() {
+            target.write_cache(&region);
             return Some(region);
         }
 
@@ -787,14 +790,18 @@ impl S3Builder {
         // Get region from response header no matter status code.
         if let Some(header) = res.headers().get("x-amz-bucket-region") {
             if let Ok(regin) = header.to_str() {
-                return Some(regin.to_string());
+                let region = regin.to_string();
+                target.write_cache(&region);
+                return Some(region);
             }
         }
 
         // Status code is 403 or 200 means we already visit the correct
         // region, we can use the default region directly.
         if res.status() == StatusCode::FORBIDDEN || res.status() == StatusCode::OK {
-            return Some("us-east-1".to_string());
+            let region = "us-east-1".to_string();
+            target.write_cache(&region);
+            return Some(region);
         }
 
         None
@@ -903,7 +910,12 @@ impl Builder for S3Builder {
             .unwrap_or_else(|| "https://s3.amazonaws.com".to_string());
 
         if cfg.region.is_none() {
-            if let Some(region) = Self::detect_region_cached(&detect_endpoint, bucket)? {
+            let target = RegionProbe::new(&detect_endpoint, bucket);
+            if let Some(region) = target.lookup_cache() {
+                cfg.region = Some(region.clone());
+                self.config.region = Some(region);
+            } else if let Some(region) = target.heuristic_region() {
+                target.write_cache(&region);
                 cfg.region = Some(region.clone());
                 self.config.region = Some(region);
             }
@@ -912,7 +924,7 @@ impl Builder for S3Builder {
         let region = cfg.region.clone().ok_or_else(|| {
             Error::new(
                 ErrorKind::ConfigInvalid,
-                "region is missing. Please find it by S3::detect_region() or set them in env.",
+                "region is missing and heuristic-detection failed. Please find it by S3::detect_region() or set them in env.",
             )
             .with_operation("Builder::build")
             .with_context("service", Scheme::S3)

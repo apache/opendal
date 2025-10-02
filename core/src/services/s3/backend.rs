@@ -86,15 +86,18 @@ struct RegionProbe {
 impl RegionProbe {
     fn new(endpoint: &str, bucket: &str) -> Self {
         let bucket = bucket.to_string();
+        // Remove the possible trailing `/` in endpoint.
         let endpoint = endpoint.trim_end_matches('/');
 
+        // Make sure the endpoint contains the scheme, default to https otherwise.
         let endpoint = if endpoint.starts_with("http") {
             endpoint.to_string()
         } else {
             format!("https://{endpoint}")
         };
 
-        // Remove bucket name from endpoint if present so heuristic matching works.
+        // Remove bucket name from endpoint so heuristic matching works for both virtual-host
+        // and path-style URLs.
         let endpoint = endpoint.replace(&format!("//{bucket}."), "//");
         let head_bucket_url = format!("{endpoint}/{bucket}");
 
@@ -127,12 +130,15 @@ impl RegionProbe {
     fn heuristic_region(&self) -> Option<String> {
         let endpoint = self.endpoint.as_str();
 
-        // Cloudflare R2 always uses the pseudo region `auto`.
+        // Try to detect region by endpoint patterns before issuing network requests.
+
+        // If this bucket is R2, we can return `auto` directly.
+        // Reference: <https://developers.cloudflare.com/r2/api/s3/api/>
         if endpoint.ends_with("r2.cloudflarestorage.com") {
             return Some("auto".to_string());
         }
 
-        // Match AWS style endpoints.
+        // If this bucket is AWS, try to match the regional endpoint suffix.
         if let Some(v) = endpoint
             .strip_prefix("https://s3.")
             .or_else(|| endpoint.strip_prefix("http://s3."))
@@ -142,7 +148,10 @@ impl RegionProbe {
             }
         }
 
-        // Match Aliyun OSS endpoints.
+        // If this bucket is OSS, handle both public and internal endpoints.
+        //
+        // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
+        // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
         if let Some(v) = endpoint
             .strip_prefix("https://")
             .or_else(|| endpoint.strip_prefix("http://"))

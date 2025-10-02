@@ -1,0 +1,56 @@
+line-length = 88
+show-fixes = true
+
+[analyze]
+detect-string-imports = true
+
+[format]
+docstring-code-format = true
+docstring-code-line-length = 60
+skip-magic-trailing-comma = false
+
+[lint]
+select = [
+  "ANN", # flake8-annotations
+  "B", # flake8-bugbear
+  "C4", # flake8-comprehensions
+  "D", # flake8-docstrings
+  "E", # pycodestyle
+  "EM", # flake8-errmsg
+  "F", # pyflakes
+  "FA", # flake8-future-annotations
+  "FBT001", # flake8-boolean-trap
+  "I", # isort
+  "ICN", # flake8-import-conventions
+  "INT", # flake8-gettext
+  "PERF", # perflint
+  "PIE", # flake8-pie
+  "PT", # flake8-pytest-style
+  "PTH", # flake8-use-pathlib
+  "PYI", # flake8-pyi
+  "RUF", # ruff-specific rules
+  "SIM", # flake8-simplify
+  "TD", # flake8-todos
+  "TID", # flake8-tidy-imports
+  "TRY", # tryceratops
+  "UP", # pyupgrade
+  "W", # pycodestyle
+]
+extend-select = ["D400"]
+
+[lint.pycodestyle]
+ignore-overlong-task-comments = true
+max-doc-length = 88
+max-line-length = 88
+
+[lint.pydocstyle]
+convention = "numpy"
+
+[lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[lint.flake8-type-checking]
+strict = true
+
+[lint.isort]
+known-first-party = ["opendal"]

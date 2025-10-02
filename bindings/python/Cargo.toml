@@ -19,13 +19,13 @@
 name = "opendal-python"
 publish = false
 
+version = "0.46.1"
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2021"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.82"
-version = "0.46.1"
 
 [features]
 default = [
@@ -149,12 +149,15 @@ services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 services-compfs = ["opendal/services-compfs"]
-# we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
-abi3 = ["pyo3/abi3-py311"]
+
+[[bin]]
+name = "stub_gen"
+doc = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 doc = false
+name = "_opendal"
 
 [dependencies]
 bytes = "1.5.0"
@@ -162,12 +165,10 @@ chrono = "0.4"
 dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
-opendal = { version = ">=0", path = "../../core", features = [
-  "blocking",
-  "layers-mime-guess"
-] }
+opendal = { version = ">=0", path = "../../core", features = ["blocking", "layers-mime-guess"] }
 pyo3 = { version = "0.25.1", features = ["generate-import-lib", "chrono"] }
 pyo3-async-runtimes = { version = "0.25.0", features = ["tokio-runtime"] }
+pyo3-stub-gen = { version = "0.13", features = ["default"] }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]
@@ -181,3 +182,9 @@ features = [
 ]
 path = "../../core"
 version = ">=0"
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+strip = true

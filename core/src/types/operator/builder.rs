@@ -132,6 +132,27 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
+    /// Create a new operator by parsing configuration from a URI.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// # fn example() -> Result<()> {
+    /// let op = Operator::from_uri("memory://localhost/", [])?;
+    /// # let _ = op;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_uri(
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Operator> {
+        crate::DEFAULT_OPERATOR_REGISTRY.load(uri, options)
+    }
+
     /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.
     ///
     /// # Notes

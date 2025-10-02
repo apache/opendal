@@ -135,6 +135,15 @@ impl Operator {
         })
     }
 
+    /// Create a blocking operator from URI based configuration.
+    pub fn from_uri(
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Self> {
+        let op = AsyncOperator::from_uri(uri, options)?;
+        Self::new(op)
+    }
+
     /// Get information of underlying accessor.
     ///
     /// # Examples

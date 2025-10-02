@@ -25,6 +25,20 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 
+use super::core::*;
+use super::delete::S3Deleter;
+use super::error::parse_error;
+use super::lister::S3ListerV1;
+use super::lister::S3ListerV2;
+use super::lister::S3Listers;
+use super::lister::S3ObjectVersionsLister;
+use super::writer::S3Writer;
+use super::writer::S3Writers;
+use super::DEFAULT_SCHEME;
+use crate::raw::oio::PageLister;
+use crate::raw::*;
+use crate::services::S3Config;
+use crate::*;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use constants::X_AMZ_META_PREFIX;
@@ -41,24 +55,12 @@ use reqsign::AwsCredentialLoad;
 use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
-use tokio::runtime::{Builder as RuntimeBuilder, Handle};
 
-use super::core::*;
-use super::delete::S3Deleter;
-use super::error::parse_error;
-use super::lister::S3ListerV1;
-use super::lister::S3ListerV2;
-use super::lister::S3Listers;
-use super::lister::S3ObjectVersionsLister;
-use super::writer::S3Writer;
-use super::writer::S3Writers;
-use super::DEFAULT_SCHEME;
-use crate::raw::oio::PageLister;
-use crate::raw::*;
-use crate::services::S3Config;
-use crate::*;
+type RegionCacheKey = (String, String);
+type RegionCacheValue = Option<String>;
+type RegionCacheStore = HashMap<RegionCacheKey, RegionCacheValue>;
 
-static REGION_CACHE: LazyLock<Mutex<HashMap<(String, String), Option<String>>>> =
+static REGION_CACHE: LazyLock<Mutex<RegionCacheStore>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -71,6 +73,68 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
     );
     m
 });
+
+#[derive(Debug, Clone)]
+struct RegionDetectTarget {
+    endpoint: String,
+    head_bucket_url: String,
+}
+
+impl RegionDetectTarget {
+    fn new(endpoint: &str, bucket: &str) -> Self {
+        let endpoint = endpoint.trim_end_matches('/');
+
+        let endpoint = if endpoint.starts_with("http") {
+            endpoint.to_string()
+        } else {
+            format!("https://{endpoint}")
+        };
+
+        // Remove bucket name from endpoint if present so heuristic matching works.
+        let endpoint = endpoint.replace(&format!("//{bucket}."), "//");
+        let head_bucket_url = format!("{endpoint}/{bucket}");
+
+        Self {
+            endpoint,
+            head_bucket_url,
+        }
+    }
+
+    fn quick_detect(&self) -> Option<String> {
+        let endpoint = self.endpoint.as_str();
+
+        // Cloudflare R2 always uses the pseudo region `auto`.
+        if endpoint.ends_with("r2.cloudflarestorage.com") {
+            return Some("auto".to_string());
+        }
+
+        // Match AWS style endpoints.
+        if let Some(v) = endpoint
+            .strip_prefix("https://s3.")
+            .or_else(|| endpoint.strip_prefix("http://s3."))
+        {
+            if let Some(region) = v.strip_suffix(".amazonaws.com") {
+                return Some(region.to_string());
+            }
+        }
+
+        // Match Aliyun OSS endpoints.
+        if let Some(v) = endpoint
+            .strip_prefix("https://")
+            .or_else(|| endpoint.strip_prefix("http://"))
+        {
+            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
+                return Some(region.to_string());
+            }
+
+            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
+                return Some(region.to_string());
+            }
+        }
+
+        None
+    }
+}
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
@@ -605,8 +669,9 @@ impl S3Builder {
         self
     }
 
-    fn detect_region_blocking(endpoint: &str, bucket: &str) -> Result<Option<String>> {
-        let key = (endpoint.to_string(), bucket.to_string());
+    /// Helper to read region information from the cache or heuristics without invoking async runtimes.
+    fn detect_region_cached(endpoint: &str, bucket: &str) -> Result<Option<String>> {
+        let key: RegionCacheKey = (endpoint.to_string(), bucket.to_string());
         if let Some(cached) = REGION_CACHE
             .lock()
             .expect("region cache poisoned")
@@ -616,28 +681,8 @@ impl S3Builder {
             return Ok(cached);
         }
 
-        let detected = match Handle::try_current() {
-            Ok(handle) => {
-                let region = handle.block_on(crate::services::S3::detect_region(endpoint, bucket));
-                debug!("auto detected region: {:#?}", region);
-                region
-            }
-            Err(_) => {
-                let runtime = RuntimeBuilder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .map_err(|err| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "failed to build runtime for region detection",
-                        )
-                        .with_operation("Builder::build")
-                        .with_context("service", Scheme::S3)
-                        .set_source(err)
-                    })?;
-                runtime.block_on(crate::services::S3::detect_region(endpoint, bucket))
-            }
-        };
+        let target = RegionDetectTarget::new(endpoint, bucket);
+        let detected = target.quick_detect();
 
         REGION_CACHE
             .lock()
@@ -683,55 +728,21 @@ impl S3Builder {
     ///
     /// - [Amazon S3 HeadBucket API](https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/API/API_HeadBucket.html)
     pub async fn detect_region(endpoint: &str, bucket: &str) -> Option<String> {
-        // Remove the possible trailing `/` in endpoint.
-        let endpoint = endpoint.trim_end_matches('/');
+        let target = RegionDetectTarget::new(endpoint, bucket);
 
-        // Make sure the endpoint contains the scheme.
-        let mut endpoint = if endpoint.starts_with("http") {
-            endpoint.to_string()
-        } else {
-            // Prefix https if endpoint doesn't start with scheme.
-            format!("https://{endpoint}")
-        };
+        debug!(
+            "detect region with url: {}",
+            target.head_bucket_url.as_str()
+        );
 
-        // Remove bucket name from endpoint.
-        endpoint = endpoint.replace(&format!("//{bucket}."), "//");
-        let url = format!("{endpoint}/{bucket}");
-
-        debug!("detect region with url: {url}");
-
-        // Try to detect region by endpoint.
-
-        // If this bucket is R2, we can return auto directly.
-        //
-        // Reference: <https://developers.cloudflare.com/r2/api/s3/api/>
-        if endpoint.ends_with("r2.cloudflarestorage.com") {
-            return Some("auto".to_string());
-        }
-
-        // If this bucket is AWS, we can try to match the endpoint.
-        if let Some(v) = endpoint.strip_prefix("https://s3.") {
-            if let Some(region) = v.strip_suffix(".amazonaws.com") {
-                return Some(region.to_string());
-            }
-        }
-
-        // If this bucket is OSS, we can try to match the endpoint.
-        //
-        // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
-        // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
-        if let Some(v) = endpoint.strip_prefix("https://") {
-            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
-                return Some(region.to_string());
-            }
-
-            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
-                return Some(region.to_string());
-            }
+        if let Some(region) = target.quick_detect() {
+            return Some(region);
         }
 
         // Try to detect region by HeadBucket.
-        let req = http::Request::head(&url).body(Buffer::new()).ok()?;
+        let req = http::Request::head(&target.head_bucket_url)
+            .body(Buffer::new())
+            .ok()?;
 
         let client = HttpClient::new().ok()?;
         let res = client
@@ -865,7 +876,7 @@ impl Builder for S3Builder {
             .unwrap_or_else(|| "https://s3.amazonaws.com".to_string());
 
         if cfg.region.is_none() {
-            if let Some(region) = Self::detect_region_blocking(&detect_endpoint, bucket)? {
+            if let Some(region) = Self::detect_region_cached(&detect_endpoint, bucket)? {
                 cfg.region = Some(region.clone());
                 self.config.region = Some(region);
             }

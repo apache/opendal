@@ -107,6 +107,17 @@ impl ConcurrentLimitLayer {
         self.http_semaphore = Some(Arc::new(Semaphore::new(permits)));
         self
     }
+
+    /// Get the semaphore used to limit operation concurrency.
+    ///
+    /// The returned semaphore can be shared with other parts of your
+    /// application to coordinate with OpenDAL's concurrency limits. External
+    /// users should only acquire permits from this semaphore. Changing the
+    /// number of permits (for example by calling [`Semaphore::add_permits`])
+    /// will affect OpenDAL's internal behavior.
+    pub fn operation_semaphore(&self) -> Arc<Semaphore> {
+        self.operation_semaphore.clone()
+    }
 }
 
 impl<A: Access> Layer<A> for ConcurrentLimitLayer {
@@ -318,5 +329,45 @@ impl<R: oio::Delete> oio::Delete for ConcurrentLimitWrapper<R> {
 
     async fn flush(&mut self) -> Result<usize> {
         self.inner.flush().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services;
+    use crate::Operator;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    #[tokio::test]
+    async fn operation_semaphore_can_be_shared() {
+        let layer = ConcurrentLimitLayer::new(1);
+        let semaphore = layer.operation_semaphore();
+
+        // Hold the only permit so operations queued through the layer must wait.
+        let permit = semaphore.acquire_owned().await.expect("semaphore valid");
+
+        let op = Operator::new(services::Memory::default())
+            .expect("operator must build")
+            .layer(layer)
+            .finish();
+
+        // While the permit is held externally, the operation should block and the timeout expire.
+        let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            blocked.is_err(),
+            "operation should be limited by shared semaphore"
+        );
+
+        drop(permit);
+
+        // After releasing the permit, the operation can proceed (the result may still be an error
+        // because the object doesn't exist, but the future completes before the timeout).
+        let completed = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            completed.is_ok(),
+            "operation should proceed once permit is released"
+        );
     }
 }

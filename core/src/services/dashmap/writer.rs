@@ -20,7 +20,7 @@ use std::time::SystemTime;
 
 use super::core::DashmapCore;
 use super::core::DashmapValue;
-use crate::raw::{oio, OpWrite};
+use crate::raw::{OpWrite, oio};
 use crate::*;
 
 pub struct DashmapWriter {

@@ -606,8 +606,8 @@ mod tests {
     use std::sync::Mutex;
 
     use bytes::Bytes;
-    use futures::stream;
     use futures::TryStreamExt;
+    use futures::stream;
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;

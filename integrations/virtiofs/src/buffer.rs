@@ -19,8 +19,8 @@ use std::cell::RefCell;
 use std::cmp::min;
 use std::ptr;
 
-use vm_memory::bitmap::BitmapSlice;
 use vm_memory::VolatileSlice;
+use vm_memory::bitmap::BitmapSlice;
 
 use crate::error::*;
 

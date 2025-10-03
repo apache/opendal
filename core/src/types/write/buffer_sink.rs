@@ -16,9 +16,9 @@
 // under the License.
 
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use bytes::Buf;
 
@@ -102,7 +102,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::Unexpected,
                         "state invalid: sink is closing",
-                    )))
+                    )));
                 }
             }
         }

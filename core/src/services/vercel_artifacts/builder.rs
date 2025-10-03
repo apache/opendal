@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use super::DEFAULT_SCHEME;
 use super::backend::VercelArtifactsBackend;
 use super::core::VercelArtifactsCore;
-use super::DEFAULT_SCHEME;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;

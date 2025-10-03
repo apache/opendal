@@ -386,7 +386,9 @@ pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
 pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        warn!(
+            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
+        );
         return Ok(());
     }
 

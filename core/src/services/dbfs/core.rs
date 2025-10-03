@@ -17,13 +17,13 @@
 
 use std::fmt::Debug;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde_json::json;
 
 use super::error::parse_error;

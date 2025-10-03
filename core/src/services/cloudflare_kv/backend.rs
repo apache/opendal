@@ -24,15 +24,15 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::DEFAULT_SCHEME;
+use crate::ErrorKind;
 use crate::raw::*;
+use crate::services::CloudflareKvConfig;
 use crate::services::cloudflare_kv::core::CloudflareKvCore;
 use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
 use crate::services::cloudflare_kv::error::parse_error;
 use crate::services::cloudflare_kv::lister::CloudflareKvLister;
 use crate::services::cloudflare_kv::model::*;
 use crate::services::cloudflare_kv::writer::CloudflareWriter;
-use crate::services::CloudflareKvConfig;
-use crate::ErrorKind;
 use crate::*;
 
 impl Configurator for CloudflareKvConfig {
@@ -117,7 +117,7 @@ impl Builder for CloudflareKvBuilder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "api_token is required",
-                ))
+                ));
             }
         };
 

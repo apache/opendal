@@ -22,9 +22,9 @@ use openssh_sftp_client::fs::DirEntry;
 use openssh_sftp_client::fs::ReadDir;
 
 use super::error::parse_sftp_error;
+use crate::Result;
 use crate::raw::oio;
 use crate::raw::oio::Entry;
-use crate::Result;
 
 pub struct SftpLister {
     dir: Pin<Box<ReadDir>>,

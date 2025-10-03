@@ -26,14 +26,14 @@ use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
 use tokio::sync::Mutex;
 
-use super::backend::OnedriveBackend;
 use super::DEFAULT_SCHEME;
-use crate::raw::normalize_root;
+use super::backend::OnedriveBackend;
+use crate::Scheme;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
+use crate::raw::normalize_root;
 use crate::services::OnedriveConfig;
-use crate::Scheme;
 use crate::*;
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
@@ -214,14 +214,14 @@ impl Builder for OnedriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", Scheme::Onedrive));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", Scheme::Onedrive));
             }
         };
 

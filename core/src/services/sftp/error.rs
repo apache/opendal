@@ -16,8 +16,8 @@
 // under the License.
 
 use openssh::Error as SshError;
-use openssh_sftp_client::error::SftpErrorKind;
 use openssh_sftp_client::Error as SftpClientError;
+use openssh_sftp_client::error::SftpErrorKind;
 
 use crate::Error;
 use crate::ErrorKind;

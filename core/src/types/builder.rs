@@ -19,8 +19,8 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use http::Uri;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::raw::*;
 use crate::*;

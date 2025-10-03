@@ -133,7 +133,9 @@ pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
 pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        warn!(
+            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
+        );
         return Ok(());
     }
 

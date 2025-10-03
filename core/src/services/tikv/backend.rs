@@ -22,14 +22,14 @@ use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
-use crate::raw::Access;
-use crate::services::TikvConfig;
 use crate::Builder;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::Access;
+use crate::raw::adapters::kv;
+use crate::services::TikvConfig;
 use crate::*;
 
 impl Configurator for TikvConfig {

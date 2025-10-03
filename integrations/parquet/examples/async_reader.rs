@@ -20,7 +20,7 @@ use std::sync::Arc;
 use arrow::array::{ArrayRef, Int64Array, RecordBatch};
 
 use futures::StreamExt;
-use opendal::{services::S3Config, Operator};
+use opendal::{Operator, services::S3Config};
 use parquet::arrow::{AsyncArrowWriter, ParquetRecordBatchStreamBuilder};
 use parquet_opendal::{AsyncReader, AsyncWriter};
 

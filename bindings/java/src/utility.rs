@@ -15,20 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use jni::JNIEnv;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
-use jni::JNIEnv;
 use opendal::Scheme;
 
-use crate::convert::string_to_jstring;
 use crate::Result;
+use crate::convert::string_to_jstring;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledServices(
     mut env: JNIEnv,
     _: JClass,

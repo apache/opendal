@@ -19,13 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::SledConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::SledConfig;
 use crate::*;
 
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5

@@ -25,16 +25,16 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use magnus::method;
-use magnus::prelude::*;
-use magnus::scan_args::get_kwargs;
-use magnus::scan_args::scan_args;
 use magnus::Error;
 use magnus::RHash;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Ruby;
 use magnus::Value;
+use magnus::method;
+use magnus::prelude::*;
+use magnus::scan_args::get_kwargs;
+use magnus::scan_args::scan_args;
 
 use crate::capability::Capability;
 use crate::io::Io;

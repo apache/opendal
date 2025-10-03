@@ -24,11 +24,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use anyhow::anyhow;
 use anyhow::Result;
-use opendal::services;
+use anyhow::anyhow;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::services;
 use serde::Deserialize;
 use url::Url;
 
@@ -147,7 +147,9 @@ impl Config {
 
         let location = Url::parse(s)?;
         if location.has_host() {
-            Err(anyhow!("Host part in a location is not supported. Hint: are you typing `://` instead of `:/`?"))?;
+            Err(anyhow!(
+                "Host part in a location is not supported. Hint: are you typing `://` instead of `:/`?"
+            ))?;
         }
 
         let op = self.operator(location.scheme())?;
@@ -183,7 +185,9 @@ mod tests {
             ("OLI_PROFILE_TEST2_ACCESS_KEY_ID", "bar"),
         ];
         for (k, v) in &env_vars {
-            env::set_var(k, v);
+            unsafe {
+                env::set_var(k, v);
+            }
         }
 
         let profiles = Config::load_from_env().profiles;
@@ -197,7 +201,9 @@ mod tests {
         assert_eq!(profile2["access_key_id"], "bar");
 
         for (k, _) in &env_vars {
-            env::remove_var(k);
+            unsafe {
+                env::remove_var(k);
+            }
         }
     }
 
@@ -241,7 +247,9 @@ enable_virtual_host_style = "on"
             ("OLI_PROFILE_MYS3_ENABLE_VIRTUAL_HOST_STYLE", "on"),
         ];
         for (k, v) in &env_vars {
-            env::set_var(k, v);
+            unsafe {
+                env::set_var(k, v);
+            }
         }
         let cfg = Config::load(&tmpfile)?;
         let profile = cfg.profiles["mys3"].clone();
@@ -250,7 +258,9 @@ enable_virtual_host_style = "on"
         assert_eq!(profile["enable_virtual_host_style"], "on");
 
         for (k, _) in &env_vars {
-            env::remove_var(k);
+            unsafe {
+                env::remove_var(k);
+            }
         }
         Ok(())
     }

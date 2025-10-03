@@ -22,8 +22,8 @@ use dav_server::fs::OpenOptions;
 use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use dav_server_opendalfs::OpendalFs;
 use futures::StreamExt;
-use opendal::services::Fs;
 use opendal::Operator;
+use opendal::services::Fs;
 use std::fs;
 use std::path::Path;
 

@@ -24,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::Entry;
 use super::core::GithubCore;
 use super::delete::GithubDeleter;
@@ -31,7 +32,6 @@ use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::GithubConfig;
 use crate::*;

@@ -24,15 +24,15 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::core::parse_blob;
+use super::DEFAULT_SCHEME;
 use super::core::Blob;
 use super::core::VercelBlobCore;
+use super::core::parse_blob;
 use super::delete::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;

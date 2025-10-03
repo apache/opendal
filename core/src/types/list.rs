@@ -16,9 +16,9 @@
 // under the License.
 
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use futures::Stream;
 
@@ -98,8 +98,8 @@ impl Stream for Lister {
 #[cfg(test)]
 #[cfg(feature = "services-azblob")]
 mod tests {
-    use futures::future;
     use futures::StreamExt;
+    use futures::future;
 
     use super::*;
     use crate::services::Azblob;

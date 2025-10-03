@@ -16,8 +16,8 @@
 // under the License.
 
 use crate::{find_command, workspace_dir};
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use sha2::{Digest, Sha512};
 use std::io::BufReader;
 

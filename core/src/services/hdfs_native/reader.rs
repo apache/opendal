@@ -17,8 +17,8 @@
 
 use bytes::Bytes;
 use futures::StreamExt;
-use hdfs_native::file::FileReader;
 use hdfs_native::HdfsError;
+use hdfs_native::file::FileReader;
 
 use crate::raw::*;
 use crate::services::hdfs_native::error::parse_hdfs_error;

@@ -213,11 +213,11 @@ impl RpRename {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use http::header::CONTENT_LENGTH;
-    use http::header::CONTENT_TYPE;
     use http::HeaderMap;
     use http::Method;
     use http::Uri;
+    use http::header::CONTENT_LENGTH;
+    use http::header::CONTENT_TYPE;
 
     use super::*;
 

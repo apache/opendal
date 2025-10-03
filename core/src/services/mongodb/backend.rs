@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use mongodb::bson::doc;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
+use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
 use tokio::sync::OnceCell;
 
@@ -137,14 +137,14 @@ impl Builder for MongodbBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", Scheme::Mongodb),
-                )
+                );
             }
         };
         let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
-                    .with_context("service", Scheme::Mongodb))
+                    .with_context("service", Scheme::Mongodb));
             }
         };
         let collection = match &self.config.collection.clone() {
@@ -153,7 +153,7 @@ impl Builder for MongodbBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "collection is required")
                         .with_context("service", Scheme::Mongodb),
-                )
+                );
             }
         };
         let key_field = match &self.config.key_field.clone() {

@@ -429,14 +429,14 @@ impl Reader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::rngs::ThreadRng;
 
     use super::*;
+    use crate::Operator;
     use crate::raw::*;
     use crate::services;
-    use crate::Operator;
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {

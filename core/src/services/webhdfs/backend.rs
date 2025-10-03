@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
@@ -34,7 +35,6 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;

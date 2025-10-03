@@ -19,13 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::RedbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::RedbConfig;
 use crate::*;
 
 impl Configurator for RedbConfig {

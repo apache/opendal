@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::hash_map::IntoIter;
 use std::collections::HashMap;
+use std::collections::hash_map::IntoIter;
 use std::iter::empty;
 
-use serde::de::value::MapDeserializer;
-use serde::de::value::SeqDeserializer;
 use serde::de::Deserializer;
 use serde::de::IntoDeserializer;
 use serde::de::Visitor;
+use serde::de::value::MapDeserializer;
+use serde::de::value::SeqDeserializer;
 use serde::de::{self};
 
 use crate::*;

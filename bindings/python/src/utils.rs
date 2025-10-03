@@ -17,9 +17,9 @@
 
 use std::os::raw::c_int;
 
+use pyo3::IntoPyObjectExt;
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::IntoPyObjectExt;
 
 /// A bytes-like object that implements buffer protocol.
 #[pyclass(module = "opendal")]
@@ -57,14 +57,16 @@ impl Buffer {
         flags: c_int,
     ) -> PyResult<()> {
         let bytes = slf.inner.as_slice();
-        let ret = ffi::PyBuffer_FillInfo(
-            view,
-            slf.as_ptr() as *mut _,
-            bytes.as_ptr() as *mut _,
-            bytes.len().try_into().unwrap(),
-            1, // read only
-            flags,
-        );
+        let ret = unsafe {
+            ffi::PyBuffer_FillInfo(
+                view,
+                slf.as_ptr() as *mut _,
+                bytes.as_ptr() as *mut _,
+                bytes.len().try_into().unwrap(),
+                1, // read only
+                flags,
+            )
+        };
         if ret == -1 {
             return Err(PyErr::fetch(slf.py()));
         }

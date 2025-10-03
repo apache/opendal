@@ -23,17 +23,17 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
-use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
+use fuse3::path::prelude::*;
+use futures_util::StreamExt;
 use futures_util::stream;
 use futures_util::stream::BoxStream;
-use futures_util::StreamExt;
-use opendal::raw::normalize_path;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
 use opendal::Operator;
+use opendal::raw::normalize_path;
 use sharded_slab::Slab;
 use tokio::sync::Mutex;
 

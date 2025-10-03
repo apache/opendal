@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
-use http::request;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::request;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;

@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use futures::select;
 use futures::Future;
 use futures::FutureExt;
+use futures::select;
 
 use crate::raw::*;
 use crate::*;
@@ -310,9 +310,9 @@ mod tests {
     use std::time::Duration;
 
     use pretty_assertions::assert_eq;
-    use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::thread_rng;
     use tokio::sync::Mutex;
     use tokio::time::sleep;
     use tokio::time::timeout;

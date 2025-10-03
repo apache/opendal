@@ -17,9 +17,9 @@
 
 use std::env;
 
-use opendal::services::Fs;
 use opendal::Operator;
 use opendal::Result;
+use opendal::services::Fs;
 use rand::prelude::*;
 
 #[tokio::main]

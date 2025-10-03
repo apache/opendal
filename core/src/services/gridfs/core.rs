@@ -26,14 +26,14 @@ use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
-use crate::raw::new_std_io_error;
 use crate::Buffer;
 use crate::Capability;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Result;
 use crate::Scheme;
+use crate::raw::adapters::kv;
+use crate::raw::new_std_io_error;
 
 #[derive(Clone)]
 pub struct GridFsCore {

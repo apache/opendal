@@ -19,16 +19,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use foundationdb::api::NetworkAutoStop;
 use foundationdb::Database;
+use foundationdb::api::NetworkAutoStop;
 
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::FoundationdbConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::FoundationdbConfig;
 use crate::*;
 
 impl Configurator for FoundationdbConfig {

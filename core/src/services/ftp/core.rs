@@ -22,13 +22,13 @@ use bb8::PooledConnection;
 use bb8::RunError;
 use futures_rustls::TlsConnector;
 use raw::Operation;
-use suppaftp::rustls::ClientConfig;
-use suppaftp::types::FileType;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
+use suppaftp::rustls::ClientConfig;
+use suppaftp::types::FileType;
 use tokio::sync::OnceCell;
 
 use super::err::parse_error;

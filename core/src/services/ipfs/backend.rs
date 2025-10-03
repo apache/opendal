@@ -24,10 +24,10 @@ use http::StatusCode;
 use log::debug;
 use prost::Message;
 
+use super::DEFAULT_SCHEME;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;

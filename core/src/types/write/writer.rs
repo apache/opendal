@@ -357,12 +357,12 @@ impl Writer {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use rand::rngs::ThreadRng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::rngs::ThreadRng;
 
-    use crate::services;
     use crate::Operator;
+    use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
         let mut rng = ThreadRng::default();

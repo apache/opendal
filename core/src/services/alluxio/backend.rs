@@ -22,13 +22,13 @@ use std::sync::Arc;
 use http::Response;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::AlluxioCore;
 use super::delete::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;

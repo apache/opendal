@@ -17,9 +17,9 @@
 
 use std::io;
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use futures::AsyncWrite;
 use futures::SinkExt;

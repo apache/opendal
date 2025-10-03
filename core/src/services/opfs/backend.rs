@@ -20,8 +20,8 @@ use std::sync::Arc;
 use web_sys::FileSystemGetDirectoryOptions;
 
 use super::utils::*;
-use crate::raw::*;
 use crate::Result;
+use crate::raw::*;
 
 /// OPFS Service backend
 #[derive(Default, Debug, Clone)]

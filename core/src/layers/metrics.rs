@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use metrics::Label;
 use metrics::counter;
 use metrics::gauge;
 use metrics::histogram;
-use metrics::Label;
 
 use crate::layers::observe;
 use crate::raw::*;

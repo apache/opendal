@@ -28,14 +28,14 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::core::constants;
+use super::DEFAULT_SCHEME;
 use super::core::ObsCore;
+use super::core::constants;
 use super::delete::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::*;
@@ -219,13 +219,7 @@ impl Builder for ObsBuilder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        let signer = HuaweicloudObsSigner::new({
-            if is_obs_default {
-                &bucket
-            } else {
-                &endpoint
-            }
-        });
+        let signer = HuaweicloudObsSigner::new(if is_obs_default { &bucket } else { &endpoint });
 
         debug!("backend build finished");
         Ok(ObsBackend {

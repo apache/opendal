@@ -18,10 +18,10 @@
 use std::sync::Arc;
 
 use super::core::AlluxioCore;
-use crate::raw::oio::Entry;
-use crate::raw::*;
 use crate::ErrorKind;
 use crate::Result;
+use crate::raw::oio::Entry;
+use crate::raw::*;
 
 pub struct AlluxioLister {
     core: Arc<AlluxioCore>,

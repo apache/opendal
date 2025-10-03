@@ -21,8 +21,8 @@ use bytes::Buf;
 use http::StatusCode;
 
 use super::core::PcloudCore;
-use super::error::parse_error;
 use super::error::PcloudError;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 

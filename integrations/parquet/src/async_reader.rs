@@ -19,14 +19,14 @@ use std::cmp::{max, min};
 use std::ops::Range;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::future::BoxFuture;
 use opendal::Reader;
 use parquet::arrow::async_reader::AsyncFileReader;
 use parquet::errors::{ParquetError, Result as ParquetResult};
+use parquet::file::FOOTER_SIZE;
 use parquet::file::metadata::ParquetMetaData;
 use parquet::file::metadata::ParquetMetaDataReader;
-use parquet::file::FOOTER_SIZE;
 
 const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
 
@@ -170,10 +170,10 @@ impl AsyncFileReader for AsyncReader {
 #[cfg(test)]
 mod tests {
     use futures::StreamExt;
-    use opendal::{services, Operator};
-    use rand::{distributions::Alphanumeric, Rng};
+    use opendal::{Operator, services};
+    use rand::{Rng, distributions::Alphanumeric};
 
-    use crate::{async_reader::PREFETCH_FOOTER_SIZE, AsyncReader, AsyncWriter};
+    use crate::{AsyncReader, AsyncWriter, async_reader::PREFETCH_FOOTER_SIZE};
     use std::sync::Arc;
 
     use arrow::array::{ArrayRef, Int64Array, RecordBatch};

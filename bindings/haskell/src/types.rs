@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ffi::c_char;
 use std::ffi::CString;
+use std::ffi::c_char;
 
 use ::opendal as od;
 use chrono::SecondsFormat;
@@ -46,10 +46,12 @@ impl ByteSlice {
     /// # Panics
     ///
     /// * If `ptr` is not a valid pointer.
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn free_byteslice(ptr: *mut c_char, len: usize) {
-        if !ptr.is_null() {
-            drop(Vec::from_raw_parts(ptr, len, len));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Vec::from_raw_parts(ptr, len, len));
+            }
         }
     }
 }

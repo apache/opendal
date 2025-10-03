@@ -18,10 +18,10 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
 
 pub struct FsLister<P> {
     root: PathBuf,

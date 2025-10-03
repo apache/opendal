@@ -23,9 +23,9 @@ use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 
 use super::core::*;
+use super::error::S3Error;
 use super::error::from_s3_error;
 use super::error::parse_error;
-use super::error::S3Error;
 use crate::raw::*;
 use crate::*;
 

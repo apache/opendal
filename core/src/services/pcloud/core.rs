@@ -20,14 +20,14 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use super::error::PcloudError;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 

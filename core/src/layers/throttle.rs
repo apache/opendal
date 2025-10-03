@@ -18,13 +18,13 @@
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
+use governor::Quota;
+use governor::RateLimiter;
 use governor::clock::Clock;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
-use governor::Quota;
-use governor::RateLimiter;
 
 use crate::raw::*;
 use crate::*;
@@ -186,10 +186,12 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
                     }
                 },
                 // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                Err(_) => return Err(Error::new(
-                    ErrorKind::RateLimited,
-                    "InsufficientCapacity due to burst size being smaller than the request size",
-                )),
+                Err(_) => {
+                    return Err(Error::new(
+                        ErrorKind::RateLimited,
+                        "InsufficientCapacity due to burst size being smaller than the request size",
+                    ));
+                }
             }
         }
     }

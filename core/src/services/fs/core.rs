@@ -141,7 +141,10 @@ impl FsCore {
         path: &str,
     ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
         let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
-            return Err(Error::new(ErrorKind::Unexpected, "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug."));
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug.",
+            ));
         };
 
         let tmp_path = self

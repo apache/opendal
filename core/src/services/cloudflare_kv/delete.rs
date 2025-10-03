@@ -90,7 +90,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
                     "cloudflare_kv delete this key failed for reason we don't know",
-                ))
+                ));
             }
         };
 

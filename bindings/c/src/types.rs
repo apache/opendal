@@ -60,13 +60,15 @@ impl opendal_bytes {
     /// \brief Frees the heap memory used by the opendal_bytes
     #[no_mangle]
     pub unsafe extern "C" fn opendal_bytes_free(ptr: *mut opendal_bytes) {
-        if !ptr.is_null() {
-            let bs = &mut *ptr;
-            if !bs.data.is_null() {
-                drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
-                bs.data = std::ptr::null_mut();
-                bs.len = 0;
-                bs.capacity = 0;
+        unsafe {
+            if !ptr.is_null() {
+                let bs = &mut *ptr;
+                if !bs.data.is_null() {
+                    drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
+                    bs.data = std::ptr::null_mut();
+                    bs.len = 0;
+                    bs.capacity = 0;
+                }
             }
         }
     }
@@ -170,9 +172,11 @@ impl opendal_operator_options {
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_options_free(ptr: *mut opendal_operator_options) {
-        if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut HashMap<String, String>));
-            drop(Box::from_raw(ptr));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut HashMap<String, String>));
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 }

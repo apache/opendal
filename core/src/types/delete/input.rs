@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::OpDelete;
 use crate::Entry;
+use crate::raw::OpDelete;
 
 /// DeleteInput is the input for delete operations.
 #[non_exhaustive]

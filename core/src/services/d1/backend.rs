@@ -18,17 +18,17 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use http::header;
 use http::Request;
 use http::StatusCode;
+use http::header;
 use serde_json::Value;
 
 use super::error::parse_error;
 use super::model::D1Response;
+use crate::ErrorKind;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::D1Config;
-use crate::ErrorKind;
 use crate::*;
 
 impl Configurator for D1Config {

@@ -20,11 +20,11 @@ description = "Apache OpenDAL™ Development Tools"
 name = "odev"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
+rust-version = "1.85"
 version = "0.0.1"
 
 [dependencies]

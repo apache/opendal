@@ -24,14 +24,14 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::PcloudDeleter;
-use super::error::parse_error;
 use super::error::PcloudError;
+use super::error::parse_error;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::PcloudConfig;
 use crate::*;

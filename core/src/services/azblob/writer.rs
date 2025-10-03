@@ -20,8 +20,8 @@ use std::sync::Arc;
 use http::StatusCode;
 use uuid::Uuid;
 
-use super::core::constants::X_MS_VERSION_ID;
 use super::core::AzblobCore;
+use super::core::constants::X_MS_VERSION_ID;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

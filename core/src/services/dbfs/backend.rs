@@ -24,12 +24,12 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
+use super::DEFAULT_SCHEME;
 use super::core::DbfsCore;
 use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;

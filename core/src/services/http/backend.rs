@@ -23,9 +23,9 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::HttpCore;
 use super::error::parse_error;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
@@ -138,7 +138,7 @@ impl Builder for HttpBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Http))
+                    .with_context("service", Scheme::Http));
             }
         };
 
@@ -276,7 +276,7 @@ impl Access for HttpBackend {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     "Http doesn't support presigned write",
-                ))
+                ));
             }
         };
 

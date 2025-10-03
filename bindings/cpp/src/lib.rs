@@ -182,19 +182,25 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Op
 
 unsafe fn delete_operator(op: *mut Operator) {
     if !op.is_null() {
-        drop(Box::from_raw(op));
+        unsafe {
+            drop(Box::from_raw(op));
+        }
     }
 }
 
 unsafe fn delete_reader(reader: *mut Reader) {
     if !reader.is_null() {
-        drop(Box::from_raw(reader));
+        unsafe {
+            drop(Box::from_raw(reader));
+        }
     }
 }
 
 unsafe fn delete_lister(lister: *mut Lister) {
     if !lister.is_null() {
-        drop(Box::from_raw(lister));
+        unsafe {
+            drop(Box::from_raw(lister));
+        }
     }
 }
 

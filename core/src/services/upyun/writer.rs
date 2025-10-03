@@ -19,8 +19,8 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::constants::X_UPYUN_MULTI_UUID;
 use super::core::UpyunCore;
+use super::core::constants::X_UPYUN_MULTI_UUID;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

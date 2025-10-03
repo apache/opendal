@@ -17,6 +17,8 @@
 
 use std::time::Duration;
 
+use prometheus::HistogramVec;
+use prometheus::Registry;
 use prometheus::core::AtomicI64;
 use prometheus::core::AtomicU64;
 use prometheus::core::GenericCounterVec;
@@ -24,8 +26,6 @@ use prometheus::core::GenericGaugeVec;
 use prometheus::register_histogram_vec_with_registry;
 use prometheus::register_int_counter_vec_with_registry;
 use prometheus::register_int_gauge_vec_with_registry;
-use prometheus::HistogramVec;
-use prometheus::Registry;
 
 use crate::layers::observe;
 use crate::raw::Access;

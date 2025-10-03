@@ -17,7 +17,7 @@
 
 use crate::commands::bench::report::{Report, SampleSet};
 use crate::make_tokio_runtime;
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use opendal::Operator;
 use serde::{Deserialize, Deserializer};
 use std::path::Path;

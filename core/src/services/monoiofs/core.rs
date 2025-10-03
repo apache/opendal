@@ -23,8 +23,8 @@ use std::time::Duration;
 
 use flume::Receiver;
 use flume::Sender;
-use futures::channel::oneshot;
 use futures::Future;
+use futures::channel::oneshot;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 
@@ -221,9 +221,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use futures::StreamExt;
     use futures::channel::mpsc::UnboundedSender;
     use futures::channel::mpsc::{self};
-    use futures::StreamExt;
 
     use super::*;
 

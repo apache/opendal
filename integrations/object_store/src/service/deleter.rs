@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use futures::stream::{self, StreamExt};
-use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjectStorePath;
 use opendal::raw::oio::BatchDeleteResult;
 use opendal::raw::*;
 use opendal::*;

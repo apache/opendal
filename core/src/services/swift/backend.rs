@@ -23,12 +23,12 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;

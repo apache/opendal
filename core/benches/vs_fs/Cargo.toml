@@ -17,11 +17,11 @@
 
 [package]
 description = "OpenDAL Benchmark vs fs"
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 name = "opendal-benchmark-vs-fs"
 publish = false
-rust-version = "1.82"
+rust-version = "1.85"
 version = "0.0.0"
 
 [dependencies]

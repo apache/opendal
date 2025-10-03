@@ -19,9 +19,9 @@ use std::io;
 use std::ops::RangeBounds;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use bytes::Bytes;
 use futures::Stream;

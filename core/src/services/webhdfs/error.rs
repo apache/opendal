@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use http::response::Parts;
 use http::Response;
 use http::StatusCode;
+use http::response::Parts;
 use serde::Deserialize;
 
 use crate::raw::*;

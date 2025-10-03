@@ -20,9 +20,9 @@ use std::io::SeekFrom;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use bytes::Buf;
 use futures::AsyncBufRead;

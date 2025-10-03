@@ -125,8 +125,8 @@ impl CompfsCore {
 mod tests {
     use bytes::Buf;
     use bytes::Bytes;
-    use rand::thread_rng;
     use rand::Rng;
+    use rand::thread_rng;
 
     use super::*;
 

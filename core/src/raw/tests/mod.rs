@@ -26,5 +26,5 @@ pub use write::WriteAction;
 pub use write::WriteChecker;
 
 mod utils;
-pub use utils::init_test_service;
 pub use utils::TEST_RUNTIME;
+pub use utils::init_test_service;

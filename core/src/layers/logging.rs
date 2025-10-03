@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::sync::Arc;
 
-use log::log;
 use log::Level;
+use log::log;
 
 use crate::raw::*;
 use crate::*;

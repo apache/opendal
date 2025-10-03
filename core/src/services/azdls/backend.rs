@@ -26,6 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
+use super::DEFAULT_SCHEME;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
@@ -33,7 +34,6 @@ use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;

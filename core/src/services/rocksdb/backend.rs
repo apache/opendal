@@ -21,10 +21,10 @@ use std::sync::Arc;
 
 use rocksdb::DB;
 
+use crate::Result;
 use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::services::RocksdbConfig;
-use crate::Result;
 use crate::*;
 
 impl Configurator for RocksdbConfig {

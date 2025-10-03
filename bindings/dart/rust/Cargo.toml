@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-edition = "2021"
+edition = "2024"
 name = "opendal-dart"
 version = "0.1.0"
 

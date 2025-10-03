@@ -16,10 +16,10 @@
 // under the License.
 
 use bytes::Bytes;
+use object_store::ObjectStore;
 #[cfg(feature = "services-s3")]
 use object_store::aws::AmazonS3Builder;
 use object_store::path::Path as ObjectStorePath;
-use object_store::ObjectStore;
 use object_store_opendal::OpendalStore;
 
 #[cfg(feature = "services-s3")]

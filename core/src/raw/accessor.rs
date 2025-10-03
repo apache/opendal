@@ -317,11 +317,11 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
 impl<A: ?Sized> AccessDyn for A
 where
     A: Access<
-        Reader = oio::Reader,
-        Writer = oio::Writer,
-        Lister = oio::Lister,
-        Deleter = oio::Deleter,
-    >,
+            Reader = oio::Reader,
+            Writer = oio::Writer,
+            Lister = oio::Lister,
+            Deleter = oio::Deleter,
+        >,
 {
     fn info_dyn(&self) -> Arc<AccessorInfo> {
         self.info()

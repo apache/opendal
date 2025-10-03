@@ -20,10 +20,6 @@ use std::str::FromStr;
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use http::header::CONTENT_DISPOSITION;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::uri::PathAndQuery;
 use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
@@ -33,6 +29,10 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use http::Version;
+use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
+use http::uri::PathAndQuery;
 
 use super::new_request_build_error;
 use crate::*;

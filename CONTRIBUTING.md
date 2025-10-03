@@ -97,7 +97,7 @@ Rustup will read OpenDAL's `rust-toolchain.toml` and set up everything else auto
 
 ```shell
 $ cargo version
-cargo 1.82.0 (8f40fc59f 2024-08-21)
+cargo 1.85.0 (stable)
 ```
 
 Some components may require specific setup steps. Please refer to their respective `CONTRIBUTING` documentation for more details.

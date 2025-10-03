@@ -27,11 +27,11 @@ use std::sync::Mutex;
 
 use magnus::block::Yield;
 
-use magnus::method;
-use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 use magnus::Ruby;
+use magnus::method;
+use magnus::prelude::*;
 
 use crate::metadata::Metadata;
 use crate::*;

@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::types::Response;
 
 use super::core::FtpCore;
 use super::err::parse_error;

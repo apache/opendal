@@ -20,7 +20,7 @@ name: Release Ruby Binding
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*' # Triggers on version tags (v0.54.0, v0.54.0-rc.1, etc.)
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+' # Triggers on version tags (v0.54.0, v0.54.0-rc.1, etc.)
   pull_request:
     branches:
       - main
@@ -43,6 +43,8 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.summary.outputs.version }}
 
     steps:
       - name: Checkout repository
@@ -68,12 +70,21 @@ jobs:
           retention-days: 30
 
       - name: Log Build Summary
+        id: summary
         run: |
+          # e.g. from `Cargo.toml` to released version:
+          # - 0.54.0 -> 0.54.0
+          # - 0.54.0-rc.1 -> 0.54.1.pre.rc.1
+          VERSION=$(bundle exec rake version)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
           echo "## Ruby gem built successfully! 📦" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Ref:** ${{ github.ref_name || github.ref }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
+  # We maintain multiple build targets for native gems.
+  # We only provide best-effort support for native gems. We could withdraw the support to these builds at any time.
   build-native:
     strategy:
       fail-fast: false
@@ -82,17 +93,16 @@ jobs:
           - os: ubuntu-latest
             platform: x86_64-linux
             rust_target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
           - os: macos-latest
-            platform: arm64-darwin
+            platform: arm64-darwin23
             rust_target: aarch64-apple-darwin
-          - os: macos-latest
-            platform: x86_64-darwin
-            rust_target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.os }}
+    continue-on-error: true
+
     env:
       RB_SYS_CARGO_TARGET: ${{ matrix.rust_target }}
 
@@ -110,28 +120,17 @@ jobs:
           bundler-cache: true
           working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
 
-      - name: Linux cross deps
-        if: runner.os == 'Linux' && matrix.platform == 'aarch64-linux'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Show available rake tasks
+        run: bundle exec rake --tasks
 
-      - name: Build gem
-        if: runner.os != 'Linux' || matrix.platform != 'aarch64-linux'
-        run: bundle exec rake native gem
+      - name: Build native gem
+        run: bundle exec rake native:opendal:${{ matrix.platform }} gem
 
-      # For Linux aarch64, tell Cargo which linker to use
-      - name: Build aarch64-linux gem
-        if: runner.os == 'Linux' && matrix.platform == 'aarch64-linux'
-        run: |
-          export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-          bundle exec rake native gem
-
-      - name: Collect gems
+      - name: Collect built gem
         run: |
           echo "Built gem file:"
           ls -la pkg/
           echo ""
-          echo "Gem version:"
-          bundle exec rake version
 
           mkdir -p pkg_out
           cp -r pkg/*.gem pkg_out/
@@ -144,9 +143,14 @@ jobs:
           retention-days: 30
 
   publish:
+    # allow:
+    # - standard tag releases
+    # - workflow_dispatch:
+    #   - reattempt standard tag releases
+    #   - pre-releases
     if: >-
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-'))
+      startsWith(github.ref, 'refs/tags/v') ||
+        (github.event_name == 'workflow_dispatch' && contains(needs.build.outputs.version, 'rc'))
     needs: [build, build-native]
     runs-on: ubuntu-latest
 
@@ -162,12 +166,17 @@ jobs:
           bundler-cache: true
           working-directory: bindings/ruby
 
-      - name: Download gem artifact
-        if: github.event_name == 'push'
+      - name: Download gem artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: opendal-ruby-gem-*
           path: bindings/ruby/pkg/
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded gems:"
+          ls -lh pkg/*.gem
 
       # Adapted from rubygems/release-gem@v1. Changed:
       # 1. publishing git tag
@@ -254,7 +263,7 @@ jobs:
       - name: Release gem
         run: bundle exec rake release
         env:
-          RUBYOPT: "${{ format('-r{0}/rubygems-attestation-patch.rb {1}', github.action_path, env.RUBYOPT) || env.RUBYOPT }}"
+          RUBYOPT: "${{ format('-r{0}/bindings/ruby/rubygems-attestation-patch.rb {1}', github.workspace, env.RUBYOPT) || env.RUBYOPT }}"
 
       - name: Wait for release to propagate
         run: gem exec rubygems-await pkg/*.gem
@@ -264,6 +273,8 @@ jobs:
           echo "## Ruby binding released! 🚀" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check out the [RubyGems page](https://rubygems.org/gems/opendal) for more details." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Clean up credentials
         if: always()

@@ -25,7 +25,9 @@ use std::path::PathBuf;
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
+        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" | "sftp" | "github"
+        | "cloudflare_kv" | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs"
+        | "lakefs" | "pcloud" | "vercel_blob" => false,
         _ => true,
     }
 }
@@ -33,13 +35,38 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
-    env.add_template("python", include_str!("python.j2"))?;
-    env.add_function("make_python_type", make_python_type);
+    env.add_template("python", include_str!("new_python.j2"))?;
+    env.add_function("service_to_feature", service_to_feature);
+    env.add_function("service_to_pascal", service_to_pascal);
     let tmpl = env.get_template("python")?;
 
-    let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
+    let output = workspace_dir.join("bindings/python/src/services.rs");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
     Ok(())
+}
+
+fn service_to_feature(service: &str) -> String {
+    format!("services-{}", service.replace('_', "-"))
+}
+
+fn service_to_pascal(service: &str) -> String {
+    let mut result = String::with_capacity(service.len());
+    let mut capitalize = true;
+
+    for &b in service.as_bytes() {
+        if b == b'_' || b == b'-' {
+            capitalize = true;
+        } else {
+            if capitalize {
+                result.push((b as char).to_ascii_uppercase());
+                capitalize = false;
+            } else {
+                result.push(b as char);
+            }
+        }
+    }
+
+    result
 }
 
 fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {

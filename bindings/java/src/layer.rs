@@ -59,6 +59,6 @@ pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLaye
     permits: jlong,
 ) -> jlong {
     let op = unsafe { &*op };
-    let concurrent_limit = ConcurrentLimitLayer::new(permits as usize);
+    let concurrent_limit = ConcurrentLimitLayer::with_permits(permits as usize);
     Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as jlong
 }

@@ -53,8 +53,12 @@ use crate::*;
 /// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
+/// use std::sync::Arc;
+/// use tokio::sync::Semaphore;
+///
+/// let semaphore = Arc::new(Semaphore::new(1024));
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(ConcurrentLimitLayer::new(1024))
+///     .layer(ConcurrentLimitLayer::new(semaphore))
 ///     .finish();
 /// Ok(())
 /// # }
@@ -70,7 +74,11 @@ use crate::*;
 /// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
-/// let limit = ConcurrentLimitLayer::new(1024);
+/// use std::sync::Arc;
+/// use tokio::sync::Semaphore;
+///
+/// let semaphore = Arc::new(Semaphore::new(1024));
+/// let limit = ConcurrentLimitLayer::new(semaphore);
 ///
 /// let _operator_a = Operator::new(services::Memory::default())?
 ///     .layer(limit.clone())
@@ -89,22 +97,39 @@ pub struct ConcurrentLimitLayer {
 }
 
 impl ConcurrentLimitLayer {
-    /// Create a new ConcurrentLimitLayer will specify permits.
+    /// Create a new `ConcurrentLimitLayer` with a custom semaphore.
     ///
-    /// This permits will applied to all operations.
-    pub fn new(permits: usize) -> Self {
+    /// The provided semaphore will be shared by every operator wrapped by this
+    /// layer, giving callers full control over its configuration.
+    pub fn new(operation_semaphore: Arc<Semaphore>) -> Self {
         Self {
-            operation_semaphore: Arc::new(Semaphore::new(permits)),
+            operation_semaphore,
             http_semaphore: None,
         }
     }
 
+    /// Create a new `ConcurrentLimitLayer` with the specified number of
+    /// permits.
+    pub fn with_permits(permits: usize) -> Self {
+        Self::new(Arc::new(Semaphore::new(permits)))
+    }
+
     /// Set a concurrent limit for HTTP requests.
     ///
-    /// This will limit the number of concurrent HTTP requests made by the
-    /// operator.
-    pub fn with_http_concurrent_limit(mut self, permits: usize) -> Self {
-        self.http_semaphore = Some(Arc::new(Semaphore::new(permits)));
+    /// This convenience helper constructs a new semaphore with the specified
+    /// number of permits and calls [`ConcurrentLimitLayer::with_http_semaphore`].
+    /// Use [`ConcurrentLimitLayer::with_http_semaphore`] directly when reusing
+    /// a shared semaphore.
+    pub fn with_http_concurrent_limit(self, permits: usize) -> Self {
+        self.with_http_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+
+    /// Provide a custom semaphore to limit HTTP request concurrency.
+    ///
+    /// Sharing the same semaphore across layers allows coordinating HTTP
+    /// usage with other parts of the application.
+    pub fn with_http_semaphore(mut self, semaphore: Arc<Semaphore>) -> Self {
+        self.http_semaphore = Some(semaphore);
         self
     }
 
@@ -117,6 +142,15 @@ impl ConcurrentLimitLayer {
     /// will affect OpenDAL's internal behavior.
     pub fn operation_semaphore(&self) -> Arc<Semaphore> {
         self.operation_semaphore.clone()
+    }
+
+    /// Get the semaphore controlling HTTP concurrency, if any.
+    ///
+    /// Returns `None` when HTTP concurrency has not been configured via
+    /// [`ConcurrentLimitLayer::with_http_concurrent_limit`] or
+    /// [`ConcurrentLimitLayer::with_http_semaphore`].
+    pub fn http_semaphore(&self) -> Option<Arc<Semaphore>> {
+        self.http_semaphore.clone()
     }
 }
 
@@ -337,12 +371,14 @@ mod tests {
     use super::*;
     use crate::services;
     use crate::Operator;
+    use std::sync::Arc;
     use std::time::Duration;
+    use tokio::sync::Semaphore;
     use tokio::time::timeout;
 
     #[tokio::test]
     async fn operation_semaphore_can_be_shared() {
-        let layer = ConcurrentLimitLayer::new(1);
+        let layer = ConcurrentLimitLayer::with_permits(1);
         let semaphore = layer.operation_semaphore();
 
         // Hold the only permit so operations queued through the layer must wait.
@@ -369,5 +405,24 @@ mod tests {
             completed.is_ok(),
             "operation should proceed once permit is released"
         );
+    }
+
+    #[test]
+    fn http_semaphore_reflects_configuration() {
+        let base = ConcurrentLimitLayer::with_permits(2);
+        assert!(base.http_semaphore().is_none());
+
+        let configured = base.clone().with_http_concurrent_limit(3);
+        let http_sem = configured
+            .http_semaphore()
+            .expect("http semaphore should be configured");
+        assert_eq!(http_sem.available_permits(), 3);
+
+        let shared = Arc::new(Semaphore::new(4));
+        let shared_configured = base.with_http_semaphore(shared.clone());
+        let shared_http = shared_configured
+            .http_semaphore()
+            .expect("shared semaphore should be returned");
+        assert!(Arc::ptr_eq(&shared, &shared_http));
     }
 }

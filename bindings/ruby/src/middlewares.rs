@@ -87,7 +87,7 @@ struct ConcurrentLimitMiddleware(Arc<Mutex<ocore::layers::ConcurrentLimitLayer>>
 impl ConcurrentLimitMiddleware {
     fn new(permits: usize) -> Self {
         Self(Arc::new(Mutex::new(
-            ocore::layers::ConcurrentLimitLayer::new(permits),
+            ocore::layers::ConcurrentLimitLayer::with_permits(permits),
         )))
     }
 

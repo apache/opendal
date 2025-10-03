@@ -96,7 +96,7 @@ impl ConcurrentLimitLayer {
     #[new]
     #[pyo3(signature = (limit))]
     fn new(limit: usize) -> PyResult<PyClassInitializer<Self>> {
-        let concurrent_limit = Self(ocore::layers::ConcurrentLimitLayer::new(limit));
+        let concurrent_limit = Self(ocore::layers::ConcurrentLimitLayer::with_permits(limit));
         let class = PyClassInitializer::from(Layer(Box::new(concurrent_limit.clone())))
             .add_subclass(concurrent_limit);
 

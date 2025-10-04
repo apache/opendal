@@ -20,7 +20,6 @@
 use std::str::FromStr;
 
 use crate::*;
-use pyo3_stub_gen::derive::*;
 
 #[gen_stub_pyclass_enum]
 #[pyclass(

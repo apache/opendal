@@ -166,9 +166,9 @@ dict_derive = "0.6.0"
 futures = "0.3.28"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = ["blocking", "layers-mime-guess"] }
-pyo3 = { version = "0.25.1", features = ["generate-import-lib", "chrono"] }
-pyo3-async-runtimes = { version = "0.25.0", features = ["tokio-runtime"] }
-pyo3-stub-gen = { version = "0.13", features = ["default"] }
+pyo3 = { version = "0.26.0", features = ["generate-import-lib", "chrono"] }
+pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
+pyo3-stub-gen = { version = "0.14.0" }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

@@ -16,12 +16,16 @@
 // under the License.
 
 use chrono::prelude::*;
-use pyo3::prelude::*;
 use std::collections::HashMap;
 
 use crate::*;
 
-#[pyclass(module = "opendal")]
+/// Entry representing a path and its associated metadata.
+///
+/// If this entry is a directory, ``path`` **must** end with ``/``.
+/// Otherwise, ``path`` **must not** end with ``/``.
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.types")]
 pub struct Entry(ocore::Entry);
 
 impl Entry {
@@ -30,24 +34,33 @@ impl Entry {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl Entry {
-    /// Path of entry. Path is relative to the operator's root.
+    /// Path of entry relative to operator's root.
     #[getter]
     pub fn path(&self) -> &str {
         self.0.path()
     }
 
-    /// Metadata of entry.
+    /// Name of entry representing the last segment of path.
+    #[getter]
+    pub fn name(&self) -> &str {
+        self.0.name()
+    }
+
+    /// Metadata of this entry.
     #[getter]
     pub fn metadata(&self) -> Metadata {
         Metadata::new(self.0.metadata().clone())
     }
 
+    #[gen_stub(skip)]
     fn __str__(&self) -> &str {
         self.0.path()
     }
 
+    #[gen_stub(skip)]
     fn __repr__(&self) -> String {
         format!(
             "Entry(path={:?}, metadata={})",
@@ -57,7 +70,22 @@ impl Entry {
     }
 }
 
-#[pyclass(module = "opendal")]
+/// Metadata of an entry.
+///
+/// Depending on the request context, metadata for the same path may vary.
+/// For example, two versions of the same path might have different content
+/// lengths. Metadata is always tied to a specific context and is not a global
+/// state.
+///
+/// In systems that support versioning, such as AWS S3, the metadata may
+/// represent a specific version of a file.
+///
+/// Users can access :meth:`Metadata.version` to retrieve the file version, if
+/// available. They can also use :meth:`Metadata.is_current` and
+/// :meth:`Metadata.is_deleted` to determine whether the metadata represents the
+/// latest version or a deleted one.
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.types")]
 pub struct Metadata(ocore::Metadata);
 
 impl Metadata {
@@ -66,6 +94,7 @@ impl Metadata {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl Metadata {
     #[getter]
@@ -103,19 +132,19 @@ impl Metadata {
         self.0.etag()
     }
 
-    /// mode represents this entry's mode.
+    /// Mode represents this entry's mode.
     #[getter]
     pub fn mode(&self) -> EntryMode {
-        EntryMode(self.0.mode())
+        EntryMode::new(self.0.mode())
     }
 
-    /// Returns `true` if this metadata is for a file.
+    /// Return ``True`` if this metadata is for a file.
     #[getter]
     pub fn is_file(&self) -> bool {
         self.mode().is_file()
     }
 
-    /// Returns `true` if this metadata is for a directory.
+    /// Return ``True`` if this metadata is for a directory.
     #[getter]
     pub fn is_dir(&self) -> bool {
         self.mode().is_dir()
@@ -139,6 +168,7 @@ impl Metadata {
         self.0.user_metadata()
     }
 
+    #[gen_stub(skip)]
     pub fn __repr__(&self) -> String {
         let mut parts = vec![];
 
@@ -160,26 +190,40 @@ impl Metadata {
     }
 }
 
-#[pyclass(module = "opendal")]
-pub struct EntryMode(ocore::EntryMode);
+/// EntryMode represents the mode.
+#[gen_stub_pyclass_enum]
+#[pyclass(eq, eq_int, hash, frozen, module = "opendal.types")]
+#[pyo3(rename_all = "PascalCase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EntryMode {
+    /// FILE means the path has data to read.
+    FILE,
+    /// DIR means the path can be listed.
+    DIR,
+    /// Unknown means we don't know what we can do on this path.
+    Unknown,
+}
 
+impl EntryMode {
+    pub fn new(mode: ocore::EntryMode) -> Self {
+        match mode {
+            ocore::EntryMode::FILE => Self::FILE,
+            ocore::EntryMode::DIR => Self::DIR,
+            ocore::EntryMode::Unknown => Self::Unknown,
+        }
+    }
+}
+
+#[gen_stub_pymethods]
 #[pymethods]
 impl EntryMode {
-    /// Returns `True` if this is a file.
+    /// Return ``True`` if this is a file.
     pub fn is_file(&self) -> bool {
-        self.0.is_file()
+        matches!(self, EntryMode::FILE)
     }
 
-    /// Returns `True` if this is a directory.
+    /// Return ``True`` if this is a directory.
     pub fn is_dir(&self) -> bool {
-        self.0.is_dir()
-    }
-
-    pub fn __repr__(&self) -> &'static str {
-        match self.0 {
-            ocore::EntryMode::FILE => "EntryMode.FILE",
-            ocore::EntryMode::DIR => "EntryMode.DIR",
-            ocore::EntryMode::Unknown => "EntryMode.UNKNOWN",
-        }
+        matches!(self, EntryMode::DIR)
     }
 }

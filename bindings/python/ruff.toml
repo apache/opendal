@@ -54,3 +54,6 @@ strict = true
 
 [lint.isort]
 known-first-party = ["opendal"]
+
+[lint.per-file-ignores]
+"*.pyi" = ["PYI021"]

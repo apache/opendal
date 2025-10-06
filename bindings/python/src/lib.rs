@@ -43,10 +43,10 @@ mod services;
 pub use services::*;
 
 // Add module docs
-module_doc!("_opendal", "Document for {} ...", env!("CARGO_PKG_NAME"));
+module_doc!("opendal", "Document for {} ...", env!("CARGO_PKG_NAME"));
 
 // Add version
-module_variable!("_opendal", "__version__", &str, env!("CARGO_PKG_VERSION"));
+module_variable!("opendal", "__version__", &str, env!("CARGO_PKG_VERSION"));
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -96,7 +96,9 @@ end
 desc "Copy the core directory for gem packaging" # Read more in `./.github/workflows/release-ruby.yml`
 task :copy_core do
   puts "Copy the core directory for packaging..."
-  FileUtils.cp_r('../../core', '.')
+  src = '../../core'
+  dst = './core'
+  `cp -RL #{src} #{dst}`
 end
 
 # Hook into build task to copy the core directory first
@@ -106,7 +108,7 @@ Rake::Task["release"].clear # clear the existing release task to allow override
 Rake::Task["release:rubygem_push"].clear if Rake::Task.task_defined?("release:rubygem_push")
 
 # overrides bundler's default rake release task
-# we removed build and git tagging steps. Read more in `.release-ruby.yml`
+# we removed build and git tagging steps. Read more in ``./.github/workflows/release-ruby.yml`
 # read more https://github.com/rubygems/rubygems/blob/master/bundler/lib/bundler/gem_helper.rb
 desc "Multi-arch release"
 task release: [

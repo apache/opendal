@@ -20,7 +20,9 @@ name: Release Ruby Binding
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+' # Triggers on version tags (v0.54.0, v0.54.0-rc.1, etc.)
+      # Triggers on version tags (v0.54.0, v0.54.0-rc.1, etc.)
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
   pull_request:
     branches:
       - main

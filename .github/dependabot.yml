@@ -193,6 +193,15 @@ updates:
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    groups:
+      docusaur:
+        patterns:
+          - "@docusaurus/core"
+          - "@docusaurus/plugin-client-redirects"
+          - "@docusaurus/preset-classic"
+      others:
+        patterns:
+          - "*"
     cooldown:
       semver-patch-days: 90
       include:

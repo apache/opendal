@@ -78,6 +78,31 @@ class Metadata:
     ) -> builtins.dict[builtins.str, builtins.str] | None:
         r"""User defined metadata of this entry."""
 
+class PresignedRequest:
+    r"""
+    A presigned request.
+
+    This contains the information required to make a request to the
+    underlying service, including the URL, method, and headers.
+    """
+
+    @property
+    def url(self) -> builtins.str:
+        r"""The URL of this request."""
+    @property
+    def method(self) -> builtins.str:
+        r"""The HTTP method of this request."""
+    @property
+    def headers(self) -> builtins.dict[builtins.str, builtins.str]:
+        r"""
+        The HTTP headers of this request.
+
+        Returns
+        -------
+        dict
+            The HTTP headers of this request.
+        """
+
 class EntryMode(Enum):
     r"""EntryMode represents the mode."""
 

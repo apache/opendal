@@ -56,4 +56,4 @@ strict = true
 known-first-party = ["opendal"]
 
 [lint.per-file-ignores]
-"*.pyi" = ["PYI021"]
+"*.pyi" = ["PYI021", "ANN003"]

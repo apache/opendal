@@ -65,6 +65,8 @@ pub mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED: &str =
+        "x-amz-server-side-encryption-bucket-key-enabled";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
@@ -99,6 +101,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
+    pub server_side_encryption_bucket_key_enabled: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
@@ -234,6 +237,14 @@ impl S3Core {
                     v,
                 )
             }
+            if let Some(v) = &self.server_side_encryption_bucket_key_enabled {
+                req = req.header(
+                    HeaderName::from_static(
+                        constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                    ),
+                    v,
+                )
+            }
         }
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
@@ -343,6 +354,7 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
+
         req
     }
 

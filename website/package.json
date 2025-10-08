@@ -15,9 +15,9 @@
     "write-heading-ids": "docusaurus write-heading-ids"
   },
   "dependencies": {
-    "@docusaurus/core": "^3.8.1",
+    "@docusaurus/core": "^3.9.1",
     "@docusaurus/plugin-client-redirects": "^3.9.1",
-    "@docusaurus/preset-classic": "^3.8.1",
+    "@docusaurus/preset-classic": "^3.9.1",
     "@mdx-js/react": "^3.1.1",
     "docusaurus-lunr-search": "^3.6.0",
     "docusaurus-plugin-image-zoom": "^3.0.1",
@@ -28,7 +28,7 @@
     "semver": "^7.7.2"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "^3.8.1",
+    "@docusaurus/module-type-aliases": "^3.9.1",
     "crates-llms-txt": "^0.1.1",
     "docusaurus-plugin-llms-builder": "^0.1.13"
   },

@@ -1698,7 +1698,7 @@ dependencies = [
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -5424,7 +5424,7 @@ dependencies = [
  "prometheus 0.14.0",
  "prometheus-client",
  "prost 0.13.5",
- "quick-xml 0.38.0",
+ "quick-xml",
  "rand 0.8.5",
  "redb",
  "redis",
@@ -6563,19 +6563,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.37.5"
+version = "0.38.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
-dependencies = [
- "memchr",
- "serde",
-]
-
-[[package]]
-name = "quick-xml"
-version = "0.38.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8927b0664f5c5a98265138b7e3f90aa19a6b21353182469ace36d4ac527b7b1b"
+checksum = "42a232e7487fc2ef313d96dde7948e7a3c05101870d8985e4fd8d26aedd27b89"
 dependencies = [
  "memchr",
  "serde",
@@ -6986,34 +6976,151 @@ dependencies = [
 
 [[package]]
 name = "reqsign"
-version = "0.16.5"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43451dbf3590a7590684c25fb8d12ecdcc90ed3ac123433e500447c7d77ed701"
+checksum = "c9a80170eaab619a5dfa6428b0596c0cb85734bfa36b717a764a16abc3456a7b"
+dependencies = [
+ "reqsign-aliyun-oss",
+ "reqsign-aws-v4",
+ "reqsign-azure-storage",
+ "reqsign-core",
+ "reqsign-google",
+ "reqsign-huaweicloud-obs",
+ "reqsign-tencent-cos",
+]
+
+[[package]]
+name = "reqsign-aliyun-oss"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d84a58e2e6a57db164c9f007e0f89efd6cdae143ced0c8211070d593d033d64"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.3.1",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "reqsign-aws-v4"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c50993dfb45a89b82dba66b2251984baad70e1b3c502db980f077f095615a26e"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "form_urlencoded",
+ "http 1.3.1",
+ "log",
+ "percent-encoding",
+ "quick-xml",
+ "reqsign-core",
+ "rust-ini",
+ "serde",
+ "serde_json",
+ "serde_urlencoded",
+ "sha1",
+]
+
+[[package]]
+name = "reqsign-azure-storage"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcb8347d51a44be20d3f16470df7f369c567173c06f860f2fb130a9a1656c0c6"
 dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.22.1",
- "chrono",
+ "bytes",
  "form_urlencoded",
- "getrandom 0.2.16",
- "hex",
- "hmac",
- "home",
  "http 1.3.1",
  "jsonwebtoken",
  "log",
- "once_cell",
+ "pem",
  "percent-encoding",
- "quick-xml 0.37.5",
- "rand 0.8.5",
- "reqwest",
+ "reqsign-core",
  "rsa",
- "rust-ini",
  "serde",
  "serde_json",
  "sha1",
+]
+
+[[package]]
+name = "reqsign-core"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f2f07d63648c81c8dbccc19e8e10ef8d57daafb8174e4c2a75f14f33fe8c5ec"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "form_urlencoded",
+ "hex",
+ "hmac",
+ "http 1.3.1",
+ "jiff",
+ "log",
+ "percent-encoding",
+ "sha1",
  "sha2",
- "tokio",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "reqsign-google"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2842fe86bc9ab0dd2e41c96d6d684d921a83b488a4b6d20db6312109f502bbdf"
+dependencies = [
+ "async-trait",
+ "http 1.3.1",
+ "jsonwebtoken",
+ "log",
+ "percent-encoding",
+ "rand 0.8.5",
+ "reqsign-core",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "reqsign-huaweicloud-obs"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d94c0eb8de89b190323e2aef8c42409439f8c5f9df21f11a1a548b7eed8c25"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.3.1",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+]
+
+[[package]]
+name = "reqsign-tencent-cos"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6e37f81114bc2da3bd0662d17a959f9b8f3affc91600d5d41227d0d051fc1d9"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.3.1",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -9763,7 +9870,7 @@ dependencies = [
  "windows-collections",
  "windows-core 0.61.2",
  "windows-future",
- "windows-link",
+ "windows-link 0.1.1",
  "windows-numerics",
 ]
 
@@ -9796,7 +9903,7 @@ checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
 dependencies = [
  "windows-implement 0.60.0",
  "windows-interface 0.59.1",
- "windows-link",
+ "windows-link 0.1.1",
  "windows-result 0.3.4",
  "windows-strings",
 ]
@@ -9808,7 +9915,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
 dependencies = [
  "windows-core 0.61.2",
- "windows-link",
+ "windows-link 0.1.1",
  "windows-threading",
 ]
 
@@ -9863,13 +9970,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
 
 [[package]]
+name = "windows-link"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+
+[[package]]
 name = "windows-numerics"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
 dependencies = [
  "windows-core 0.61.2",
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -9887,7 +10000,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -9896,7 +10009,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]
@@ -9924,6 +10037,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
 dependencies = [
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "windows-sys"
+version = "0.61.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
+dependencies = [
+ "windows-link 0.2.1",
 ]
 
 [[package]]
@@ -9979,7 +10101,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b66463ad2e0ea3bbf808b7f1d371311c80e115c0b71d60efc142cafbcfb057a6"
 dependencies = [
- "windows-link",
+ "windows-link 0.1.1",
 ]
 
 [[package]]

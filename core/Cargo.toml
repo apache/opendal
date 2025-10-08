@@ -115,18 +115,15 @@ services-alluxio = []
 services-azblob = [
   "dep:sha2",
   "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+  "reqsign/azure",
 ]
 services-azdls = [
   "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+  "reqsign/azure",
 ]
 services-azfile = [
   "dep:reqsign",
-  "reqsign?/services-azblob",
-  "reqsign?/reqwest_request",
+  "reqsign/azure",
 ]
 services-b2 = []
 services-cacache = ["dep:cacache"]
@@ -134,8 +131,7 @@ services-cloudflare-kv = []
 services-compfs = ["dep:compio"]
 services-cos = [
   "dep:reqsign",
-  "reqsign?/services-tencent",
-  "reqsign?/reqwest_request",
+  "reqsign/tencent",
 ]
 services-d1 = []
 services-dashmap = ["dep:dashmap"]
@@ -152,8 +148,7 @@ services-ftp = [
 ]
 services-gcs = [
   "dep:reqsign",
-  "reqsign?/services-google",
-  "reqsign?/reqwest_request",
+  "reqsign/google",
 ]
 services-gdrive = ["internal-path-cache"]
 services-ghac = ["dep:ghac", "dep:prost", "services-azblob"]
@@ -176,8 +171,7 @@ services-monoiofs = ["dep:monoio", "dep:flume"]
 services-mysql = ["dep:sqlx", "sqlx?/mysql"]
 services-obs = [
   "dep:reqsign",
-  "reqsign?/services-huaweicloud",
-  "reqsign?/reqwest_request",
+  "reqsign/huaweicloud",
 ]
 services-onedrive = []
 services-opfs = [
@@ -188,8 +182,7 @@ services-opfs = [
 ]
 services-oss = [
   "dep:reqsign",
-  "reqsign?/services-aliyun",
-  "reqsign?/reqwest_request",
+  "reqsign/aliyun",
 ]
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
@@ -200,8 +193,7 @@ services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
   "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
+  "reqsign/aws",
   "dep:crc32c",
 ]
 services-seafile = []
@@ -255,7 +247,7 @@ http-body = "1"
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
-quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
+quick-xml = { version = "0.38.3", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.22", features = [
   "stream",
 ], default-features = false }

@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Cache OPAM dependencies
         uses: actions/cache@v4

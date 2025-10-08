@@ -36,7 +36,7 @@ name = "opendal_ruby"
 magnus = { version = "0.8", features = ["bytes", "io"] }
 # 1. this crate won't be published, we always use the local version
 # 2. we use the symbolink to allow released gem to find core's source files.
-opendal = { version = ">=0", path = "./core", features = [
+opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-throttle",
   # These are default features before v0.46. TODO: change to optional features

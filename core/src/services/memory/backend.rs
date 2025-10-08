@@ -32,6 +32,7 @@ use http::Uri;
 use percent_encoding::percent_decode_str;
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
+
     fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
         let mut map = options.clone();
 
@@ -44,6 +45,7 @@ impl Configurator for MemoryConfig {
 
         Self::from_iter(map)
     }
+
     fn into_builder(self) -> Self::Builder {
         MemoryBuilder { config: self }
     }

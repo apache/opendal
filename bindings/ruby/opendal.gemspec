@@ -58,8 +58,8 @@ Gem::Specification.new do |spec|
     end
 
     # Copy core directory
-    src = '../../core'
-    dst = './core'
+    src = "../../core"
+    dst = "./core"
     `cp -RL #{src} #{dst}`
 
     # Include core directory files, excluding symlinks

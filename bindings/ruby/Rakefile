@@ -96,8 +96,8 @@ end
 desc "Copy the core directory for gem packaging" # Read more in `./.github/workflows/release-ruby.yml`
 task :copy_core do
   puts "Copy the core directory for packaging..."
-  src = '../../core'
-  dst = './core'
+  src = "../../core"
+  dst = "./core"
   `cp -RL #{src} #{dst}`
 end
 

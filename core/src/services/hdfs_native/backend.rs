@@ -112,6 +112,7 @@ impl Builder for HdfsNativeBuilder {
 
         let client = hdfs_native::ClientBuilder::new()
             .with_url(name_node)
+            .build()
             .map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not

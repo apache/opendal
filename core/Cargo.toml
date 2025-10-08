@@ -238,7 +238,7 @@ required-features = ["tests"]
 
 [dependencies]
 # Required dependencies
-anyhow = { version = "1.0.30", features = ["std"] }
+anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.5", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"

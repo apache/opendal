@@ -52,7 +52,7 @@ jobs:
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - name: Build with maturin

@@ -25,58 +25,31 @@
 //! [`Access`] can be split in the following parts:
 //!
 //! ```ignore
-//! // Attributes
-//! #[async_trait]
 //! //                  <----------Trait Bound-------------->
-//! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {
+//! pub trait Access: Send + Sync + Debug + Unpin + 'static {
 //!     type Reader: oio::Read;                    // --+
-//!     type BlockingReader: oio::BlockingRead;    //   +--> Associated Type
-//!     type Lister: oio::Lister;                  //   +
-//!     type BlockingLister: oio::BlockingLister;  // --+
+//!     type Writer: oio::Write;                   //   +--> Associated Type
+//!     type Lister: oio::List;                    //   +
+//!     type Deleter: oio::Delete;                 // --+
 //!
 //!     // APIs
-//!     async fn hello(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
-//!     async fn world(&self, path: &str, args: OpCreate) -> Result<RpCreate>;
+//!     fn info(&self) -> Arc<AccessorInfo>;
+//!     fn create_dir(
+//!         &self,
+//!         path: &str,
+//!         args: OpCreateDir,
+//!     ) -> impl core::future::Future<Output = Result<RpCreateDir>> + MaybeSend;
 //! }
 //! ```
 //!
 //! Let's go deep into [`Access`] line by line.
 //!
-//! ## Async Trait
-//!
-//! At the first line of [`Access`], we will read:
-//!
-//! ```ignore
-//! #[async_trait]
-//! ```
-//!
-//! This is an attribute from [`async_trait`](https://docs.rs/async-trait/latest/async_trait/). By using this attribute, we can write the following code without use nightly feature.
-//!
-//! ```ignore
-//! pub trait Accessor {
-//!     async fn create_dir(&self, path: &str) -> Result<()>;
-//! }
-//! ```
-//!
-//! `async_trait` will transform the `async fn` into:
-//!
-//! ```ignore
-//! pub trait Accessor {
-//!     fn create_dir<'async>(
-//!         &'async self,
-//!     ) -> Pin<Box<dyn core::future::Future<Output = Result()> + MaybeSend + 'async>>
-//!     where Self: Sync + 'async;
-//! }
-//! ```
-//!
-//! It's not zero cost, and we will improve this part once the related features are stabilised.
-//!
 //! ## Trait Bound
 //!
-//! Then we will read the declare of [`Access`] trait:
+//! First we will read the declare of [`Access`] trait:
 //!
 //! ```ignore
-//! pub trait Accessor: Send + Sync + Debug + Unpin + 'static {}
+//! pub trait Access: Send + Sync + Debug + Unpin + 'static {}
 //! ```
 //!
 //! There are many trait boundings here. For now, [`Access`] requires the following bound:
@@ -84,10 +57,10 @@
 //! - [`Send`]: Allow user to send between threads without extra wrapper.
 //! - [`Sync`]: Allow user to sync between threads without extra lock.
 //! - [`Debug`][std::fmt::Debug]: Allow users to print underlying debug information of accessor.
-//! - [`Unpin`]: Make sure `Accessor` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
-//! - `'static`: Make sure `Accessor` is not a short-time reference, allow users to use `Accessor` in closures and futures without playing with lifetime.
+//! - [`Unpin`]: Make sure `Access` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
+//! - `'static`: Make sure `Access` is not a short-time reference, allow users to use `Access` in closures and futures without playing with lifetime.
 //!
-//! Implementer of `Accessor` should take care of the following things:
+//! Implementer of `Access` should take care of the following things:
 //!
 //! - Implement `Debug` for backend, but don't leak credentials.
 //! - Make sure the backend is `Send` and `Sync`, wrap the internal struct with `Arc<Mutex<T>>` if necessary.
@@ -98,14 +71,14 @@
 //! require implementers to specify the type to be returned, thus avoiding
 //! the additional overhead of dynamic dispatch.
 //!
-//! [`Access`] has four associated type so far:
+//! [`Access`] has four associated types so far:
 //!
 //! - `Reader`: reader returned by `read` operation.
-//! - `BlockingReader`: reader returned by `blocking_read` operation.
+//! - `Writer`: writer returned by `write` operation.
 //! - `Lister`: lister returned by `list` operation.
-//! - `BlockingLister`: lister returned by `blocking_scan` or `blocking_list` operation.
+//! - `Deleter`: deleter returned by `delete` operation.
 //!
-//! Implementer of `Accessor` should take care the following things:
+//! Implementer of `Access` should take care the following things:
 //!
 //! - OpenDAL will erase those type at the final stage of Operator building. Please don't return dynamic trait object like `oio::Reader`.
 //! - Use `()` as type if the operation is not supported.
@@ -119,13 +92,13 @@
 //! - Most APIs accept `path` and `OpXxx`, and returns `RpXxx`.
 //! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
 //!
-//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_capability`:
+//! [`Access`] can declare their capabilities via [`AccessorInfo`]'s `set_native_capability`:
 //!
 //! ```ignore
 //! impl Access for MyBackend {
-//!     fn metadata(&self) -> AccessorInfo {
+//!     fn info(&self) -> Arc<AccessorInfo> {
 //!         let am = AccessorInfo::default();
-//!         am.set_capability(
+//!         am.set_native_capability(
 //!             Capability {
 //!                 read: true,
 //!                 write: true,
@@ -185,7 +158,6 @@
 //! /// - [ ] write
 //! /// - [ ] list
 //! /// - [ ] presign
-//! /// - [ ] blocking
 //! ///
 //! /// # Configuration
 //! ///
@@ -203,7 +175,7 @@
 //! /// #[tokio::main]
 //! /// async fn main() -> Result<()> {
 //! ///     // Create Duck backend builder.
-//! ///     let mut builder = Duck::default();
+//! ///     let mut builder = DuckBuilder::default();
 //! ///     // Set the root for duck, all operations will happen under this root.
 //! ///     //
 //! ///     // NOTE: the root must be absolute path.
@@ -214,7 +186,7 @@
 //! ///     Ok(())
 //! /// }
 //! /// ```
-//! #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+//! #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 //! #[serde(default)]
 //! #[non_exhaustive]
 //! pub struct DuckConfig {
@@ -224,6 +196,18 @@
 //! #[derive(Default, Clone)]
 //! pub struct DuckBuilder {
 //!     config: DuckConfig,
+//! }
+//! ```
+//!
+//! Now let's implement the required APIs for `DuckConfig`:
+//!
+//! ```ignore
+//! impl Configurator for DuckConfig {
+//!     type Builder = DuckBuilder;
+//!
+//!     fn into_builder(self) -> Self::Builder {
+//!         DuckBuilder { config: self }
+//!     }
 //! }
 //! ```
 //!
@@ -251,13 +235,7 @@
 //! }
 //!
 //! impl Builder for DuckBuilder {
-//!     const SCHEME: Scheme = Scheme::Duck;
-//!     type Accessor = DuckBackend;
 //!     type Config = DuckConfig;
-//!
-//!     fn from_config(config: Self::Config) -> Self {
-//!        DuckBuilder { config: self }
-//!     }
 //!
 //!     fn build(self) -> Result<impl Access>  {
 //!         debug!("backend build started: {:?}", &self);
@@ -287,20 +265,17 @@
 //!     root: String,
 //! }
 //!
-//! #[async_trait]
 //! impl Access for DuckBackend {
 //!     type Reader = DuckReader;
-//!     type BlockingReader = ();
 //!     type Writer = ();
-//!     type BlockingWriter = ();
 //!     type Lister = ();
-//!     type BlockingLister = ();
+//!     type Deleter = ();
 //!
-//!     fn metadata(&self) -> AccessorInfo {
+//!     fn info(&self) -> Arc<AccessorInfo> {
 //!         let am = AccessorInfo::default();
-//!         am.set_scheme(Scheme::Duck)
+//!         am.set_scheme("duck")
 //!             .set_root(&self.root)
-//!             .set_capability(
+//!             .set_native_capability(
 //!                 Capability {
 //!                     read: true,
 //!                     ..Default::default()
@@ -328,3 +303,4 @@
 //! [`AccessorInfo`]: crate::raw::AccessorInfo
 //! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder
+//! [`Configurator`]: crate::Configurator

@@ -33,10 +33,10 @@ use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzdlsConfig;
 use crate::*;
-
 impl From<AzureStorageConfig> for AzdlsConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzdlsConfig {
@@ -249,7 +249,6 @@ impl AzdlsBuilder {
 }
 
 impl Builder for AzdlsBuilder {
-    const SCHEME: Scheme = Scheme::Azdls;
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -296,7 +295,7 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azdls)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {

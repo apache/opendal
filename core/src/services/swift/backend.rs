@@ -28,10 +28,10 @@ use super::delete::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
-
 impl Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -113,7 +113,6 @@ impl SwiftBuilder {
 }
 
 impl Builder for SwiftBuilder {
-    const SCHEME: Scheme = Scheme::Swift;
     type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
@@ -156,7 +155,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Swift)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

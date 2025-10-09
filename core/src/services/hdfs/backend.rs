@@ -28,10 +28,10 @@ use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
-
 impl Configurator for HdfsConfig {
     type Builder = HdfsBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -75,8 +75,7 @@ impl HdfsBuilder {
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
     pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.to_string())
         }
 
         self
@@ -125,7 +124,6 @@ impl HdfsBuilder {
 }
 
 impl Builder for HdfsBuilder {
-    const SCHEME: Scheme = Scheme::Hdfs;
     type Config = HdfsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -175,7 +173,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Hdfs)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

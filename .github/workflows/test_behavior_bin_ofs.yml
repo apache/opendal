@@ -37,7 +37,7 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -45,16 +45,12 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-    # TODO: 1password is only supported on linux
-      #
-      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
       - name: Setup 1Password Connect
-        if: runner.os == 'Linux'
-        uses: 1password/load-secrets-action/configure@v1
+        uses: 1password/load-secrets-action/configure@v3
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
-    
+
       - name: Test Bin Ofs
         uses: ./.github/actions/test_behavior_bin_ofs
         with:

@@ -186,6 +186,36 @@ impl Capability {
         self.0.write_with_cache_control
     }
 
+    /// If operator supports write with content encoding.
+    #[napi(getter)]
+    pub fn write_with_content_encoding(&self) -> bool {
+        self.0.write_with_content_encoding
+    }
+
+    /// If operator supports write with user metadata.
+    #[napi(getter)]
+    pub fn write_with_user_metadata(&self) -> bool {
+        self.0.write_with_user_metadata
+    }
+
+    /// If operator supports write with if match.
+    #[napi(getter)]
+    pub fn write_with_if_match(&self) -> bool {
+        self.0.write_with_if_match
+    }
+
+    /// If operator supports write with if none match.
+    #[napi(getter)]
+    pub fn write_with_if_none_match(&self) -> bool {
+        self.0.write_with_if_none_match
+    }
+
+    /// If operator supports write with if not exists.
+    #[napi(getter)]
+    pub fn write_with_if_not_exists(&self) -> bool {
+        self.0.write_with_if_not_exists
+    }
+
     /// write_multi_max_size is the max size that services support in write_multi.
     ///
     /// For example, AWS S3 supports 5GiB as max in write_multi.
@@ -219,6 +249,12 @@ impl Capability {
     #[napi(getter)]
     pub fn delete(&self) -> bool {
         self.0.delete
+    }
+
+    /// If operator supports delete by version.
+    #[napi(getter)]
+    pub fn delete_with_version(&self) -> bool {
+        self.0.delete_with_version
     }
 
     /// If operator supports copy.

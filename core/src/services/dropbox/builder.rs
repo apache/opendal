@@ -26,10 +26,10 @@ use tokio::sync::Mutex;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
-
 impl Configurator for DropboxConfig {
     type Builder = DropboxBuilder;
 
@@ -126,7 +126,6 @@ impl DropboxBuilder {
 }
 
 impl Builder for DropboxBuilder {
-    const SCHEME: Scheme = Scheme::Dropbox;
     type Config = DropboxConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -182,7 +181,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Dropbox)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

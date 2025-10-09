@@ -88,7 +88,7 @@ impl<W: PositionWrite> PositionWriter<W> {
             next_offset: 0,
             cache: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin(async move {
                     let fut = input.w.write_all_at(input.offset, input.bytes.clone());
                     match input.executor.timeout() {

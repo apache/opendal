@@ -15,8 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for vercel_blob service.
+#[cfg(feature = "services-vercel-blob")]
+pub(super) const DEFAULT_SCHEME: &str = "vercel_blob";
 #[cfg(feature = "services-vercel-blob")]
 mod core;
+#[cfg(feature = "services-vercel-blob")]
+mod delete;
 #[cfg(feature = "services-vercel-blob")]
 mod error;
 #[cfg(feature = "services-vercel-blob")]

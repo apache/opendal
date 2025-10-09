@@ -28,9 +28,9 @@ use futures::Future;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::*;
-
 pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 
 /// a boxed function that spawns task in current monoio runtime
@@ -69,7 +69,7 @@ impl MonoiofsCore {
         Self {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Monoiofs)
+                am.set_scheme(DEFAULT_SCHEME)
                     .set_root(&root.to_string_lossy())
                     .set_native_capability(Capability {
                         stat: true,

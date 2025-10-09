@@ -335,7 +335,6 @@ impl OssCore {
         }
 
         let mut req = Request::get(&url);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());
@@ -776,14 +775,6 @@ pub struct DeleteObjectsResult {
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
     pub version_id: Option<String>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DeleteObjectsResultError {
-    pub code: String,
-    pub key: String,
-    pub message: String,
 }
 
 #[derive(Default, Debug, Deserialize)]

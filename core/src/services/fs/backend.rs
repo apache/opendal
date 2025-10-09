@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
+
+use http::Uri;
+use percent_encoding::percent_decode_str;
 
 use super::core::*;
 use super::delete::FsDeleter;
@@ -26,12 +30,36 @@ use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
+use super::FS_SCHEME;
 use crate::raw::*;
 use crate::services::FsConfig;
 use crate::*;
-
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
+
+    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
+        let mut map = options.clone();
+
+        if !map.contains_key("root") {
+            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
+            if path.is_empty() || path == "/" {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "fs uri requires absolute path",
+                ));
+            }
+            if !path.starts_with('/') {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "fs uri root must be absolute",
+                ));
+            }
+            map.insert("root".to_string(), path.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         FsBuilder { config: self }
     }
@@ -72,7 +100,6 @@ impl FsBuilder {
 }
 
 impl Builder for FsBuilder {
-    const SCHEME: Scheme = Scheme::Fs;
     type Config = FsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -145,7 +172,7 @@ impl Builder for FsBuilder {
             core: Arc::new(FsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Fs)
+                    am.set_scheme(FS_SCHEME)
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,

@@ -1,7 +1,11 @@
 {
   "rust-analyzer.cargo.allTargets": true,
   "rust-analyzer.cargo.features": "all",
-  "rust-analyzer.procMacro.ignored": { "napi-derive": ["napi"] },
+  "rust-analyzer.procMacro.ignored": {
+    "napi-derive": [
+      "napi"
+    ]
+  },
   "rust-analyzer.linkedProjects": [
     "${workspaceFolder}/core/Cargo.toml",
     "${workspaceFolder}/bindings/python/Cargo.toml",
@@ -11,5 +15,14 @@
     "${workspaceFolder}/bin/oay/Cargo.toml",
     "${workspaceFolder}/bin/ofs/Cargo.toml"
   ],
-  "java.compile.nullAnalysis.mode": "automatic"
+  "java.compile.nullAnalysis.mode": "automatic",
+  "cmake.ignoreCMakeListsMissing": true,
+  "clangd.arguments": [
+    "--background-index=true",
+    "--pch-storage=memory",
+    "--header-insertion=never",
+    "--clang-tidy",
+    "--cross-file-rename=true",
+    "--compile-commands-dir=${workspaceFolder}/bindings/cpp/build/"
+  ]
 }

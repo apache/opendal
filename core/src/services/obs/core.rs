@@ -136,7 +136,7 @@ impl ObsCore {
             req = req.header(IF_MATCH, if_match);
         }
 
-        if range.is_full() {
+        if !range.is_full() {
             req = req.header(http::header::RANGE, range.to_header())
         }
 

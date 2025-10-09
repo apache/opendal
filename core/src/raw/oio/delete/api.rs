@@ -78,7 +78,7 @@ pub trait DeleteDyn: Unpin + Send + Sync {
     fn delete_dyn(&mut self, path: &str, args: OpDelete) -> Result<()>;
 
     /// The dyn version of [`Delete::flush`]
-    fn flush_dyn(&mut self) -> BoxedFuture<Result<usize>>;
+    fn flush_dyn(&mut self) -> BoxedFuture<'_, Result<usize>>;
 }
 
 impl<T: Delete + ?Sized> DeleteDyn for T {
@@ -86,7 +86,7 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
         Delete::delete(self, path, args)
     }
 
-    fn flush_dyn(&mut self) -> BoxedFuture<Result<usize>> {
+    fn flush_dyn(&mut self) -> BoxedFuture<'_, Result<usize>> {
         Box::pin(self.flush())
     }
 }

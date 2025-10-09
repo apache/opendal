@@ -36,7 +36,7 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -45,12 +45,8 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: 1password is only supported on linux
-      #
-      # Waiting for https://github.com/1Password/load-secrets-action/issues/46
       - name: Setup 1Password Connect
-        if: runner.os == 'Linux'
-        uses: 1password/load-secrets-action/configure@v1
+        uses: 1password/load-secrets-action/configure@v3
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
@@ -58,16 +54,13 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 8
+          run_install: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "18"
+          node-version: "20"
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
-
-      - name: Corepack
-        working-directory: bindings/nodejs
-        run: npm i -g --force corepack && corepack enable
 
       - name: Install dependencies
         working-directory: bindings/nodejs

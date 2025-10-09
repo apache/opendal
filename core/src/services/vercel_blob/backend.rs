@@ -27,14 +27,15 @@ use log::debug;
 use super::core::parse_blob;
 use super::core::Blob;
 use super::core::VercelBlobCore;
+use super::delete::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
-
 impl Configurator for VercelBlobConfig {
     type Builder = VercelBlobBuilder;
 
@@ -106,7 +107,6 @@ impl VercelBlobBuilder {
 }
 
 impl Builder for VercelBlobBuilder {
-    const SCHEME: Scheme = Scheme::VercelBlob;
     type Config = VercelBlobConfig;
 
     /// Builds the backend and returns the result of VercelBlobBackend.
@@ -127,7 +127,7 @@ impl Builder for VercelBlobBuilder {
             core: Arc::new(VercelBlobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::VercelBlob)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -143,6 +143,8 @@ impl Builder for VercelBlobBuilder {
 
                             list: true,
                             list_with_limit: true,
+
+                            delete: true,
 
                             shared: true,
 
@@ -174,7 +176,7 @@ impl Access for VercelBlobBackend {
     type Reader = HttpBody;
     type Writer = VercelBlobWriters;
     type Lister = oio::PageLister<VercelBlobLister>;
-    type Deleter = ();
+    type Deleter = oio::OneShotDeleter<VercelBlobDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -238,5 +240,12 @@ impl Access for VercelBlobBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = VercelBlobLister::new(self.core.clone(), path, args.limit());
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(VercelBlobDeleter::new(self.core.clone())),
+        ))
     }
 }

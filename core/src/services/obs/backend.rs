@@ -35,10 +35,10 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::*;
-
 impl Configurator for ObsConfig {
     type Builder = ObsBuilder;
 
@@ -154,7 +154,6 @@ impl ObsBuilder {
 }
 
 impl Builder for ObsBuilder {
-    const SCHEME: Scheme = Scheme::Obs;
     type Config = ObsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -233,7 +232,7 @@ impl Builder for ObsBuilder {
             core: Arc::new(ObsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Obs)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

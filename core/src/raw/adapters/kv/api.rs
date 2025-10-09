@@ -44,12 +44,7 @@ impl Scan for () {
 /// A Scan implementation for all trivial non-async iterators
 pub struct ScanStdIter<I>(I);
 
-#[cfg(any(
-    feature = "services-cloudflare-kv",
-    feature = "services-etcd",
-    feature = "services-rocksdb",
-    feature = "services-sled"
-))]
+#[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
 impl<I> ScanStdIter<I>
 where
     I: Iterator<Item = Result<String>> + Unpin + Send + Sync,
@@ -73,11 +68,11 @@ where
 pub type Scanner = Box<dyn ScanDyn>;
 
 pub trait ScanDyn: Unpin + Send + Sync {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>>;
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<String>>>;
 }
 
 impl<T: Scan + ?Sized> ScanDyn for T {
-    fn next_dyn(&mut self) -> BoxedFuture<Result<Option<String>>> {
+    fn next_dyn(&mut self) -> BoxedFuture<'_, Result<Option<String>>> {
         Box::pin(self.next())
     }
 }

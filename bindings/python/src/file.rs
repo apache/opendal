@@ -170,7 +170,7 @@ impl File {
             return Err(PyIOError::new_err("Buffer is not C contiguous."));
         }
 
-        Python::with_gil(|_py| {
+        Python::attach(|_py| {
             let ptr = buffer.buf_ptr();
             let nbytes = buffer.len_bytes();
             unsafe {
@@ -280,9 +280,9 @@ impl File {
 
     pub fn __exit__(
         &mut self,
-        _exc_type: PyObject,
-        _exc_value: PyObject,
-        _traceback: PyObject,
+        _exc_type: Py<PyAny>,
+        _exc_value: Py<PyAny>,
+        _traceback: Py<PyAny>,
     ) -> PyResult<()> {
         self.close()
     }
@@ -393,7 +393,7 @@ impl AsyncFile {
                 }
             };
 
-            Python::with_gil(|py| Buffer::new(buffer).into_bytes(py))
+            Python::attach(|py| Buffer::new(buffer).into_bytes(py))
         })
     }
 

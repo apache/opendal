@@ -33,11 +33,11 @@ use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
 use crate::*;
-
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
@@ -234,7 +234,6 @@ impl GcsBuilder {
 }
 
 impl Builder for GcsBuilder {
-    const SCHEME: Scheme = Scheme::Gcs;
     type Config = GcsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -308,7 +307,7 @@ impl Builder for GcsBuilder {
             core: Arc::new(GcsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Gcs)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

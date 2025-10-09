@@ -138,7 +138,7 @@ macro_rules! assert_snapshot {
 pub(crate) use assert_snapshot;
 
 pub const REPLACEMENTS: &[(&str, &str)] = &[
-    (r"/.*\.tmp[^/]+", "[TEMP_DIR]"), // New regex for specific /.tmpXXXX patterns
+    (r"(?:/|(\s))\S*\.tmp[^/]+", "$1[TEMP_DIR]"), // New regex for specific /.tmpXXXX patterns
     (
         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} UTC)",
         "[TIMESTAMP]",

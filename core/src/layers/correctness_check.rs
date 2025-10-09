@@ -271,6 +271,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
+            info.set_scheme("memory");
             info.set_native_capability(self.capability);
 
             info.into()

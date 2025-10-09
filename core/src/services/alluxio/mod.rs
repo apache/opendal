@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for alluxio service.
+#[cfg(feature = "services-alluxio")]
+pub(super) const DEFAULT_SCHEME: &str = "alluxio";
 #[cfg(feature = "services-alluxio")]
 mod core;
 #[cfg(feature = "services-alluxio")]

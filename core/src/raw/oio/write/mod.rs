@@ -17,6 +17,7 @@
 
 mod api;
 pub use api::Write;
+pub use api::WriteDyn;
 pub use api::Writer;
 
 mod multipart_write;

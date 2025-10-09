@@ -35,6 +35,10 @@ pub struct OssConfig {
     pub presign_endpoint: Option<String>,
     /// Bucket for oss.
     pub bucket: String,
+    /// Addressing style for oss.
+    pub addressing_style: Option<String>,
+    /// Pre sign addressing style for oss.
+    pub presign_addressing_style: Option<String>,
 
     /// is bucket versioning enabled for this bucket
     pub enable_versioning: bool,
@@ -49,9 +53,20 @@ pub struct OssConfig {
 
     // authenticate options
     /// Access key id for oss.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
     pub access_key_id: Option<String>,
     /// Access key secret for oss.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
     pub access_key_secret: Option<String>,
+    /// `security_token` will be loaded from
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+    pub security_token: Option<String>,
     /// The size of max batch operations.
     #[deprecated(
         since = "0.52.0",
@@ -62,6 +77,9 @@ pub struct OssConfig {
     pub delete_max_size: Option<usize>,
     /// If `role_arn` is set, we will use already known config as source
     /// credential to assume role with `role_arn`.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ROLE_ARN`]
     pub role_arn: Option<String>,
     /// role_session_name for this backend.
     pub role_session_name: Option<String>,

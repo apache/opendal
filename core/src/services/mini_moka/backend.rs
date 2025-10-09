@@ -26,12 +26,12 @@ use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::MiniMokaConfig;
 use crate::*;
-
 impl Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -103,7 +103,6 @@ impl MiniMokaBuilder {
 }
 
 impl Builder for MiniMokaBuilder {
-    const SCHEME: Scheme = Scheme::MiniMoka;
     type Config = MiniMokaConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -156,7 +155,7 @@ impl Access for MiniMokaBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::MiniMoka)
+        info.set_scheme(DEFAULT_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

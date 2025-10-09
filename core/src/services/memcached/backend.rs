@@ -85,7 +85,6 @@ impl MemcachedBuilder {
 }
 
 impl Builder for MemcachedBuilder {
-    const SCHEME: Scheme = Scheme::Memcached;
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Access> {

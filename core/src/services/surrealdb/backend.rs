@@ -144,7 +144,6 @@ impl SurrealdbBuilder {
 }
 
 impl Builder for SurrealdbBuilder {
-    const SCHEME: Scheme = Scheme::Surrealdb;
     type Config = SurrealdbConfig;
 
     fn build(self) -> Result<impl Access> {

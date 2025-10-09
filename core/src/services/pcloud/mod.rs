@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for pcloud service.
+#[cfg(feature = "services-pcloud")]
+pub(super) const DEFAULT_SCHEME: &str = "pcloud";
 #[cfg(feature = "services-pcloud")]
 mod core;
 #[cfg(feature = "services-pcloud")]

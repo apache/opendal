@@ -46,7 +46,7 @@ where
             info: {
                 let am: AccessorInfo = AccessorInfo::default();
                 am.set_root("/");
-                am.set_scheme(kv_info.scheme());
+                am.set_scheme(kv_info.scheme().into_static());
                 am.set_name(kv_info.name());
 
                 let kv_cap = kv_info.capabilities();

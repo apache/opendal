@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for huggingface service.
+#[cfg(feature = "services-huggingface")]
+pub(super) const DEFAULT_SCHEME: &str = "huggingface";
 #[cfg(feature = "services-huggingface")]
 mod core;
 #[cfg(feature = "services-huggingface")]

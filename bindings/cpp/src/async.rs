@@ -21,11 +21,12 @@ use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 
-#[cxx::bridge(namespace = "opendal::ffi::async")]
+#[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
     struct HashMapValue {
         key: String,
@@ -49,8 +50,6 @@ mod ffi {
 
     extern "Rust" {
         type Operator;
-        type Reader;
-        type Lister;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
         unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
@@ -61,7 +60,6 @@ mod ffi {
         unsafe fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
         unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
         unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_remove_all(op: OperatorPtr, path: String) -> RustFutureWrite;
         unsafe fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
         unsafe fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
 
@@ -73,60 +71,59 @@ mod ffi {
     }
 
     extern "C++" {
+        #[namespace = opendal::ffi::async_op]
         type RustFutureRead = super::RustFutureRead;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureWrite = super::RustFutureWrite;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureList = super::RustFutureList;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureBool = super::RustFutureBool;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureReaderId = super::RustFutureReaderId;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureListerId = super::RustFutureListerId;
+        #[namespace = opendal::ffi::async_op]
         type RustFutureEntryOption = super::RustFutureEntryOption;
     }
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureRead {
     type Output = Vec<u8>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureWrite {
     type Output = ();
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureList {
     type Output = Vec<String>;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureBool {
     type Output = bool;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureReaderId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureListerId {
     type Output = usize;
 }
 
-#[cxx_async::bridge(namespace = opendal::ffi::async)]
+#[cxx_async::bridge(namespace = opendal::ffi::async_op)]
 unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }
 
 pub struct Operator(od::Operator);
-pub struct Reader {
-    reader: Arc<od::Reader>,
-    id: usize,
-}
-pub struct Lister {
-    lister: Arc<Mutex<od::Lister>>,
-    id: usize,
-}
 
 // Global storage for readers and listers to avoid Send issues with raw pointers
 static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();
@@ -240,14 +237,6 @@ unsafe fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> Rus
 unsafe fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
     RustFutureWrite::fallible(async move {
         op.0.delete(&path)
-            .await
-            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
-}
-
-unsafe fn operator_remove_all(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
-    RustFutureWrite::fallible(async move {
-        op.0.remove_all(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })

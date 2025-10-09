@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "lib.rs.h"
 #include "data_structure.hpp"
+#include "lib.rs.h"
 
 namespace opendal::utils {
 

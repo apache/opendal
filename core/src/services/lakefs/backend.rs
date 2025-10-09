@@ -32,10 +32,10 @@ use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
+use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
-
 impl Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
     fn into_builder(self) -> Self::Builder {
@@ -126,7 +126,6 @@ impl LakefsBuilder {
 }
 
 impl Builder for LakefsBuilder {
-    const SCHEME: Scheme = Scheme::Lakefs;
     type Config = LakefsConfig;
 
     /// Build a LakefsBackend.
@@ -176,7 +175,7 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Lakefs)
+                    am.set_scheme(DEFAULT_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

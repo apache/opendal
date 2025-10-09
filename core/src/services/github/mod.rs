@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for github service.
+#[cfg(feature = "services-github")]
+pub(super) const DEFAULT_SCHEME: &str = "github";
 #[cfg(feature = "services-github")]
 mod core;
 #[cfg(feature = "services-github")]

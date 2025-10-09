@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for aliyun_drive service.
+#[cfg(feature = "services-aliyun-drive")]
+pub(super) const DEFAULT_SCHEME: &str = "aliyun_drive";
 #[cfg(feature = "services-aliyun-drive")]
 mod core;
 

@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
+use http::Uri;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -49,8 +51,6 @@ use crate::*;
 /// }
 /// ```
 pub trait Builder: Default + 'static {
-    /// Associated scheme for this builder. It indicates what underlying service is.
-    const SCHEME: Scheme;
     /// Associated configuration for this builder.
     type Config: Configurator;
 
@@ -60,7 +60,6 @@ pub trait Builder: Default + 'static {
 
 /// Dummy implementation of builder
 impl Builder for () {
-    const SCHEME: Scheme = Scheme::Custom("dummy");
     type Config = ();
 
     fn build(self) -> Result<impl Access> {
@@ -125,6 +124,11 @@ impl Builder for () {
 pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     /// Associated builder for this configuration.
     type Builder: Builder;
+
+    /// Build configuration from a URI plus merged options.
+    fn from_uri(_uri: &Uri, _options: &HashMap<String, String>) -> Result<Self> {
+        Err(Error::new(ErrorKind::Unsupported, "uri is not supported"))
+    }
 
     /// Deserialize from an iterator.
     ///

@@ -128,7 +128,6 @@ impl MongodbBuilder {
 }
 
 impl Builder for MongodbBuilder {
-    const SCHEME: Scheme = Scheme::Mongodb;
     type Config = MongodbConfig;
 
     fn build(self) -> Result<impl Access> {

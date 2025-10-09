@@ -101,10 +101,9 @@ impl oio::AppendWrite for AzdlsWriter {
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         if offset == 0 {
             let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
-            let meta = AzdlsWriter::parse_metadata(resp.headers())?;
             let status = resp.status();
             match status {
-                StatusCode::CREATED | StatusCode::OK => return Ok(meta),
+                StatusCode::CREATED | StatusCode::OK => {}
                 _ => {
                     return Err(parse_error(resp).with_operation("Backend::azdls_create_request"));
                 }

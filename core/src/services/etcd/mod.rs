@@ -16,7 +16,19 @@
 // under the License.
 
 #[cfg(feature = "services-etcd")]
+pub(super) const DEFAULT_SCHEME: &str = "etcd";
+#[cfg(feature = "services-etcd")]
 mod backend;
+#[cfg(feature = "services-etcd")]
+mod core;
+#[cfg(feature = "services-etcd")]
+mod deleter;
+#[cfg(feature = "services-etcd")]
+mod error;
+#[cfg(feature = "services-etcd")]
+mod lister;
+#[cfg(feature = "services-etcd")]
+mod writer;
 #[cfg(feature = "services-etcd")]
 pub use backend::EtcdBuilder as Etcd;
 

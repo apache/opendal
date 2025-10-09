@@ -15,28 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod backend;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod builder;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod core;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod delete;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod error;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod lister;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod reader;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
-mod writer;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
+mod async_create_dir;
+mod async_delete;
+mod async_list;
+mod async_read;
+mod async_write;
 mod utils;
 
-mod config;
-pub use config::OpfsConfig;
+use opendal::{services::OpfsConfig, Configurator, Operator};
+pub use utils::*;
+
+pub static TEST_FIXTURE: Fixture = Fixture::new();
+
+pub(crate) fn operator() -> Operator {
+    let builder = OpfsConfig::default().into_builder().root("/a/b/");
+    Operator::new(builder).unwrap().finish()
+}

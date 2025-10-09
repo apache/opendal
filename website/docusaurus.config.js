@@ -170,11 +170,9 @@ const config = {
               "generate:prepare": (ctx) => {
                 try {
                   // cargo rustdoc all features
-                  const config =
-                    crates_llms_txt.getLlmsConfigByRustdocAllFeatures(
-                      "stable",
-                      path.resolve(process.cwd(), "../core/Cargo.toml")
-                    );
+                  const config = crates_llms_txt.fromLocal(
+                    path.resolve(process.cwd(), "../core/Cargo.toml")
+                  );
                   if (!config) return;
 
                   const linkProcess = (link) => {
@@ -188,9 +186,9 @@ const config = {
 
                     return link.includes("source/src")
                       ? link.replace(
-                          /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
-                          "https://opendal.apache.org/docs/rust/src/opendal"
-                        ) + ".html"
+                        /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
+                        "https://opendal.apache.org/docs/rust/src/opendal"
+                      ) + ".html"
                       : link;
                   };
 

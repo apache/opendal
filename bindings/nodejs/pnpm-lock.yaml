@@ -9,8 +9,8 @@ devDependencies:
     specifier: ^3.468.0
     version: 3.859.0
   '@napi-rs/cli':
-    specifier: ^3.0.4
-    version: 3.0.4(@types/node@18.19.121)
+    specifier: ^3.1.3
+    version: 3.1.3(@types/node@18.19.121)
   '@swc-node/register':
     specifier: ^1.6.2
     version: 1.10.10(@swc/core@1.13.3)(@swc/types@0.1.23)(typescript@5.9.2)
@@ -1136,8 +1136,8 @@ packages:
     resolution: {integrity: sha512-VT2+G1VQs/9oz078bLrYbecdZKs912zQlkelYpuf+SXF+QvZDYJlbx/LSx+meSAwdDFnF8FVXW92AVjjkVmgFw==}
     dev: true
 
-  /@napi-rs/cli@3.0.4(@types/node@18.19.121):
-    resolution: {integrity: sha512-ilbCI69DVDQcIUSUB504LM1+Nhvo0jKycWAzzPJ22YwUoWrru/w0+V5sfjPINgkshQ4Ykv+oZOJXk9Kg1ZBUvg==}
+  /@napi-rs/cli@3.1.3(@types/node@18.19.121):
+    resolution: {integrity: sha512-4FOnH3cLPPKaFbngu5K5frlhpPwss3JHhHcwMA/zMWHYSe5krCFiYc0itxLfU2cI//Y0AjIloC+LzoPewBUx1g==}
     engines: {node: '>= 16'}
     hasBin: true
     peerDependencies:
@@ -1156,9 +1156,9 @@ packages:
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
       colorette: 2.0.20
       debug: 4.4.1
+      es-toolkit: 1.39.9
       find-up: 7.0.0
       js-yaml: 4.1.0
-      lodash-es: 4.17.21
       semver: 7.7.2
       typanion: 3.14.0
     transitivePeerDependencies:
@@ -3058,6 +3058,10 @@ packages:
     resolution: {integrity: sha512-jEQoCwk8hyb2AZziIOLhDqpm5+2ww5uIE6lkO/6jcOCusfk6LhMHpXXfBLXTZ7Ydyt0j4VoUQv6uGNYbdW+kBA==}
     dev: true
 
+  /es-toolkit@1.39.9:
+    resolution: {integrity: sha512-9OtbkZmTA2Qc9groyA1PUNeb6knVTkvB2RSdr/LcJXDL8IdEakaxwXLHXa7VX/Wj0GmdMJPR3WhnPGhiP3E+qg==}
+    dev: true
+
   /esbuild@0.25.8:
     resolution: {integrity: sha512-vVC0USHGtMi8+R4Kz8rt6JhEWLxsv9Rnu/lGYbPR8u47B+DCBksq9JarW0zOO7bs37hyOK1l2/oqtbciutL5+Q==}
     engines: {node: '>=18'}
@@ -3231,10 +3235,6 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       p-locate: 6.0.0
-    dev: true
-
-  /lodash-es@4.17.21:
-    resolution: {integrity: sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==}
     dev: true
 
   /lodash.get@4.4.2:

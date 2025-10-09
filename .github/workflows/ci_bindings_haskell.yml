@@ -43,7 +43,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Haskell toolchain (ghc-9.4.8)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -122,7 +122,7 @@ jobs:
 #          name: bindings-haskell-sdist
 #      - name: Load secret
 #        id: op-load-secret
-#        uses: 1password/load-secrets-action@v2
+#        uses: 1password/load-secrets-action@13f58eec611f8e5db52ec16247f58c508398f3e6 # v3
 #        with:
 #          export-env: true
 #        env:

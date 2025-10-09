@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: Release Python
+name: Release Python Binding
 
 on:
   push:
@@ -39,7 +39,7 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
@@ -65,7 +65,7 @@ jobs:
           - { os: ubuntu-latest, target: "aarch64-unknown-linux-musl", manylinux: "musllinux_1_1" }
           - { os: ubuntu-latest, target: "armv7-unknown-linux-musleabihf", manylinux: "musllinux_1_1" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
@@ -107,7 +107,7 @@ jobs:
       id-token: write
     needs: [sdist, wheels]
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           pattern: wheels-*
           merge-multiple: true

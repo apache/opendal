@@ -778,14 +778,6 @@ pub struct DeleteObjectsResultDeleted {
 }
 
 #[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DeleteObjectsResultError {
-    pub code: String,
-    pub key: String,
-    pub message: String,
-}
-
-#[derive(Default, Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct InitiateMultipartUploadResult {
     #[cfg(test)]

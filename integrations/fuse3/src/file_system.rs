@@ -139,7 +139,7 @@ impl Filesystem {
         &self,
         key: FileKey,
         path: Option<&OsStr>,
-    ) -> Result<sharded_slab::Entry<OpenedFile>> {
+    ) -> Result<sharded_slab::Entry<'_, OpenedFile>> {
         let file = self
             .opened_files
             .get(key.0)

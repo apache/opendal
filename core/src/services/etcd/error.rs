@@ -14,3 +14,13 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
+use etcd_client::Error as EtcdError;
+
+use crate::{Error, ErrorKind};
+
+pub fn format_etcd_error(e: EtcdError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+        .set_source(e)
+        .set_temporary()
+}

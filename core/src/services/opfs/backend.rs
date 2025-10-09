@@ -17,9 +17,11 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use web_sys::FileSystemGetDirectoryOptions;
 
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
+use super::utils::*;
+use crate::raw::*;
+use crate::Result;
 
 /// OPFS Service backend
 #[derive(Default, Debug, Clone)]
@@ -34,15 +36,15 @@ impl Access for OpfsBackend {
 
     type Deleter = ();
 
-    type BlockingReader = ();
-
-    type BlockingWriter = ();
-
-    type BlockingLister = ();
-
-    type BlockingDeleter = ();
-
     fn info(&self) -> Arc<AccessorInfo> {
         Arc::new(AccessorInfo::default())
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let opt = FileSystemGetDirectoryOptions::new();
+        opt.set_create(true);
+        get_directory_handle(path, &opt).await?;
+
+        Ok(RpCreateDir::default())
     }
 }

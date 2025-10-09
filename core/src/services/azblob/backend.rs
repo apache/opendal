@@ -326,6 +326,9 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
+        #[cfg(target_arch = "wasm32")]
+        let mut config_loader = AzureStorageConfig::default();
+        #[cfg(not(target_arch = "wasm32"))]
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self
@@ -338,6 +341,16 @@ impl Builder for AzblobBuilder {
         }
 
         if let Some(v) = self.config.account_key.clone() {
+            // Validate that account_key can be decoded as base64
+            if let Err(e) = BASE64_STANDARD.decode(&v) {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    format!("invalid account_key: cannot decode as base64: {e}"),
+                )
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)
+                .with_context("key", "account_key"));
+            }
             config_loader.account_key = Some(v);
         }
 

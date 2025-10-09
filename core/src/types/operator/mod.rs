@@ -28,3 +28,6 @@ mod info;
 pub use info::OperatorInfo;
 
 pub mod operator_futures;
+
+mod registry;
+pub use registry::{OperatorFactory, OperatorRegistry, DEFAULT_OPERATOR_REGISTRY};

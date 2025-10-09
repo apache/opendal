@@ -104,6 +104,21 @@ impl OssBuilder {
         self
     }
 
+    /// Set addressing style for the endpoint.
+    ///
+    /// Available values: `virtual`, `cname`, `path`.
+    ///
+    /// - `virtual`: Use virtual addressing style, i.e. `http://bucket.oss-<region>.aliyuncs.com/object`
+    /// - `cname`: Use cname addressing style, i.e. `http://mydomain.com/object` with mydomain.com bound to your bucket.
+    /// - `path`: Use path addressing style. i.e. `http://oss-<region>.aliyuncs.com/bucket/object`
+    ///
+    /// - If not set, default value is `virtual`.
+    pub fn addressing_style(mut self, addressing_style: &str) -> Self {
+        self.config.addressing_style = Some(addressing_style.to_string());
+
+        self
+    }
+
     /// Set bucket versioning status for this backend
     pub fn enable_versioning(mut self, enabled: bool) -> Self {
         self.config.enable_versioning = enabled;
@@ -124,6 +139,19 @@ impl OssBuilder {
             // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
             self.config.presign_endpoint = Some(endpoint.trim_end_matches('/').to_string())
         }
+
+        self
+    }
+
+    /// Set addressing style for presign endpoint.
+    ///
+    /// Similar to setting addressing style for endpoint.
+    ///
+    /// - If both presign_endpoint and presign_addressing_style are not set, they are the same as endpoint's configurations.
+    ///
+    /// - If presign_endpoint is set, but presign_addressing_style is not set, default value is `virtual`.
+    pub fn presign_addressing_style(mut self, addressing_style: &str) -> Self {
+        self.config.presign_addressing_style = Some(addressing_style.to_string());
 
         self
     }
@@ -152,6 +180,18 @@ impl OssBuilder {
         self
     }
 
+    /// Set security_token for this backend.
+    ///
+    /// - If security_token is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    pub fn security_token(mut self, security_token: &str) -> Self {
+        if !security_token.is_empty() {
+            self.config.security_token = Some(security_token.to_string())
+        }
+
+        self
+    }
+
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -166,7 +206,12 @@ impl OssBuilder {
     }
 
     /// preprocess the endpoint option
-    fn parse_endpoint(&self, endpoint: &Option<String>, bucket: &str) -> Result<(String, String)> {
+    fn parse_endpoint(
+        &self,
+        endpoint: &Option<String>,
+        bucket: &str,
+        addressing_style: AddressingStyle,
+    ) -> Result<(String, String)> {
         let (endpoint, host) = match endpoint.clone() {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
@@ -180,7 +225,23 @@ impl OssBuilder {
                         .with_context("service", Scheme::Oss)
                         .with_context("endpoint", &ep)
                 })?;
-                let full_host = if let Some(port) = uri.port_u16() {
+                let full_host = match addressing_style {
+                    AddressingStyle::Virtual => {
+                        if let Some(port) = uri.port_u16() {
+                            format!("{bucket}.{host}:{port}")
+                        } else {
+                            format!("{bucket}.{host}")
+                        }
+                    }
+                    AddressingStyle::Cname | AddressingStyle::Path => {
+                        if let Some(port) = uri.port_u16() {
+                            format!("{host}:{port}")
+                        } else {
+                            host.to_string()
+                        }
+                    }
+                };
+                if let Some(port) = uri.port_u16() {
                     format!("{bucket}.{host}:{port}")
                 } else {
                     format!("{bucket}.{host}")
@@ -197,6 +258,10 @@ impl OssBuilder {
                         }
                     },
                     None => format!("https://{full_host}"),
+                };
+                let endpoint = match addressing_style {
+                    AddressingStyle::Path => format!("{}/{}", endpoint, bucket),
+                    AddressingStyle::Cname | AddressingStyle::Virtual => endpoint,
                 };
                 (endpoint, full_host)
             }
@@ -317,6 +382,30 @@ impl OssBuilder {
     }
 }
 
+enum AddressingStyle {
+    Path,
+    Cname,
+    Virtual,
+}
+
+impl TryFrom<&Option<String>> for AddressingStyle {
+    type Error = Error;
+
+    fn try_from(value: &Option<String>) -> Result<Self> {
+        match value.as_deref() {
+            None | Some("virtual") => Ok(AddressingStyle::Virtual),
+            Some("path") => Ok(AddressingStyle::Path),
+            Some("cname") => Ok(AddressingStyle::Cname),
+            Some(v) => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "Invalid addressing style, available: `virtual`, `path`, `cname`",
+            )
+            .with_context("service", Scheme::Oss)
+            .with_context("addressing_style", v)),
+        }
+    }
+}
+
 impl Builder for OssBuilder {
     type Config = OssConfig;
 
@@ -337,12 +426,20 @@ impl Builder for OssBuilder {
 
         // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
         // set, take endpoint as default presign_endpoint.
-        let (endpoint, host) = self.parse_endpoint(&self.config.endpoint, bucket)?;
+        let (endpoint, host) = self.parse_endpoint(
+            &self.config.endpoint,
+            bucket,
+            (&self.config.addressing_style).try_into()?,
+        )?;
         debug!("backend use bucket {}, endpoint: {}", &bucket, &endpoint);
 
         let presign_endpoint = if self.config.presign_endpoint.is_some() {
-            self.parse_endpoint(&self.config.presign_endpoint, bucket)?
-                .0
+            self.parse_endpoint(
+                &self.config.presign_endpoint,
+                bucket,
+                (&self.config.presign_addressing_style).try_into()?,
+            )?
+            .0
         } else {
             endpoint.clone()
         };
@@ -374,6 +471,10 @@ impl Builder for OssBuilder {
 
         if let Some(v) = self.config.access_key_secret {
             cfg.access_key_secret = Some(v);
+        }
+
+        if let Some(v) = self.config.security_token {
+            cfg.security_token = Some(v);
         }
 
         if let Some(v) = self.config.role_arn {

@@ -1,10 +1,6 @@
 {
   "name": "@opendal/lib-darwin-arm64",
-  "repository": "git@github.com/apache/opendal.git",
-  "version": "0.49.0",
-  "os": [
-    "darwin"
-  ],
+  "version": "0.49.1",
   "cpu": [
     "arm64"
   ],
@@ -12,8 +8,37 @@
   "files": [
     "opendal.darwin-arm64.node"
   ],
+  "description": "Apache OpenDAL: One Layer, All Storage.",
+  "keywords": [
+    "api",
+    "fs",
+    "file system",
+    "gcs",
+    "ghac",
+    "http",
+    "ipmfs",
+    "memory",
+    "obs",
+    "oss",
+    "s3",
+    "storage",
+    "webdav",
+    "webhdfs"
+  ],
+  "author": "Apache OpenDAL <dev@opendal.apache.org>",
   "license": "Apache-2.0",
   "engines": {
     "node": ">= 10"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/apache/opendal.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  },
+  "os": [
+    "darwin"
+  ]
 }

@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -61,7 +61,7 @@ jobs:
         run: |
           rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -82,9 +82,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -103,14 +103,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4
         with:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: pnpm
@@ -138,16 +138,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -170,7 +170,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -198,7 +198,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -222,7 +222,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup lua-ldoc
         run: sudo apt-get install lua-ldoc
@@ -241,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -310,7 +310,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Cache OPAM dependencies
         uses: actions/cache@v4
@@ -355,7 +355,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -378,7 +378,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -402,7 +402,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -425,7 +425,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -448,7 +448,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -471,7 +471,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -513,7 +513,7 @@ jobs:
       - build-parquet-opendal-doc
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -522,7 +522,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "20"
           cache: pnpm
@@ -533,91 +533,91 @@ jobs:
         run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download ruby docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ruby-docs
           path: ./website/static/docs/ruby
 
       - name: Download java docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml
 
       - name: Download object-store-opendal docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
 
       - name: Download dav-server-opendalfs docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
       - name: Download fuse3-opendal docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: fuse3-opendal-docs
           path: ./website/static/docs/fuse3-opendal
 
       - name: Download unftp-sbe-opendal docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal
 
       - name: Download virtiofs-opendal docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: virtiofs-opendal-docs
           path: ./website/static/docs/virtiofs-opendal

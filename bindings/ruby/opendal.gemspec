@@ -57,6 +57,11 @@ Gem::Specification.new do |spec|
       (File.expand_path(f) == __FILE__) || f.start_with?(*%w[gems/ pkg/ target/ tmp/ .git]) || f == "core"
     end
 
+    # Copy core directory
+    src = "../../core"
+    dst = "./core"
+    `cp -RL #{src} #{dst}`
+
     # Include core directory files, excluding symlinks
     core_files = Dir.chdir("./core") do
       `git ls-files -z`.split("\x0").reject do |f|

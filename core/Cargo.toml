@@ -238,11 +238,11 @@ required-features = ["tests"]
 
 [dependencies]
 # Required dependencies
-anyhow = { version = "1.0.30", features = ["std"] }
+anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.5", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
-chrono = { version = "0.4.28", default-features = false, features = [
+chrono = { version = "0.4.42", default-features = false, features = [
   "clock",
   "std",
 ] }
@@ -256,7 +256,7 @@ log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
-reqwest = { version = "0.12.22", features = [
+reqwest = { version = "0.12.23", features = [
   "stream",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
@@ -294,7 +294,7 @@ cacache = { version = "13.0", default-features = false, features = [
 # for services-dashmap
 dashmap = { version = "6", optional = true }
 # for services-etcd
-etcd-client = { version = "0.16", optional = true, features = ["tls"] }
+etcd-client = { version = "0.17", optional = true, features = ["tls"] }
 # for services-foundationdb
 foundationdb = { version = "0.9.0", features = [
   "embedded-fdb-include",
@@ -311,7 +311,7 @@ mini-moka = { version = "0.10", optional = true }
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb
-mongodb = { version = "3.2.4", optional = true }
+mongodb = { version = "3.3.0", optional = true }
 mongodb-internal-macros = { version = "3.2.4", optional = true }
 # for services-sftp
 openssh = { version = "0.11.0", optional = true }
@@ -320,7 +320,7 @@ openssh-sftp-client = { version = "0.15.3", optional = true, features = [
   "tracing",
 ] }
 # for services-persy
-persy = { version = "1.4.6", optional = true }
+persy = { version = "1.7.1", optional = true }
 # for services-redb
 redb = { version = "2", optional = true }
 # for services-redis
@@ -344,11 +344,11 @@ suppaftp = { version = "6.3.0", default-features = false, features = [
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
 # for services-hdfs-native
-hdfs-native = { version = "0.11", optional = true }
+hdfs-native = { version = "0.12", optional = true }
 # for services-surrealdb
 surrealdb = { version = "2", optional = true, features = ["protocol-http"] }
 # for services-compfs
-compio = { version = "0.15.0", optional = true, features = [
+compio = { version = "0.16.0", optional = true, features = [
   "runtime",
   "bytes",
   "polling",
@@ -387,7 +387,7 @@ async-backtrace = { version = "0.2.6", optional = true }
 # for layers-await-tree
 await-tree = { version = "0.3", optional = true }
 # for layers-throttle
-governor = { version = "0.10.0", optional = true, features = ["std"] }
+governor = { version = "0.10.1", optional = true, features = ["std"] }
 # for layers-metrics
 metrics = { version = "0.24", optional = true }
 # for layers-mime-guess
@@ -395,13 +395,13 @@ mime_guess = { version = "2.0.5", optional = true }
 # for layers-fastrace
 fastrace = { version = "0.7.14", optional = true }
 # for layers-opentelemetry
-opentelemetry = { version = "0.30.0", optional = true }
+opentelemetry = { version = "0.31.0", optional = true }
 # for layers-prometheus
 prometheus = { version = "0.14", features = ["process"], optional = true }
 # for layers-prometheus-client
 prometheus-client = { version = "0.24", optional = true }
 # for fastmetrics
-fastmetrics = { version = "0.4.0", optional = true }
+fastmetrics = { version = "0.4.1", optional = true }
 # for layers-tracing
 tracing = { version = "0.1", optional = true }
 # for layers-dtrace
@@ -411,7 +411,7 @@ probe = { version = "0.5.1", optional = true }
 backon = { version = "1.2", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
 tokio = { version = "1.46", features = ["time"] }
-uuid = { version = "1.17", features = ["serde", "v4", "js"] }
+uuid = { version = "1.18", features = ["serde", "v4", "js"] }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
@@ -420,17 +420,17 @@ dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
 libtest-mimic = "0.8"
-opentelemetry = { version = "0.30.0", default-features = false, features = [
+opentelemetry = { version = "0.31.0", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-otlp = { version = "0.30.0", features = ["grpc-tonic"] }
-opentelemetry_sdk = { version = "0.30.0", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.5"
 tokio = { version = "1.47", features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.31.0"
+tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

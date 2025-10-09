@@ -36,6 +36,7 @@ use crate::services::FsConfig;
 use crate::*;
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
+
     fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
         let mut map = options.clone();
 
@@ -58,6 +59,7 @@ impl Configurator for FsConfig {
 
         Self::from_iter(map)
     }
+
     fn into_builder(self) -> Self::Builder {
         FsBuilder { config: self }
     }

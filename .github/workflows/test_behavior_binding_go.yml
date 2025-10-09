@@ -36,11 +36,11 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           path: "opendal"
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: "apache/opendal-go-services"
           path: "opendal-go-services"
@@ -57,7 +57,7 @@ jobs:
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
           cache-dependency-path: |

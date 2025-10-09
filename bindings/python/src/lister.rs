@@ -40,7 +40,7 @@ impl BlockingLister {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
+    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
         match slf.0.next() {
             Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(slf.py())?)),
             Some(Err(err)) => {
@@ -66,13 +66,13 @@ impl AsyncLister {
     fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<PyObject>> {
+    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
         let lister = slf.0.clone();
         let fut = future_into_py(slf.py(), async move {
             let mut lister = lister.lock().await;
             let entry = lister.try_next().await.map_err(format_pyerr)?;
             match entry {
-                Some(entry) => Python::with_gil(|py| {
+                Some(entry) => Python::attach(|py| {
                     let py_obj = Entry::new(entry).into_py_any(py)?;
                     Ok(Some(py_obj))
                 }),

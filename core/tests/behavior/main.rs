@@ -72,7 +72,8 @@ fn main() -> anyhow::Result<()> {
     let conclusion = libtest_mimic::run(&args, tests);
 
     // Cleanup the fixtures.
-    TEST_RUNTIME.block_on(TEST_FIXTURE.cleanup(op));
+    TEST_RUNTIME.block_on(TEST_FIXTURE.cleanup(op.clone()));
+    drop(op);
 
     conclusion.exit()
 }

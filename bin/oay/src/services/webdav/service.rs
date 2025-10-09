@@ -53,7 +53,7 @@ impl WebdavService {
             async move { Ok::<_, Infallible>(webdav_server.handle(req).await) }
         });
 
-        let app = Router::new().route("/*path", any_service(webdav_service));
+        let app = Router::new().route("/{*path}", any_service(webdav_service));
 
         let listener = tokio::net::TcpListener::bind(&webdav_cfg.addr)
             .await

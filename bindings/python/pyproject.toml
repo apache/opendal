@@ -20,16 +20,20 @@ build-backend = "maturin"
 requires = ["maturin>=1.0,<2.0"]
 
 [project]
-classifiers = [
-  "Programming Language :: Rust",
-  "Programming Language :: Python :: Implementation :: CPython",
-]
+name = "opendal"
 description = "Apache OpenDAL™ Python Binding"
 license = { text = "Apache-2.0" }
-name = "opendal"
 readme = "README.md"
 requires-python = ">=3.10"
-
+classifiers = [
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: Unix",
+  "Intended Audience :: Developers",
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Typing :: Typed",
+]
 dynamic = ['version']
 
 [project.urls]
@@ -46,7 +50,11 @@ benchmark = [
   "greenlet>=3.1.1",
   "pydantic>=2.10.6",
 ]
-dev = ["maturin>=1.8.2"]
+dev = [
+  "dprint-py>=0.50.2.0",
+  "maturin>=1.8.2",
+  "mbake>=1.4.1",
+]
 docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 lint = ["ruff>=0.9.10"]
 test = [
@@ -60,7 +68,6 @@ test = [
 features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
-strip = true
 
 [tool.uv]
 cache-keys = [
@@ -69,23 +76,3 @@ cache-keys = [
   { file = "src/**/*.rs" },
   { file = "../../core/**/*.rs" },
 ]
-
-[tool.ruff]
-line-length = 88
-fix = true
-
-[tool.ruff.lint]
-ignore = ["E402", "F403", "F405"]
-select = ["E", "F", "I"]
-
-[tool.ruff.lint.pycodestyle]
-max-doc-length = 88
-
-[tool.ruff.lint.pydocstyle]
-convention = "numpy"
-
-[tool.ruff.format]
-docstring-code-format = true
-
-[tool.ruff.lint.isort]
-known-first-party = ["opendal"]

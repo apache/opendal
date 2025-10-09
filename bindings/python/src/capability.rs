@@ -17,9 +17,16 @@
 
 use pyo3::prelude::*;
 
-/// Capability is used to describe what operations are supported
-/// by current Operator.
-#[pyclass(get_all, module = "opendal")]
+/// Capability defines the supported operations and their constraints for a storage Operator.
+///
+/// This structure provides a comprehensive description of an Operator's
+/// capabilities, including:
+///
+/// - Basic operations support (read, write, delete, etc.)
+/// - Advanced operation variants (conditional operations, metadata handling)
+/// - Operational constraints (size limits, batch limitations)
+#[crate::gen_stub_pyclass]
+#[pyclass(get_all, module = "opendal.capability")]
 pub struct Capability {
     /// If operator supports stat.
     pub stat: bool,
@@ -72,12 +79,15 @@ pub struct Capability {
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
     /// Maximum size supported for multipart uploads.
+    ///
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
     /// Minimum size required for multipart uploads (except for the last part).
+    ///
     /// For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: Option<usize>,
     /// Maximum total size supported for write operations.
+    ///
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
 

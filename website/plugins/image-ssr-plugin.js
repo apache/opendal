@@ -19,11 +19,22 @@
 
 const path = require("path");
 const fs = require("fs/promises");
+const { pipeline } = require("stream/promises");
 const { createHash } = require("crypto");
 const cheerio = require("cheerio");
+const os = require("os");
 
 module.exports = function (_context) {
   const processedImages = new Map();
+
+  const IMAGE_URL_PATTERNS = [
+    /"(https?:\/\/[^"]+\.(png|jpg|jpeg|gif|svg|webp))"/g,
+    /"(https?:\/\/img\.shields\.io\/[^"]+)"/g,
+    /"(https?:\/\/github\.com\/[^"]+\/actions\/workflow[^"]+)"/g,
+    /'(https?:\/\/[^']+\.(png|jpg|jpeg|gif|svg|webp))'/g,
+    /'(https?:\/\/img\.shields\.io\/[^']+)'/g,
+    /'(https?:\/\/github\.com\/[^']+\/actions\/workflow[^']+)'/g,
+  ];
 
   function getImageFilename(imageUrl) {
     const hash = createHash("md5").update(imageUrl).digest("hex");
@@ -55,7 +66,7 @@ module.exports = function (_context) {
     );
   }
 
-  async function downloadImage(imageUrl, buildDir) {
+  async function downloadImage(imageUrl, buildDir, retries = 3) {
     if (processedImages.has(imageUrl)) {
       return processedImages.get(imageUrl);
     }
@@ -71,31 +82,41 @@ module.exports = function (_context) {
       if (!(await existsAsync(buildOutputPath))) {
         console.log(`Downloading image: ${imageUrl}`);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        let lastError;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          try {
+            const response = await fetch(imageUrl, {
+              signal: AbortSignal.timeout(30000),
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+              },
+              redirect: "follow",
+            });
 
-        try {
-          const response = await fetch(imageUrl, {
-            signal: controller.signal,
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
-            },
-            redirect: "follow",
-          });
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
 
-          clearTimeout(timeoutId);
+            const fd = await fs.open(buildOutputPath, "w");
+            await pipeline(response.body, fd.createWriteStream());
+            lastError = null;
+            break;
+          } catch (fetchError) {
+            lastError = fetchError;
 
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+            // Clean up potentially corrupted file
+            try {
+              await fs.unlink(buildOutputPath);
+            } catch {
+              // Ignore if file doesn't exist
+            }
           }
+        }
 
-          const buffer = await response.arrayBuffer();
-          await fs.writeFile(buildOutputPath, Buffer.from(buffer));
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          throw fetchError;
+        if (lastError) {
+          throw lastError;
         }
       }
 
@@ -108,142 +129,179 @@ module.exports = function (_context) {
     }
   }
 
-  async function processJSFiles(outDir) {
-    console.log("Processing JS files for external images...");
+  async function pLimit(concurrency, tasks) {
+    const results = [];
+    const executing = [];
 
+    for (const task of tasks) {
+      const p = Promise.resolve().then(() => task());
+      results.push(p);
+
+      if (concurrency <= tasks.length) {
+        const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+        executing.push(e);
+        if (executing.length >= concurrency) {
+          await Promise.race(executing);
+        }
+      }
+    }
+
+    return Promise.all(results);
+  }
+
+  async function processFiles(dir) {
+    const htmlFiles = [];
     const jsFiles = [];
 
-    async function findJSFiles(dir) {
+    async function findFiles(dir) {
       const entries = await fs.readdir(dir, { withFileTypes: true });
 
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          await findJSFiles(fullPath);
+          await findFiles(fullPath);
         } else if (entry.name.endsWith(".js")) {
           jsFiles.push(fullPath);
+        } else if (entry.name.endsWith(".html")) {
+          htmlFiles.push(fullPath);
         }
       }
     }
 
-    await findJSFiles(outDir);
+    await findFiles(dir);
 
+    console.log(
+      `Collecting images from ${htmlFiles.length} HTML and ${jsFiles.length} JS files...`
+    );
+    const allImageUrls = new Set();
+
+    await Promise.all([
+      collectImagesFromHtml(htmlFiles, allImageUrls),
+      collectImagesFromJs(jsFiles, allImageUrls),
+    ]);
+
+    console.log(`Downloading ${allImageUrls.size} unique images...`);
+    const downloadTasks = Array.from(allImageUrls).map(
+      (url) => () => downloadImage(url, dir)
+    );
+
+    const cpuCount = os.cpus().length;
+    const concurrency = Math.min(Math.max(cpuCount * 5, 10), 30);
+    console.log(
+      `Using ${concurrency} concurrent downloads (CPU cores: ${cpuCount})`
+    );
+
+    await pLimit(concurrency, downloadTasks);
+
+    console.log("Updating files with local image URLs...");
+    await Promise.all([processHtmlFiles(htmlFiles), processJSFiles(jsFiles)]);
+  }
+
+  async function traverseHtmlFiles(htmlFiles, handler) {
+    for (const htmlFile of htmlFiles) {
+      const html = await fs.readFile(htmlFile, "utf8");
+      const $ = cheerio.load(html);
+
+      const result = handler(htmlFile, $);
+
+      if (result?.shouldWrite) {
+        await fs.writeFile(htmlFile, $.html());
+      }
+    }
+  }
+
+  async function traverseJsFiles(jsFiles, handler) {
     for (const jsFile of jsFiles) {
       const content = await fs.readFile(jsFile, "utf8");
+
+      const result = handler(content);
+
+      if (result?.newContent && result.newContent !== content) {
+        await fs.writeFile(jsFile, result.newContent);
+      }
+    }
+  }
+
+  async function collectImagesFromHtml(htmlFiles, imageUrls) {
+    await traverseHtmlFiles(htmlFiles, (_, $) => {
+      $("img").each((_, el) => {
+        const src = $(el).attr("src");
+        if (src && src.startsWith("http")) {
+          imageUrls.add(src);
+        }
+      });
+    });
+  }
+
+  async function collectImagesFromJs(jsFiles, imageUrls) {
+    await traverseJsFiles(jsFiles, (content) => {
+      for (const pattern of IMAGE_URL_PATTERNS) {
+        const matches = Array.from(content.matchAll(pattern));
+        for (const match of matches) {
+          if (match[1]) imageUrls.add(match[1]);
+        }
+      }
+    });
+  }
+
+  async function processHtmlFiles(htmlFiles) {
+    await traverseHtmlFiles(htmlFiles, (_, $) => {
       let modified = false;
+
+      $("img").each((_, img) => {
+        const element = $(img);
+        const imageUrl = element.attr("src");
+
+        if (imageUrl && imageUrl.startsWith("http")) {
+          const localUrl = processedImages.get(imageUrl);
+          if (localUrl && localUrl !== imageUrl) {
+            element.attr("src", localUrl);
+            modified = true;
+          }
+        }
+      });
+
+      return { shouldWrite: modified };
+    });
+  }
+
+  async function processJSFiles(jsFiles) {
+    await traverseJsFiles(jsFiles, (content) => {
       let newContent = content;
-
-      // Look for shield.io and other image URLs with a more comprehensive regex
-      const urlPatterns = [
-        /"(https?:\/\/[^"]+\.(png|jpg|jpeg|gif|svg|webp))"/g,
-        /"(https?:\/\/img\.shields\.io\/[^"]+)"/g,
-        /"(https?:\/\/github\.com\/[^"]+\/actions\/workflow[^"]+)"/g,
-        /'(https?:\/\/[^']+\.(png|jpg|jpeg|gif|svg|webp))'/g,
-        /'(https?:\/\/img\.shields\.io\/[^']+)'/g,
-        /'(https?:\/\/github\.com\/[^']+\/actions\/workflow[^']+)'/g,
-      ];
-
       const allReplacements = [];
 
-      for (const pattern of urlPatterns) {
+      for (const pattern of IMAGE_URL_PATTERNS) {
         const matches = Array.from(newContent.matchAll(pattern));
 
         for (const match of matches) {
           const imageUrl = match[1];
           if (!imageUrl) continue;
 
-          try {
-            const localUrl = await downloadImage(imageUrl, outDir);
-            if (localUrl !== imageUrl) {
-              allReplacements.push({
-                original: match[0],
-                replacement: match[0].replace(imageUrl, localUrl),
-              });
-              modified = true;
-            }
-          } catch (error) {
-            console.error(`Error processing URL in JS file: ${error.message}`);
+          const localUrl = processedImages.get(imageUrl);
+          if (localUrl && localUrl !== imageUrl) {
+            allReplacements.push({
+              original: match[0],
+              replacement: match[0].replace(imageUrl, localUrl),
+            });
           }
         }
       }
 
-      // Apply replacements from longest to shortest to avoid partial replacements
       allReplacements.sort((a, b) => b.original.length - a.original.length);
 
       for (const { original, replacement } of allReplacements) {
         newContent = newContent.replace(original, replacement);
       }
 
-      if (modified) {
-        await fs.writeFile(jsFile, newContent);
-      }
-    }
+      return { newContent };
+    });
   }
 
   return {
     name: "docusaurus-ssr-image-plugin",
 
     async postBuild({ outDir }) {
-      console.log("Processing HTML files for external images...");
-
-      const htmlFiles = [];
-
-      async function findHtmlFiles(dir) {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            await findHtmlFiles(fullPath);
-          } else if (entry.name.endsWith(".html")) {
-            htmlFiles.push(fullPath);
-          }
-        }
-      }
-
-      await findHtmlFiles(outDir);
-
-      for (const htmlFile of htmlFiles) {
-        const html = await fs.readFile(htmlFile, "utf8");
-        let $ = cheerio.load(html);
-        let modified = false;
-
-        const externalImages = $("img").filter((_, el) => {
-          const src = $(el).attr("src");
-          return src && src.startsWith("http");
-        });
-
-        if (externalImages.length === 0) continue;
-
-        const downloadPromises = [];
-
-        externalImages.each((_, img) => {
-          const element = $(img);
-          const imageUrl = element.attr("src");
-
-          if (!imageUrl || !imageUrl.startsWith("http")) return;
-
-          downloadPromises.push(
-            downloadImage(imageUrl, outDir)
-              .then((localUrl) => {
-                if (localUrl !== imageUrl) {
-                  element.attr("src", localUrl);
-                  modified = true;
-                }
-              })
-              .catch(() => {})
-          );
-        });
-
-        await Promise.all(downloadPromises);
-
-        if (modified) {
-          await fs.writeFile(htmlFile, $.html());
-        }
-      }
-
-      // Process JS files to update image references in bundled JavaScript
-      await processJSFiles(outDir);
+      await processFiles(outDir);
 
       console.log(`Processed ${processedImages.size} external images`);
     },

@@ -41,22 +41,24 @@ pub fn parse_datetime_from_rfc2822(s: &str) -> Result<Timestamp> {
 /// With a time zone:
 ///
 /// ```
+/// use jiff::tz::TimeZone;
 /// use opendal::raw::parse_datetime_from_rfc3339;
 /// use opendal::Error;
 ///
 /// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09+09:00")?;
-/// assert_eq!(date_time.date_naive().day(), 28);
+/// assert_eq!(date_time.to_zoned(TimeZone::UTC).day(), 28);
 /// # Ok::<(), Error>(())
 /// ```
 ///
 /// With the UTC offset of 00:00:
 ///
 /// ```
-/// # use opendal::Error;
-/// # use opendal::raw::parse_datetime_from_rfc3339;
+/// use jiff::tz::TimeZone;
+/// use opendal::Error;
+/// use opendal::raw::parse_datetime_from_rfc3339;
 ///
 /// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09Z")?;
-/// assert_eq!(date_time.hour(), 21);
+/// assert_eq!(date_time.to_zoned(TimeZone::UTC).hour(), 21);
 /// # Ok::<(), Error>(())
 /// ```
 pub fn parse_datetime_from_rfc3339(s: &str) -> Result<Timestamp> {

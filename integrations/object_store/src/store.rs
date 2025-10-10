@@ -21,6 +21,7 @@ use std::io;
 use std::sync::Arc;
 
 use crate::utils::*;
+use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
 use futures::FutureExt;
 use futures::StreamExt;
@@ -317,10 +318,14 @@ impl ObjectStore for OpendalStore {
             if let Some(if_none_match) = &options.if_none_match {
                 s = s.if_none_match(if_none_match.as_str());
             }
-            if let Some(if_modified_since) = options.if_modified_since {
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
                 s = s.if_modified_since(if_modified_since);
             }
-            if let Some(if_unmodified_since) = options.if_unmodified_since {
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
                 s = s.if_unmodified_since(if_unmodified_since);
             }
             s.into_send()
@@ -341,7 +346,10 @@ impl ObjectStore for OpendalStore {
 
         let meta = ObjectMeta {
             location: location.clone(),
-            last_modified: meta.last_modified().unwrap_or_default(),
+            last_modified: meta
+                .last_modified()
+                .and_then(timestamp_to_datetime)
+                .unwrap_or_default(),
             size: meta.content_length(),
             e_tag: meta.etag().map(|x| x.to_string()),
             version: meta.version().map(|x| x.to_string()),
@@ -367,10 +375,14 @@ impl ObjectStore for OpendalStore {
             if let Some(if_none_match) = options.if_none_match {
                 r = r.if_none_match(if_none_match.as_str());
             }
-            if let Some(if_modified_since) = options.if_modified_since {
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
                 r = r.if_modified_since(if_modified_since);
             }
-            if let Some(if_unmodified_since) = options.if_unmodified_since {
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
                 r = r.if_unmodified_since(if_unmodified_since);
             }
             r.into_send()

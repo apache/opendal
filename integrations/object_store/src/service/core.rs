@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use chrono::{DateTime, Utc};
+use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use object_store::{
     Attribute, AttributeValue, GetOptions, GetRange, ObjectMeta, PutOptions, PutResult,
 };
@@ -43,17 +43,11 @@ pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = DateTime::<Utc>::from_timestamp(
-            if_modified_since.as_second(),
-            if_modified_since.subsec_nanosecond() as u32,
-        );
+        options.if_modified_since = timestamp_to_datetime(if_modified_since);
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = DateTime::<Utc>::from_timestamp(
-            if_unmodified_since.as_second(),
-            if_unmodified_since.subsec_nanosecond() as u32,
-        );
+        options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
     Ok(options)
@@ -76,17 +70,11 @@ pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = DateTime::<Utc>::from_timestamp(
-            if_modified_since.as_second(),
-            if_modified_since.subsec_nanosecond() as u32,
-        );
+        options.if_modified_since = timestamp_to_datetime(if_modified_since);
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = DateTime::<Utc>::from_timestamp(
-            if_unmodified_since.as_second(),
-            if_unmodified_since.subsec_nanosecond() as u32,
-        );
+        options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
     if !args.range().is_full() {
@@ -164,7 +152,9 @@ pub fn format_put_result(result: PutResult) -> Metadata {
 pub fn format_metadata(meta: &ObjectMeta) -> Metadata {
     let mut metadata = Metadata::new(EntryMode::FILE);
     metadata.set_content_length(meta.size);
-    metadata.set_last_modified(meta.last_modified);
+    if let Some(last_modified) = datetime_to_timestamp(meta.last_modified) {
+        metadata.set_last_modified(last_modified);
+    }
     if let Some(etag) = &meta.e_tag {
         metadata.set_etag(etag);
     }

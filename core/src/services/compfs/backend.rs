@@ -21,12 +21,12 @@ use std::sync::Arc;
 use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
 
+use super::DEFAULT_SCHEME;
 use super::core::CompfsCore;
 use super::delete::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;

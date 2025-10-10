@@ -24,10 +24,10 @@ use bytes::Buf;
 use bytes::Bytes;
 use chrono::DateTime;
 use chrono::Utc;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;

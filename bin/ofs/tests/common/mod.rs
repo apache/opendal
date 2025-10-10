@@ -17,8 +17,8 @@
 
 use std::sync::OnceLock;
 
-use opendal::raw::tests;
 use opendal::Capability;
+use opendal::raw::tests;
 use tempfile::TempDir;
 use test_context::TestContext;
 use tokio::runtime::Runtime;

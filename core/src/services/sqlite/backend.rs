@@ -22,12 +22,12 @@ use std::str::FromStr;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::stream::BoxStream;
 use futures::Stream;
 use futures::StreamExt;
+use futures::stream::BoxStream;
 use ouroboros::self_referencing;
-use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;

@@ -23,8 +23,8 @@ use std::sync::Arc;
 use chrono::DateTime;
 use monoio::fs::OpenOptions;
 
-use super::core::MonoiofsCore;
 use super::core::BUFFER_SIZE;
+use super::core::MonoiofsCore;
 use super::delete::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;

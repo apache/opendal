@@ -21,18 +21,18 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use http::Uri;
-use redis::cluster::ClusterClientBuilder;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
+use redis::cluster::ClusterClientBuilder;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
@@ -248,7 +248,7 @@ impl RedisBuilder {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
                         .with_context("service", Scheme::Redis)
                         .with_context("scheme", s),
-                )
+                );
             }
         };
 

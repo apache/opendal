@@ -93,7 +93,7 @@ use std::{
 
 use cloud_filter::{
     error::{CResult, CloudErrorKind},
-    filter::{info, ticket, Filter, Request},
+    filter::{Filter, Request, info, ticket},
     metadata::Metadata,
     placeholder::{ConvertOptions, Placeholder},
     placeholder_file::PlaceholderFile,

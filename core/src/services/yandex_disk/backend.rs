@@ -24,13 +24,13 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::YandexDiskConfig;
 use crate::*;

@@ -221,10 +221,10 @@ mod tests {
     use log::debug;
 
     use super::*;
-    use crate::layers::LoggingLayer;
-    use crate::services::HttpConfig;
     use crate::EntryMode;
     use crate::Operator;
+    use crate::layers::LoggingLayer;
+    use crate::services::HttpConfig;
 
     #[tokio::test]
     async fn test_list() -> Result<()> {

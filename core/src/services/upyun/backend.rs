@@ -23,13 +23,13 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::*;

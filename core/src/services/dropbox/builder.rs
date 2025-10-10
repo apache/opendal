@@ -23,10 +23,10 @@ use chrono::DateTime;
 use chrono::Utc;
 use tokio::sync::Mutex;
 
+use super::DEFAULT_SCHEME;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
@@ -166,14 +166,14 @@ impl Builder for DropboxBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token can not be set at the same time",
                 )
-                .with_context("service", Scheme::Dropbox))
+                .with_context("service", Scheme::Dropbox));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Dropbox))
+                .with_context("service", Scheme::Dropbox));
             }
         };
 

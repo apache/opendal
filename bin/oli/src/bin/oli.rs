@@ -26,8 +26,8 @@ use std::env;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 
-use anyhow::bail;
 use anyhow::Result;
+use anyhow::bail;
 use oli::commands::OliSubcommand;
 
 #[derive(Debug, clap::Parser)]

@@ -22,11 +22,11 @@ use bytes::Buf;
 use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::error::parse_error;
-use crate::raw::oio::Entry;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::oio::Entry;
+use crate::raw::*;
 
 pub struct KoofrLister {
     core: Arc<KoofrCore>,

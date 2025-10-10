@@ -21,13 +21,13 @@ use std::str;
 
 use persy;
 
-use crate::raw::adapters::kv;
-use crate::raw::*;
-use crate::services::PersyConfig;
 use crate::Builder;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Scheme;
+use crate::raw::adapters::kv;
+use crate::raw::*;
+use crate::services::PersyConfig;
 use crate::*;
 
 impl Configurator for PersyConfig {

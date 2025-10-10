@@ -19,18 +19,17 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Uri;
-use percent_encoding::percent_decode_str;
-
+use super::MEMORY_SCHEME;
 use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
-use super::MEMORY_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
 use crate::*;
+use http::Uri;
+use percent_encoding::percent_decode_str;
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
 
@@ -157,7 +156,7 @@ impl Access for MemoryAccessor {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "memory doesn't have this path",
-                ))
+                ));
             }
         };
 

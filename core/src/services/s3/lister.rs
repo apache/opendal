@@ -22,12 +22,12 @@ use quick_xml::de;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::PageContext;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Error;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::oio::PageContext;
+use crate::raw::*;
 
 pub type S3Listers = ThreeWays<
     oio::PageLister<S3ListerV1>,

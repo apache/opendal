@@ -17,8 +17,8 @@
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use rand::thread_rng;
 use rand::RngCore;
+use rand::thread_rng;
 use sha2::Digest;
 use sha2::Sha256;
 

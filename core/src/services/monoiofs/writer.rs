@@ -21,10 +21,10 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::Bytes;
 use chrono::DateTime;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::channel::mpsc;
+use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;

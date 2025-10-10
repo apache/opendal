@@ -22,10 +22,10 @@
 #![allow(rustdoc::invalid_html_tags, reason = "YARD's syntax for documentation")]
 #![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
 
-use magnus::method;
-use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
+use magnus::method;
+use magnus::prelude::*;
 
 use crate::*;
 

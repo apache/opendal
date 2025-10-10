@@ -34,6 +34,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
+env:
+  RUST_TOOLCHAIN: nightly-2025-10-10
+
 jobs:
   fuzz:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }} / ${{ matrix.target }}
@@ -54,8 +57,8 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install -y libfuzzer-14-dev
-          rustup install nightly-2025-10-10
-          cargo +nightly-2025-10-10 install cargo-fuzz
+          rustup install ${{ env.RUST_TOOLCHAIN }}
+          cargo +${{ env.RUST_TOOLCHAIN }} install cargo-fuzz
       - name: Fuzz
         uses: ./.github/actions/fuzz_test
         env:
@@ -64,3 +67,4 @@ jobs:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}
           target: ${{ matrix.target }}
+          toolchain: ${{ env.RUST_TOOLCHAIN }}

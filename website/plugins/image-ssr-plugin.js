@@ -110,6 +110,9 @@ module.exports = function (_context) {
         let lastError;
         for (let attempt = 1; attempt <= retries; attempt++) {
           try {
+            const attemptLabel = `image-plugin:download:${imageUrl}:attempt-${attempt}`;
+            console.time(attemptLabel);
+
             const response = await fetch(imageUrl, {
               signal: AbortSignal.timeout(30000),
               headers: {
@@ -121,15 +124,32 @@ module.exports = function (_context) {
             });
 
             if (!response.ok) {
+              console.timeEnd(attemptLabel);
               throw new Error(`HTTP error! Status: ${response.status}`);
             }
 
             const fd = await fs.open(buildOutputPath, "w");
             await pipeline(response.body, fd.createWriteStream());
+            console.timeEnd(attemptLabel);
             lastError = null;
             break;
           } catch (fetchError) {
+            if (console.timeLog) {
+              try {
+                console.timeLog(
+                  `image-plugin:download:${imageUrl}:attempt-${attempt}`
+                );
+              } catch {
+                // ignore when console.timeLog unsupported
+              }
+            }
+            console.timeEnd(
+              `image-plugin:download:${imageUrl}:attempt-${attempt}`
+            );
             lastError = fetchError;
+            console.warn(
+              `Download attempt ${attempt}/${retries} failed for ${imageUrl}: ${fetchError.message}`
+            );
 
             // Clean up potentially corrupted file
             try {
@@ -141,6 +161,9 @@ module.exports = function (_context) {
         }
 
         if (lastError) {
+          console.error(
+            `All ${retries} attempts failed for ${imageUrl}, preserving remote URL`
+          );
           throw lastError;
         }
       }

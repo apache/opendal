@@ -19,22 +19,43 @@
 
 const path = require("path");
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const { pipeline } = require("stream/promises");
 const { createHash } = require("crypto");
 const cheerio = require("cheerio");
 const os = require("os");
+const readline = require("readline");
 
 module.exports = function (_context) {
   const processedImages = new Map();
 
-  const IMAGE_URL_PATTERNS = [
-    /"(https?:\/\/[^"]+\.(png|jpg|jpeg|gif|svg|webp))"/g,
-    /"(https?:\/\/img\.shields\.io\/[^"]+)"/g,
-    /"(https?:\/\/github\.com\/[^"]+\/actions\/workflow[^"]+)"/g,
-    /'(https?:\/\/[^']+\.(png|jpg|jpeg|gif|svg|webp))'/g,
-    /'(https?:\/\/img\.shields\.io\/[^']+)'/g,
-    /'(https?:\/\/github\.com\/[^']+\/actions\/workflow[^']+)'/g,
-  ];
+  const JS_IMAGE_PATTERN_SOURCE = String.raw`(["'])(https?:\/\/(?:img\.shields\.io\/[^"']+|github\.com\/[^"']+\/actions\/workflow[^"']+|[^"']+\.(?:png|jpg|jpeg|gif|svg|webp)(?:[?#][^"']*)*))\1`;
+
+  function createJsImageRegex() {
+    return new RegExp(JS_IMAGE_PATTERN_SOURCE, "g");
+  }
+
+  async function timeIt(label, fn) {
+    console.time(label);
+    try {
+      return await fn();
+    } finally {
+      console.timeEnd(label);
+    }
+  }
+
+  let tempFileCounter = 0;
+
+  function createTempPath(filePath) {
+    const dir = path.dirname(filePath);
+    const unique = [
+      Date.now().toString(36),
+      process.pid,
+      tempFileCounter++,
+      Math.random().toString(36).slice(2),
+    ].join("-");
+    return path.join(dir, `.__image-plugin-${unique}.tmp`);
+  }
 
   function getImageFilename(imageUrl) {
     const hash = createHash("md5").update(imageUrl).digest("hex");
@@ -168,7 +189,7 @@ module.exports = function (_context) {
       }
     }
 
-    await findFiles(dir);
+    await timeIt("image-plugin:scan-files", () => findFiles(dir));
 
     console.log(
       `Collecting images from ${htmlFiles.length} HTML and ${jsFiles.length} JS files...`
@@ -176,8 +197,12 @@ module.exports = function (_context) {
     const allImageUrls = new Set();
 
     await Promise.all([
-      collectImagesFromHtml(htmlFiles, allImageUrls),
-      collectImagesFromJs(jsFiles, allImageUrls),
+      timeIt("image-plugin:collect-html", () =>
+        collectImagesFromHtml(htmlFiles, allImageUrls)
+      ),
+      timeIt("image-plugin:collect-js", () =>
+        collectImagesFromJs(jsFiles, allImageUrls)
+      ),
     ]);
 
     console.log(`Downloading ${allImageUrls.size} unique images...`);
@@ -191,10 +216,15 @@ module.exports = function (_context) {
       `Using ${concurrency} concurrent downloads (CPU cores: ${cpuCount})`
     );
 
-    await pLimit(concurrency, downloadTasks);
+    await timeIt("image-plugin:download", () =>
+      pLimit(concurrency, downloadTasks)
+    );
 
     console.log("Updating files with local image URLs...");
-    await Promise.all([processHtmlFiles(htmlFiles), processJSFiles(jsFiles)]);
+    await Promise.all([
+      timeIt("image-plugin:rewrite-html", () => processHtmlFiles(htmlFiles)),
+      timeIt("image-plugin:rewrite-js", () => processJSFiles(jsFiles)),
+    ]);
   }
 
   async function traverseHtmlFiles(htmlFiles, handler) {
@@ -206,18 +236,6 @@ module.exports = function (_context) {
 
       if (result?.shouldWrite) {
         await fs.writeFile(htmlFile, $.html());
-      }
-    }
-  }
-
-  async function traverseJsFiles(jsFiles, handler) {
-    for (const jsFile of jsFiles) {
-      const content = await fs.readFile(jsFile, "utf8");
-
-      const result = handler(content);
-
-      if (result?.newContent && result.newContent !== content) {
-        await fs.writeFile(jsFile, result.newContent);
       }
     }
   }
@@ -234,14 +252,43 @@ module.exports = function (_context) {
   }
 
   async function collectImagesFromJs(jsFiles, imageUrls) {
-    await traverseJsFiles(jsFiles, (content) => {
-      for (const pattern of IMAGE_URL_PATTERNS) {
-        const matches = Array.from(content.matchAll(pattern));
-        for (const match of matches) {
-          if (match[1]) imageUrls.add(match[1]);
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = jsFiles.map(
+      (jsFile) => async () => {
+        const stream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+        const rl = readline.createInterface({
+          input: stream,
+          crlfDelay: Infinity,
+        });
+        const regex = createJsImageRegex();
+
+        try {
+          for await (const line of rl) {
+            if (!line.includes("http")) {
+              continue;
+            }
+
+            regex.lastIndex = 0;
+            let match;
+            while ((match = regex.exec(line)) !== null) {
+              const imageUrl = match[2];
+              if (imageUrl) {
+                imageUrls.add(imageUrl);
+              }
+            }
+          }
+        } catch (error) {
+          stream.destroy(error);
+          throw error;
+        } finally {
+          if (!stream.destroyed) {
+            stream.destroy();
+          }
         }
       }
-    });
+    );
+
+    await pLimit(concurrency, tasks);
   }
 
   async function processHtmlFiles(htmlFiles) {
@@ -266,43 +313,101 @@ module.exports = function (_context) {
   }
 
   async function processJSFiles(jsFiles) {
-    await traverseJsFiles(jsFiles, (content) => {
-      let newContent = content;
-      const allReplacements = [];
+    const concurrency = Math.min(Math.max(os.cpus().length, 2), 8);
+    const tasks = jsFiles.map(
+      (jsFile) => async () => {
+        const tempPath = createTempPath(jsFile);
+        const readStream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+        const writeStream = fsSync.createWriteStream(tempPath, {
+          encoding: "utf8",
+        });
+        const closePromise = new Promise((resolve, reject) => {
+          writeStream.once("close", resolve);
+          writeStream.once("error", reject);
+        });
+        const rl = readline.createInterface({
+          input: readStream,
+          crlfDelay: Infinity,
+        });
+        const regex = createJsImageRegex();
+        let modified = false;
+        let isFirstLine = true;
+        let processingError;
 
-      for (const pattern of IMAGE_URL_PATTERNS) {
-        const matches = Array.from(newContent.matchAll(pattern));
+        try {
+          for await (const line of rl) {
+            let nextLine = line;
+            if (line.includes("http")) {
+              regex.lastIndex = 0;
+              nextLine = line.replace(
+                regex,
+                (fullMatch, quote, imageUrl) => {
+                  if (!imageUrl) {
+                    return fullMatch;
+                  }
 
-        for (const match of matches) {
-          const imageUrl = match[1];
-          if (!imageUrl) continue;
+                  const localUrl = processedImages.get(imageUrl);
+                  if (!localUrl || localUrl === imageUrl) {
+                    return fullMatch;
+                  }
 
-          const localUrl = processedImages.get(imageUrl);
-          if (localUrl && localUrl !== imageUrl) {
-            allReplacements.push({
-              original: match[0],
-              replacement: match[0].replace(imageUrl, localUrl),
-            });
+                  return `${quote}${localUrl}${quote}`;
+                }
+              );
+            }
+
+            if (nextLine !== line) {
+              modified = true;
+            }
+
+            if (!isFirstLine) {
+              writeStream.write("\n");
+            } else {
+              isFirstLine = false;
+            }
+
+            writeStream.write(nextLine);
+          }
+        } catch (error) {
+          processingError = error;
+        } finally {
+          if (!writeStream.destroyed) {
+            writeStream.end();
+          }
+          if (!readStream.destroyed) {
+            readStream.destroy(processingError);
           }
         }
+
+        try {
+          await closePromise;
+        } catch (error) {
+          if (!processingError) {
+            processingError = error;
+          }
+        }
+
+        if (processingError) {
+          await fs.unlink(tempPath).catch(() => {});
+          throw processingError;
+        }
+
+        if (modified) {
+          await fs.rename(tempPath, jsFile);
+        } else {
+          await fs.unlink(tempPath);
+        }
       }
+    );
 
-      allReplacements.sort((a, b) => b.original.length - a.original.length);
-
-      for (const { original, replacement } of allReplacements) {
-        newContent = newContent.replace(original, replacement);
-      }
-
-      return { newContent };
-    });
+    await pLimit(concurrency, tasks);
   }
 
   return {
     name: "docusaurus-ssr-image-plugin",
 
     async postBuild({ outDir }) {
-      await processFiles(outDir);
-
+      await timeIt("image-plugin:post-build", () => processFiles(outDir));
       console.log(`Processed ${processedImages.size} external images`);
     },
   };

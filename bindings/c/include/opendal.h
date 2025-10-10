@@ -88,6 +88,98 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * The `Operator` serves as the entry point for all public asynchronous APIs.
+ *
+ * For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
+ *
+ * All cloned `Operator` instances share the same internal state, such as
+ * `HttpClient` and `Runtime`. Some layers may modify the internal state of
+ * the `Operator` too like inject logging and metrics for `HttpClient`.
+ *
+ * ## Build
+ *
+ * Users can initialize an `Operator` through the following methods:
+ *
+ * - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::S3`].
+ * - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::S3Config`].
+ * - [`Operator::from_iter`]: Creates an operator from an iterator of configuration key-value pairs.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     // Build an `Operator` to start operating the storage.
+ *     let _: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     Ok(())
+ * }
+ * ```
+ *
+ * ## Layer
+ *
+ * After the operator is built, users can add the layers they need on top of it.
+ *
+ * OpenDAL offers various layers for users to choose from, such as `RetryLayer`, `LoggingLayer`, and more. Visit [`layers`] for further details.
+ *
+ * Please note that `Layer` can modify internal contexts such as `HttpClient`
+ * and `Runtime` for all clones of given operator. Therefore, it is recommended
+ * to add layers before interacting with the storage. Adding or duplicating
+ * layers after accessing the storage may result in unexpected behavior.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::layers::RetryLayer;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     let op: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     // OpenDAL will retry failed operations now.
+ *     let op = op.layer(RetryLayer::default());
+ *
+ *     Ok(())
+ * }
+ * ```
+ *
+ * ## Operate
+ *
+ * After the operator is built and the layers are added, users can start operating the storage.
+ *
+ * The operator is `Send`, `Sync`, and `Clone`. It has no internal state, and all APIs only take
+ * a `&self` reference, making it safe to share the operator across threads.
+ *
+ * Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
+ *
+ * - [`Operator::read`]: Basic operation that reads entire content into memory
+ * - [`Operator::read_with`]: Enhanced read operation with additional options (range, if_match, if_none_match)
+ * - [`Operator::reader`]: Creates a lazy reader for on-demand data streaming
+ * - [`Operator::reader_with`]: Creates a configurable reader with conditional options (if_match, if_none_match)
+ *
+ * The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
+ * into `futures::AsyncRead` for broader ecosystem compatibility.
+ *
+ * ```
+ * # use anyhow::Result;
+ * use opendal::layers::RetryLayer;
+ * use opendal::services::Memory;
+ * use opendal::Operator;
+ * async fn test() -> Result<()> {
+ *     let op: Operator = Operator::new(Memory::default())?.finish();
+ *
+ *     // OpenDAL will retry failed operations now.
+ *     let op = op.layer(RetryLayer::default());
+ *
+ *     // Read all data into memory.
+ *     let data = op.read("path/to/file").await?;
+ *
+ *     Ok(())
+ * }
+ * ```
+ */
+typedef struct Operator Operator;
+
+/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -423,6 +515,34 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief Represents an asynchronous OpenDAL Operator.
+ *
+ * This operator interacts with storage services using non-blocking APIs.
+ * Use `opendal_async_operator_new` to construct and `opendal_async_operator_free` to release.
+ */
+typedef struct opendal_async_operator {
+  /**
+   * Internal pointer to the Rust async Operator.
+   */
+  struct Operator *inner;
+  /**
+   * Tokio runtime handle.
+   */
+  void *rt;
+} opendal_async_operator;
+
+/**
+ * Callback function type for asynchronous stat operations.
+ * The user data pointer is passed through directly.
+ *
+ * # Safety
+ * The callback pointer must be valid for the duration of the async operation.
+ * The callback must handle potential NULL pointers in `opendal_result_stat` fields
+ * and free them appropriately using `opendal_metadata_free` and `opendal_error_free`.
+ */
+typedef void (*opendal_stat_callback)(struct opendal_result_stat result, void *user_data);
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1318,6 +1438,55 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *dest);
 
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
+/**
+ * \brief Constructs a new asynchronous OpenDAL Operator.
+ *
+ * @param scheme The storage service scheme (e.g., "s3", "fs").
+ * @param options Configuration options for the service. Can be NULL.
+ * @return Result containing the new operator or an error.
+ *
+ * \see opendal_operator_options
+ * \see opendal_result_operator_new (reused for simplicity, but contains async op)
+ *
+ * # Safety
+ *
+ * `scheme` must be a valid, null-terminated C string.
+ * `options` must be a valid pointer or NULL.
+ */
+struct opendal_result_operator_new opendal_async_operator_new(const char *scheme,
+                                                              const struct opendal_operator_options *options);
+
+/**
+ * \brief Frees an asynchronous OpenDAL Operator.
+ *
+ * # Safety
+ *
+ * `op` must be a valid pointer previously returned by `opendal_async_operator_new`.
+ * Calling with NULL does nothing.
+ */
+void opendal_async_operator_free(const struct opendal_async_operator *op);
+
+/**
+ * \brief Asynchronously gets metadata of a path using a callback.
+ *
+ * @param op A valid pointer to `opendal_async_operator`.
+ * @param path The path to the object or directory.
+ * @param callback The function to call when the operation completes.
+ * @param user_data An opaque pointer passed directly to the callback function.
+ *
+ * # Safety
+ * `op` must be a valid `opendal_async_operator`.
+ * `path` must be a valid, null-terminated C string.
+ * `callback` must be a valid function pointer.
+ * The `user_data` pointer's validity is the caller's responsibility.
+ * The callback function will be invoked exactly once, either upon successful
+ * completion, error, or if the operation setup fails.
+ */
+void opendal_async_operator_stat_with_callback(const struct opendal_async_operator *op,
+                                               const char *path,
+                                               opendal_stat_callback callback,
+                                               void *user_data);
 
 /**
  * \brief Get information of underlying accessor.

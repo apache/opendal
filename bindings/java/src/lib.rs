@@ -232,6 +232,7 @@ fn make_write_options<'a>(
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
         if_not_exists: convert::read_bool_field(env, options, "ifNotExists").unwrap_or_default(),
         user_metadata: convert::read_map_field(env, options, "userMetadata")?,
+        tags: None, // Tags not yet supported in Java bindings
         concurrent,
         chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
     })

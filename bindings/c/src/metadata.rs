@@ -131,7 +131,7 @@ impl opendal_metadata {
         let mtime = self.deref().last_modified();
         match mtime {
             None => -1,
-            Some(time) => time.timestamp_millis(),
+            Some(time) => time.as_millisecond(),
         }
     }
 }

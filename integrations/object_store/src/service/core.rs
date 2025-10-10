@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
-
+use chrono::{DateTime, Utc};
 use object_store::{
     Attribute, AttributeValue, GetOptions, GetRange, ObjectMeta, PutOptions, PutResult,
 };
 use opendal::raw::*;
 use opendal::*;
+use std::borrow::Cow;
 
 /// Parse OpStat arguments to object_store GetOptions for head requests
 pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
@@ -43,11 +43,17 @@ pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = Some(if_modified_since);
+        options.if_modified_since = DateTime::<Utc>::from_timestamp(
+            if_modified_since.as_second(),
+            if_modified_since.subsec_nanosecond() as u32,
+        );
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = Some(if_unmodified_since);
+        options.if_unmodified_since = DateTime::<Utc>::from_timestamp(
+            if_unmodified_since.as_second(),
+            if_unmodified_since.subsec_nanosecond() as u32,
+        );
     }
 
     Ok(options)
@@ -70,11 +76,17 @@ pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = Some(if_modified_since);
+        options.if_modified_since = DateTime::<Utc>::from_timestamp(
+            if_modified_since.as_second(),
+            if_modified_since.subsec_nanosecond() as u32,
+        );
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = Some(if_unmodified_since);
+        options.if_unmodified_since = DateTime::<Utc>::from_timestamp(
+            if_unmodified_since.as_second(),
+            if_unmodified_since.subsec_nanosecond() as u32,
+        );
     }
 
     if !args.range().is_full() {

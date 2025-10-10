@@ -116,10 +116,7 @@ async fn handle_list_objects(
         } else {
             contents.push(Object {
                 key: v.path().to_string(),
-                last_modified: meta
-                    .last_modified()
-                    .unwrap_or_default()
-                    .to_rfc3339_opts(SecondsFormat::Millis, true),
+                last_modified: format!("{:.6}", meta.last_modified().unwrap_or_default()),
                 etag: meta.etag().unwrap_or_default().to_string(),
                 size: meta.content_length(),
             });

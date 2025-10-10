@@ -231,7 +231,7 @@ impl Filter for CloudFilter {
                             .size(metadata.content_length())
                             .written(
                                 FileTime::from_unix_time(
-                                    metadata.last_modified().unwrap_or_default().timestamp(),
+                                    metadata.last_modified().unwrap_or_default().as_second(),
                                 )
                                 .expect("valid time"),
                             )

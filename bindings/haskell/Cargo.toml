@@ -31,7 +31,7 @@ crate-type = ["cdylib"]
 doc = false
 
 [dependencies]
-chrono = "0.4"
+jiff = { version = "0.2.15" }
 log = { version = "0.4", features = ["std"] }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [

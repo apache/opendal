@@ -15,14 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::sync::Arc;
-
-use chrono::DateTime;
-
 use crate::raw::*;
 use crate::services::CacacheConfig;
 use crate::*;
+use jiff::Timestamp;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use super::DEFAULT_SCHEME;
 use super::core::CacacheCore;
@@ -109,11 +107,11 @@ impl Access for CacacheAccessor {
             Some(meta) => {
                 let mut md = Metadata::new(EntryMode::FILE);
                 md.set_content_length(meta.size as u64);
-                // Convert u128 milliseconds to DateTime<Utc>
+                // Convert u128 milliseconds to Timestamp
                 let millis = meta.time;
                 let secs = (millis / 1000) as i64;
-                let nanos = ((millis % 1000) * 1_000_000) as u32;
-                if let Some(dt) = DateTime::from_timestamp(secs, nanos) {
+                let nanos = ((millis % 1000) * 1_000_000) as i32;
+                if let Ok(dt) = Timestamp::new(secs, nanos) {
                     md.set_last_modified(dt);
                 }
                 Ok(RpStat::new(md))

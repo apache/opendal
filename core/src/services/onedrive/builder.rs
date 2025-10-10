@@ -15,15 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
-use chrono::DateTime;
-use chrono::Utc;
+use jiff::Timestamp;
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::DEFAULT_SCHEME;
@@ -192,7 +190,7 @@ impl Builder for OnedriveBuilder {
         match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
-                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+                signer.expires_in = Timestamp::MAX;
             }
             (None, Some(refresh_token)) => {
                 let client_id = self.config.client_id.ok_or_else(|| {

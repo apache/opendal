@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
 }
 
 async fn s3() -> Result<()> {
-    logforth::stderr().apply();
+    logforth::starter_log::stderr().apply();
 
     let cfg: Config =
         toml::from_str(&std::fs::read_to_string("oay.toml").context("failed to open oay.toml")?)?;

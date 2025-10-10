@@ -19,7 +19,6 @@ use std::ffi::CString;
 use std::ffi::c_char;
 
 use ::opendal as od;
-use chrono::SecondsFormat;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -119,7 +118,7 @@ impl From<od::Metadata> for Metadata {
         };
 
         let last_modified = match val.last_modified() {
-            Some(s) => unsafe { leak_str(s.to_rfc3339_opts(SecondsFormat::Nanos, false).as_str()) },
+            Some(s) => unsafe { leak_str(s.to_string().as_str()) },
             None => std::ptr::null(),
         };
 

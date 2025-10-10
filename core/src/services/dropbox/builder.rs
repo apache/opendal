@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use jiff::Timestamp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-
-use chrono::DateTime;
-use chrono::Utc;
 use tokio::sync::Mutex;
 
 use super::DEFAULT_SCHEME;
@@ -135,7 +133,7 @@ impl Builder for DropboxBuilder {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
                 // We will never expire user specified token.
-                expires_in: DateTime::<Utc>::MAX_UTC,
+                expires_in: Timestamp::MAX,
                 ..Default::default()
             },
             (None, Some(refresh_token)) => {

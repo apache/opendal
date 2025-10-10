@@ -26,6 +26,7 @@ use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::header;
+use jiff::Timestamp;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
@@ -86,8 +87,8 @@ impl UpyunCore {
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
         // get rfc1123 date
-        let date = chrono::Utc::now()
-            .format("%a, %d %b %Y %H:%M:%S GMT")
+        let date = Timestamp::now()
+            .strftime("%a, %d %b %Y %H:%M:%S GMT")
             .to_string();
         let authorization =
             self.signer

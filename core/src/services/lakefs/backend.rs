@@ -20,10 +20,9 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::TimeZone;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
+use jiff::Timestamp;
 use log::debug;
 
 use super::DEFAULT_SCHEME;
@@ -242,7 +241,7 @@ impl Access for LakefsBackend {
                     meta.set_content_disposition(v);
                 }
 
-                meta.set_last_modified(Utc.timestamp_opt(decoded_response.mtime, 0).unwrap());
+                meta.set_last_modified(Timestamp::from_second(decoded_response.mtime).unwrap());
 
                 Ok(RpStat::new(meta))
             }

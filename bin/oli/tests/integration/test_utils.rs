@@ -143,6 +143,10 @@ pub const REPLACEMENTS: &[(&str, &str)] = &[
         r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{9} UTC)",
         "[TIMESTAMP]",
     ),
+    (
+        r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{9}Z)",
+        "[TIMESTAMP]",
+    ),
 ];
 pub static REPLACEMENT_REGEXS: std::sync::LazyLock<Vec<(regex::Regex, String)>> =
     std::sync::LazyLock::new(|| {

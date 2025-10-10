@@ -265,7 +265,7 @@ impl Access for KoofrBackend {
 
                 md.set_content_length(file.size)
                     .set_content_type(&file.content_type)
-                    .set_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+                    .set_last_modified(parse_datetime_from_timestamp_millis(file.modified)?);
 
                 Ok(RpStat::new(md))
             }

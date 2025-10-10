@@ -124,7 +124,7 @@ impl Access for MonoiofsBackend {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(parse_datetime_from_from_system_time(
+            .with_last_modified(parse_datetime_from_system_time(
                 meta.modified().map_err(new_std_io_error)?,
             )?);
         Ok(RpStat::new(m))

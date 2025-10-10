@@ -310,7 +310,7 @@ impl Access for WebhdfsBackend {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                     FileStatusType::File => Metadata::new(EntryMode::FILE)
                         .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        .with_last_modified(parse_datetime_from_timestamp_millis(
                             file_status.modification_time,
                         )?),
                 };

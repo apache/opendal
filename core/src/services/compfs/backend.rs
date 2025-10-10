@@ -164,8 +164,7 @@ impl Access for CompfsBackend {
         } else {
             EntryMode::Unknown
         };
-        let last_mod =
-            parse_datetime_from_from_system_time(meta.modified().map_err(new_std_io_error)?)?;
+        let last_mod = parse_datetime_from_system_time(meta.modified().map_err(new_std_io_error)?)?;
         let ret = Metadata::new(mode)
             .with_last_modified(last_mod)
             .with_content_length(meta.len());

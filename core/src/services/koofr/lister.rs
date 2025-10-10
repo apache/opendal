@@ -74,7 +74,7 @@ impl oio::PageList for KoofrLister {
                 let m = Metadata::new(EntryMode::FILE)
                     .with_content_length(file.size)
                     .with_content_type(file.content_type)
-                    .with_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+                    .with_last_modified(parse_datetime_from_timestamp_millis(file.modified)?);
                 Entry::new(&path, m)
             };
 

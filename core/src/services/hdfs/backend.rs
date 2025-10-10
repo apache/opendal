@@ -249,7 +249,7 @@ impl Access for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(parse_datetime_from_from_system_time(meta.modified())?);
+        m.set_last_modified(parse_datetime_from_system_time(meta.modified())?);
 
         Ok(RpStat::new(m))
     }

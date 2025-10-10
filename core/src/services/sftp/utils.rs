@@ -19,7 +19,7 @@ use openssh_sftp_client::metadata::MetaData as SftpMeta;
 
 use crate::EntryMode;
 use crate::Metadata;
-use crate::raw::parse_datetime_from_from_system_time;
+use crate::raw::parse_datetime_from_system_time;
 
 /// REMOVE ME: we should not implement `From<SftpMeta> for Metadata`.
 impl From<SftpMeta> for Metadata {
@@ -44,7 +44,7 @@ impl From<SftpMeta> for Metadata {
         }
 
         if let Some(modified) = meta.modified() {
-            if let Ok(m) = parse_datetime_from_from_system_time(modified.as_system_time()) {
+            if let Ok(m) = parse_datetime_from_system_time(modified.as_system_time()) {
                 metadata.set_last_modified(m);
             }
         }

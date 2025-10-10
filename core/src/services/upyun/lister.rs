@@ -89,7 +89,7 @@ impl oio::PageList for UpyunLister {
                 let m = Metadata::new(EntryMode::FILE)
                     .with_content_length(file.length)
                     .with_content_type(file.type_field)
-                    .with_last_modified(parse_datetime_from_from_timestamp(file.last_modified)?);
+                    .with_last_modified(parse_datetime_from_timestamp(file.last_modified)?);
                 Entry::new(&path, m)
             };
 

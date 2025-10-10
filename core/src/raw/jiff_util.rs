@@ -73,21 +73,21 @@ pub fn parse_datetime_from_rfc3339(s: &str) -> Result<Timestamp> {
 }
 
 /// parse datetime from given timestamp_millis
-pub fn parse_datetime_from_from_timestamp_millis(millis: i64) -> Result<Timestamp> {
+pub fn parse_datetime_from_timestamp_millis(millis: i64) -> Result<Timestamp> {
     Timestamp::from_millisecond(millis).map_err(|err| {
         Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
     })
 }
 
 /// parse datetime from given timestamp_secs
-pub fn parse_datetime_from_from_timestamp(secs: i64) -> Result<Timestamp> {
+pub fn parse_datetime_from_timestamp(secs: i64) -> Result<Timestamp> {
     Timestamp::from_second(secs).map_err(|err| {
         Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
     })
 }
 
 /// parse datetime from given system time
-pub fn parse_datetime_from_from_system_time(t: SystemTime) -> Result<Timestamp> {
+pub fn parse_datetime_from_system_time(t: SystemTime) -> Result<Timestamp> {
     Timestamp::try_from(t).map_err(|err| {
         Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
     })

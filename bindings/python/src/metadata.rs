@@ -17,7 +17,6 @@
 
 use crate::*;
 use jiff::Timestamp;
-use pyo3::prelude::*;
 use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]

@@ -62,14 +62,14 @@ impl oio::PageList for DbfsLister {
                 true => {
                     let normalized_path = format!("{}/", &status.path);
                     let mut meta = Metadata::new(EntryMode::DIR);
-                    meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                    meta.set_last_modified(parse_datetime_from_timestamp_millis(
                         status.modification_time,
                     )?);
                     oio::Entry::new(&normalized_path, meta)
                 }
                 false => {
                     let mut meta = Metadata::new(EntryMode::FILE);
-                    meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                    meta.set_last_modified(parse_datetime_from_timestamp_millis(
                         status.modification_time,
                     )?);
                     meta.set_content_length(status.file_size as u64);

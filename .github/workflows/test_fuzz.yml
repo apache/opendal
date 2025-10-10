@@ -54,8 +54,8 @@ jobs:
         shell: bash
         run: |
           sudo apt-get install -y libfuzzer-14-dev
-          rustup install nightly-2024-11-22
-          cargo +nightly-2024-11-22 install cargo-fuzz
+          rustup install nightly-2025-10-10
+          cargo +nightly-2025-10-10 install cargo-fuzz
       - name: Fuzz
         uses: ./.github/actions/fuzz_test
         env:

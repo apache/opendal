@@ -22,7 +22,6 @@ const fs = require("fs/promises");
 const fsSync = require("fs");
 const { pipeline } = require("stream/promises");
 const { createHash } = require("crypto");
-const cheerio = require("cheerio");
 const os = require("os");
 const readline = require("readline");
 
@@ -30,9 +29,14 @@ module.exports = function (_context) {
   const processedImages = new Map();
 
   const JS_IMAGE_PATTERN_SOURCE = String.raw`(["'])(https?:\/\/(?:img\.shields\.io\/[^"']+|github\.com\/[^"']+\/actions\/workflow[^"']+|[^"']+\.(?:png|jpg|jpeg|gif|svg|webp)(?:[?#][^"']*)*))\1`;
+  const HTML_IMAGE_PATTERN_SOURCE = String.raw`src=(["'])(https?:\/\/(?:img\.shields\.io\/[^"']+|github\.com\/[^"']+\/actions\/workflow[^"']+|[^"']+\.(?:png|jpg|jpeg|gif|svg|webp)(?:[?#][^"']*)*))\1`;
 
   function createJsImageRegex() {
     return new RegExp(JS_IMAGE_PATTERN_SOURCE, "g");
+  }
+
+  function createHtmlImageRegex() {
+    return new RegExp(HTML_IMAGE_PATTERN_SOURCE, "gi");
   }
 
   async function timeIt(label, fn) {
@@ -227,178 +231,184 @@ module.exports = function (_context) {
     ]);
   }
 
-  async function traverseHtmlFiles(htmlFiles, handler) {
-    for (const htmlFile of htmlFiles) {
-      const html = await fs.readFile(htmlFile, "utf8");
-      const $ = cheerio.load(html);
-
-      const result = handler(htmlFile, $);
-
-      if (result?.shouldWrite) {
-        await fs.writeFile(htmlFile, $.html());
-      }
-    }
-  }
-
   async function collectImagesFromHtml(htmlFiles, imageUrls) {
-    await traverseHtmlFiles(htmlFiles, (_, $) => {
-      $("img").each((_, el) => {
-        const src = $(el).attr("src");
-        if (src && src.startsWith("http")) {
-          imageUrls.add(src);
+    if (htmlFiles.length === 0) return;
+
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = htmlFiles.map((htmlFile) => async () => {
+      const content = await fs.readFile(htmlFile, "utf8");
+      if (!content.includes('src="http') && !content.includes("src='http")) {
+        return;
+      }
+
+      const regex = createHtmlImageRegex();
+      let match;
+      while ((match = regex.exec(content)) !== null) {
+        const imageUrl = match[2];
+        if (imageUrl) {
+          imageUrls.add(imageUrl);
         }
-      });
+      }
     });
+
+    await pLimit(concurrency, tasks);
   }
 
   async function collectImagesFromJs(jsFiles, imageUrls) {
     const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
-    const tasks = jsFiles.map(
-      (jsFile) => async () => {
-        const stream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
-        const rl = readline.createInterface({
-          input: stream,
-          crlfDelay: Infinity,
-        });
-        const regex = createJsImageRegex();
+    const tasks = jsFiles.map((jsFile) => async () => {
+      const stream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+      const rl = readline.createInterface({
+        input: stream,
+        crlfDelay: Infinity,
+      });
+      const regex = createJsImageRegex();
 
-        try {
-          for await (const line of rl) {
-            if (!line.includes("http")) {
-              continue;
-            }
-
-            regex.lastIndex = 0;
-            let match;
-            while ((match = regex.exec(line)) !== null) {
-              const imageUrl = match[2];
-              if (imageUrl) {
-                imageUrls.add(imageUrl);
-              }
-            }
+      try {
+        for await (const line of rl) {
+          if (!line.includes("http")) {
+            continue;
           }
-        } catch (error) {
-          stream.destroy(error);
-          throw error;
-        } finally {
-          if (!stream.destroyed) {
-            stream.destroy();
+
+          regex.lastIndex = 0;
+          let match;
+          while ((match = regex.exec(line)) !== null) {
+            const imageUrl = match[2];
+            if (imageUrl) {
+              imageUrls.add(imageUrl);
+            }
           }
         }
+      } catch (error) {
+        stream.destroy(error);
+        throw error;
+      } finally {
+        if (!stream.destroyed) {
+          stream.destroy();
+        }
       }
-    );
+    });
 
     await pLimit(concurrency, tasks);
   }
 
   async function processHtmlFiles(htmlFiles) {
-    await traverseHtmlFiles(htmlFiles, (_, $) => {
-      let modified = false;
+    if (htmlFiles.length === 0) return;
 
-      $("img").each((_, img) => {
-        const element = $(img);
-        const imageUrl = element.attr("src");
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = htmlFiles.map((htmlFile) => async () => {
+      const content = await fs.readFile(htmlFile, "utf8");
+      if (!content.includes('src="http') && !content.includes("src='http")) {
+        return;
+      }
 
-        if (imageUrl && imageUrl.startsWith("http")) {
-          const localUrl = processedImages.get(imageUrl);
-          if (localUrl && localUrl !== imageUrl) {
-            element.attr("src", localUrl);
-            modified = true;
+      const regex = createHtmlImageRegex();
+      const newContent = content.replace(
+        regex,
+        (fullMatch, quote, imageUrl) => {
+          if (!imageUrl) {
+            return fullMatch;
           }
-        }
-      });
 
-      return { shouldWrite: modified };
+          const localUrl = processedImages.get(imageUrl);
+          if (!localUrl || localUrl === imageUrl) {
+            return fullMatch;
+          }
+
+          return `src=${quote}${localUrl}${quote}`;
+        }
+      );
+
+      if (newContent !== content) {
+        await fs.writeFile(htmlFile, newContent);
+      }
     });
+
+    await pLimit(concurrency, tasks);
   }
 
   async function processJSFiles(jsFiles) {
     const concurrency = Math.min(Math.max(os.cpus().length, 2), 8);
-    const tasks = jsFiles.map(
-      (jsFile) => async () => {
-        const tempPath = createTempPath(jsFile);
-        const readStream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
-        const writeStream = fsSync.createWriteStream(tempPath, {
-          encoding: "utf8",
-        });
-        const closePromise = new Promise((resolve, reject) => {
-          writeStream.once("close", resolve);
-          writeStream.once("error", reject);
-        });
-        const rl = readline.createInterface({
-          input: readStream,
-          crlfDelay: Infinity,
-        });
-        const regex = createJsImageRegex();
-        let modified = false;
-        let isFirstLine = true;
-        let processingError;
+    const tasks = jsFiles.map((jsFile) => async () => {
+      const tempPath = createTempPath(jsFile);
+      const readStream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+      const writeStream = fsSync.createWriteStream(tempPath, {
+        encoding: "utf8",
+      });
+      const closePromise = new Promise((resolve, reject) => {
+        writeStream.once("close", resolve);
+        writeStream.once("error", reject);
+      });
+      const rl = readline.createInterface({
+        input: readStream,
+        crlfDelay: Infinity,
+      });
+      const regex = createJsImageRegex();
+      let modified = false;
+      let isFirstLine = true;
+      let processingError;
 
-        try {
-          for await (const line of rl) {
-            let nextLine = line;
-            if (line.includes("http")) {
-              regex.lastIndex = 0;
-              nextLine = line.replace(
-                regex,
-                (fullMatch, quote, imageUrl) => {
-                  if (!imageUrl) {
-                    return fullMatch;
-                  }
+      try {
+        for await (const line of rl) {
+          let nextLine = line;
+          if (line.includes("http")) {
+            regex.lastIndex = 0;
+            nextLine = line.replace(regex, (fullMatch, quote, imageUrl) => {
+              if (!imageUrl) {
+                return fullMatch;
+              }
 
-                  const localUrl = processedImages.get(imageUrl);
-                  if (!localUrl || localUrl === imageUrl) {
-                    return fullMatch;
-                  }
+              const localUrl = processedImages.get(imageUrl);
+              if (!localUrl || localUrl === imageUrl) {
+                return fullMatch;
+              }
 
-                  return `${quote}${localUrl}${quote}`;
-                }
-              );
-            }
-
-            if (nextLine !== line) {
-              modified = true;
-            }
-
-            if (!isFirstLine) {
-              writeStream.write("\n");
-            } else {
-              isFirstLine = false;
-            }
-
-            writeStream.write(nextLine);
+              return `${quote}${localUrl}${quote}`;
+            });
           }
-        } catch (error) {
-          processingError = error;
-        } finally {
-          if (!writeStream.destroyed) {
-            writeStream.end();
+
+          if (nextLine !== line) {
+            modified = true;
           }
-          if (!readStream.destroyed) {
-            readStream.destroy(processingError);
+
+          if (!isFirstLine) {
+            writeStream.write("\n");
+          } else {
+            isFirstLine = false;
           }
+
+          writeStream.write(nextLine);
         }
-
-        try {
-          await closePromise;
-        } catch (error) {
-          if (!processingError) {
-            processingError = error;
-          }
+      } catch (error) {
+        processingError = error;
+      } finally {
+        if (!writeStream.destroyed) {
+          writeStream.end();
         }
-
-        if (processingError) {
-          await fs.unlink(tempPath).catch(() => {});
-          throw processingError;
-        }
-
-        if (modified) {
-          await fs.rename(tempPath, jsFile);
-        } else {
-          await fs.unlink(tempPath);
+        if (!readStream.destroyed) {
+          readStream.destroy(processingError);
         }
       }
-    );
+
+      try {
+        await closePromise;
+      } catch (error) {
+        if (!processingError) {
+          processingError = error;
+        }
+      }
+
+      if (processingError) {
+        await fs.unlink(tempPath).catch(() => {});
+        throw processingError;
+      }
+
+      if (modified) {
+        await fs.rename(tempPath, jsFile);
+      } else {
+        await fs.unlink(tempPath);
+      }
+    });
 
     await pLimit(concurrency, tasks);
   }

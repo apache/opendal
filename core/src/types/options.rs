@@ -17,12 +17,9 @@
 
 //! Options module provides options definitions for operations.
 
-use std::collections::HashMap;
-
-use chrono::DateTime;
-use chrono::Utc;
-
 use crate::raw::BytesRange;
+use jiff::Timestamp;
+use std::collections::HashMap;
 
 /// Options for delete operations.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -108,14 +105,14 @@ pub struct ReadOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -192,14 +189,14 @@ pub struct ReaderOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -277,14 +274,14 @@ pub struct StatOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Specify the content-type header that should be sent back by the operation.
     ///

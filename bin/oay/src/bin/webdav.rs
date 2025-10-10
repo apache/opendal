@@ -25,7 +25,7 @@ use opendal::services::Fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    logforth::stderr().apply();
+    logforth::starter_log::stderr().apply();
 
     let cfg: Config = Config {
         backend: oay::BackendConfig {

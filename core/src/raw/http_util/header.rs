@@ -19,8 +19,6 @@ use std::collections::HashMap;
 
 use base64::Engine;
 use base64::engine::general_purpose;
-use chrono::DateTime;
-use chrono::Utc;
 use http::HeaderMap;
 use http::HeaderName;
 use http::HeaderValue;
@@ -33,6 +31,7 @@ use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
+use jiff::Timestamp;
 use md5::Digest;
 
 use crate::EntryMode;
@@ -94,7 +93,7 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
 }
 
 /// Parse last modified from header map.
-pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<DateTime<Utc>>> {
+pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<Timestamp>> {
     parse_header_to_str(headers, LAST_MODIFIED)?
         .map(parse_datetime_from_rfc2822)
         .transpose()

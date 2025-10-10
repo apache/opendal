@@ -20,9 +20,9 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
+use jiff::Timestamp;
 use log::debug;
 use tokio::sync::Mutex;
 
@@ -325,22 +325,18 @@ impl Access for AliyunDriveBackend {
 
         if file.path_type == "folder" {
             let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                file.updated_at
-                    .parse::<chrono::DateTime<Utc>>()
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                    })?,
+                file.updated_at.parse::<Timestamp>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                })?,
             );
 
             return Ok(RpStat::new(meta));
         }
 
         let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-            file.updated_at
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
+            file.updated_at.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?,
         );
         if let Some(v) = file.size {
             meta = meta.with_content_length(v);

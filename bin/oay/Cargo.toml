@@ -40,14 +40,14 @@ frontends-webdav = [
 ]
 
 [dependencies]
-anyhow = "1"
-axum = "0.8"
-chrono = "0.4.31"
+anyhow = { version = "1.0.100" }
+axum = { version = "0.8.6" }
 dav-server = { version = "0.8", optional = true }
 dav-server-opendalfs = { version = "0.6.0", path = "../../integrations/dav-server", optional = true }
 futures-util = { version = "0.3.29", optional = true }
+jiff = { version = "0.2.15" }
 log = { version = "0.4.27" }
-logforth = { version = "0.27.0", default-features = false }
+logforth = { version = "0.28.1", features = ["starter-log"] }
 opendal = { version = "0.54.0", path = "../../core", features = [
   "services-fs",
 ] }

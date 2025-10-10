@@ -15,12 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
 use super::core::{MiniMokaCore, MiniMokaValue};
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
+use jiff::Timestamp;
+use std::sync::Arc;
 
 pub struct MiniMokaWriter {
     core: Arc<MiniMokaCore>,
@@ -51,7 +51,7 @@ impl oio::Write for MiniMokaWriter {
 
         let mut md = Metadata::new(EntryMode::from_path(&self.path));
         md.set_content_length(buf.len() as u64);
-        md.set_last_modified(chrono::Utc::now());
+        md.set_last_modified(Timestamp::now());
 
         // Set metadata from OpWrite
         if let Some(content_type) = self.op.content_type() {

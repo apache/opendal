@@ -20,8 +20,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
-
 use super::error::*;
 use crate::raw::*;
 use crate::*;
@@ -74,7 +72,6 @@ impl FsCore {
     pub async fn fs_stat(&self, path: &str) -> Result<Metadata> {
         let p = self.root.join(path.trim_end_matches('/'));
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
         let mode = if meta.is_dir() {
             EntryMode::DIR
         } else if meta.is_file() {
@@ -84,12 +81,9 @@ impl FsCore {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
+            .with_last_modified(parse_datetime_from_from_system_time(
+                meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(m)
     }
 

@@ -152,7 +152,6 @@ impl Access for CompfsBackend {
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
         let path = self.core.prepare_path(path);
-
         let meta = self
             .core
             .exec(move || async move { compio::fs::metadata(path).await })
@@ -165,11 +164,11 @@ impl Access for CompfsBackend {
         } else {
             EntryMode::Unknown
         };
-        let last_mod = meta.modified().map_err(new_std_io_error)?.into();
+        let last_mod =
+            parse_datetime_from_from_system_time(meta.modified().map_err(new_std_io_error)?)?;
         let ret = Metadata::new(mode)
             .with_last_modified(last_mod)
             .with_content_length(meta.len());
-
         Ok(RpStat::new(ret))
     }
 

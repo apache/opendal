@@ -258,7 +258,7 @@ impl Access for FtpBackend {
 
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(file.modified().into());
+        meta.set_last_modified(parse_datetime_from_from_system_time(file.modified())?);
 
         Ok(RpStat::new(meta))
     }

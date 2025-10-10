@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::Result;
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use jni::JNIEnv;
 use jni::objects::JObject;
 use jni::objects::JString;
@@ -123,11 +123,11 @@ pub(crate) fn read_jlong_field_to_usize(
     }
 }
 
-pub(crate) fn read_instant_field_to_date_time(
+pub(crate) fn read_instant_field_to_timestamp(
     env: &mut JNIEnv<'_>,
     obj: &JObject,
     field: &str,
-) -> Result<Option<DateTime<Utc>>> {
+) -> Result<Option<Timestamp>> {
     let result = env.get_field(obj, field, "Ljava/time/Instant;")?.l()?;
     if result.is_null() {
         return Ok(None);
@@ -137,15 +137,14 @@ pub(crate) fn read_instant_field_to_date_time(
         .call_method(&result, "getEpochSecond", "()J", &[])?
         .j()?;
     let nano = env.call_method(&result, "getNano", "()I", &[])?.i()?;
-    DateTime::from_timestamp(epoch_second, nano as u32)
-        .map(Some)
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("Invalid timestamp: seconds={epoch_second}, nanos={nano}"),
-            )
-            .into()
-        })
+    Timestamp::new(epoch_second, nano).map(Some).map_err(|err| {
+        Error::new(
+            ErrorKind::Unexpected,
+            format!("invalid timestamp: seconds={epoch_second}, nanos={nano}"),
+        )
+        .set_source(err)
+        .into()
+    })
 }
 
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {

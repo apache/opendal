@@ -242,16 +242,13 @@ anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.5", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
-chrono = { version = "0.4.42", default-features = false, features = [
-  "clock",
-  "std",
-] }
 futures = { version = "0.3", default-features = false, features = [
   "std",
   "async-await",
 ] }
 http = "1.1"
 http-body = "1"
+jiff = { version = "0.2.15" }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"

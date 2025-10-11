@@ -151,27 +151,55 @@ typedef enum opendal_code {
  *
  * Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
  *
- * - [`Operator::read`]: Basic operation that reads entire content into memory
- * - [`Operator::read_with`]: Enhanced read operation with additional options (range, if_match, if_none_match)
- * - [`Operator::reader`]: Creates a lazy reader for on-demand data streaming
- * - [`Operator::reader_with`]: Creates a configurable reader with conditional options (if_match, if_none_match)
+ * - [`Operator::read`]: Executes a read operation.
+ * - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
+ * - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
+ * - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
+ * - [`Operator::reader_with`]: Creates a reader with advanced options using the builder pattern.
+ * - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
  *
  * The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
- * into `futures::AsyncRead` for broader ecosystem compatibility.
+ * into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
  *
- * ```
- * # use anyhow::Result;
- * use opendal::layers::RetryLayer;
- * use opendal::services::Memory;
+ * ```no_run
+ * use opendal::layers::LoggingLayer;
+ * use opendal::options;
+ * use opendal::services;
  * use opendal::Operator;
- * async fn test() -> Result<()> {
- *     let op: Operator = Operator::new(Memory::default())?.finish();
+ * use opendal::Result;
  *
- *     // OpenDAL will retry failed operations now.
- *     let op = op.layer(RetryLayer::default());
+ * #[tokio::main]
+ * async fn main() -> Result<()> {
+ *     // Pick a builder and configure it.
+ *     let mut builder = services::S3::default().bucket("test");
  *
- *     // Read all data into memory.
- *     let data = op.read("path/to/file").await?;
+ *     // Init an operator
+ *     let op = Operator::new(builder)?
+ *         // Init with logging layer enabled.
+ *         .layer(LoggingLayer::default())
+ *         .finish();
+ *
+ *     // Fetch this file's metadata
+ *     let meta = op.stat("hello.txt").await?;
+ *     let length = meta.content_length();
+ *
+ *     // Read data from `hello.txt` with options.
+ *     let bs = op
+ *         .read_with("hello.txt")
+ *         .range(0..8 * 1024 * 1024)
+ *         .chunk(1024 * 1024)
+ *         .concurrent(4)
+ *         .await?;
+ *
+ *     // The same to:
+ *     let bs = op
+ *         .read_options("hello.txt", options::ReadOptions {
+ *             range: (0..8 * 1024 * 1024).into(),
+ *             chunk: Some(1024 * 1024),
+ *             concurrent: 4,
+ *             ..Default::default()
+ *         })
+ *         .await?;
  *
  *     Ok(())
  * }

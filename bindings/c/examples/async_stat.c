@@ -59,7 +59,10 @@ int main(int argc, char* argv[])
             (char*)future_result.error->message.data,
             future_result.error->code);
         opendal_error_free(future_result.error);
-        goto cleanup;
+        printf("Cleaning up resources...\n");
+        opendal_async_operator_free(op);
+        printf("OpenDAL async C example finished with errors.\n");
+        return 1;
     }
 
     opendal_result_stat stat_result = opendal_future_stat_await(future_result.future);

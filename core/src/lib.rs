@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![doc(
-    html_logo_url = "https://opendal.apache.org/img/logo.svg"
-)]
+#![doc(html_logo_url = "https://opendal.apache.org/img/logo.svg")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.

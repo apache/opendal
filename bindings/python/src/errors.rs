@@ -15,46 +15,71 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pyo3::create_exception;
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::PyBaseException;
 use pyo3::exceptions::PyIOError;
+use pyo3_stub_gen::create_exception;
 
 use crate::*;
 
 create_exception!(
     opendal.exceptions,
     Error,
-    PyException,
+    PyBaseException,
     "OpenDAL Base Exception"
 );
-create_exception!(opendal.exceptions, Unexpected, Error, "Unexpected errors");
+create_exception!(
+    opendal.exceptions,
+    Unexpected,
+    PyBaseException,
+    "Unexpected errors"
+);
 create_exception!(
     opendal.exceptions,
     Unsupported,
-    Error,
+    PyBaseException,
     "Unsupported operation"
 );
 create_exception!(
     opendal.exceptions,
     ConfigInvalid,
-    Error,
+    PyBaseException,
     "Config is invalid"
 );
-create_exception!(opendal.exceptions, NotFound, Error, "Not found");
+create_exception!(opendal.exceptions, NotFound, PyBaseException, "Not found");
 create_exception!(
     opendal.exceptions,
     PermissionDenied,
-    Error,
+    PyBaseException,
     "Permission denied"
 );
-create_exception!(opendal.exceptions, IsADirectory, Error, "Is a directory");
-create_exception!(opendal.exceptions, NotADirectory, Error, "Not a directory");
-create_exception!(opendal.exceptions, AlreadyExists, Error, "Already exists");
-create_exception!(opendal.exceptions, IsSameFile, Error, "Is same file");
+create_exception!(
+    opendal.exceptions,
+    IsADirectory,
+    PyBaseException,
+    "Is a directory"
+);
+create_exception!(
+    opendal.exceptions,
+    NotADirectory,
+    PyBaseException,
+    "Not a directory"
+);
+create_exception!(
+    opendal.exceptions,
+    AlreadyExists,
+    PyBaseException,
+    "Already exists"
+);
+create_exception!(
+    opendal.exceptions,
+    IsSameFile,
+    PyBaseException,
+    "Is same file"
+);
 create_exception!(
     opendal.exceptions,
     ConditionNotMatch,
-    Error,
+    PyBaseException,
     "Condition not match"
 );
 

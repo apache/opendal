@@ -24,12 +24,12 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
+use super::DEFAULT_SCHEME;
 use super::core::DbfsCore;
 use super::delete::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
@@ -195,7 +195,7 @@ impl Access for DbfsBackend {
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                meta.set_last_modified(parse_datetime_from_timestamp_millis(
                     decoded_response.modification_time,
                 )?);
                 match decoded_response.is_dir {

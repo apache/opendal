@@ -20,8 +20,8 @@ use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::future::RemoteHandle;
 use futures::FutureExt;
+use futures::future::RemoteHandle;
 
 use crate::raw::BoxedStaticFuture;
 

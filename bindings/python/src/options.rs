@@ -16,11 +16,10 @@
 // under the License.
 
 use dict_derive::FromPyObject;
+use jiff::Timestamp;
 use opendal::{self as ocore, raw::BytesRange};
 use pyo3::pyclass;
 use std::collections::HashMap;
-
-use chrono::{DateTime, Utc};
 
 #[pyclass(module = "opendal")]
 #[derive(FromPyObject, Default)]
@@ -34,8 +33,8 @@ pub struct ReadOptions {
     pub size: Option<usize>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<DateTime<Utc>>,
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
+    pub if_unmodified_since: Option<Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,
@@ -147,8 +146,8 @@ pub struct StatOptions {
     pub version: Option<String>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<DateTime<Utc>>,
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
+    pub if_unmodified_since: Option<Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,

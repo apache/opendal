@@ -19,13 +19,13 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjectStorePath;
+use opendal::Error;
+use opendal::ErrorKind;
 use opendal::raw::oio::BatchDeleter;
 use opendal::raw::oio::MultipartWriter;
 use opendal::raw::*;
-use opendal::Error;
-use opendal::ErrorKind;
 use opendal::*;
 
 mod core;
@@ -156,8 +156,8 @@ impl Access for ObjectStoreService {
 mod tests {
     use super::*;
     use object_store::memory::InMemory;
-    use opendal::raw::oio::{Delete, List, Read, Write};
     use opendal::Buffer;
+    use opendal::raw::oio::{Delete, List, Read, Write};
 
     #[tokio::test]
     async fn test_object_store_backend_builder() {

@@ -20,7 +20,7 @@ use std::env;
 use cloud_filter::root::{
     HydrationType, PopulationType, SecurityId, Session, SyncRootIdBuilder, SyncRootInfo,
 };
-use opendal::{services, Operator};
+use opendal::{Operator, services};
 use tokio::{runtime::Handle, signal};
 
 const PROVIDER_NAME: &str = "ro-cloud_filter";

@@ -17,7 +17,7 @@
 
 use libtest_mimic::Failed;
 
-use crate::{utils::list, ROOT_PATH};
+use crate::{ROOT_PATH, utils::list};
 
 pub fn test_fetch_placeholder() -> Result<(), Failed> {
     let files = ["normal_file.txt", "special_file  !@#$%^&()_+-=;',.txt"];

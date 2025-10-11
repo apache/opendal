@@ -27,6 +27,7 @@ use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::SftpCore;
 use super::delete::SftpDeleter;
 use super::error::is_not_found;
@@ -35,7 +36,6 @@ use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::SftpConfig;
 use crate::*;

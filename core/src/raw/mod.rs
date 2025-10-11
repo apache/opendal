@@ -71,8 +71,8 @@ pub use http_util::*;
 mod serde_util;
 pub use serde_util::*;
 
-mod chrono_util;
-pub use chrono_util::*;
+mod jiff_util;
+pub use jiff_util::*;
 
 #[cfg(feature = "internal-tokio-rt")]
 mod tokio_util;

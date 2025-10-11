@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
 use bytes;
 use bytes::Buf;
 use bytes::Bytes;
-use chrono::DateTime;
-use chrono::Utc;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use jiff::Timestamp;
 use serde::Deserialize;
 use serde_json::json;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
@@ -304,7 +303,7 @@ pub struct GdriveSigner {
     pub refresh_token: String,
 
     pub access_token: String,
-    pub expires_in: DateTime<Utc>,
+    pub expires_in: Timestamp,
 }
 
 impl GdriveSigner {
@@ -317,13 +316,13 @@ impl GdriveSigner {
             client_secret: "".to_string(),
             refresh_token: "".to_string(),
             access_token: "".to_string(),
-            expires_in: DateTime::<Utc>::MIN_UTC,
+            expires_in: Timestamp::MIN,
         }
     }
 
     /// Sign a request.
     pub async fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
-        if !self.access_token.is_empty() && self.expires_in > Utc::now() {
+        if !self.access_token.is_empty() && self.expires_in > Timestamp::now() {
             let value = format!("Bearer {}", self.access_token)
                 .parse()
                 .expect("access token must be valid header value");
@@ -352,10 +351,8 @@ impl GdriveSigner {
                     let token: GdriveTokenResponse = serde_json::from_reader(resp_body.reader())
                         .map_err(new_json_deserialize_error)?;
                     self.access_token.clone_from(&token.access_token);
-                    self.expires_in = Utc::now()
-                        + chrono::TimeDelta::try_seconds(token.expires_in)
-                            .expect("expires_in must be valid seconds")
-                        - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
+                    self.expires_in = Timestamp::now() + Duration::from_secs(token.expires_in)
+                        - Duration::from_secs(120);
                 }
                 _ => {
                     return Err(parse_error(resp));
@@ -469,7 +466,7 @@ impl PathQuery for GdrivePathQuery {
 #[derive(Deserialize)]
 pub struct GdriveTokenResponse {
     access_token: String,
-    expires_in: i64,
+    expires_in: u64,
 }
 
 /// This is the file struct returned by the Google Drive API.

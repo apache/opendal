@@ -15,23 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::Duration;
-use std::time::UNIX_EPOCH;
-
-use chrono::DateTime;
-use chrono::Utc;
-
 use crate::*;
+use std::time::SystemTime;
+
+use jiff::Timestamp;
 
 /// Parse datetime from rfc2822.
 ///
 /// For example: `Fri, 28 Nov 2014 21:00:09 +0900`
-pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
-    DateTime::parse_from_rfc2822(s)
-        .map(|v| v.into())
-        .map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse datetime from rfc2822 failed").set_source(e)
-        })
+pub fn parse_datetime_from_rfc2822(s: &str) -> Result<Timestamp> {
+    match jiff::fmt::rfc2822::parse(s) {
+        Ok(zoned) => Ok(zoned.timestamp()),
+        Err(err) => Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("parse '{s}' from rfc2822 failed"),
+        )
+        .set_source(err)),
+    }
 }
 
 /// Parse datetime from rfc3339.
@@ -41,56 +41,62 @@ pub fn parse_datetime_from_rfc2822(s: &str) -> Result<DateTime<Utc>> {
 /// With a time zone:
 ///
 /// ```
-/// use chrono::Datelike;
+/// use jiff::tz::TimeZone;
 /// use opendal::raw::parse_datetime_from_rfc3339;
 /// use opendal::Error;
 ///
 /// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09+09:00")?;
-/// assert_eq!(date_time.date_naive().day(), 28);
+/// assert_eq!(date_time.to_zoned(TimeZone::UTC).day(), 28);
 /// # Ok::<(), Error>(())
 /// ```
 ///
 /// With the UTC offset of 00:00:
 ///
 /// ```
-/// use chrono::Timelike;
-/// # use opendal::Error;
-/// # use opendal::raw::parse_datetime_from_rfc3339;
+/// use jiff::tz::TimeZone;
+/// use opendal::Error;
+/// use opendal::raw::parse_datetime_from_rfc3339;
 ///
 /// let date_time = parse_datetime_from_rfc3339("2014-11-28T21:00:09Z")?;
-/// assert_eq!(date_time.hour(), 21);
+/// assert_eq!(date_time.to_zoned(TimeZone::UTC).hour(), 21);
 /// # Ok::<(), Error>(())
 /// ```
-pub fn parse_datetime_from_rfc3339(s: &str) -> Result<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(s)
-        .map(|v| v.into())
-        .map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse datetime from rfc3339 failed").set_source(e)
-        })
+pub fn parse_datetime_from_rfc3339(s: &str) -> Result<Timestamp> {
+    match s.parse() {
+        Ok(t) => Ok(t),
+        Err(err) => Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("parse '{s}' into timestamp failed"),
+        )
+        .set_source(err)),
+    }
 }
 
 /// parse datetime from given timestamp_millis
-pub fn parse_datetime_from_from_timestamp_millis(s: i64) -> Result<DateTime<Utc>> {
-    let st = UNIX_EPOCH
-        .checked_add(Duration::from_millis(s as u64))
-        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "input timestamp overflow"))?;
-
-    Ok(st.into())
+pub fn parse_datetime_from_timestamp_millis(millis: i64) -> Result<Timestamp> {
+    Timestamp::from_millisecond(millis).map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
+    })
 }
 
-/// parse datetime from given timestamp
-pub fn parse_datetime_from_from_timestamp(s: i64) -> Result<DateTime<Utc>> {
-    let st = UNIX_EPOCH
-        .checked_add(Duration::from_secs(s as u64))
-        .ok_or_else(|| Error::new(ErrorKind::Unexpected, "input timestamp overflow"))?;
+/// parse datetime from given timestamp_secs
+pub fn parse_datetime_from_timestamp(secs: i64) -> Result<Timestamp> {
+    Timestamp::from_second(secs).map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
+    })
+}
 
-    Ok(st.into())
+/// parse datetime from given system time
+pub fn parse_datetime_from_system_time(t: SystemTime) -> Result<Timestamp> {
+    Timestamp::try_from(t).map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
+    })
 }
 
 /// format datetime into http date, this format is required by:
 /// https://httpwg.org/specs/rfc9110.html#field.if-modified-since
-pub fn format_datetime_into_http_date(s: DateTime<Utc>) -> String {
-    s.format("%a, %d %b %Y %H:%M:%S GMT").to_string()
+pub fn format_datetime_into_http_date(s: Timestamp) -> String {
+    s.strftime("%a, %d %b %Y %H:%M:%S GMT").to_string()
 }
 
 #[cfg(test)]

@@ -17,14 +17,13 @@
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::extract::Query;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::response::Response;
 use axum::routing::get;
-use axum::Router;
-use chrono::SecondsFormat;
 use futures_util::StreamExt;
 use opendal::Operator;
 use serde::Deserialize;
@@ -117,10 +116,7 @@ async fn handle_list_objects(
         } else {
             contents.push(Object {
                 key: v.path().to_string(),
-                last_modified: meta
-                    .last_modified()
-                    .unwrap_or_default()
-                    .to_rfc3339_opts(SecondsFormat::Millis, true),
+                last_modified: format!("{:.6}", meta.last_modified().unwrap_or_default()),
                 etag: meta.etag().unwrap_or_default().to_string(),
                 size: meta.content_length(),
             });

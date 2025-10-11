@@ -23,12 +23,12 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
@@ -205,7 +205,7 @@ impl Access for HdfsNativeBackend {
 
         let mut metadata = Metadata::new(mode);
         metadata
-            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+            .set_last_modified(parse_datetime_from_timestamp_millis(
                 status.modification_time as i64,
             )?)
             .set_content_length(status.length as u64);

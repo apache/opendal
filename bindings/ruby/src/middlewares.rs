@@ -19,11 +19,11 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use magnus::method;
-use magnus::prelude::*;
 use magnus::Error;
 use magnus::RModule;
 use magnus::Ruby;
+use magnus::method;
+use magnus::prelude::*;
 
 use opendal::raw::Accessor as OCoreAccessor;
 use opendal::raw::Layer as OCoreLayer;

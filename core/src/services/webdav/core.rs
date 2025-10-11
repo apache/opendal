@@ -22,10 +22,10 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 
 use super::error::parse_error;

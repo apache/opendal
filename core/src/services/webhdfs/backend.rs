@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
@@ -34,7 +35,6 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;
@@ -310,7 +310,7 @@ impl Access for WebhdfsBackend {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                     FileStatusType::File => Metadata::new(EntryMode::FILE)
                         .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        .with_last_modified(parse_datetime_from_timestamp_millis(
                             file_status.modification_time,
                         )?),
                 };

@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use super::core::DashmapCore;
-use crate::raw::{build_abs_path, oio, OpDelete};
+use crate::raw::{OpDelete, build_abs_path, oio};
 use crate::*;
 
 pub struct DashmapDeleter {

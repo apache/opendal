@@ -21,19 +21,18 @@ use std::sync::Arc;
 
 use log::debug;
 
-use http::Uri;
-use percent_encoding::percent_decode_str;
-
+use super::FS_SCHEME;
 use super::core::*;
 use super::delete::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
-use super::FS_SCHEME;
 use crate::raw::*;
 use crate::services::FsConfig;
 use crate::*;
+use http::Uri;
+use percent_encoding::percent_decode_str;
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
 

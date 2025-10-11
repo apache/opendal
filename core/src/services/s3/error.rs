@@ -16,8 +16,8 @@
 // under the License.
 
 use bytes::Buf;
-use http::response::Parts;
 use http::Response;
+use http::response::Parts;
 use quick_xml::de;
 use serde::Deserialize;
 

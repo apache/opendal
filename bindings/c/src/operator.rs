@@ -74,11 +74,13 @@ impl opendal_operator {
     /// // free this operator
     /// opendal_operator_free(op);
     /// ```
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     pub unsafe extern "C" fn opendal_operator_free(ptr: *const opendal_operator) {
-        if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::blocking::Operator));
-            drop(Box::from_raw(ptr as *mut opendal_operator));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut core::blocking::Operator));
+                drop(Box::from_raw(ptr as *mut opendal_operator));
+            }
         }
     }
 }
@@ -516,7 +518,7 @@ pub unsafe extern "C" fn opendal_operator_delete(
 ///
 /// * If the `path` points to NULL, this function panics, i.e. exits with information
 #[no_mangle]
-#[deprecated(note = "Use opendal_operator_exists() instead.")]
+#[cfg_attr(cbindgen, cbindgen::ignore)]
 pub unsafe extern "C" fn opendal_operator_is_exist(
     op: &opendal_operator,
     path: *const c_char,

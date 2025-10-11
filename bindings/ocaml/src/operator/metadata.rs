@@ -62,5 +62,5 @@ pub fn metadata_etag(metadata: &mut Metadata) -> Option<String> {
 #[ocaml::func]
 #[ocaml::sig("metadata -> int64 option ")]
 pub fn metadata_last_modified(metadata: &mut Metadata) -> Option<i64> {
-    metadata.0.last_modified().map(|t| t.timestamp())
+    metadata.0.last_modified().map(|t| t.as_second())
 }

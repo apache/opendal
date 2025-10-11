@@ -41,7 +41,7 @@ const websiteStaging = process.env.OPENDAL_WEBSITE_STAGING
 const websiteVersion = (function () {
   if (websiteStaging && process.env.GITHUB_REF_TYPE === "tag") {
     const refName = process.env.GITHUB_REF_NAME;
-    if (refName.startsWith("v")) {
+    if (refName?.startsWith("v")) {
       const version = semver.parse(refName, {}, true);
       return `${version.major}.${version.minor}.${version.patch}`;
     }
@@ -73,19 +73,21 @@ const config = {
 
   url: "https://opendal.apache.org/",
   baseUrl: "/",
+
   // Always set trailingSlash to true to avoid redirecting to a URL with a trailing slash
   trailingSlash: true,
 
   onBrokenLinks: "throw",
-  onBrokenMarkdownLinks: "throw",
+  markdown: {
+    format: "detect",
+    hooks: {
+      onBrokenMarkdownLinks: "throw",
+    }
+  },
 
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
-  },
-
-  markdown: {
-    format: "detect",
   },
 
   presets: [
@@ -175,7 +177,7 @@ const config = {
                   );
                   if (!config) return;
 
-                  const linkProcess = (link) => {
+                  const linkProcess = (/** @type {string} */ link) => {
                     if (
                       /^https:\/\/docs\.rs([\/\w].*\/[0-9]+.[0-9]+.[0-9]+$)/.test(
                         link
@@ -385,7 +387,7 @@ const config = {
 function generateConfig() {
   config.baseUrl = baseUrl;
 
-  if (websiteNotLatest) {
+  if (websiteNotLatest && config.themeConfig) {
     config.themeConfig.announcementBar = {
       id: "announcementBar-0", // Increment on change
       content:

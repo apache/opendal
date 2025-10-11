@@ -1051,7 +1051,6 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator *op,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-__attribute__((deprecated("Use opendal_operator_exists() instead.")))
 struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
                                                          const char *path);
 
@@ -1516,7 +1515,7 @@ void opendal_init_logger(void);
 void opendal_init_glog_logging(opendal_glog_callback_t callback);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* _OPENDAL_H */
+#endif  /* _OPENDAL_H */

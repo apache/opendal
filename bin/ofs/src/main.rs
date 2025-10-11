@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use clap::Parser;
 use url::Url;
 
@@ -47,8 +47,8 @@ async fn execute(cfg: Config) -> Result<()> {
     use std::env;
     use std::str::FromStr;
 
-    use fuse3::path::Session;
     use fuse3::MountOptions;
+    use fuse3::path::Session;
     use opendal::Operator;
     use opendal::Scheme;
 

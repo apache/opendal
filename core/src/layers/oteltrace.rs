@@ -18,14 +18,14 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use opentelemetry::Context as TraceContext;
+use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
-use opentelemetry::Context as TraceContext;
-use opentelemetry::KeyValue;
 
 use crate::raw::*;
 use crate::*;

@@ -18,10 +18,10 @@
 use std::convert::Infallible;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::Request;
 use axum::routing::any_service;
-use axum::Router;
 use dav_server::DavHandler;
 use dav_server_opendalfs::OpendalFs;
 use opendal::Operator;

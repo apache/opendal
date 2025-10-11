@@ -26,13 +26,13 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
+use super::DEFAULT_SCHEME;
 use super::core::AzfileCore;
 use super::delete::AzfileDeleter;
 use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzfileConfig;
 use crate::*;

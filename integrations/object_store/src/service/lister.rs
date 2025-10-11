@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use futures::{stream::BoxStream, StreamExt};
+use futures::{StreamExt, stream::BoxStream};
 use object_store::path::Path as ObjectStorePath;
 use object_store::{ObjectMeta, ObjectStore};
 use opendal::raw::*;

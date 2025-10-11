@@ -21,10 +21,10 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 use tokio::sync::RwLock;
 

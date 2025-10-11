@@ -22,11 +22,11 @@ use bytes::Buf;
 use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::error::parse_error;
-use crate::raw::oio::Entry;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::oio::Entry;
+use crate::raw::*;
 
 pub struct KoofrLister {
     core: Arc<KoofrCore>,
@@ -74,7 +74,7 @@ impl oio::PageList for KoofrLister {
                 let m = Metadata::new(EntryMode::FILE)
                     .with_content_length(file.size)
                     .with_content_type(file.content_type)
-                    .with_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+                    .with_last_modified(parse_datetime_from_timestamp_millis(file.modified)?);
                 Entry::new(&path, m)
             };
 

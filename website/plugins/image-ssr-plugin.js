@@ -109,12 +109,14 @@ module.exports = function (_context) {
 
         let lastError;
         for (let attempt = 1; attempt <= retries; attempt++) {
-          try {
-            const attemptLabel = `image-plugin:download:${imageUrl}:attempt-${attempt}`;
-            console.time(attemptLabel);
+          const attemptLabel = `image-plugin:download:${imageUrl}:attempt-${attempt}`;
+          console.time(attemptLabel);
+          const abortController = new AbortController();
+          const abortTimeout = setTimeout(() => abortController.abort(), 20000);
 
+          try {
             const response = await fetch(imageUrl, {
-              signal: AbortSignal.timeout(30000),
+              signal: abortController.signal,
               headers: {
                 "User-Agent":
                   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -124,29 +126,24 @@ module.exports = function (_context) {
             });
 
             if (!response.ok) {
-              console.timeEnd(attemptLabel);
               throw new Error(`HTTP error! Status: ${response.status}`);
             }
 
             const fd = await fs.open(buildOutputPath, "w");
             await pipeline(response.body, fd.createWriteStream());
-            console.timeEnd(attemptLabel);
             lastError = null;
+            console.timeEnd(attemptLabel);
             break;
           } catch (fetchError) {
+            lastError = fetchError;
             if (console.timeLog) {
               try {
-                console.timeLog(
-                  `image-plugin:download:${imageUrl}:attempt-${attempt}`
-                );
+                console.timeLog(attemptLabel);
               } catch {
                 // ignore when console.timeLog unsupported
               }
             }
-            console.timeEnd(
-              `image-plugin:download:${imageUrl}:attempt-${attempt}`
-            );
-            lastError = fetchError;
+            console.timeEnd(attemptLabel);
             console.warn(
               `Download attempt ${attempt}/${retries} failed for ${imageUrl}: ${fetchError.message}`
             );
@@ -157,6 +154,9 @@ module.exports = function (_context) {
             } catch {
               // Ignore if file doesn't exist
             }
+            continue;
+          } finally {
+            clearTimeout(abortTimeout);
           }
         }
 

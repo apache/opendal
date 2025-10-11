@@ -19,11 +19,47 @@
 
 const path = require("path");
 const fs = require("fs/promises");
+const fsSync = require("fs");
+const { pipeline } = require("stream/promises");
 const { createHash } = require("crypto");
-const cheerio = require("cheerio");
+const os = require("os");
+const readline = require("readline");
 
 module.exports = function (_context) {
   const processedImages = new Map();
+
+  const JS_IMAGE_PATTERN_SOURCE = String.raw`(["'])(https?:\/\/(?:img\.shields\.io\/[^"']+|github\.com\/[^"']+\/actions\/workflow[^"']+|[^"']+\.(?:png|jpg|jpeg|gif|svg|webp)(?:[?#][^"']*)*))\1`;
+  const HTML_IMAGE_PATTERN_SOURCE = String.raw`src=(["'])(https?:\/\/(?:img\.shields\.io\/[^"']+|github\.com\/[^"']+\/actions\/workflow[^"']+|[^"']+\.(?:png|jpg|jpeg|gif|svg|webp)(?:[?#][^"']*)*))\1`;
+
+  function createJsImageRegex() {
+    return new RegExp(JS_IMAGE_PATTERN_SOURCE, "g");
+  }
+
+  function createHtmlImageRegex() {
+    return new RegExp(HTML_IMAGE_PATTERN_SOURCE, "gi");
+  }
+
+  async function timeIt(label, fn) {
+    console.time(label);
+    try {
+      return await fn();
+    } finally {
+      console.timeEnd(label);
+    }
+  }
+
+  let tempFileCounter = 0;
+
+  function createTempPath(filePath) {
+    const dir = path.dirname(filePath);
+    const unique = [
+      Date.now().toString(36),
+      process.pid,
+      tempFileCounter++,
+      Math.random().toString(36).slice(2),
+    ].join("-");
+    return path.join(dir, `.__image-plugin-${unique}.tmp`);
+  }
 
   function getImageFilename(imageUrl) {
     const hash = createHash("md5").update(imageUrl).digest("hex");
@@ -55,7 +91,7 @@ module.exports = function (_context) {
     );
   }
 
-  async function downloadImage(imageUrl, buildDir) {
+  async function downloadImage(imageUrl, buildDir, retries = 3) {
     if (processedImages.has(imageUrl)) {
       return processedImages.get(imageUrl);
     }
@@ -71,31 +107,86 @@ module.exports = function (_context) {
       if (!(await existsAsync(buildOutputPath))) {
         console.log(`Downloading image: ${imageUrl}`);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        let lastError;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          const attemptLabel = `image-plugin:download:${imageUrl}:attempt-${attempt}`;
+          console.time(attemptLabel);
+          const abortController = new AbortController();
+          let timeoutId;
 
-        try {
-          const response = await fetch(imageUrl, {
-            signal: controller.signal,
-            headers: {
-              "User-Agent":
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
-            },
-            redirect: "follow",
-          });
+          try {
+            await Promise.race([
+              (async () => {
+                const response = await fetch(imageUrl, {
+                  signal: abortController.signal,
+                  headers: {
+                    "User-Agent":
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+                  },
+                  redirect: "follow",
+                });
 
-          clearTimeout(timeoutId);
+                if (!response.ok) {
+                  throw new Error(`HTTP error! Status: ${response.status}`);
+                }
 
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+                let fd;
+                try {
+                  fd = await fs.open(buildOutputPath, "w");
+                  await pipeline(response.body, fd.createWriteStream());
+                } finally {
+                  await fd?.close();
+                }
+              })(),
+              new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                  abortController.abort();
+                  reject(
+                    new Error(
+                      `Timed out after 20000ms waiting for ${imageUrl}`
+                    )
+                  );
+                }, 20000);
+              }),
+            ]);
+
+            lastError = null;
+            console.timeEnd(attemptLabel);
+            break;
+          } catch (fetchError) {
+            lastError = fetchError;
+            if (console.timeLog) {
+              try {
+                console.timeLog(attemptLabel);
+              } catch {
+                // ignore when console.timeLog unsupported
+              }
+            }
+            console.timeEnd(attemptLabel);
+            console.warn(
+              `Download attempt ${attempt}/${retries} failed for ${imageUrl}: ${fetchError.message}`
+            );
+
+            // clean up potentially corrupted file
+            try {
+              await fs.unlink(buildOutputPath);
+            } catch {
+              // ignore if file doesn't exist
+            }
+            continue;
+          } finally {
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
           }
+        }
 
-          const buffer = await response.arrayBuffer();
-          await fs.writeFile(buildOutputPath, Buffer.from(buffer));
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          throw fetchError;
+        if (lastError) {
+          console.error(
+            `All ${retries} attempts failed for ${imageUrl}, preserving remote URL`
+          );
+          throw lastError;
         }
       }
 
@@ -108,143 +199,271 @@ module.exports = function (_context) {
     }
   }
 
-  async function processJSFiles(outDir) {
-    console.log("Processing JS files for external images...");
+  async function pLimit(concurrency, tasks) {
+    const results = [];
+    const executing = [];
 
+    for (const task of tasks) {
+      const p = Promise.resolve().then(() => task());
+      results.push(p);
+
+      if (concurrency <= tasks.length) {
+        const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+        executing.push(e);
+        if (executing.length >= concurrency) {
+          await Promise.race(executing);
+        }
+      }
+    }
+
+    return Promise.all(results);
+  }
+
+  async function processFiles(dir) {
+    const htmlFiles = [];
     const jsFiles = [];
 
-    async function findJSFiles(dir) {
+    async function findFiles(dir) {
       const entries = await fs.readdir(dir, { withFileTypes: true });
 
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-          await findJSFiles(fullPath);
+          await findFiles(fullPath);
         } else if (entry.name.endsWith(".js")) {
           jsFiles.push(fullPath);
+        } else if (entry.name.endsWith(".html")) {
+          htmlFiles.push(fullPath);
         }
       }
     }
 
-    await findJSFiles(outDir);
+    await timeIt("image-plugin:scan-files", () => findFiles(dir));
 
-    for (const jsFile of jsFiles) {
-      const content = await fs.readFile(jsFile, "utf8");
-      let modified = false;
-      let newContent = content;
+    console.log(
+      `Collecting images from ${htmlFiles.length} HTML and ${jsFiles.length} JS files...`
+    );
+    const allImageUrls = new Set();
 
-      // Look for shield.io and other image URLs with a more comprehensive regex
-      const urlPatterns = [
-        /"(https?:\/\/[^"]+\.(png|jpg|jpeg|gif|svg|webp))"/g,
-        /"(https?:\/\/img\.shields\.io\/[^"]+)"/g,
-        /"(https?:\/\/github\.com\/[^"]+\/actions\/workflow[^"]+)"/g,
-        /'(https?:\/\/[^']+\.(png|jpg|jpeg|gif|svg|webp))'/g,
-        /'(https?:\/\/img\.shields\.io\/[^']+)'/g,
-        /'(https?:\/\/github\.com\/[^']+\/actions\/workflow[^']+)'/g,
-      ];
+    await Promise.all([
+      timeIt("image-plugin:collect-html", () =>
+        collectImagesFromHtml(htmlFiles, allImageUrls)
+      ),
+      timeIt("image-plugin:collect-js", () =>
+        collectImagesFromJs(jsFiles, allImageUrls)
+      ),
+    ]);
 
-      const allReplacements = [];
+    console.log(`Downloading ${allImageUrls.size} unique images...`);
+    const downloadTasks = Array.from(allImageUrls).map(
+      (url) => () => downloadImage(url, dir)
+    );
 
-      for (const pattern of urlPatterns) {
-        const matches = Array.from(newContent.matchAll(pattern));
+    const cpuCount = os.cpus().length;
+    const concurrency = Math.min(Math.max(cpuCount * 5, 10), 30);
+    console.log(
+      `Using ${concurrency} concurrent downloads (CPU cores: ${cpuCount})`
+    );
 
-        for (const match of matches) {
-          const imageUrl = match[1];
-          if (!imageUrl) continue;
+    await timeIt("image-plugin:download", () =>
+      pLimit(concurrency, downloadTasks)
+    );
 
-          try {
-            const localUrl = await downloadImage(imageUrl, outDir);
-            if (localUrl !== imageUrl) {
-              allReplacements.push({
-                original: match[0],
-                replacement: match[0].replace(imageUrl, localUrl),
-              });
-              modified = true;
-            }
-          } catch (error) {
-            console.error(`Error processing URL in JS file: ${error.message}`);
+    console.log("Updating files with local image URLs...");
+    await Promise.all([
+      timeIt("image-plugin:rewrite-html", () => processHtmlFiles(htmlFiles)),
+      timeIt("image-plugin:rewrite-js", () => processJSFiles(jsFiles)),
+    ]);
+  }
+
+  async function collectImagesFromHtml(htmlFiles, imageUrls) {
+    if (htmlFiles.length === 0) return;
+
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = htmlFiles.map((htmlFile) => async () => {
+      const content = await fs.readFile(htmlFile, "utf8");
+      if (!content.includes('src="http') && !content.includes("src='http")) {
+        return;
+      }
+
+      const regex = createHtmlImageRegex();
+      let match;
+      while ((match = regex.exec(content)) !== null) {
+        const imageUrl = match[2];
+        if (imageUrl) {
+          imageUrls.add(imageUrl);
+        }
+      }
+    });
+
+    await pLimit(concurrency, tasks);
+  }
+
+  async function collectImagesFromJs(jsFiles, imageUrls) {
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = jsFiles.map((jsFile) => async () => {
+      const stream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+      const rl = readline.createInterface({
+        input: stream,
+        crlfDelay: Infinity,
+      });
+      const regex = createJsImageRegex();
+
+      try {
+        for await (const line of rl) {
+          if (!line.includes("http")) {
+            continue;
           }
+
+          regex.lastIndex = 0;
+          let match;
+          while ((match = regex.exec(line)) !== null) {
+            const imageUrl = match[2];
+            if (imageUrl) {
+              imageUrls.add(imageUrl);
+            }
+          }
+        }
+      } catch (error) {
+        stream.destroy(error);
+        throw error;
+      } finally {
+        if (!stream.destroyed) {
+          stream.destroy();
+        }
+      }
+    });
+
+    await pLimit(concurrency, tasks);
+  }
+
+  async function processHtmlFiles(htmlFiles) {
+    if (htmlFiles.length === 0) return;
+
+    const concurrency = Math.min(Math.max(os.cpus().length, 4), 16);
+    const tasks = htmlFiles.map((htmlFile) => async () => {
+      const content = await fs.readFile(htmlFile, "utf8");
+      if (!content.includes('src="http') && !content.includes("src='http")) {
+        return;
+      }
+
+      const regex = createHtmlImageRegex();
+      const newContent = content.replace(
+        regex,
+        (fullMatch, quote, imageUrl) => {
+          if (!imageUrl) {
+            return fullMatch;
+          }
+
+          const localUrl = processedImages.get(imageUrl);
+          if (!localUrl || localUrl === imageUrl) {
+            return fullMatch;
+          }
+
+          return `src=${quote}${localUrl}${quote}`;
+        }
+      );
+
+      if (newContent !== content) {
+        await fs.writeFile(htmlFile, newContent);
+      }
+    });
+
+    await pLimit(concurrency, tasks);
+  }
+
+  async function processJSFiles(jsFiles) {
+    // const concurrency = Math.min(Math.max(os.cpus().length, 2), 8);
+    const concurrency = os.cpus().length;
+    const tasks = jsFiles.map((jsFile) => async () => {
+      const tempPath = createTempPath(jsFile);
+      const readStream = fsSync.createReadStream(jsFile, { encoding: "utf8" });
+      const writeStream = fsSync.createWriteStream(tempPath, {
+        encoding: "utf8",
+      });
+      const closePromise = new Promise((resolve, reject) => {
+        writeStream.once("close", resolve);
+        writeStream.once("error", reject);
+      });
+      const rl = readline.createInterface({
+        input: readStream,
+        crlfDelay: Infinity,
+      });
+      const regex = createJsImageRegex();
+      let modified = false;
+      let isFirstLine = true;
+      let processingError;
+
+      try {
+        for await (const line of rl) {
+          let nextLine = line;
+          if (line.includes("http")) {
+            regex.lastIndex = 0;
+            nextLine = line.replace(regex, (fullMatch, quote, imageUrl) => {
+              if (!imageUrl) {
+                return fullMatch;
+              }
+
+              const localUrl = processedImages.get(imageUrl);
+              if (!localUrl || localUrl === imageUrl) {
+                return fullMatch;
+              }
+
+              return `${quote}${localUrl}${quote}`;
+            });
+          }
+
+          if (nextLine !== line) {
+            modified = true;
+          }
+
+          if (!isFirstLine) {
+            writeStream.write("\n");
+          } else {
+            isFirstLine = false;
+          }
+
+          writeStream.write(nextLine);
+        }
+      } catch (error) {
+        processingError = error;
+      } finally {
+        if (!writeStream.destroyed) {
+          writeStream.end();
+        }
+        if (!readStream.destroyed) {
+          readStream.destroy(processingError);
         }
       }
 
-      // Apply replacements from longest to shortest to avoid partial replacements
-      allReplacements.sort((a, b) => b.original.length - a.original.length);
+      try {
+        await closePromise;
+      } catch (error) {
+        if (!processingError) {
+          processingError = error;
+        }
+      }
 
-      for (const { original, replacement } of allReplacements) {
-        newContent = newContent.replace(original, replacement);
+      if (processingError) {
+        await fs.unlink(tempPath).catch(() => {});
+        throw processingError;
       }
 
       if (modified) {
-        await fs.writeFile(jsFile, newContent);
+        await fs.rename(tempPath, jsFile);
+      } else {
+        await fs.unlink(tempPath);
       }
-    }
+    });
+
+    await pLimit(concurrency, tasks);
   }
 
   return {
     name: "docusaurus-ssr-image-plugin",
 
     async postBuild({ outDir }) {
-      console.log("Processing HTML files for external images...");
-
-      const htmlFiles = [];
-
-      async function findHtmlFiles(dir) {
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name);
-          if (entry.isDirectory()) {
-            await findHtmlFiles(fullPath);
-          } else if (entry.name.endsWith(".html")) {
-            htmlFiles.push(fullPath);
-          }
-        }
-      }
-
-      await findHtmlFiles(outDir);
-
-      for (const htmlFile of htmlFiles) {
-        const html = await fs.readFile(htmlFile, "utf8");
-        let $ = cheerio.load(html);
-        let modified = false;
-
-        const externalImages = $("img").filter((_, el) => {
-          const src = $(el).attr("src");
-          return src && src.startsWith("http");
-        });
-
-        if (externalImages.length === 0) continue;
-
-        const downloadPromises = [];
-
-        externalImages.each((_, img) => {
-          const element = $(img);
-          const imageUrl = element.attr("src");
-
-          if (!imageUrl || !imageUrl.startsWith("http")) return;
-
-          downloadPromises.push(
-            downloadImage(imageUrl, outDir)
-              .then((localUrl) => {
-                if (localUrl !== imageUrl) {
-                  element.attr("src", localUrl);
-                  modified = true;
-                }
-              })
-              .catch(() => {})
-          );
-        });
-
-        await Promise.all(downloadPromises);
-
-        if (modified) {
-          await fs.writeFile(htmlFile, $.html());
-        }
-      }
-
-      // Process JS files to update image references in bundled JavaScript
-      await processJSFiles(outDir);
-
+      await timeIt("image-plugin:post-build", () => processFiles(outDir));
       console.log(`Processed ${processedImages.size} external images`);
     },
   };

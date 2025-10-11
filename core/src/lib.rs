@@ -16,7 +16,7 @@
 // under the License.
 
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
+    html_logo_url = "https://opendal.apache.org/img/logo.svg"
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 

@@ -207,6 +207,8 @@ typedef enum opendal_code {
  */
 typedef struct Operator Operator;
 
+typedef struct Option_JoinHandle_Result_Metadata Option_JoinHandle_Result_Metadata;
+
 /**
  * \brief opendal_bytes carries raw-bytes with its length
  *
@@ -555,22 +557,31 @@ typedef struct opendal_async_operator {
    * Internal pointer to the Rust async Operator.
    */
   struct Operator *inner;
-  /**
-   * Tokio runtime handle.
-   */
-  void *rt;
 } opendal_async_operator;
 
 /**
- * Callback function type for asynchronous stat operations.
- * The user data pointer is passed through directly.
- *
- * # Safety
- * The callback pointer must be valid for the duration of the async operation.
- * The callback must handle potential NULL pointers in `opendal_result_stat` fields
- * and free them appropriately using `opendal_metadata_free` and `opendal_error_free`.
+ * Future handle for asynchronous stat operations.
  */
-typedef void (*opendal_stat_callback)(struct opendal_result_stat result, void *user_data);
+typedef struct opendal_future_stat {
+  /**
+   * Pointer to an owned JoinHandle wrapped in Option for safe extraction.
+   */
+  struct Option_JoinHandle_Result_Metadata *inner;
+} opendal_future_stat;
+
+/**
+ * Result type for creating an asynchronous stat future.
+ */
+typedef struct opendal_result_future_stat {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_stat *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_stat;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1509,12 +1520,26 @@ void opendal_async_operator_free(const struct opendal_async_operator *op);
  * `callback` must be a valid function pointer.
  * The `user_data` pointer's validity is the caller's responsibility.
  * The callback function will be invoked exactly once, either upon successful
- * completion, error, or if the operation setup fails.
+ * \brief Asynchronously gets metadata of a path, returning a future handle.
+ *
+ * The returned future can be awaited via `opendal_future_stat_await` to obtain the
+ * resulting metadata or error, mirroring Rust's `async/await` ergonomics.
  */
-void opendal_async_operator_stat_with_callback(const struct opendal_async_operator *op,
-                                               const char *path,
-                                               opendal_stat_callback callback,
-                                               void *user_data);
+struct opendal_result_future_stat opendal_async_operator_stat(const struct opendal_async_operator *op,
+                                                              const char *path);
+
+/**
+ * \brief Await an asynchronous stat future and return the resulting metadata.
+ *
+ * This function consumes the provided future pointer. After calling this function,
+ * the future pointer must not be reused.
+ */
+struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat *future);
+
+/**
+ * \brief Cancel and free a stat future without awaiting it.
+ */
+void opendal_future_stat_free(struct opendal_future_stat *future);
 
 /**
  * \brief Get information of underlying accessor.

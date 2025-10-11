@@ -16,10 +16,9 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
-use tokio::runtime::Handle;
+use tokio::task;
 
 use ::opendal as core;
 
@@ -29,21 +28,25 @@ use crate::metadata::opendal_metadata; // Keep this
 use crate::result::opendal_result_stat; // Keep this
 use crate::types::opendal_operator_options; // Keep this
 
-/// Callback function type for asynchronous stat operations.
-/// The user data pointer is passed through directly.
-///
-/// # Safety
-/// The callback pointer must be valid for the duration of the async operation.
-/// The callback must handle potential NULL pointers in `opendal_result_stat` fields
-/// and free them appropriately using `opendal_metadata_free` and `opendal_error_free`.
-pub type opendal_stat_callback =
-    unsafe extern "C" fn(result: opendal_result_stat, user_data: *mut c_void);
+/// Future handle for asynchronous stat operations.
+#[repr(C)]
+pub struct opendal_future_stat {
+    /// Pointer to an owned JoinHandle wrapped in Option for safe extraction.
+    inner: *mut Option<task::JoinHandle<core::Result<core::Metadata>>>,
+}
 
-// Wrapper for the user_data pointer to mark it as Send + Sync.
-// # Safety
-// The caller (C code) is responsible for ensuring the validity and thread-safety
-// of the data pointed to by `user_data` for the duration of the async operation
-// and the callback execution.
+unsafe impl Send for opendal_future_stat {}
+
+/// Result type for creating an asynchronous stat future.
+#[repr(C)]
+pub struct opendal_result_future_stat {
+    /// The future handle. Null when creation fails.
+    pub future: *mut opendal_future_stat,
+    /// The error information. Null on success.
+    pub error: *mut opendal_error,
+}
+
+unsafe impl Send for opendal_result_future_stat {}
 
 /// \brief Represents an asynchronous OpenDAL Operator.
 ///
@@ -53,8 +56,6 @@ pub type opendal_stat_callback =
 pub struct opendal_async_operator {
     /// Internal pointer to the Rust async Operator.
     inner: *mut core::Operator,
-    /// Tokio runtime handle.
-    rt: *mut c_void,
 }
 
 impl opendal_async_operator {
@@ -67,15 +68,6 @@ impl opendal_async_operator {
     /// of the `opendal_async_operator`.
     pub(crate) unsafe fn as_ref(&self) -> &core::Operator {
         &*self.inner
-    }
-
-    /// Returns a reference to the Tokio runtime handle.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that the `opendal_async_operator` pointer is valid.
-    pub(crate) unsafe fn runtime_handle(&self) -> &Handle {
-        &*(self.rt as *const Handle)
     }
 }
 
@@ -130,14 +122,6 @@ pub unsafe extern "C" fn opendal_async_operator_new(
             .collect()
     };
 
-    // Use the shared runtime defined in operator.rs
-    // We need access to the RUNTIME static variable.
-    // Let's make RUNTIME public or provide an accessor function.
-    // For now, assume we can get the handle.
-    // NOTE: This requires modification in operator.rs or a shared runtime module.
-    // Assuming a function `get_runtime_handle()` exists for now.
-    let runtime_handle = crate::operator::RUNTIME.handle().clone();
-
     match core::Operator::via_iter(scheme, map) {
         Ok(mut op) => {
             // Apply common layers like retry
@@ -145,7 +129,6 @@ pub unsafe extern "C" fn opendal_async_operator_new(
 
             let async_op = Box::into_raw(Box::new(opendal_async_operator {
                 inner: Box::into_raw(Box::new(op)),
-                rt: Box::into_raw(Box::new(runtime_handle)) as *mut c_void,
             }));
 
             // We reuse opendal_result_operator_new, but the `op` field now points
@@ -171,9 +154,8 @@ pub unsafe extern "C" fn opendal_async_operator_new(
 #[no_mangle]
 pub unsafe extern "C" fn opendal_async_operator_free(op: *const opendal_async_operator) {
     if !op.is_null() {
-        // Drop the inner Operator and the Handle
+        // Drop the inner Operator
         drop(Box::from_raw((*op).inner));
-        drop(Box::from_raw((*op).rt as *mut Handle));
         // Drop the container struct itself
         drop(Box::from_raw(op as *mut opendal_async_operator));
     }
@@ -194,85 +176,140 @@ pub unsafe extern "C" fn opendal_async_operator_free(op: *const opendal_async_op
 /// `callback` must be a valid function pointer.
 /// The `user_data` pointer's validity is the caller's responsibility.
 /// The callback function will be invoked exactly once, either upon successful
-/// completion, error, or if the operation setup fails.
+/// \brief Asynchronously gets metadata of a path, returning a future handle.
+///
+/// The returned future can be awaited via `opendal_future_stat_await` to obtain the
+/// resulting metadata or error, mirroring Rust's `async/await` ergonomics.
 #[no_mangle]
-pub unsafe extern "C" fn opendal_async_operator_stat_with_callback(
+pub unsafe extern "C" fn opendal_async_operator_stat(
     op: *const opendal_async_operator,
     path: *const c_char,
-    callback: opendal_stat_callback,
-    user_data: *mut c_void,
-) {
+) -> opendal_result_future_stat {
     if op.is_null() {
-        let result = opendal_result_stat {
-            meta: std::ptr::null_mut(),
+        return opendal_result_future_stat {
+            future: std::ptr::null_mut(),
             error: opendal_error::new(core::Error::new(
                 core::ErrorKind::Unexpected,
                 "opendal_async_operator is null",
             )),
         };
-        // Directly call callback for immediate errors
-        callback(result, user_data);
-        return;
     }
     if path.is_null() {
-        let result = opendal_result_stat {
-            meta: std::ptr::null_mut(),
+        return opendal_result_future_stat {
+            future: std::ptr::null_mut(),
             error: opendal_error::new(core::Error::new(
                 core::ErrorKind::Unexpected,
                 "path is null",
             )),
         };
-        callback(result, user_data);
-        return;
     }
 
     let operator = (*op).as_ref();
-    let runtime_handle = (*op).runtime_handle();
     let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
-        Ok(s) => s.to_string(), // Clone path string to own it
+        Ok(s) => s.to_string(),
         Err(e) => {
-            let result = opendal_result_stat {
-                meta: std::ptr::null_mut(),
+            return opendal_result_future_stat {
+                future: std::ptr::null_mut(),
                 error: opendal_error::new(
                     core::Error::new(core::ErrorKind::Unexpected, "invalid path string")
                         .set_source(e),
                 ),
             };
-            callback(result, user_data);
-            return;
         }
     };
 
-    // Clone operator for the async task
     let operator_clone = operator.clone();
 
-    // Capture user_data as usize and callback function pointer
-    // Both usize and function pointers are Send + Sync
-    let user_data_addr = user_data as usize;
-    let callback_fn = callback;
+    let handle =
+        crate::operator::RUNTIME.spawn(async move { operator_clone.stat(&path_str).await });
+    let future = Box::into_raw(Box::new(opendal_future_stat {
+        inner: Box::into_raw(Box::new(Some(handle))),
+    }));
 
-    // Spawn the async operation onto the Tokio runtime
-    runtime_handle.spawn(async move {
-        let result = operator_clone.stat(&path_str).await;
+    opendal_result_future_stat {
+        future,
+        error: std::ptr::null_mut(),
+    }
+}
 
-        // Construct the C result struct
-        let c_result = match result {
-            Ok(m) => opendal_result_stat {
-                meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
-                error: std::ptr::null_mut(),
-            },
-            Err(e) => opendal_result_stat {
-                meta: std::ptr::null_mut(),
-                error: opendal_error::new(e),
-            },
+/// \brief Await an asynchronous stat future and return the resulting metadata.
+///
+/// This function consumes the provided future pointer. After calling this function,
+/// the future pointer must not be reused.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_stat_await(
+    future: *mut opendal_future_stat,
+) -> opendal_result_stat {
+    if future.is_null() {
+        return opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_stat is null",
+            )),
         };
+    }
 
-        // Reconstitute the user_data pointer from the address
-        let user_data_ptr = user_data_addr as *mut c_void;
+    let mut future = Box::from_raw(future);
+    if future.inner.is_null() {
+        return opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_stat inner handle is null",
+            )),
+        };
+    }
 
-        // Call the C callback function
-        // Safety: Assumes the callback pointer provided by C is valid.
-        // The user_data pointer's validity is guaranteed by the C caller.
-        (callback_fn)(c_result, user_data_ptr);
-    });
+    let mut handle_box = Box::from_raw(future.inner);
+    future.inner = std::ptr::null_mut();
+    let handle = match (*handle_box).take() {
+        Some(handle) => handle,
+        None => {
+            return opendal_result_stat {
+                meta: std::ptr::null_mut(),
+                error: opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    "opendal_future_stat already awaited",
+                )),
+            };
+        }
+    };
+
+    let join_result = crate::operator::RUNTIME.block_on(async move { handle.await });
+
+    match join_result {
+        Ok(Ok(metadata)) => opendal_result_stat {
+            meta: Box::into_raw(Box::new(opendal_metadata::new(metadata))),
+            error: std::ptr::null_mut(),
+        },
+        Ok(Err(e)) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(e),
+        },
+        Err(join_err) => opendal_result_stat {
+            meta: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                format!("join error: {}", join_err),
+            )),
+        },
+    }
+}
+
+/// \brief Cancel and free a stat future without awaiting it.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_stat_free(future: *mut opendal_future_stat) {
+    if future.is_null() {
+        return;
+    }
+
+    let mut future = Box::from_raw(future);
+    if !future.inner.is_null() {
+        let mut handle_box = Box::from_raw(future.inner);
+        future.inner = std::ptr::null_mut();
+        if let Some(handle) = (*handle_box).take() {
+            handle.abort();
+        }
+    }
 }

@@ -19,40 +19,12 @@
 
 #include "gtest/gtest.h"
 #include <assert.h>
-#include <atomic> // For std::atomic_bool
-#include <condition_variable> // For synchronization
-#include <mutex> // For synchronization
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // For usleep
 // Include the generated OpenDAL C header
 extern "C" {
 #include "opendal.h"
-}
-
-// Structure to hold callback results and synchronization primitives
-typedef struct {
-    std::atomic_bool completed;
-    std::mutex mtx;
-    std::condition_variable cv;
-    opendal_result_stat result; // Store the result here
-} callback_args_t;
-
-// C-style callback function
-extern "C" void test_stat_callback(opendal_result_stat result, void* user_data)
-{
-    callback_args_t* args = static_cast<callback_args_t*>(user_data);
-
-    // Store the result
-    args->result = result; // Shallow copy is okay here
-
-    // Notify the waiting thread
-    {
-        std::lock_guard<std::mutex> lock(args->mtx);
-        args->completed.store(true);
-    }
-    args->cv.notify_one();
 }
 
 class OpendalAsyncStatTest : public ::testing::Test {
@@ -76,32 +48,27 @@ protected:
     }
 };
 
-TEST_F(OpendalAsyncStatTest, AsyncStatCallbackTest)
+TEST_F(OpendalAsyncStatTest, AsyncStatAwaitStyle)
 {
-    // Initialize callback arguments and synchronization primitives
-    callback_args_t cb_args;
-    cb_args.completed.store(false);
-    cb_args.result.meta = nullptr; // Initialize result fields
-    cb_args.result.error = nullptr;
-
-    // Call async stat for a non-existent file with the callback
     const char* path = "non_existent_file.txt";
-    opendal_async_operator_stat_with_callback(this->op, path, test_stat_callback, &cb_args);
+    opendal_result_future_stat future_result = opendal_async_operator_stat(this->op, path);
+    ASSERT_TRUE(future_result.error == nullptr);
+    ASSERT_TRUE(future_result.future != nullptr);
 
-    // Wait for the callback to complete
-    {
-        std::unique_lock<std::mutex> lock(cb_args.mtx);
-        cb_args.cv.wait(lock, [&cb_args] { return cb_args.completed.load(); });
-    }
+    opendal_result_stat stat_result = opendal_future_stat_await(future_result.future);
+    EXPECT_TRUE(stat_result.meta == nullptr);
+    ASSERT_TRUE(stat_result.error != nullptr);
+    EXPECT_EQ(stat_result.error->code, OPENDAL_NOT_FOUND);
+    opendal_error_free(stat_result.error);
+}
 
-    // Verify the result received by the callback
-    EXPECT_TRUE(cb_args.result.meta == nullptr); // Meta should be NULL for error
-    EXPECT_TRUE(cb_args.result.error != nullptr); // Error should be non-NULL
+TEST_F(OpendalAsyncStatTest, AsyncStatFreeFuture)
+{
+    const char* path = "non_existent_file.txt";
+    opendal_result_future_stat future_result = opendal_async_operator_stat(this->op, path);
+    ASSERT_TRUE(future_result.error == nullptr);
+    ASSERT_TRUE(future_result.future != nullptr);
 
-    if (cb_args.result.error) {
-        EXPECT_EQ(cb_args.result.error->code, OPENDAL_NOT_FOUND);
-        // Free the error received by the callback
-        opendal_error_free(cb_args.result.error);
-    }
-    // No metadata to free in case of error
+    opendal_future_stat_free(future_result.future);
+    // Nothing to assert beyond not crashing; the future is cancelled.
 }

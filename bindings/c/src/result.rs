@@ -99,6 +99,8 @@ pub struct opendal_result_stat {
     pub error: *mut opendal_error,
 }
 
+unsafe impl Send for opendal_result_stat {}
+
 /// \brief The result type returned by opendal_operator_list().
 ///
 /// The result type for opendal_operator_list(), the field `lister` contains the lister

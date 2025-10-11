@@ -276,7 +276,7 @@ pub unsafe extern "C" fn opendal_future_stat_await(
         }
     };
 
-    let join_result = crate::operator::RUNTIME.block_on(async move { handle.await });
+    let join_result = crate::operator::RUNTIME.block_on(handle);
 
     match join_result {
         Ok(Ok(metadata)) => opendal_result_stat {

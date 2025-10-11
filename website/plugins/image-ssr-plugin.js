@@ -112,25 +112,45 @@ module.exports = function (_context) {
           const attemptLabel = `image-plugin:download:${imageUrl}:attempt-${attempt}`;
           console.time(attemptLabel);
           const abortController = new AbortController();
-          const abortTimeout = setTimeout(() => abortController.abort(), 20000);
+          let timeoutId;
 
           try {
-            const response = await fetch(imageUrl, {
-              signal: abortController.signal,
-              headers: {
-                "User-Agent":
-                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
-              },
-              redirect: "follow",
-            });
+            await Promise.race([
+              (async () => {
+                const response = await fetch(imageUrl, {
+                  signal: abortController.signal,
+                  headers: {
+                    "User-Agent":
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+                  },
+                  redirect: "follow",
+                });
 
-            if (!response.ok) {
-              throw new Error(`HTTP error! Status: ${response.status}`);
-            }
+                if (!response.ok) {
+                  throw new Error(`HTTP error! Status: ${response.status}`);
+                }
 
-            const fd = await fs.open(buildOutputPath, "w");
-            await pipeline(response.body, fd.createWriteStream());
+                let fd;
+                try {
+                  fd = await fs.open(buildOutputPath, "w");
+                  await pipeline(response.body, fd.createWriteStream());
+                } finally {
+                  await fd?.close();
+                }
+              })(),
+              new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                  abortController.abort();
+                  reject(
+                    new Error(
+                      `Timed out after 20000ms waiting for ${imageUrl}`
+                    )
+                  );
+                }, 20000);
+              }),
+            ]);
+
             lastError = null;
             console.timeEnd(attemptLabel);
             break;
@@ -148,15 +168,17 @@ module.exports = function (_context) {
               `Download attempt ${attempt}/${retries} failed for ${imageUrl}: ${fetchError.message}`
             );
 
-            // Clean up potentially corrupted file
+            // clean up potentially corrupted file
             try {
               await fs.unlink(buildOutputPath);
             } catch {
-              // Ignore if file doesn't exist
+              // ignore if file doesn't exist
             }
             continue;
           } finally {
-            clearTimeout(abortTimeout);
+            if (timeoutId) {
+              clearTimeout(timeoutId);
+            }
           }
         }
 
@@ -351,7 +373,8 @@ module.exports = function (_context) {
   }
 
   async function processJSFiles(jsFiles) {
-    const concurrency = Math.min(Math.max(os.cpus().length, 2), 8);
+    // const concurrency = Math.min(Math.max(os.cpus().length, 2), 8);
+    const concurrency = os.cpus().length;
     const tasks = jsFiles.map((jsFile) => async () => {
       const tempPath = createTempPath(jsFile);
       const readStream = fsSync.createReadStream(jsFile, { encoding: "utf8" });

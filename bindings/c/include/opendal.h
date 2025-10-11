@@ -1511,15 +1511,10 @@ void opendal_async_operator_free(const struct opendal_async_operator *op);
  *
  * @param op A valid pointer to `opendal_async_operator`.
  * @param path The path to the object or directory.
- * @param callback The function to call when the operation completes.
- * @param user_data An opaque pointer passed directly to the callback function.
  *
  * # Safety
  * `op` must be a valid `opendal_async_operator`.
  * `path` must be a valid, null-terminated C string.
- * `callback` must be a valid function pointer.
- * The `user_data` pointer's validity is the caller's responsibility.
- * The callback function will be invoked exactly once, either upon successful
  * \brief Asynchronously gets metadata of a path, returning a future handle.
  *
  * The returned future can be awaited via `opendal_future_stat_await` to obtain the

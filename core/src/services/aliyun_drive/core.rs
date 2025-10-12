@@ -24,7 +24,6 @@ use http::Request;
 use http::Response;
 use http::header::HeaderValue;
 use http::header::{self};
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;

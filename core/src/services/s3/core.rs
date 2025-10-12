@@ -412,16 +412,10 @@ impl S3Core {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         // Set request payer header if enabled.
@@ -495,17 +489,11 @@ impl S3Core {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         // Set request payer header if enabled.

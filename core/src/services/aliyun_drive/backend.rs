@@ -22,7 +22,6 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
-use jiff::Timestamp;
 use log::debug;
 use tokio::sync::Mutex;
 

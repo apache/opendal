@@ -33,7 +33,6 @@ use crate::services::cloudflare_kv::writer::CloudflareWriter;
 use crate::*;
 use bytes::Buf;
 use http::StatusCode;
-use jiff::Timestamp;
 
 impl Configurator for CloudflareKvConfig {
     type Builder = CloudflareKvBuilder;
@@ -380,7 +379,7 @@ impl Access for CloudflareKvAccessor {
         })
         .with_etag(metadata.etag)
         .with_content_length(metadata.content_length as u64)
-        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?);
+        .with_last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
         Ok(RpStat::new(meta))
     }

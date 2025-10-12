@@ -16,8 +16,7 @@
 // under the License.
 
 use dict_derive::FromPyObject;
-use jiff::Timestamp;
-use opendal::{self as ocore, raw::BytesRange};
+use opendal::{self as ocore, raw::BytesRange, raw::Timestamp};
 use pyo3::pyclass;
 use std::collections::HashMap;
 

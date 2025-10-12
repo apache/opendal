@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::*;
-use jiff::Timestamp;
+use opendal::raw::Timestamp;
 use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]

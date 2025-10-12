@@ -16,7 +16,6 @@
 // under the License.
 
 use crate::*;
-use opendal::raw::Timestamp;
 use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
@@ -121,8 +120,8 @@ impl Metadata {
 
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<Timestamp> {
-        self.0.last_modified()
+    pub fn last_modified(&self) -> Option<crate::Timestamp> {
+        self.0.last_modified().map(Into::into)
     }
 
     /// Version of this entry, if available.

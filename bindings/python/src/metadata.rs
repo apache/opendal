@@ -121,8 +121,8 @@ impl Metadata {
 
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified().map(|t| t.to_string())
+    pub fn last_modified(&self) -> Option<Timestamp> {
+        self.0.last_modified()
     }
 
     /// Version of this entry, if available.

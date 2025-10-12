@@ -99,7 +99,7 @@ mod assert_send {
 }
 
 fn timestamp_to_datetime(ts: opendal::raw::Timestamp) -> Option<chrono::DateTime<chrono::Utc>> {
-    let jiff_ts: jiff::Timestamp = ts.into();
+    let jiff_ts = ts.into_inner();
     chrono::DateTime::<chrono::Utc>::from_timestamp(jiff_ts.as_second(), jiff_ts.subsec_nanosecond() as u32)
 }
 

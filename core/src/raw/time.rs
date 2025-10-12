@@ -105,6 +105,11 @@ impl Timestamp {
         self.0.as_second()
     }
 
+    /// Returns this timestamp as a number of milliseconds since the Unix epoch.
+    pub fn as_millisecond(self) -> i64 {
+        self.0.as_millisecond()
+    }
+
     /// Returns the fractional second component of this timestamp in units of
     /// nanoseconds.
     ///

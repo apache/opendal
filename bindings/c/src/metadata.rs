@@ -131,9 +131,7 @@ impl opendal_metadata {
         let mtime = self.deref().last_modified();
         match mtime {
             None => -1,
-            Some(time) => {
-                time.as_second() * 1000 + (time.subsec_nanosecond() / 1_000_000) as i64
-            }
+            Some(time) => time.as_millisecond(),
         }
     }
 }

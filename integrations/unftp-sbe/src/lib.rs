@@ -101,9 +101,12 @@ impl storage::Metadata for OpendalMetadata {
     }
 
     fn modified(&self) -> storage::Result<std::time::SystemTime> {
-        self.0.last_modified().map(Into::into).ok_or_else(|| {
-            storage::Error::new(storage::ErrorKind::LocalError, "no last modified time")
-        })
+        self.0
+            .last_modified()
+            .map(|t| t.into_inner().into())
+            .ok_or_else(|| {
+                storage::Error::new(storage::ErrorKind::LocalError, "no last modified time")
+            })
     }
 
     fn gid(&self) -> u32 {

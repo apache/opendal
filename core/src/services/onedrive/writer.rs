@@ -80,7 +80,7 @@ impl OneDriveWriter {
                     .with_content_length(item.size.max(0) as u64);
 
                 let last_modified = item.last_modified_date_time;
-                let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
                 meta.set_last_modified(date_utc_last_modified);
 
                 Ok(meta)
@@ -135,7 +135,7 @@ impl OneDriveWriter {
                         .with_content_length(item.size.max(0) as u64);
 
                     let last_modified = item.last_modified_date_time;
-                    let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+                    let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
                     meta.set_last_modified(date_utc_last_modified);
                     return Ok(meta);
                 }

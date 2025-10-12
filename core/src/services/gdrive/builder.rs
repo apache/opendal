@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
 use log::debug;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -32,6 +31,7 @@ use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
+use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::GdriveConfig;
 use crate::*;

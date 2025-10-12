@@ -195,7 +195,7 @@ impl Access for DbfsBackend {
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(parse_datetime_from_timestamp_millis(
+                meta.set_last_modified(Timestamp::from_millisecond(
                     decoded_response.modification_time,
                 )?);
                 match decoded_response.is_dir {

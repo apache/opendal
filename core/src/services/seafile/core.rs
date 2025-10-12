@@ -427,7 +427,7 @@ pub struct DirDetail {
 pub fn parse_dir_detail(dir_detail: DirDetail) -> Result<Metadata> {
     let mut md = Metadata::new(EntryMode::DIR);
 
-    md.set_last_modified(parse_datetime_from_rfc3339(&dir_detail.mtime)?);
+    md.set_last_modified(dir_detail.mtime.parse::<Timestamp>()?);
 
     Ok(md)
 }
@@ -436,7 +436,7 @@ pub fn parse_file_detail(file_detail: FileDetail) -> Result<Metadata> {
     let mut md = Metadata::new(EntryMode::FILE);
 
     md.set_content_length(file_detail.size);
-    md.set_last_modified(parse_datetime_from_rfc3339(&file_detail.last_modified)?);
+    md.set_last_modified(file_detail.last_modified.parse::<Timestamp>()?);
 
     Ok(md)
 }

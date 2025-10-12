@@ -132,8 +132,7 @@ impl opendal_metadata {
         match mtime {
             None => -1,
             Some(time) => {
-                let jiff_ts: jiff::Timestamp = time.into_inner();
-                jiff_ts.as_millisecond()
+                time.as_second() * 1000 + (time.subsec_nanosecond() / 1_000_000) as i64
             }
         }
     }

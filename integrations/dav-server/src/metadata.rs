@@ -40,7 +40,7 @@ impl DavMetaData for OpendalMetaData {
 
     fn modified(&self) -> FsResult<SystemTime> {
         match self.metadata.last_modified() {
-            Some(t) => Ok(t.into()),
+            Some(t) => Ok(t.as_system_time()),
             None => Err(FsError::GeneralFailure),
         }
     }
@@ -60,6 +60,6 @@ impl DavMetaData for OpendalMetaData {
     fn status_changed(&self) -> FsResult<SystemTime> {
         self.metadata
             .last_modified()
-            .map_or(Err(FsError::GeneralFailure), |t| Ok(t.into()))
+            .map_or(Err(FsError::GeneralFailure), |t| Ok(t.as_system_time()))
     }
 }

@@ -205,7 +205,7 @@ impl Access for HdfsNativeBackend {
 
         let mut metadata = Metadata::new(mode);
         metadata
-            .set_last_modified(parse_datetime_from_timestamp_millis(
+            .set_last_modified(Timestamp::from_millisecond(
                 status.modification_time as i64,
             )?)
             .set_content_length(status.length as u64);

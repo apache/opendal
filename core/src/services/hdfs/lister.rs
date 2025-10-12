@@ -56,7 +56,7 @@ impl oio::List for HdfsLister {
         let entry = if de.is_file() {
             let meta = Metadata::new(EntryMode::FILE)
                 .with_content_length(de.len())
-                .with_last_modified(parse_datetime_from_system_time(de.modified())?);
+                .with_last_modified(Timestamp::try_from(de.modified())?);
             oio::Entry::new(&path, meta)
         } else if de.is_dir() {
             // Make sure we are returning the correct path.

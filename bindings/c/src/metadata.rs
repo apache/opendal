@@ -131,7 +131,10 @@ impl opendal_metadata {
         let mtime = self.deref().last_modified();
         match mtime {
             None => -1,
-            Some(time) => time.as_millisecond(),
+            Some(time) => {
+                let jiff_ts: jiff::Timestamp = time.into_inner();
+                jiff_ts.as_millisecond()
+            }
         }
     }
 }

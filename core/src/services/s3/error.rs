@@ -119,6 +119,15 @@ pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
         //
         // It's Ok to retry since later on the request rate may get reduced.
         "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+        // > Compatibility with Volcengine TOS
+        //
+        // TOS returns following error codes along with 429 status code, while both
+        // of them indicate rate limit exceeded.
+        // See https://www.volcengine.com/docs/6349/74874 for more details.
+        "ExceedAccountQPSLimit"
+        | "ExceedAccountRateLimit"
+        | "ExceedBucketQPSLimit"
+        | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
         _ => None,
     }
 }

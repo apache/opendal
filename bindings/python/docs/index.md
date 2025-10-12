@@ -7,7 +7,7 @@ pip install opendal
 ```
 
 ## Local Usage
-There are two required arguments for working with files locally:
+Developer must set two required arguments to work with files locally:
 - `scheme`: which should be specified as `fs`
 - `root`: where OpenDAl considers the root of the directory for operations will be.
 

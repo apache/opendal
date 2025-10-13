@@ -18,8 +18,14 @@
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
 )]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
-
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(cfg(feature = "fs")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "s3")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "hdfs")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "tikv")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "redis")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "surrealdb")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "mongodb")))]
 //! Apache OpenDAL™ is an Open Data Access Layer that enables seamless interaction with diverse storage services.
 //!
 //! OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).

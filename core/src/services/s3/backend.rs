@@ -887,6 +887,7 @@ impl Builder for S3Builder {
             let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
+                    .with_region(region.clone())
                     .with_regional_sts_endpoint();
 
             if let Some(external_id) = &config.external_id {

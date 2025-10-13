@@ -41,6 +41,7 @@ use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
+use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -852,7 +853,8 @@ impl Builder for S3Builder {
         // Create the context for reqsign-core
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()));
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(OsEnv);
 
         let mut provider = {
             let mut builder = DefaultCredentialProvider::builder();

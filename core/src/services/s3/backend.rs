@@ -41,7 +41,6 @@ use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
@@ -513,22 +512,6 @@ impl S3Builder {
     pub fn enable_versioning(mut self, enabled: bool) -> Self {
         self.config.enable_versioning = enabled;
 
-        self
-    }
-
-    /// Append a custom credential provider that will be tried before the default chain.
-    ///
-    /// Providers are evaluated in the order they are added.
-    pub fn credential_provider(
-        mut self,
-        provider: impl ProvideCredential<Credential = Credential>,
-    ) -> Self {
-        let chain = self
-            .credential_providers
-            .take()
-            .unwrap_or_default()
-            .push(provider);
-        self.credential_providers = Some(chain);
         self
     }
 

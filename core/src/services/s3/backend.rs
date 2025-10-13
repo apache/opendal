@@ -35,6 +35,7 @@ use log::warn;
 use md5::Digest;
 use md5::Md5;
 use percent_encoding::percent_decode_str;
+use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
@@ -515,6 +516,22 @@ impl S3Builder {
         self
     }
 
+    /// Append a custom credential provider that will be tried before the default chain.
+    ///
+    /// Providers are evaluated in the order they are added.
+    pub fn credential_provider(
+        mut self,
+        provider: impl ProvideCredential<Credential = Credential>,
+    ) -> Self {
+        let chain = self
+            .credential_providers
+            .take()
+            .unwrap_or_default()
+            .push(provider);
+        self.credential_providers = Some(chain);
+        self
+    }
+
     /// Replace the credential providers with a custom chain.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_providers = Some(chain);
@@ -854,9 +871,7 @@ impl Builder for S3Builder {
             .with_file_read(TokioFileRead)
             .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()));
 
-        let mut provider = if let Some(chain) = credential_providers {
-            chain
-        } else {
+        let mut provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -870,6 +885,7 @@ impl Builder for S3Builder {
             ProvideCredentialChain::new().push(builder.build())
         };
 
+        // Insert static key if user provided.
         if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
             let static_provider = if let Some(token) = config.session_token.as_deref() {
                 StaticCredentialProvider::new(ak, sk).with_session_token(token)
@@ -878,6 +894,31 @@ impl Builder for S3Builder {
             };
             provider = provider.push_front(static_provider);
         }
+
+        // Insert assume role provider if user provided.
+        if let Some(role_arn) = &config.role_arn {
+            let sts_ctx = ctx.clone();
+            let sts_request_signer = AwsV4Signer::new("sts", &region);
+            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+            let mut assume_role_provider =
+                AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer);
+
+            if let Some(external_id) = &config.external_id {
+                assume_role_provider = assume_role_provider.with_external_id(external_id.clone());
+            }
+            if let Some(role_session_name) = &config.role_session_name {
+                assume_role_provider =
+                    assume_role_provider.with_role_session_name(role_session_name.clone());
+            }
+            provider = ProvideCredentialChain::new().push(assume_role_provider);
+        }
+
+        // Replace provider if user provide their own.
+        let provider = if let Some(credential_providers) = credential_providers {
+            credential_providers
+        } else {
+            provider
+        };
 
         // Create request signer for S3
         let request_signer = AwsV4Signer::new("s3", &region);

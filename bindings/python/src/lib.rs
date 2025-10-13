@@ -19,6 +19,7 @@
 // We will use `ocore::Xxx` to represents all types from opendal rust core.
 pub use ::opendal as ocore;
 use pyo3::prelude::*;
+use pyo3_stub_gen::{define_stub_info_gatherer, derive::*, module_doc, module_variable};
 
 mod capability;
 pub use capability::*;
@@ -38,6 +39,14 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
+mod services;
+pub use services::*;
+
+// Add module docs
+module_doc!("opendal", "Document for {} ...", env!("CARGO_PKG_NAME"));
+
+// Add version
+module_variable!("opendal", "__version__", &str, env!("CARGO_PKG_VERSION"));
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -57,6 +66,14 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ReadOptions>()?;
     m.add_class::<ListOptions>()?;
     m.add_class::<StatOptions>()?;
+
+    // Services module
+    let services_module = PyModule::new(py, "services")?;
+    services_module.add_class::<PyScheme>()?;
+    m.add_submodule(&services_module)?;
+    py.import("sys")?
+        .getattr("modules")?
+        .set_item("opendal.services", services_module)?;
 
     // Layer module
     let layers_module = PyModule::new(py, "layers")?;
@@ -87,3 +104,5 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         .set_item("opendal.exceptions", exception_module)?;
     Ok(())
 }
+
+define_stub_info_gatherer!(stub_info);

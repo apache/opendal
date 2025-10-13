@@ -73,4 +73,3 @@ build/docs
 
 # Generated docs
 site/
-Cargo.lock

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::anyhow;
 use anyhow::Result;
+use anyhow::anyhow;
 use clap::Parser;
 use url::Url;
 
@@ -38,7 +38,7 @@ struct Config {
 async fn main() -> Result<()> {
     let cfg = Config::parse();
 
-    logforth::stderr().apply();
+    logforth::starter_log::stderr().apply();
     execute(cfg).await
 }
 
@@ -47,8 +47,8 @@ async fn execute(cfg: Config) -> Result<()> {
     use std::env;
     use std::str::FromStr;
 
-    use fuse3::path::Session;
     use fuse3::MountOptions;
+    use fuse3::path::Session;
     use opendal::Operator;
     use opendal::Scheme;
 

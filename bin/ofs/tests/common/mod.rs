@@ -17,8 +17,8 @@
 
 use std::sync::OnceLock;
 
-use opendal::raw::tests;
 use opendal::Capability;
+use opendal::raw::tests;
 use tempfile::TempDir;
 use test_context::TestContext;
 use tokio::runtime::Runtime;
@@ -44,7 +44,7 @@ impl TestContext for OfsTestContext {
             .expect("no test services has been configured");
         let capability = backend.info().full_capability();
 
-        INIT_LOGGER.get_or_init(|| logforth::stderr().apply());
+        INIT_LOGGER.get_or_init(|| logforth::starter_log::stderr().apply());
 
         let mount_point = tempfile::tempdir().unwrap();
         let mount_point_str = mount_point.path().to_string_lossy().to_string();

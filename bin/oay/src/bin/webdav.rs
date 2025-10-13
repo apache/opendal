@@ -18,14 +18,14 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use oay::services::WebdavService;
 use oay::Config;
-use opendal::services::Fs;
+use oay::services::WebdavService;
 use opendal::Operator;
+use opendal::services::Fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    logforth::stderr().apply();
+    logforth::starter_log::stderr().apply();
 
     let cfg: Config = Config {
         backend: oay::BackendConfig {

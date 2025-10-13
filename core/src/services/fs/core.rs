@@ -20,8 +20,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
-
 use super::error::*;
 use crate::raw::*;
 use crate::*;
@@ -74,7 +72,6 @@ impl FsCore {
     pub async fn fs_stat(&self, path: &str) -> Result<Metadata> {
         let p = self.root.join(path.trim_end_matches('/'));
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
         let mode = if meta.is_dir() {
             EntryMode::DIR
         } else if meta.is_file() {
@@ -84,12 +81,9 @@ impl FsCore {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
+            .with_last_modified(parse_datetime_from_system_time(
+                meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(m)
     }
 
@@ -141,7 +135,10 @@ impl FsCore {
         path: &str,
     ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
         let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
-            return Err(Error::new(ErrorKind::Unexpected, "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug."));
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug.",
+            ));
         };
 
         let tmp_path = self

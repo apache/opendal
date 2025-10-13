@@ -20,11 +20,11 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
+use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDict;
 use pyo3::types::PyTuple;
-use pyo3::IntoPyObjectExt;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
@@ -308,7 +308,7 @@ impl Operator {
         }
     }
 
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
+    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;
@@ -433,7 +433,7 @@ impl AsyncOperator {
                 .await
                 .map_err(format_pyerr)?
                 .to_vec();
-            Python::with_gil(|py| Buffer::new(res).into_bytes(py))
+            Python::attach(|py| Buffer::new(res).into_bytes(py))
         })
     }
 
@@ -613,7 +613,7 @@ impl AsyncOperator {
                 .lister_options(&path, kwargs.into())
                 .await
                 .map_err(format_pyerr)?;
-            let pylister = Python::with_gil(|py| AsyncLister::new(lister).into_py_any(py))?;
+            let pylister = Python::attach(|py| AsyncLister::new(lister).into_py_any(py))?;
 
             Ok(pylister)
         })
@@ -750,7 +750,7 @@ impl AsyncOperator {
         }
     }
 
-    fn __getnewargs_ex__(&self, py: Python) -> PyResult<PyObject> {
+    fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
         let kwargs = self.__map.clone().into_py_any(py)?;

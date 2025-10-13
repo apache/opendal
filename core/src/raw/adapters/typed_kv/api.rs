@@ -15,14 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::future::ready;
-use std::future::Future;
-use std::mem::size_of;
-
-use chrono::Utc;
-
-use crate::raw::MaybeSend;
 use crate::Buffer;
 use crate::EntryMode;
 use crate::Error;
@@ -30,6 +22,12 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::Scheme;
+use crate::raw::MaybeSend;
+use jiff::Timestamp;
+use std::fmt::Debug;
+use std::future::Future;
+use std::future::ready;
+use std::mem::size_of;
 
 /// Adapter is the typed adapter to underlying kv services.
 ///
@@ -86,7 +84,7 @@ impl Value {
         Self {
             metadata: Metadata::new(EntryMode::DIR)
                 .with_content_length(0)
-                .with_last_modified(Utc::now()),
+                .with_last_modified(Timestamp::now()),
             value: Buffer::new(),
         }
     }

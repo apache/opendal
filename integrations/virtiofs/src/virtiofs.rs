@@ -21,10 +21,10 @@ use std::sync::RwLock;
 
 use log::warn;
 use opendal::Operator;
-use vhost::vhost_user::message::VhostUserProtocolFeatures;
-use vhost::vhost_user::message::VhostUserVirtioFeatures;
 use vhost::vhost_user::Backend;
 use vhost::vhost_user::Listener;
+use vhost::vhost_user::message::VhostUserProtocolFeatures;
+use vhost::vhost_user::message::VhostUserVirtioFeatures;
 use vhost_user_backend::VhostUserBackend;
 use vhost_user_backend::VhostUserDaemon;
 use vhost_user_backend::VringMutex;

@@ -26,7 +26,7 @@ use crate::*;
 /// Add `NotADirectory` and `IsADirectory` once they are stable.
 ///
 /// ref: <https://github.com/rust-lang/rust/issues/86442>
-pub fn new_std_io_error(err: std::io::Error) -> Error {
+pub fn new_std_io_error(err: io::Error) -> Error {
     use std::io::ErrorKind::*;
 
     let (kind, retryable) = match err.kind() {

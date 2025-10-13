@@ -17,10 +17,10 @@
 
 use std::sync::Arc;
 
-use futures::select;
 use futures::Future;
 use futures::FutureExt;
 use futures::TryFutureExt;
+use futures::select;
 use uuid::Uuid;
 
 use crate::raw::*;
@@ -248,9 +248,9 @@ mod tests {
     use std::time::Duration;
 
     use pretty_assertions::assert_eq;
-    use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::thread_rng;
     use tokio::time::sleep;
 
     use super::*;

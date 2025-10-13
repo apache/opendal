@@ -23,12 +23,12 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsNativeConfig;
 use crate::*;
@@ -110,7 +110,10 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
-        let client = hdfs_native::Client::new(name_node).map_err(parse_hdfs_error)?;
+        let client = hdfs_native::ClientBuilder::new()
+            .with_url(name_node)
+            .build()
+            .map_err(parse_hdfs_error)?;
 
         // need to check if root dir exists, create if not
         Ok(HdfsNativeBackend {
@@ -202,7 +205,7 @@ impl Access for HdfsNativeBackend {
 
         let mut metadata = Metadata::new(mode);
         metadata
-            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+            .set_last_modified(parse_datetime_from_timestamp_millis(
                 status.modification_time as i64,
             )?)
             .set_content_length(status.length as u64);

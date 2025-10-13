@@ -22,11 +22,11 @@ use std::time::Duration;
 
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
@@ -166,8 +166,6 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }

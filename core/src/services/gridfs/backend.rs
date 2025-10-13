@@ -128,14 +128,14 @@ impl Builder for GridfsBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
                         .with_context("service", Scheme::Gridfs),
-                )
+                );
             }
         };
         let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
-                    .with_context("service", Scheme::Gridfs))
+                    .with_context("service", Scheme::Gridfs));
             }
         };
         let bucket = match &self.config.bucket.clone() {

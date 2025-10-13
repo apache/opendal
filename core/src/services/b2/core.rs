@@ -21,12 +21,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Buf;
-use chrono::DateTime;
-use chrono::Utc;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::RwLock;
@@ -80,7 +79,7 @@ impl B2Core {
             let signer = self.signer.read().await;
 
             if !signer.auth_info.authorization_token.is_empty()
-                && signer.auth_info.expires_in > Utc::now()
+                && signer.auth_info.expires_in > Timestamp::now()
             {
                 let auth_info = signer.auth_info.clone();
                 return Ok(auth_info);
@@ -114,8 +113,7 @@ impl B2Core {
                         api_url: token.api_url.clone(),
                         download_url: token.download_url.clone(),
                         // This authorization token is valid for at most 24 hours.
-                        expires_in: Utc::now()
-                            + chrono::TimeDelta::try_hours(20).expect("20 hours must be valid"),
+                        expires_in: Timestamp::now() + Duration::from_secs(20 * 60 * 60),
                     };
                 }
                 _ => {
@@ -577,8 +575,8 @@ pub struct AuthInfo {
     pub api_url: String,
     /// The base URL to use for downloading files.
     pub download_url: String,
-
-    pub expires_in: DateTime<Utc>,
+    /// The time when the authorization token expires.
+    pub expires_in: Timestamp,
 }
 
 impl Default for B2Signer {
@@ -591,7 +589,7 @@ impl Default for B2Signer {
                 authorization_token: String::new(),
                 api_url: String::new(),
                 download_url: String::new(),
-                expires_in: DateTime::<Utc>::MIN_UTC,
+                expires_in: Timestamp::MIN,
             },
         }
     }

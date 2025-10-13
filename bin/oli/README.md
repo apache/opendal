@@ -1,5 +1,7 @@
 # Apache OpenDAL™ Oli
 
+[![Build Status]][actions] [![Latest Version]][crates.io] [![Crate Downloads]][crates.io] [![chat]][discord]
+
 [build status]: https://img.shields.io/github/actions/workflow/status/apache/opendal/ci_bin_oli.yml?branch=main
 [actions]: https://github.com/apache/opendal/actions?query=branch%3Amain
 [latest version]: https://img.shields.io/crates/v/oli.svg

@@ -18,8 +18,8 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use sqlx::mysql::MySqlConnectOptions;
 use sqlx::MySqlPool;
+use sqlx::mysql::MySqlConnectOptions;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -122,7 +122,7 @@ impl Builder for MysqlBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", Scheme::Mysql),
-                )
+                );
             }
         };
 
@@ -136,7 +136,7 @@ impl Builder for MysqlBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Mysql))
+                    .with_context("service", Scheme::Mysql));
             }
         };
 

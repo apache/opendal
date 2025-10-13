@@ -24,11 +24,11 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;

@@ -24,11 +24,11 @@ use std::sync::Arc;
 
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
@@ -75,8 +75,7 @@ impl HdfsBuilder {
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
     pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
-            self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
+            self.config.name_node = Some(name_node.to_string())
         }
 
         self
@@ -134,7 +133,7 @@ impl Builder for HdfsBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
-                    .with_context("service", Scheme::Hdfs))
+                    .with_context("service", Scheme::Hdfs));
             }
         };
 
@@ -250,7 +249,7 @@ impl Access for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(meta.modified().into());
+        m.set_last_modified(parse_datetime_from_system_time(meta.modified())?);
 
         Ok(RpStat::new(m))
     }
@@ -356,7 +355,7 @@ impl Access for HdfsBackend {
                     Ok((RpList::default(), None))
                 } else {
                     Err(new_std_io_error(e))
-                }
+                };
             }
         };
 

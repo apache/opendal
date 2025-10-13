@@ -37,7 +37,7 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -45,13 +45,8 @@ jobs:
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # TODO: 1Password doesn't support Windows
-      #
-      # Enable this step when the issue is resolved:
-      # https://github.com/1Password/load-secrets-action/issues/46 is resolved
       - name: Setup 1Password Connect
-        if: runner.os == 'Linux'
-        uses: 1password/load-secrets-action/configure@v2
+        uses: 1password/load-secrets-action/configure@v3
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}

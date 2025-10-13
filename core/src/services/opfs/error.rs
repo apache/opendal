@@ -14,3 +14,14 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
+use wasm_bindgen::JsValue;
+
+use crate::{Error, ErrorKind};
+
+pub(crate) fn parse_js_error(msg: JsValue) -> Error {
+    Error::new(
+        ErrorKind::Unexpected,
+        msg.as_string().unwrap_or_else(String::new),
+    )
+}

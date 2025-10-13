@@ -15,20 +15,37 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::MEMORY_SCHEME;
 use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
 use crate::*;
+use http::Uri;
+use percent_encoding::percent_decode_str;
 impl Configurator for MemoryConfig {
     type Builder = MemoryBuilder;
+
+    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
+        let mut map = options.clone();
+
+        if !map.contains_key("root") {
+            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
+            if !path.is_empty() && path != "/" {
+                map.insert("root".to_string(), path.trim_start_matches('/').to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         MemoryBuilder { config: self }
     }
@@ -71,7 +88,7 @@ pub struct MemoryAccessor {
 impl MemoryAccessor {
     fn new(core: MemoryCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(MEMORY_SCHEME);
         info.set_name(&format!("{:p}", Arc::as_ptr(&core.data)));
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -139,7 +156,7 @@ impl Access for MemoryAccessor {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "memory doesn't have this path",
-                ))
+                ));
             }
         };
 

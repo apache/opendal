@@ -20,20 +20,22 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::atomic::AtomicBool;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
 use http::Response;
 use http::StatusCode;
+use http::Uri;
 use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
+use percent_encoding::percent_decode_str;
 use reqsign::AwsAssumeRoleLoader;
 use reqsign::AwsConfig;
 use reqsign::AwsCredentialLoad;
@@ -41,6 +43,7 @@ use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
 
+use super::S3_SCHEME;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
@@ -50,7 +53,6 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -71,6 +73,30 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 impl Configurator for S3Config {
     type Builder = S3Builder;
+
+    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
+        let mut map = options.clone();
+
+        let bucket_missing = map.get("bucket").map(|v| v.is_empty()).unwrap_or(true);
+        if bucket_missing {
+            let bucket = uri
+                .authority()
+                .map(|authority| authority.host())
+                .filter(|host| !host.is_empty())
+                .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "s3 uri requires bucket"))?;
+            map.insert("bucket".to_string(), bucket.to_string());
+        }
+
+        if !map.contains_key("root") {
+            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
+            let trimmed = path.trim_matches('/');
+            if !trimmed.is_empty() {
+                map.insert("root".to_string(), trimmed.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -790,7 +816,7 @@ impl Builder for S3Builder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     format!("{v:?} is not a supported checksum_algorithm."),
-                ))
+                ));
             }
         };
 
@@ -904,7 +930,7 @@ impl Builder for S3Builder {
             core: Arc::new(S3Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(S3_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

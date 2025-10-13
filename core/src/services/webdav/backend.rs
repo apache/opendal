@@ -24,12 +24,12 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::WebdavConfig;
 use crate::*;

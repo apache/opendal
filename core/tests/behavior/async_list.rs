@@ -19,9 +19,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::Result;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use futures::stream::FuturesUnordered;
 use log::debug;
 
 use crate::*;

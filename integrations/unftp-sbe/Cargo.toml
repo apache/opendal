@@ -18,13 +18,13 @@
 [package]
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 description = "unftp Integration for Apache OpenDAL"
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 name = "unftp-sbe-opendal"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
-version = "0.3.0"
+rust-version = "1.85"
+version = "0.3.1"
 
 [dependencies]
 async-trait = "0.1.88"

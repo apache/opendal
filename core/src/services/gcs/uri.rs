@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use percent_encoding::utf8_percent_encode;
 use percent_encoding::AsciiSet;
 use percent_encoding::NON_ALPHANUMERIC;
+use percent_encoding::utf8_percent_encode;
 
 /// PATH_ENCODE_SET is the encode set for http url path.
 ///

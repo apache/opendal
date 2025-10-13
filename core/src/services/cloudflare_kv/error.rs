@@ -20,8 +20,8 @@ use http::Response;
 use http::StatusCode;
 use serde_json::de;
 
-use super::backend::CfKvError;
-use super::backend::CfKvResponse;
+use super::model::CfKvError;
+use super::model::CfKvResponse;
 use crate::raw::*;
 use crate::*;
 

@@ -110,7 +110,7 @@ impl oio::PageList for WebhdfsLister {
                 FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                 FileStatusType::File => Metadata::new(EntryMode::FILE)
                     .with_content_length(status.length)
-                    .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                    .with_last_modified(parse_datetime_from_timestamp_millis(
                         status.modification_time,
                     )?),
             };

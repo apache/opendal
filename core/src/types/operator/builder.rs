@@ -132,6 +132,27 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
+    /// Create a new operator by parsing configuration from a URI.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// # fn example() -> Result<()> {
+    /// let op = Operator::from_uri("memory://localhost/", [])?;
+    /// # let _ = op;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_uri(
+        uri: &str,
+        options: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<Operator> {
+        crate::DEFAULT_OPERATOR_REGISTRY.load(uri, options)
+    }
+
     /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.
     ///
     /// # Notes
@@ -170,6 +191,8 @@ impl Operator {
             Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv => Self::from_iter::<services::CloudflareKv>(iter)?.finish(),
             #[cfg(feature = "services-compfs")]
             Scheme::Compfs => Self::from_iter::<services::Compfs>(iter)?.finish(),
             #[cfg(feature = "services-upyun")]
@@ -287,7 +310,7 @@ impl Operator {
                     ErrorKind::Unsupported,
                     "scheme is not enabled or supported",
                 )
-                .with_context("scheme", v))
+                .with_context("scheme", v));
             }
         };
 

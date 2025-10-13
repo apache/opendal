@@ -23,6 +23,8 @@
 
 use std::collections::HashMap;
 
+use http::Uri;
+use http::response::Parts;
 use reqsign::{AzureStorageConfig, AzureStorageCredential};
 
 use crate::{Error, ErrorKind, Result};
@@ -275,12 +277,62 @@ fn collect_endpoint_from_parts(
     )))
 }
 
+/// Add response context to error.
+///
+/// This helper function will:
+///
+/// - remove sensitive or useless headers from parts.
+/// - fetch uri if parts extensions contains `Uri`.
+/// - censor sensitive SAS URI query parameters
+pub fn with_azure_error_response_context(mut err: Error, mut parts: Parts) -> Error {
+    if let Some(uri) = parts.extensions.get::<Uri>() {
+        err = err.with_context("uri", censor_sas_uri(uri));
+    }
+
+    // The following headers may contains sensitive information.
+    parts.headers.remove("Set-Cookie");
+    parts.headers.remove("WWW-Authenticate");
+    parts.headers.remove("Proxy-Authenticate");
+
+    err = err.with_context("response", format!("{parts:?}"));
+
+    err
+}
+
+fn censor_sas_uri(uri: &Uri) -> String {
+    if let Some(query) = uri.query() {
+        // There is a large set of query parameters specified for SAS URIs.
+        // Some of them may be useful to an attacker, but the most important part is the signature.
+        // Without a signature, an attacker will not be able to replay the request.
+        // For now, just remove the signature.
+        //
+        // https://learn.microsoft.com/en-us/rest/api/storageservices/create-account-sas
+        // https://learn.microsoft.com/en-us/rest/api/storageservices/create-service-sas
+        // https://learn.microsoft.com/en-us/rest/api/storageservices/create-user-delegation-sas
+        //
+        let path = uri.path();
+        let new_query: String = query
+            .split("&")
+            .filter(|p| !p.starts_with("sig="))
+            .collect::<Vec<_>>()
+            .join("&");
+        let mut parts = uri.clone().into_parts();
+        parts.path_and_query = Some(format!("{path}?{new_query}").try_into().unwrap());
+        Uri::from_parts(parts).unwrap().to_string()
+    } else {
+        uri.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use http::Uri;
     use reqsign::AzureStorageConfig;
 
+    use crate::raw::azure::censor_sas_uri;
+
     use super::{
-        azure_account_name_from_endpoint, azure_config_from_connection_string, AzureStorageService,
+        AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
     };
 
     #[test]
@@ -481,6 +533,15 @@ mod tests {
                 "Endpoint: {endpoint}"
             );
         }
+    }
+
+    #[test]
+    fn test_azure_uri_context_removes_sig() {
+        let uri: Uri = "https://foo.bar/path?foo=foo&sig=SENSITIVE&bar=bar"
+            .parse()
+            .unwrap();
+        let expected = "https://foo.bar/path?foo=foo&bar=bar";
+        assert_eq!(censor_sas_uri(&uri), expected);
     }
 
     /// Helper function to compare AzureStorageConfig fields manually.

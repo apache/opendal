@@ -2645,6 +2645,7 @@ version = "0.54.0"
 dependencies = [
  "opendal",
  "tokio",
+ "tracing-subscriber",
  "uuid",
 ]
 

@@ -158,9 +158,11 @@ impl opendal_operator_info {
     /// \brief Free the heap-allocated opendal_operator_info
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_free(ptr: *mut Self) {
-        if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::OperatorInfo));
-            drop(Box::from_raw(ptr));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut core::OperatorInfo));
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 

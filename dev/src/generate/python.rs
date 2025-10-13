@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{sorted_services, ConfigType, Services};
+use crate::generate::parser::{ConfigType, Services, sorted_services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
-use minijinja::{context, Environment};
+use minijinja::{Environment, context};
 use std::fs;
 use std::path::PathBuf;
 

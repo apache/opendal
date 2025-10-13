@@ -18,8 +18,8 @@
 use libtest_mimic::Failed;
 
 use crate::{
-    utils::{file_content, file_length},
     ROOT_PATH,
+    utils::{file_content, file_length},
 };
 
 pub fn test_fetch_data() -> Result<(), Failed> {

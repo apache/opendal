@@ -19,11 +19,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Request;
+use http::Response;
 use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Request;
-use http::Response;
 
 use crate::raw::*;
 use crate::*;

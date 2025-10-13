@@ -74,11 +74,6 @@
 
 mod metrics;
 
-pub use metrics::MetricLabels;
-pub use metrics::MetricValue;
-pub use metrics::MetricsAccessor;
-pub use metrics::MetricsIntercept;
-pub use metrics::MetricsLayer;
 pub use metrics::DEFAULT_BYTES_BUCKETS;
 pub use metrics::DEFAULT_BYTES_RATE_BUCKETS;
 pub use metrics::DEFAULT_DURATION_SECONDS_BUCKETS;
@@ -91,3 +86,8 @@ pub use metrics::LABEL_OPERATION;
 pub use metrics::LABEL_ROOT;
 pub use metrics::LABEL_SCHEME;
 pub use metrics::LABEL_STATUS_CODE;
+pub use metrics::MetricLabels;
+pub use metrics::MetricValue;
+pub use metrics::MetricsAccessor;
+pub use metrics::MetricsIntercept;
+pub use metrics::MetricsLayer;

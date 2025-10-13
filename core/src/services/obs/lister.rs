@@ -22,10 +22,10 @@ use quick_xml::de;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
 
 pub struct ObsLister {
     core: Arc<ObsCore>,

@@ -18,10 +18,10 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::stream::BoxStream;
 use futures::TryStreamExt;
-use object_store::path::Path as ObjectStorePath;
+use futures::stream::BoxStream;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjectStorePath;
 
 use opendal::raw::*;
 use opendal::*;

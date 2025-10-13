@@ -113,8 +113,10 @@ impl opendal_error {
     /// \brief Frees the opendal_error, ok to call on NULL
     #[no_mangle]
     pub unsafe extern "C" fn opendal_error_free(ptr: *mut opendal_error) {
-        if !ptr.is_null() {
-            drop(Box::from_raw(ptr));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 }

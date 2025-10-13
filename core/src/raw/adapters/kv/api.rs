@@ -21,9 +21,9 @@ use std::ops::DerefMut;
 
 use futures::Future;
 
-use crate::raw::*;
 use crate::Capability;
 use crate::Scheme;
+use crate::raw::*;
 use crate::*;
 
 /// Scan is the async iterator returned by `Adapter::scan`.
@@ -43,6 +43,7 @@ impl Scan for () {
 
 #[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]
 /// A Scan implementation for all trivial non-async iterators
+#[allow(dead_code)]
 pub struct ScanStdIter<I>(I);
 
 #[cfg(any(feature = "services-rocksdb", feature = "services-sled"))]

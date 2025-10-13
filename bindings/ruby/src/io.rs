@@ -29,15 +29,15 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
-use magnus::io::FMode;
-use magnus::method;
-use magnus::prelude::*;
-use magnus::scan_args::scan_args;
 use magnus::Error;
 use magnus::RHash;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Value;
+use magnus::io::FMode;
+use magnus::method;
+use magnus::prelude::*;
+use magnus::scan_args::scan_args;
 
 use crate::*;
 

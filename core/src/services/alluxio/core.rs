@@ -359,7 +359,7 @@ impl TryFrom<FileInfo> for Metadata {
         };
         metadata
             .set_content_length(file_info.length)
-            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+            .set_last_modified(parse_datetime_from_timestamp_millis(
                 file_info.last_modification_time_ms,
             )?);
         Ok(metadata)

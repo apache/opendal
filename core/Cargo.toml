@@ -23,11 +23,11 @@ keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
+rust-version = "1.85"
 version = "0.54.1"
 
 [lints.clippy]
@@ -41,9 +41,9 @@ default-members = ["."]
 members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
-rust-version = "1.82"
+rust-version = "1.85"
 version = "0.54.0"
 
 [features]
@@ -242,16 +242,13 @@ anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.5", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
-chrono = { version = "0.4.42", default-features = false, features = [
-  "clock",
-  "std",
-] }
 futures = { version = "0.3", default-features = false, features = [
   "std",
   "async-await",
 ] }
 http = "1.1"
 http-body = "1"
+jiff = { version = "0.2.15" }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"

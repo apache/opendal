@@ -17,16 +17,16 @@
 
 use crate::gen_stub_pyclass;
 use dict_derive::FromPyObject;
+use jiff::Timestamp;
 use opendal::{self as ocore, raw::BytesRange};
 use pyo3::pyclass;
 use std::collections::HashMap;
 
-use chrono::{DateTime, Utc};
-
 /// Options for read operations.
 #[gen_stub_pyclass]
 #[pyclass(get_all, set_all, module = "opendal.options")]
-#[derive(FromPyObject, Default, Debug)]
+#[derive(FromPyObject, Default)]
+
 pub struct ReadOptions {
     /// Set the starting point for the read.
     ///
@@ -79,7 +79,7 @@ pub struct ReadOptions {
     /// If the file exists and has not been modified since the specified time,
     /// an error will be returned.
     #[gen_stub(default = ReadOptions::default().if_modified_since)]
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
 
     /// Set `if_unmodified_since` for this operation.
     ///
@@ -89,7 +89,7 @@ pub struct ReadOptions {
     /// If the file exists and has been modified since the specified time, an
     /// error will be returned.
     #[gen_stub(default = ReadOptions::default().if_unmodified_since)]
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Set the level of concurrency for the read operation.
     ///
@@ -394,7 +394,7 @@ pub struct StatOptions {
     /// If the file exists and has not been modified since the specified time,
     /// an error will be returned.
     #[gen_stub(default = StatOptions::default().if_modified_since)]
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
 
     /// Set `if_unmodified_since` for this operation.
     ///
@@ -404,7 +404,7 @@ pub struct StatOptions {
     /// If the file exists and has been modified since the specified time, an
     /// error will be returned.
     #[gen_stub(default = StatOptions::default().if_unmodified_since)]
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Specify the content-type header to be sent back by the operation.
     ///

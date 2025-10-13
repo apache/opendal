@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use chrono::prelude::*;
-use std::collections::HashMap;
-
 use crate::*;
+use jiff::Timestamp;
+use std::collections::HashMap;
 
 /// Entry representing a path and its associated metadata.
 ///
@@ -152,7 +151,7 @@ impl Metadata {
 
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+    pub fn last_modified(&self) -> Option<Timestamp> {
         self.0.last_modified()
     }
 

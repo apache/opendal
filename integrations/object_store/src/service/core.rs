@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::borrow::Cow;
-
+use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use object_store::{
     Attribute, AttributeValue, GetOptions, GetRange, ObjectMeta, PutOptions, PutResult,
 };
 use opendal::raw::*;
 use opendal::*;
+use std::borrow::Cow;
 
 /// Parse OpStat arguments to object_store GetOptions for head requests
 pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
@@ -43,11 +43,11 @@ pub fn parse_op_stat(args: &OpStat) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = Some(if_modified_since);
+        options.if_modified_since = timestamp_to_datetime(if_modified_since);
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = Some(if_unmodified_since);
+        options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
     Ok(options)
@@ -70,11 +70,11 @@ pub fn parse_op_read(args: &OpRead) -> Result<GetOptions> {
     }
 
     if let Some(if_modified_since) = args.if_modified_since() {
-        options.if_modified_since = Some(if_modified_since);
+        options.if_modified_since = timestamp_to_datetime(if_modified_since);
     }
 
     if let Some(if_unmodified_since) = args.if_unmodified_since() {
-        options.if_unmodified_since = Some(if_unmodified_since);
+        options.if_unmodified_since = timestamp_to_datetime(if_unmodified_since);
     }
 
     if !args.range().is_full() {
@@ -152,7 +152,9 @@ pub fn format_put_result(result: PutResult) -> Metadata {
 pub fn format_metadata(meta: &ObjectMeta) -> Metadata {
     let mut metadata = Metadata::new(EntryMode::FILE);
     metadata.set_content_length(meta.size);
-    metadata.set_last_modified(meta.last_modified);
+    if let Some(last_modified) = datetime_to_timestamp(meta.last_modified) {
+        metadata.set_last_modified(last_modified);
+    }
     if let Some(etag) = &meta.e_tag {
         metadata.set_etag(etag);
     }

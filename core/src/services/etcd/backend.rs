@@ -25,12 +25,12 @@ use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
-use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
+use super::DEFAULT_SCHEME;
 use super::core::EtcdCore;
+use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
 use super::lister::EtcdLister;
 use super::writer::EtcdWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::EtcdConfig;
 use crate::*;

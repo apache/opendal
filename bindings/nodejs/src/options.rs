@@ -16,7 +16,7 @@
 // under the License.
 
 use napi::bindgen_prelude::BigInt;
-use opendal::raw::{parse_datetime_from_rfc3339, BytesRange};
+use opendal::raw::{BytesRange, parse_datetime_from_rfc3339};
 use std::collections::HashMap;
 
 #[napi(object)]

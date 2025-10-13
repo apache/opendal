@@ -107,7 +107,9 @@ impl oio::Write for FsWriter {
         let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
         let meta = Metadata::new(EntryMode::FILE)
             .with_content_length(file_meta.len())
-            .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
+            .with_last_modified(parse_datetime_from_system_time(
+                file_meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(meta)
     }
 
@@ -181,7 +183,9 @@ impl oio::PositionWrite for FsWriter {
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())
-            .with_last_modified(file_meta.modified().map_err(new_std_io_error)?.into());
+            .with_last_modified(parse_datetime_from_system_time(
+                file_meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(meta)
     }
 

@@ -18,8 +18,8 @@
 use datafusion::error::DataFusionError;
 use datafusion::error::Result;
 use datafusion::prelude::*;
-use opendal::services::S3;
 use opendal::Operator;
+use opendal::services::S3;
 use std::sync::Arc;
 use url::Url;
 

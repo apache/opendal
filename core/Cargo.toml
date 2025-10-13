@@ -199,9 +199,10 @@ services-redis = ["dep:redis", "dep:bb8", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
+  "dep:reqsign-core",
+  "dep:reqsign-aws-v4",
+  "dep:reqsign-file-read-tokio",
+  "dep:reqsign-http-send-reqwest",
   "dep:crc32c",
 ]
 services-seafile = []
@@ -279,6 +280,11 @@ sqlx = { version = "0.8.0", features = [
 
 # For http based services.
 reqsign = { version = "0.16.5", default-features = false, optional = true }
+# For S3 service migration to v1
+reqsign-core = { version = "2.0", default-features = false, optional = true }
+reqsign-aws-v4 = { version = "2.0", default-features = false, optional = true }
+reqsign-file-read-tokio = { version = "2.0", default-features = false, optional = true }
+reqsign-http-send-reqwest = { version = "2.0", default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }

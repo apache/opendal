@@ -21,8 +21,6 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
-use std::sync::atomic;
-use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use base64::Engine;
@@ -43,9 +41,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign::AwsCredential;
-use reqsign::AwsCredentialLoad;
-use reqsign::AwsV4Signer;
+use reqsign_aws_v4::Credential;
+use reqsign_core::Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -104,9 +101,7 @@ pub struct S3Core {
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
 
-    pub signer: AwsV4Signer,
-    pub loader: Box<dyn AwsCredentialLoad>,
-    pub credential_loaded: AtomicBool,
+    pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
@@ -121,52 +116,19 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    /// If credential is not found, we will not sign the request.
-    async fn load_credential(&self) -> Result<Option<AwsCredential>> {
-        let cred = self
-            .loader
-            .load_credential(GLOBAL_REQWEST_CLIENT.clone())
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            // Update credential_loaded to true if we have load credential successfully.
-            self.credential_loaded
-                .store(true, atomic::Ordering::Relaxed);
-            return Ok(Some(cred));
-        }
-
-        // If we have load credential before but failed to load this time, we should
-        // return error instead.
-        if self.credential_loaded.load(atomic::Ordering::Relaxed) {
-            return Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "credential was previously loaded successfully but has failed this time",
-            )
-            .set_temporary());
-        }
-
-        // Credential is empty and users allow anonymous access, we will not sign the request.
+    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        // Skip signing for anonymous access
         if self.allow_anonymous {
-            return Ok(None);
+            return Ok(req);
         }
 
-        Err(Error::new(
-            ErrorKind::PermissionDenied,
-            "no valid credential found and anonymous access is not allowed",
-        ))
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
+        // Sign the request with presigned URL
+        let (mut parts, body) = req.into_parts();
 
         self.signer
-            .sign(req, &cred)
-            .map_err(new_request_sign_error)?;
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -174,36 +136,63 @@ impl S3Core {
         // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
         // google server could send RST_STREAM of PROTOCOL_ERROR if our request
         // contains host header.
-        req.headers_mut().remove(HOST);
+        parts.headers.remove(HOST);
 
-        Ok(())
+        Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
-
-        self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)?;
-
-        // Always remove host header, let users' client to set it based on HTTP
-        // version.
-        //
-        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
-        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
-        // contains host header.
-        req.headers_mut().remove(HOST);
-
-        Ok(())
-    }
-
-    #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+        // Skip signing for anonymous access
+        if self.allow_anonymous {
+            return self.info.http_client().send(req).await;
+        }
+
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        parts.headers.remove(HOST);
+
+        self.info
+            .http_client()
+            .send(Request::from_parts(parts, body))
+            .await
+    }
+
+    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        // Skip signing for anonymous access
+        if self.allow_anonymous {
+            return self.info.http_client().fetch(req).await;
+        }
+
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        // Always remove host header, let users' client to set it based on HTTP
+        // version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
+        // contains host header.
+        parts.headers.remove(HOST);
+
+        self.info
+            .http_client()
+            .fetch(Request::from_parts(parts, body))
+            .await
     }
 
     /// # Note
@@ -529,11 +518,8 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let mut req = self.s3_get_object_request(path, range, args)?;
-
-        self.sign(&mut req).await?;
-
-        self.info.http_client().fetch(req).await
+        let req = self.s3_get_object_request(path, range, args)?;
+        self.fetch(req).await
     }
 
     pub fn s3_put_object_request(
@@ -610,10 +596,7 @@ impl S3Core {
     }
 
     pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
-        let mut req = self.s3_head_object_request(path, args)?;
-
-        self.sign(&mut req).await?;
-
+        let req = self.s3_head_object_request(path, args)?;
         self.send(req).await
     }
 
@@ -641,13 +624,11 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -703,14 +684,12 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -744,13 +723,11 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -796,13 +773,11 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -854,9 +829,7 @@ impl S3Core {
         // Inject operation to the request.
         req = req.extension(Operation::Write);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
         self.send(req).await
     }
@@ -937,11 +910,9 @@ impl S3Core {
         // Inject operation to the request.
         req = req.extension(Operation::Write);
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -966,13 +937,12 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
         self.send(req).await
     }
 
@@ -1008,11 +978,9 @@ impl S3Core {
         // Inject operation to the request.
         req = req.extension(Operation::Delete);
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }
@@ -1057,13 +1025,11 @@ impl S3Core {
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
-        let mut req = req
+        let req = req
             // Inject operation to the request.
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
 
         self.send(req).await
     }

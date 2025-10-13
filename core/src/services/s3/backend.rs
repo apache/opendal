@@ -22,7 +22,6 @@ use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::LazyLock;
-use std::sync::atomic::AtomicBool;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -36,11 +35,16 @@ use log::warn;
 use md5::Digest;
 use md5::Md5;
 use percent_encoding::percent_decode_str;
-use reqsign::AwsAssumeRoleLoader;
-use reqsign::AwsConfig;
-use reqsign::AwsCredentialLoad;
-use reqsign::AwsDefaultLoader;
-use reqsign::AwsV4Signer;
+use reqsign_aws_v4::Credential;
+use reqsign_aws_v4::DefaultCredentialProvider;
+use reqsign_aws_v4::RequestSigner as AwsV4Signer;
+use reqsign_aws_v4::StaticCredentialProvider;
+use reqsign_core::Context;
+use reqsign_core::ProvideCredential;
+use reqsign_core::ProvideCredentialChain;
+use reqsign_core::Signer;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqwest::Url;
 
 use super::S3_SCHEME;
@@ -102,9 +106,9 @@ impl Configurator for S3Config {
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
-            customized_credential_load: None,
 
             http_client: None,
+            credential_providers: None,
         }
     }
 }
@@ -117,10 +121,9 @@ impl Configurator for S3Config {
 pub struct S3Builder {
     config: S3Config,
 
-    customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
-
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     http_client: Option<HttpClient>,
+    credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for S3Builder {
@@ -492,15 +495,6 @@ impl S3Builder {
         self
     }
 
-    /// Adding a customized credential load for service.
-    ///
-    /// If customized_credential_load has been set, we will ignore all other
-    /// credential load methods.
-    pub fn customized_credential_load(mut self, cred: Box<dyn AwsCredentialLoad>) -> Self {
-        self.customized_credential_load = Some(cred);
-        self
-    }
-
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -521,31 +515,37 @@ impl S3Builder {
         self
     }
 
-    /// Check if `bucket` is valid
+    /// Replace the credential providers with a custom chain.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
+
+    /// Check if `bucket` is valid.
     /// `bucket` must be not empty and if `enable_virtual_host_style` is true
-    /// it couldn't contain dot(.) character
-    fn is_bucket_valid(&self) -> bool {
-        if self.config.bucket.is_empty() {
+    /// it could not contain dot (.) character.
+    fn is_bucket_valid(config: &S3Config) -> bool {
+        if config.bucket.is_empty() {
             return false;
         }
         // If enable virtual host style, `bucket` will reside in domain part,
         // for example `https://bucket_name.s3.us-east-1.amazonaws.com`,
         // so `bucket` with dot can't be recognized correctly for this format.
-        if self.config.enable_virtual_host_style && self.config.bucket.contains('.') {
+        if config.enable_virtual_host_style && config.bucket.contains('.') {
             return false;
         }
         true
     }
 
     /// Build endpoint with given region.
-    fn build_endpoint(&self, region: &str) -> String {
+    fn build_endpoint(config: &S3Config, region: &str) -> String {
         let bucket = {
-            debug_assert!(self.is_bucket_valid(), "bucket must be valid");
+            debug_assert!(Self::is_bucket_valid(config), "bucket must be valid");
 
-            self.config.bucket.as_str()
+            config.bucket.as_str()
         };
 
-        let mut endpoint = match &self.config.endpoint {
+        let mut endpoint = match &config.endpoint {
             Some(endpoint) => {
                 if endpoint.starts_with("http") {
                     endpoint.to_string()
@@ -576,7 +576,7 @@ impl S3Builder {
         };
 
         // Apply virtual host style.
-        if self.config.enable_virtual_host_style {
+        if config.enable_virtual_host_style {
             endpoint = endpoint.replace("//", &format!("//{bucket}."))
         } else {
             write!(endpoint, "/{bucket}").expect("write into string must succeed");
@@ -745,15 +745,22 @@ impl S3Builder {
 impl Builder for S3Builder {
     type Config = S3Config;
 
-    fn build(mut self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let root = normalize_root(&self.config.root.clone().unwrap_or_default());
+        #[allow(deprecated)]
+        let S3Builder {
+            config,
+            http_client,
+            credential_providers,
+        } = self;
+
+        let root = normalize_root(&config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 
         // Handle bucket name.
-        let bucket = if self.is_bucket_valid() {
-            Ok(&self.config.bucket)
+        let bucket = if Self::is_bucket_valid(&config) {
+            Ok(&config.bucket)
         } else {
             Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
@@ -762,14 +769,14 @@ impl Builder for S3Builder {
         }?;
         debug!("backend use bucket {}", &bucket);
 
-        let default_storage_class = match &self.config.default_storage_class {
+        let default_storage_class = match &config.default_storage_class {
             None => None,
             Some(v) => Some(
                 build_header_value(v).map_err(|err| err.with_context("key", "storage_class"))?,
             ),
         };
 
-        let server_side_encryption = match &self.config.server_side_encryption {
+        let server_side_encryption = match &config.server_side_encryption {
             None => None,
             Some(v) => Some(
                 build_header_value(v)
@@ -778,7 +785,7 @@ impl Builder for S3Builder {
         };
 
         let server_side_encryption_aws_kms_key_id =
-            match &self.config.server_side_encryption_aws_kms_key_id {
+            match &config.server_side_encryption_aws_kms_key_id {
                 None => None,
                 Some(v) => Some(build_header_value(v).map_err(|err| {
                     err.with_context("key", "server_side_encryption_aws_kms_key_id")
@@ -786,7 +793,7 @@ impl Builder for S3Builder {
             };
 
         let server_side_encryption_customer_algorithm =
-            match &self.config.server_side_encryption_customer_algorithm {
+            match &config.server_side_encryption_customer_algorithm {
                 None => None,
                 Some(v) => Some(build_header_value(v).map_err(|err| {
                     err.with_context("key", "server_side_encryption_customer_algorithm")
@@ -794,7 +801,7 @@ impl Builder for S3Builder {
             };
 
         let server_side_encryption_customer_key =
-            match &self.config.server_side_encryption_customer_key {
+            match &config.server_side_encryption_customer_key {
                 None => None,
                 Some(v) => Some(build_header_value(v).map_err(|err| {
                     err.with_context("key", "server_side_encryption_customer_key")
@@ -802,14 +809,14 @@ impl Builder for S3Builder {
             };
 
         let server_side_encryption_customer_key_md5 =
-            match &self.config.server_side_encryption_customer_key_md5 {
+            match &config.server_side_encryption_customer_key_md5 {
                 None => None,
                 Some(v) => Some(build_header_value(v).map_err(|err| {
                     err.with_context("key", "server_side_encryption_customer_key_md5")
                 })?),
             };
 
-        let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
+        let checksum_algorithm = match config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
             None => None,
             v => {
@@ -820,109 +827,65 @@ impl Builder for S3Builder {
             }
         };
 
-        // This is our current config.
-        let mut cfg = AwsConfig::default();
-        if !self.config.disable_config_load {
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                cfg = cfg.from_profile();
-                cfg = cfg.from_env();
-            }
-        }
-
-        if let Some(ref v) = self.config.region {
-            cfg.region = Some(v.to_string());
-        }
-
-        if cfg.region.is_none() {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "region is missing. Please find it by S3::detect_region() or set them in env.",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", Scheme::S3));
-        }
-
-        let region = cfg.region.to_owned().unwrap();
+        // Determine the region
+        let region = if let Some(ref v) = config.region {
+            v.to_string()
+        } else {
+            // Try to get region from environment
+            std::env::var("AWS_REGION")
+                .or_else(|_| std::env::var("AWS_DEFAULT_REGION"))
+                .map_err(|_| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "region is missing. Please find it by S3::detect_region() or set them in env.",
+                    )
+                    .with_operation("Builder::build")
+                    .with_context("service", Scheme::S3)
+                })?
+        };
         debug!("backend use region: {region}");
 
-        // Retain the user's endpoint if it exists; otherwise, try loading it from the environment.
-        self.config.endpoint = self.config.endpoint.or_else(|| cfg.endpoint_url.clone());
-
         // Building endpoint.
-        let endpoint = self.build_endpoint(&region);
+        let endpoint = Self::build_endpoint(&config, &region);
         debug!("backend use endpoint: {endpoint}");
 
-        // Setting all value from user input if available.
-        if let Some(v) = self.config.access_key_id {
-            cfg.access_key_id = Some(v)
-        }
-        if let Some(v) = self.config.secret_access_key {
-            cfg.secret_access_key = Some(v)
-        }
-        if let Some(v) = self.config.session_token {
-            cfg.session_token = Some(v)
-        }
+        // Create the context for reqsign-core
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()));
 
-        let mut loader: Option<Box<dyn AwsCredentialLoad>> = None;
-        // If customized_credential_load is set, we will use it.
-        if let Some(v) = self.customized_credential_load {
-            loader = Some(v);
-        }
+        let mut provider = if let Some(chain) = credential_providers {
+            chain
+        } else {
+            let mut builder = DefaultCredentialProvider::builder();
 
-        // If role_arn is set, we must use AssumeRoleLoad.
-        if let Some(role_arn) = self.config.role_arn {
-            // use current env as source credential loader.
-            let default_loader =
-                AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg.clone());
-
-            // Build the config for assume role.
-            let mut assume_role_cfg = AwsConfig {
-                region: Some(region.clone()),
-                role_arn: Some(role_arn),
-                external_id: self.config.external_id.clone(),
-                sts_regional_endpoints: "regional".to_string(),
-                ..Default::default()
-            };
-
-            // override default role_session_name if set
-            if let Some(name) = self.config.role_session_name {
-                assume_role_cfg.role_session_name = name;
+            if config.disable_config_load {
+                builder = builder.disable_env(true).disable_profile(true);
             }
 
-            let assume_role_loader = AwsAssumeRoleLoader::new(
-                GLOBAL_REQWEST_CLIENT.clone().clone(),
-                assume_role_cfg,
-                Box::new(default_loader),
-            )
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "The assume_role_loader is misconfigured",
-                )
-                .with_context("service", Scheme::S3)
-                .set_source(err)
-            })?;
-            loader = Some(Box::new(assume_role_loader));
-        }
-        // If loader is not set, we will use default loader.
-        let loader = match loader {
-            Some(v) => v,
-            None => {
-                let mut default_loader =
-                    AwsDefaultLoader::new(GLOBAL_REQWEST_CLIENT.clone().clone(), cfg);
-                if self.config.disable_ec2_metadata {
-                    default_loader = default_loader.with_disable_ec2_metadata();
-                }
-
-                Box::new(default_loader)
+            if config.disable_ec2_metadata {
+                builder = builder.disable_imds(true);
             }
+
+            ProvideCredentialChain::new().push(builder.build())
         };
 
-        let signer = AwsV4Signer::new("s3", &region);
+        if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
+            let static_provider = if let Some(token) = config.session_token.as_deref() {
+                StaticCredentialProvider::new(ak, sk).with_session_token(token)
+            } else {
+                StaticCredentialProvider::new(ak, sk)
+            };
+            provider = provider.push_front(static_provider);
+        }
 
-        let delete_max_size = self
-            .config
+        // Create request signer for S3
+        let request_signer = AwsV4Signer::new("s3", &region);
+
+        // Create the signer
+        let signer = Signer::new(ctx, provider, request_signer);
+
+        let delete_max_size = config
             .delete_max_size
             .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
 
@@ -939,16 +902,11 @@ impl Builder for S3Builder {
                             stat_with_if_none_match: true,
                             stat_with_if_modified_since: true,
                             stat_with_if_unmodified_since: true,
-                            stat_with_override_cache_control: !self
-                                .config
+                            stat_with_override_cache_control: !config.disable_stat_with_override,
+                            stat_with_override_content_disposition: !config
                                 .disable_stat_with_override,
-                            stat_with_override_content_disposition: !self
-                                .config
-                                .disable_stat_with_override,
-                            stat_with_override_content_type: !self
-                                .config
-                                .disable_stat_with_override,
-                            stat_with_version: self.config.enable_versioning,
+                            stat_with_override_content_type: !config.disable_stat_with_override,
+                            stat_with_version: config.enable_versioning,
 
                             read: true,
                             read_with_if_match: true,
@@ -958,17 +916,17 @@ impl Builder for S3Builder {
                             read_with_override_cache_control: true,
                             read_with_override_content_disposition: true,
                             read_with_override_content_type: true,
-                            read_with_version: self.config.enable_versioning,
+                            read_with_version: config.enable_versioning,
 
                             write: true,
                             write_can_empty: true,
                             write_can_multi: true,
-                            write_can_append: self.config.enable_write_with_append,
+                            write_can_append: config.enable_write_with_append,
 
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_encoding: true,
-                            write_with_if_match: !self.config.disable_write_with_if_match,
+                            write_with_if_match: !config.disable_write_with_if_match,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 
@@ -987,7 +945,7 @@ impl Builder for S3Builder {
 
                             delete: true,
                             delete_max_size: Some(delete_max_size),
-                            delete_with_version: self.config.enable_versioning,
+                            delete_with_version: config.enable_versioning,
 
                             copy: true,
 
@@ -995,8 +953,8 @@ impl Builder for S3Builder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: self.config.enable_versioning,
-                            list_with_deleted: self.config.enable_versioning,
+                            list_with_versions: config.enable_versioning,
+                            list_with_deleted: config.enable_versioning,
 
                             presign: true,
                             presign_stat: true,
@@ -1010,7 +968,7 @@ impl Builder for S3Builder {
 
                     // allow deprecated api here for compatibility
                     #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
+                    if let Some(client) = http_client {
                         am.update_http_client(|_| client);
                     }
 
@@ -1025,12 +983,10 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
-                allow_anonymous: self.config.allow_anonymous,
-                disable_list_objects_v2: self.config.disable_list_objects_v2,
-                enable_request_payer: self.config.enable_request_payer,
+                allow_anonymous: config.allow_anonymous,
+                disable_list_objects_v2: config.disable_list_objects_v2,
+                enable_request_payer: config.enable_request_payer,
                 signer,
-                loader,
-                credential_loaded: AtomicBool::new(false),
                 checksum_algorithm,
             }),
         })
@@ -1170,9 +1126,9 @@ impl Access for S3Backend {
                 "operation is not supported",
             )),
         };
-        let mut req = req?;
+        let req = req?;
 
-        self.core.sign_query(&mut req, expire).await?;
+        let req = self.core.sign_query(req, expire).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();
@@ -1206,7 +1162,7 @@ mod tests {
             if enable_virtual_host_style {
                 b = b.enable_virtual_host_style();
             }
-            assert_eq!(b.is_bucket_valid(), expected)
+            assert_eq!(S3Builder::is_bucket_valid(&b.config), expected)
         }
     }
 
@@ -1227,7 +1183,7 @@ mod tests {
                 b = b.endpoint(endpoint);
             }
 
-            let endpoint = b.build_endpoint("us-east-2");
+            let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com/test");
         }
 
@@ -1239,7 +1195,7 @@ mod tests {
                 b = b.endpoint(endpoint);
             }
 
-            let endpoint = b.build_endpoint("us-east-2");
+            let endpoint = S3Builder::build_endpoint(&b.config, "us-east-2");
             assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
         }
     }

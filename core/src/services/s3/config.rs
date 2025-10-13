@@ -69,6 +69,10 @@ pub struct S3Config {
     /// - If not, we will try to load it from environment.
     #[serde(alias = "aws_region")]
     pub region: Option<String>,
+    /// Default region to use when region detection fails or when no region is explicitly set.
+    /// Falls back to this region if region detection from endpoint or environment fails.
+    #[serde(alias = "aws_default_region")]
+    pub default_region: Option<String>,
 
     /// access_key_id of this backend.
     ///
@@ -112,6 +116,7 @@ pub struct S3Config {
     pub disable_ec2_metadata: bool,
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
+    #[serde(alias = "aws_skip_signature", alias = "skip_signature")]
     pub allow_anonymous: bool,
     /// server_side_encryption for this backend.
     ///
@@ -144,6 +149,10 @@ pub struct S3Config {
     ///
     /// Value: MD5 digest of key specified in `server_side_encryption_customer_key`.
     pub server_side_encryption_customer_key_md5: Option<String>,
+    /// Enable or disable S3 bucket keys for server-side encryption with KMS.
+    /// This can reduce costs when using KMS encryption by using fewer KMS API calls.
+    #[serde(alias = "aws_sse_bucket_key_enabled")]
+    pub server_side_encryption_bucket_key_enabled: bool,
     /// default storage_class for this backend.
     ///
     /// Available values:

@@ -53,7 +53,6 @@ benchmark = [
 dev = [
   "dprint-py>=0.50.2.0",
   "maturin>=1.8.2",
-  "mbake>=1.4.1",
 ]
 docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 lint = ["ruff>=0.9.10"]

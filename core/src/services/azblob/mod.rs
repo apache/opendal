@@ -17,7 +17,7 @@
 
 /// Default scheme for azblob service.
 #[cfg(feature = "services-azblob")]
-pub(super) const DEFAULT_SCHEME: &str = "azblob";
+pub const AZBLOB_SCHEME: &str = "azblob";
 #[cfg(feature = "services-azblob")]
 pub(crate) mod core;
 #[cfg(feature = "services-azblob")]

@@ -17,7 +17,7 @@
 
 /// Default scheme for oss service.
 #[cfg(feature = "services-oss")]
-pub(super) const DEFAULT_SCHEME: &str = "oss";
+pub const OSS_SCHEME: &str = "oss";
 #[cfg(feature = "services-oss")]
 mod core;
 #[cfg(feature = "services-oss")]

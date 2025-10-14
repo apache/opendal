@@ -26,7 +26,7 @@ use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
-use super::DEFAULT_SCHEME;
+use super::COS_SCHEME;
 use super::core::*;
 use super::delete::CosDeleter;
 use super::error::parse_error;
@@ -38,9 +38,24 @@ use super::writer::CosWriters;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for CosConfig {
     type Builder = CosBuilder;
+
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -221,7 +236,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(COS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -438,5 +453,24 @@ impl Access for CosBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "cos://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = CosConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

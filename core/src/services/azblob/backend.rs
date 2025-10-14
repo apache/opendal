@@ -30,7 +30,7 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::DEFAULT_SCHEME;
+use super::AZBLOB_SCHEME;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
@@ -41,6 +41,7 @@ use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
 use crate::raw::*;
 use crate::services::AzblobConfig;
+use crate::types::OperatorUri;
 use crate::*;
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
@@ -58,6 +59,20 @@ impl From<AzureStorageConfig> for AzblobConfig {
 
 impl Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
+
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(container) = uri.name() {
+            map.insert("container".to_string(), container.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -397,7 +412,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {
@@ -590,5 +605,36 @@ impl Access for AzblobBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_with_host_container() {
+        let uri = OperatorUri::new(
+            "azblob://my-container/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = AzblobConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.container, "my-container");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
+
+    #[test]
+    fn from_uri_with_path_container() {
+        let uri = OperatorUri::new(
+            "azblob://my-container/nested/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = AzblobConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.container, "my-container");
+        assert_eq!(cfg.root.as_deref(), Some("nested/root"));
     }
 }

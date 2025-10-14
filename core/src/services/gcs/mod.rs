@@ -17,7 +17,7 @@
 
 /// Default scheme for gcs service.
 #[cfg(feature = "services-gcs")]
-pub(super) const DEFAULT_SCHEME: &str = "gcs";
+pub const GCS_SCHEME: &str = "gcs";
 #[cfg(feature = "services-gcs")]
 mod core;
 #[cfg(feature = "services-gcs")]

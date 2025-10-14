@@ -18,6 +18,7 @@
 use tokio::runtime::Handle;
 
 use crate::Operator as AsyncOperator;
+use crate::types::IntoOperatorUri;
 use crate::*;
 
 /// Use OpenDAL in blocking context.
@@ -136,11 +137,8 @@ impl Operator {
     }
 
     /// Create a blocking operator from URI based configuration.
-    pub fn from_uri(
-        uri: &str,
-        options: impl IntoIterator<Item = (String, String)>,
-    ) -> Result<Self> {
-        let op = AsyncOperator::from_uri(uri, options)?;
+    pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Self> {
+        let op = AsyncOperator::from_uri(uri)?;
         Self::new(op)
     }
 

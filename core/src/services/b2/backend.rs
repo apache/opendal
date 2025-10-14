@@ -25,7 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
-use super::DEFAULT_SCHEME;
+use super::B2_SCHEME;
 use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;
@@ -37,9 +37,24 @@ use super::writer::B2Writer;
 use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::B2Config;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for B2Config {
     type Builder = B2Builder;
+
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -191,7 +206,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(B2_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -430,5 +445,26 @@ impl Access for B2Backend {
                 "operation is not supported",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "b2://example-bucket/path/to/root".parse().unwrap(),
+            vec![("bucket_id".to_string(), "bucket-id".to_string())],
+        )
+        .unwrap();
+
+        let cfg = B2Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        assert_eq!(cfg.bucket_id, "bucket-id");
     }
 }

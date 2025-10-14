@@ -39,9 +39,30 @@ use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::services::FtpConfig;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for FtpConfig {
     type Builder = FtpBuilder;
+
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", Scheme::Ftp)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert(
+            "endpoint".to_string(),
+            format!("{DEFAULT_SCHEME}://{authority}"),
+        );
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         FtpBuilder { config: self }
     }
@@ -355,6 +376,8 @@ impl FtpBackend {
 #[cfg(test)]
 mod build_test {
     use super::FtpBuilder;
+    use crate::services::FtpConfig;
+    use crate::types::OperatorUri;
     use crate::*;
 
     #[test]
@@ -384,5 +407,35 @@ mod build_test {
         assert!(b.is_err());
         let e = b.unwrap_err();
         assert_eq!(e.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "ftp://example.com/public/data".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FtpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("public/data"));
+    }
+
+    #[test]
+    fn from_uri_applies_credentials_from_query() {
+        let uri = OperatorUri::new(
+            "ftp://example.com/data".parse().unwrap(),
+            vec![
+                ("user".to_string(), "alice".to_string()),
+                ("password".to_string(), "secret".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = FtpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
+        assert_eq!(cfg.user.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("secret"));
     }
 }

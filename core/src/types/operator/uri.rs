@@ -26,6 +26,7 @@ use crate::{Error, ErrorKind, Result};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct OperatorUri {
     scheme: String,
+    authority: Option<String>,
     name: Option<String>,
     root: Option<String>,
     options: HashMap<String, String>,
@@ -64,14 +65,19 @@ impl OperatorUri {
             options.insert(key.to_ascii_lowercase(), value);
         }
 
-        let name = uri.authority().and_then(|authority| {
-            let host = authority.host();
-            if host.is_empty() {
-                None
-            } else {
-                Some(host.to_string())
+        let (authority, name) = match uri.authority() {
+            Some(authority) => {
+                let authority_str = authority.as_str().to_string();
+                let host = authority.host();
+                let name = if host.is_empty() {
+                    None
+                } else {
+                    Some(host.to_string())
+                };
+                (Some(authority_str), name)
             }
-        });
+            None => (None, None),
+        };
 
         let decoded_path = percent_decode_str(uri.path()).decode_utf8_lossy();
         let trimmed = decoded_path.trim_matches('/');
@@ -83,6 +89,7 @@ impl OperatorUri {
 
         Ok(Self {
             scheme,
+            authority,
             name,
             root,
             options,
@@ -97,6 +104,11 @@ impl OperatorUri {
     /// Name extracted from the URI authority, if present.
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
+    }
+
+    /// Authority extracted from the URI, if present (host with optional port).
+    pub fn authority(&self) -> Option<&str> {
+        self.authority.as_deref()
     }
 
     /// Root path (without leading slash) extracted from the URI path, if present.
@@ -235,6 +247,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(uri.scheme(), "s3");
+        assert_eq!(uri.authority(), Some("example-bucket"));
         assert_eq!(uri.name(), Some("example-bucket"));
         assert_eq!(uri.root(), Some("photos/2024"));
         assert!(uri.options().is_empty());
@@ -260,5 +273,19 @@ mod tests {
             uri.options().get("endpoint").map(String::as_str),
             Some("https://custom")
         );
+    }
+
+    #[test]
+    fn parse_uri_with_port_preserves_authority() {
+        let uri = OperatorUri::new(
+            "http://example.com:8080/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.scheme(), "http");
+        assert_eq!(uri.authority(), Some("example.com:8080"));
+        assert_eq!(uri.name(), Some("example.com"));
+        assert_eq!(uri.root(), Some("root"));
     }
 }

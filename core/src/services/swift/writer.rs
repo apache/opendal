@@ -46,10 +46,6 @@ impl SwiftWriter {
             metadata.set_last_modified(last_modified);
         }
 
-        if let Some(content_type) = parse_content_type(headers)? {
-            metadata.set_content_type(content_type);
-        }
-
         Ok(metadata)
     }
 }

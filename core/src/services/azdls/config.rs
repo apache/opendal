@@ -92,11 +92,97 @@ impl Debug for AzdlsConfig {
 impl crate::Configurator for AzdlsConfig {
     type Builder = AzdlsBuilder;
 
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Azdls)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+
+        if let Some(host) = uri.name() {
+            if let Some(account) = host.split('.').next() {
+                if !account.is_empty() {
+                    map.entry("account_name".to_string())
+                        .or_insert_with(|| account.to_string());
+                }
+            }
+        }
+
+        if let Some(root) = uri.root() {
+            if let Some((filesystem, rest)) = root.split_once('/') {
+                if filesystem.is_empty() {
+                    return Err(crate::Error::new(
+                        crate::ErrorKind::ConfigInvalid,
+                        "filesystem is required in uri path",
+                    )
+                    .with_context("service", crate::Scheme::Azdls));
+                }
+                map.insert("filesystem".to_string(), filesystem.to_string());
+                if !rest.is_empty() {
+                    map.insert("root".to_string(), rest.to_string());
+                }
+            } else if !root.is_empty() {
+                map.insert("filesystem".to_string(), root.to_string());
+            }
+        }
+
+        if !map.contains_key("filesystem") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "filesystem is required",
+            )
+            .with_context("service", crate::Scheme::Azdls));
+        }
+
+        Self::from_iter(map)
+    }
+
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AzdlsBuilder {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_filesystem_root_and_account() {
+        let uri = OperatorUri::new(
+            "azdls://account.dfs.core.windows.net/fs/data/2024"
+                .parse()
+                .unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = AzdlsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("https://account.dfs.core.windows.net")
+        );
+        assert_eq!(cfg.filesystem, "fs".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("data/2024"));
+        assert_eq!(cfg.account_name.as_deref(), Some("account"));
+    }
+
+    #[test]
+    fn from_uri_accepts_filesystem_from_query() {
+        let uri = OperatorUri::new(
+            "azdls://account.dfs.core.windows.net".parse().unwrap(),
+            vec![("filesystem".to_string(), "logs".to_string())],
+        )
+        .unwrap();
+
+        let cfg = AzdlsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.filesystem, "logs".to_string());
     }
 }

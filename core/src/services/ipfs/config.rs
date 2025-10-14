@@ -35,11 +35,49 @@ pub struct IpfsConfig {
 impl crate::Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
 
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Ipfs)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("http://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         IpfsBuilder {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "ipfs://ipfs.io/ipfs/QmHash/path".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = IpfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://ipfs.io"));
+        assert_eq!(cfg.root.as_deref(), Some("ipfs/QmHash/path"));
     }
 }

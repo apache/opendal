@@ -32,7 +32,39 @@ pub struct CompfsConfig {
 
 impl crate::Configurator for CompfsConfig {
     type Builder = CompfsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         CompfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_root() {
+        let uri = OperatorUri::new(
+            "compfs://namespace/workdir".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = CompfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("workdir"));
     }
 }

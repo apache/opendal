@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 
 use super::backend::RocksdbBuilder;
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -36,7 +37,47 @@ pub struct RocksdbConfig {
 
 impl crate::Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            let decoded = percent_decode_str(authority).decode_utf8_lossy();
+            if !decoded.is_empty() {
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| decoded.to_string());
+            }
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         RocksdbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_datadir_and_root() {
+        let uri = OperatorUri::new(
+            "rocksdb://%2Fvar%2Fdb/namespace".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = RocksdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datadir.as_deref(), Some("/var/db"));
+        assert_eq!(cfg.root.as_deref(), Some("namespace"));
     }
 }

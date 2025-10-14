@@ -54,7 +54,67 @@ impl Debug for TikvConfig {
 
 impl crate::Configurator for TikvConfig {
     type Builder = TikvBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let map = uri.options().clone();
+
+        let mut endpoints = Vec::new();
+        if let Some(authority) = uri.authority() {
+            if !authority.is_empty() {
+                endpoints.push(authority.to_string());
+            }
+        }
+
+        if let Some(path) = uri.root() {
+            for segment in path.split('/') {
+                for endpoint in segment.split(',') {
+                    let trimmed = endpoint.trim();
+                    if !trimmed.is_empty() {
+                        endpoints.push(trimmed.to_string());
+                    }
+                }
+            }
+        }
+
+        let mut cfg = Self::from_iter(map)?;
+
+        if !endpoints.is_empty() {
+            if let Some(existing) = cfg.endpoints.as_mut() {
+                existing.extend(endpoints);
+            } else {
+                cfg.endpoints = Some(endpoints);
+            }
+        }
+
+        Ok(cfg)
+    }
+
     fn into_builder(self) -> Self::Builder {
         TikvBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_collects_endpoints() {
+        let uri = OperatorUri::new(
+            "tikv://pd1:2379/pd2:2379,pd3:2379".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = TikvConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoints,
+            Some(vec![
+                "pd1:2379".to_string(),
+                "pd2:2379".to_string(),
+                "pd3:2379".to_string()
+            ])
+        );
     }
 }

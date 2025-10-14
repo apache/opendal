@@ -54,7 +54,52 @@ impl Debug for WebhdfsConfig {
 
 impl crate::Configurator for WebhdfsConfig {
     type Builder = WebhdfsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Webhdfs)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("http://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         WebhdfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "webhdfs://namenode.example.com:50070/user/hadoop/data"
+                .parse()
+                .unwrap(),
+            vec![("user_name".to_string(), "hadoop".to_string())],
+        )
+        .unwrap();
+
+        let cfg = WebhdfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("http://namenode.example.com:50070")
+        );
+        assert_eq!(cfg.root.as_deref(), Some("user/hadoop/data"));
+        assert_eq!(cfg.user_name.as_deref(), Some("hadoop"));
     }
 }

@@ -58,7 +58,39 @@ impl Debug for MiniMokaConfig {
 
 impl crate::Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         MiniMokaBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+    #[test]
+    fn from_uri_sets_root_and_preserves_ttl() {
+        let uri = OperatorUri::new(
+            "mini_moka://cache/session".parse().unwrap(),
+            vec![("time_to_live".to_string(), "300s".to_string())],
+        )
+        .unwrap();
+
+        let cfg = MiniMokaConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("session"));
+        assert!(cfg.time_to_live.is_some());
     }
 }

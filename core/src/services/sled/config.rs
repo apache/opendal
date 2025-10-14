@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::SledBuilder;
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -47,7 +48,62 @@ impl Debug for SledConfig {
 
 impl crate::Configurator for SledConfig {
     type Builder = SledBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            let decoded = percent_decode_str(authority).decode_utf8_lossy();
+            if !decoded.is_empty() {
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| decoded.to_string());
+            }
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let (tree, rest) = match path.split_once('/') {
+                    Some((tree, remainder)) => (tree, Some(remainder)),
+                    None => (path, None),
+                };
+
+                if !tree.is_empty() {
+                    map.entry("tree".to_string())
+                        .or_insert_with(|| tree.to_string());
+                }
+
+                if let Some(root) = rest {
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         SledBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_datadir_tree_and_root() {
+        let uri = OperatorUri::new(
+            "sled://%2Fvar%2Fdata%2Fsled/cache/items".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SledConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datadir.as_deref(), Some("/var/data/sled"));
+        assert_eq!(cfg.tree.as_deref(), Some("cache"));
+        assert_eq!(cfg.root.as_deref(), Some("items"));
     }
 }

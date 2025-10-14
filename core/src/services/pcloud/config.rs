@@ -54,11 +54,61 @@ impl Debug for PcloudConfig {
 impl crate::Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
 
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Pcloud)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         PcloudBuilder {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "pcloud://api.pcloud.com/drive/photos".parse().unwrap(),
+            vec![("username".to_string(), "alice".to_string())],
+        )
+        .unwrap();
+
+        let cfg = PcloudConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint, "https://api.pcloud.com".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("drive/photos"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+    }
+
+    #[test]
+    fn from_uri_requires_authority() {
+        let uri = OperatorUri::new(
+            "pcloud:///drive".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert!(PcloudConfig::from_uri(&uri).is_err());
     }
 }

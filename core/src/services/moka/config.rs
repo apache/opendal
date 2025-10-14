@@ -61,10 +61,49 @@ impl Debug for MokaConfig {
 
 impl crate::Configurator for MokaConfig {
     type Builder = MokaBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            if !name.is_empty() {
+                map.insert("name".to_string(), name.to_string());
+            }
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         MokaBuilder {
             config: self,
             ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_name_and_root() {
+        let uri = OperatorUri::new(
+            "moka://session/cache".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MokaConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name.as_deref(), Some("session"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::FoundationdbBuilder;
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -47,7 +48,52 @@ impl Debug for FoundationdbConfig {
 
 impl crate::Configurator for FoundationdbConfig {
     type Builder = FoundationdbBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            let decoded = percent_decode_str(authority).decode_utf8_lossy();
+            if !decoded.is_empty() {
+                map.entry("config_path".to_string())
+                    .or_insert_with(|| decoded.to_string());
+            }
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         FoundationdbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_config_path_and_root() {
+        let uri = OperatorUri::new(
+            "foundationdb://%2Fetc%2Ffoundationdb%2Ffdb.cluster/data"
+                .parse()
+                .unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FoundationdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.config_path.as_deref(),
+            Some("/etc/foundationdb/fdb.cluster")
+        );
+        assert_eq!(cfg.root.as_deref(), Some("data"));
     }
 }

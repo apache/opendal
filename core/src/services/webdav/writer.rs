@@ -37,17 +37,17 @@ impl WebdavWriter {
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut meta = Metadata::default();
+        let mut metadata = Metadata::default();
 
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            metadata.set_etag(etag);
         }
 
         if let Some(last_modified) = parse_last_modified(headers)? {
-            meta.set_last_modified(last_modified);
+            metadata.set_last_modified(last_modified);
         }
 
-        Ok(meta)
+        Ok(metadata)
     }
 }
 
@@ -62,8 +62,8 @@ impl oio::OneShotWrite for WebdavWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
-                let meta = WebdavWriter::parse_metadata(resp.headers())?;
-                Ok(meta)
+                let metadata = WebdavWriter::parse_metadata(resp.headers())?;
+                Ok(metadata)
             }
             _ => Err(parse_error(resp)),
         }

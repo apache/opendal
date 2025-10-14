@@ -16,24 +16,15 @@
 // under the License.
 
 /// Default scheme for ftp service.
-#[cfg(feature = "services-ftp")]
 pub(super) const DEFAULT_SCHEME: &str = "ftp";
-#[cfg(feature = "services-ftp")]
 mod delete;
-#[cfg(feature = "services-ftp")]
 mod err;
-#[cfg(feature = "services-ftp")]
 mod lister;
-#[cfg(feature = "services-ftp")]
 mod reader;
-#[cfg(feature = "services-ftp")]
 mod writer;
 
-#[cfg(feature = "services-ftp")]
 mod backend;
-#[cfg(feature = "services-ftp")]
 pub use backend::FtpBuilder as Ftp;
-#[cfg(feature = "services-ftp")]
 mod core;
 
 mod config;

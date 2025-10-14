@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for azfile service.
-#[cfg(feature = "services-azfile")]
 pub(super) const DEFAULT_SCHEME: &str = "azfile";
-#[cfg(feature = "services-azfile")]
 mod core;
-#[cfg(feature = "services-azfile")]
 mod delete;
-#[cfg(feature = "services-azfile")]
 mod error;
-#[cfg(feature = "services-azfile")]
 mod lister;
-#[cfg(feature = "services-azfile")]
 mod writer;
 
-#[cfg(feature = "services-azfile")]
 mod backend;
-#[cfg(feature = "services-azfile")]
 pub use backend::AzfileBuilder as Azfile;
 
 mod config;

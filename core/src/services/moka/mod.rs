@@ -16,25 +16,16 @@
 // under the License.
 
 /// Default scheme for moka service.
-#[cfg(feature = "services-moka")]
 pub(super) const DEFAULT_SCHEME: &str = "moka";
-#[cfg(feature = "services-moka")]
 mod backend;
-#[cfg(feature = "services-moka")]
 mod core;
-#[cfg(feature = "services-moka")]
 mod delete;
-#[cfg(feature = "services-moka")]
 mod lister;
-#[cfg(feature = "services-moka")]
 mod writer;
 
-#[cfg(feature = "services-moka")]
 pub use backend::MokaBuilder as Moka;
-#[cfg(feature = "services-moka")]
 pub use backend::MokaCacheBuilder;
 
-#[cfg(feature = "services-moka")]
 pub use core::MokaValue;
 
 mod config;

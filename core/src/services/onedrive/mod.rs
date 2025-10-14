@@ -16,26 +16,16 @@
 // under the License.
 
 /// Default scheme for onedrive service.
-#[cfg(feature = "services-onedrive")]
 pub(super) const DEFAULT_SCHEME: &str = "onedrive";
-#[cfg(feature = "services-onedrive")]
 mod backend;
-#[cfg(feature = "services-onedrive")]
 mod core;
-#[cfg(feature = "services-onedrive")]
 mod delete;
-#[cfg(feature = "services-onedrive")]
 mod error;
-#[cfg(feature = "services-onedrive")]
 mod graph_model;
-#[cfg(feature = "services-onedrive")]
 mod lister;
-#[cfg(feature = "services-onedrive")]
 mod writer;
 
-#[cfg(feature = "services-onedrive")]
 mod builder;
-#[cfg(feature = "services-onedrive")]
 pub use builder::OnedriveBuilder as Onedrive;
 
 mod config;

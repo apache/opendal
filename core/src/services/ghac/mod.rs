@@ -16,19 +16,13 @@
 // under the License.
 
 /// Default scheme for ghac service.
-#[cfg(feature = "services-ghac")]
 pub(super) const DEFAULT_SCHEME: &str = "ghac";
-#[cfg(feature = "services-ghac")]
 mod error;
-#[cfg(feature = "services-ghac")]
 mod writer;
 
-#[cfg(feature = "services-ghac")]
 mod backend;
-#[cfg(feature = "services-ghac")]
 pub use backend::GhacBuilder as Ghac;
 
-#[cfg(feature = "services-ghac")]
 mod core;
 
 mod config;

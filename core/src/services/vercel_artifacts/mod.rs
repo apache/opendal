@@ -16,20 +16,13 @@
 // under the License.
 
 /// Default scheme for vercel_artifacts service.
-#[cfg(feature = "services-vercel-artifacts")]
 pub(super) const DEFAULT_SCHEME: &str = "vercel_artifacts";
-#[cfg(feature = "services-vercel-artifacts")]
 mod backend;
-#[cfg(feature = "services-vercel-artifacts")]
 mod core;
-#[cfg(feature = "services-vercel-artifacts")]
 mod error;
-#[cfg(feature = "services-vercel-artifacts")]
 mod writer;
 
-#[cfg(feature = "services-vercel-artifacts")]
 mod builder;
-#[cfg(feature = "services-vercel-artifacts")]
 pub use builder::VercelArtifactsBuilder as VercelArtifacts;
 
 mod config;

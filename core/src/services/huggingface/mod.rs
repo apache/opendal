@@ -16,18 +16,12 @@
 // under the License.
 
 /// Default scheme for huggingface service.
-#[cfg(feature = "services-huggingface")]
 pub(super) const DEFAULT_SCHEME: &str = "huggingface";
-#[cfg(feature = "services-huggingface")]
 mod core;
-#[cfg(feature = "services-huggingface")]
 mod error;
-#[cfg(feature = "services-huggingface")]
 mod lister;
 
-#[cfg(feature = "services-huggingface")]
 mod backend;
-#[cfg(feature = "services-huggingface")]
 pub use backend::HuggingfaceBuilder as Huggingface;
 
 mod config;

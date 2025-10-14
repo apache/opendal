@@ -16,24 +16,15 @@
 // under the License.
 
 /// Default scheme for ipmfs service.
-#[cfg(feature = "services-ipmfs")]
 pub(super) const DEFAULT_SCHEME: &str = "ipmfs";
-#[cfg(feature = "services-ipmfs")]
 mod backend;
-#[cfg(feature = "services-ipmfs")]
 mod core;
-#[cfg(feature = "services-ipmfs")]
 mod delete;
-#[cfg(feature = "services-ipmfs")]
 mod error;
-#[cfg(feature = "services-ipmfs")]
 mod lister;
-#[cfg(feature = "services-ipmfs")]
 mod writer;
 
-#[cfg(feature = "services-ipmfs")]
 mod builder;
-#[cfg(feature = "services-ipmfs")]
 pub use builder::IpmfsBuilder as Ipmfs;
 
 mod config;

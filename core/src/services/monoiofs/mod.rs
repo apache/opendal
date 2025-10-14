@@ -16,20 +16,13 @@
 // under the License.
 
 /// Default scheme for monoiofs service.
-#[cfg(feature = "services-monoiofs")]
 pub(super) const DEFAULT_SCHEME: &str = "monoiofs";
-#[cfg(feature = "services-monoiofs")]
 mod core;
-#[cfg(feature = "services-monoiofs")]
 mod delete;
-#[cfg(feature = "services-monoiofs")]
 mod reader;
-#[cfg(feature = "services-monoiofs")]
 mod writer;
 
-#[cfg(feature = "services-monoiofs")]
 mod backend;
-#[cfg(feature = "services-monoiofs")]
 pub use backend::MonoiofsBuilder as Monoiofs;
 
 mod config;

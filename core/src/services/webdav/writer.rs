@@ -35,6 +35,20 @@ impl WebdavWriter {
     pub fn new(core: Arc<WebdavCore>, op: OpWrite, path: String) -> Self {
         WebdavWriter { core, op, path }
     }
+
+    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut meta = Metadata::default();
+
+        if let Some(etag) = parse_etag(headers)? {
+            meta.set_etag(etag);
+        }
+
+        if let Some(last_modified) = parse_last_modified(headers)? {
+            meta.set_last_modified(last_modified);
+        }
+
+        Ok(meta)
+    }
 }
 
 impl oio::OneShotWrite for WebdavWriter {
@@ -48,7 +62,8 @@ impl oio::OneShotWrite for WebdavWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
-                Ok(Metadata::default())
+                let meta = WebdavWriter::parse_metadata(resp.headers())?;
+                Ok(meta)
             }
             _ => Err(parse_error(resp)),
         }

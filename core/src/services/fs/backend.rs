@@ -293,8 +293,8 @@ impl Access for FsBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
     use http::Uri;
 
     #[test]

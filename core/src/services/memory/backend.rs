@@ -190,8 +190,8 @@ impl Access for MemoryAccessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn test_accessor_metadata_name() {

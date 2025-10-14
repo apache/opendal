@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
+use super::B2_SCHEME;
 use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;
@@ -34,7 +35,6 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
-use super::B2_SCHEME;
 use crate::raw::*;
 use crate::services::B2Config;
 use crate::types::OperatorUri;
@@ -451,8 +451,8 @@ impl Access for B2Backend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

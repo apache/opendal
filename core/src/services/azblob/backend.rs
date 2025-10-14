@@ -30,6 +30,7 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::AZBLOB_SCHEME;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
@@ -38,7 +39,6 @@ use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
-use super::AZBLOB_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::types::OperatorUri;
@@ -611,8 +611,8 @@ impl Access for AzblobBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_with_host_container() {

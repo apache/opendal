@@ -17,8 +17,8 @@
 
 use tokio::runtime::Handle;
 
-use crate::types::IntoOperatorUri;
 use crate::Operator as AsyncOperator;
+use crate::types::IntoOperatorUri;
 use crate::*;
 
 /// Use OpenDAL in blocking context.

@@ -26,6 +26,7 @@ use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
+use super::COS_SCHEME;
 use super::core::*;
 use super::delete::CosDeleter;
 use super::error::parse_error;
@@ -34,7 +35,6 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
-use super::COS_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
@@ -459,8 +459,8 @@ impl Access for CosBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

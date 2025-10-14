@@ -28,6 +28,7 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
+use super::OBS_SCHEME;
 use super::core::ObsCore;
 use super::core::constants;
 use super::delete::ObsDeleter;
@@ -35,7 +36,6 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
-use super::OBS_SCHEME;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::types::OperatorUri;
@@ -453,8 +453,8 @@ impl Access for ObsBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

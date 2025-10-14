@@ -27,13 +27,13 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 
+use super::GCS_SCHEME;
 use super::core::*;
 use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
-use super::GCS_SCHEME;
 use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
@@ -516,8 +516,8 @@ impl Access for GcsBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

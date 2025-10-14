@@ -23,13 +23,13 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::UPYUN_SCHEME;
 use super::core::*;
 use super::delete::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
-use super::UPYUN_SCHEME;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::types::OperatorUri;
@@ -334,8 +334,8 @@ impl Access for UpyunBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::OperatorUri;
     use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

@@ -72,7 +72,7 @@ mod serde_util;
 pub use serde_util::*;
 
 mod time;
-pub use time::Timestamp;
+pub use time::*;
 
 #[cfg(feature = "internal-tokio-rt")]
 mod tokio_util;

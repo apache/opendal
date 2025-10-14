@@ -70,16 +70,6 @@ impl Timestamp {
         Self(jiff::Timestamp::now())
     }
 
-    /// Format the timestamp into date: `20220301`
-    pub fn format_date(self) -> String {
-        self.0.strftime("%Y%m%d").to_string()
-    }
-
-    /// Format the timestamp into ISO8601: `20220313T072004Z`
-    pub fn format_iso8601(self) -> String {
-        self.0.strftime("%Y%m%dT%H%M%SZ").to_string()
-    }
-
     /// Format the timestamp into http date: `Sun, 06 Nov 1994 08:49:37 GMT`
     ///
     /// ## Note
@@ -90,16 +80,6 @@ impl Timestamp {
     /// - Day must be 2 digit.
     pub fn format_http_date(self) -> String {
         self.0.strftime("%a, %d %b %Y %T GMT").to_string()
-    }
-
-    /// Format the timestamp into RFC3339 in Zulu: `2022-03-13T07:20:04Z`
-    pub fn format_rfc3339_zulu(self) -> String {
-        self.0.strftime("%FT%TZ").to_string()
-    }
-
-    /// Convert to `SystemTime`.
-    pub fn as_system_time(self) -> SystemTime {
-        SystemTime::from(self.0)
     }
 
     /// Creates a new instant in time from the number of seconds elapsed since the Unix epoch.
@@ -170,27 +150,6 @@ impl Timestamp {
         }
     }
 
-    /// Parse the string format "2023-10-31 21:59:10.000000".
-    pub fn parse_datetime_utc(s: &str) -> Result<Timestamp> {
-        let dt = s.parse::<jiff::civil::DateTime>().map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("parse '{s}' into datetime failed"),
-            )
-            .set_source(err)
-        })?;
-
-        let ts = jiff::tz::TimeZone::UTC.to_timestamp(dt).map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("convert '{s}' into timestamp failed"),
-            )
-            .set_source(err)
-        })?;
-
-        Ok(Timestamp(ts))
-    }
-
     /// Convert to inner `jiff::Timestamp` for compatibility.
     ///
     /// This method is provided for accessing the underlying `jiff::Timestamp`
@@ -198,28 +157,23 @@ impl Timestamp {
     pub fn into_inner(self) -> jiff::Timestamp {
         self.0
     }
+}
 
-    /// Format the timestamp using `strftime` format string.
-    ///
-    /// Common formats:
-    /// - `"%Y-%m-%d"` - Date like `2022-03-01`
-    /// - `"%a, %d %b %Y %H:%M:%S GMT"` - HTTP date
-    ///
-    /// For full format documentation, see [jiff::fmt::strtime](https://docs.rs/jiff/latest/jiff/fmt/strtime/index.html)
-    pub fn strftime(self, format: &str) -> String {
-        self.0.strftime(format).to_string()
+impl From<Timestamp> for jiff::Timestamp {
+    fn from(t: Timestamp) -> Self {
+        t.0
+    }
+}
+
+impl From<Timestamp> for SystemTime {
+    fn from(t: Timestamp) -> Self {
+        t.0.into()
     }
 }
 
 impl From<jiff::Timestamp> for Timestamp {
     fn from(t: jiff::Timestamp) -> Self {
         Timestamp(t)
-    }
-}
-
-impl From<Timestamp> for jiff::Timestamp {
-    fn from(t: Timestamp) -> Self {
-        t.0
     }
 }
 
@@ -280,27 +234,9 @@ mod tests {
     }
 
     #[test]
-    fn test_format_date() {
-        let t = test_time();
-        assert_eq!("20220301", t.format_date())
-    }
-
-    #[test]
-    fn test_format_iso8601() {
-        let t = test_time();
-        assert_eq!("20220301T081234Z", t.format_iso8601())
-    }
-
-    #[test]
     fn test_format_http_date() {
         let t = test_time();
         assert_eq!("Tue, 01 Mar 2022 08:12:34 GMT", t.format_http_date())
-    }
-
-    #[test]
-    fn test_format_rfc3339() {
-        let t = test_time();
-        assert_eq!("2022-03-01T08:12:34Z", t.format_rfc3339_zulu())
     }
 
     #[test]

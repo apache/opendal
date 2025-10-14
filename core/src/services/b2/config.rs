@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::B2Builder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::B2Builder;
 
 /// Config for backblaze b2 services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::D1Builder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::D1Builder;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -64,4 +64,3 @@ impl crate::Configurator for D1Config {
         }
     }
 }
-

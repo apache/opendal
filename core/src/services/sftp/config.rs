@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SftpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::SftpBuilder;
 
 /// Config for Sftp Service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

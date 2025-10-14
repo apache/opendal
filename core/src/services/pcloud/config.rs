@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::PcloudBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::PcloudBuilder;
 
 /// Config for Pcloud services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -62,4 +62,3 @@ impl crate::Configurator for PcloudConfig {
         }
     }
 }
-

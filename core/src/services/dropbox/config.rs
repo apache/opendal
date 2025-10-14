@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::builder::DropboxBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::builder::DropboxBuilder;
 
 /// Config for [Dropbox](https://www.dropbox.com/) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -58,4 +58,3 @@ impl crate::Configurator for DropboxConfig {
         }
     }
 }
-

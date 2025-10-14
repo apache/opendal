@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::S3Builder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::S3Builder;
 
 /// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -230,8 +230,6 @@ impl Debug for S3Config {
         d.finish_non_exhaustive()
     }
 }
-
-
 
 impl crate::Configurator for S3Config {
     type Builder = S3Builder;

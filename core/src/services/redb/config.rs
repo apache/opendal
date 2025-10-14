@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 
+use super::backend::RedbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::RedbBuilder;
 
 /// Config for redb service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,4 +43,3 @@ impl crate::Configurator for RedbConfig {
         }
     }
 }
-

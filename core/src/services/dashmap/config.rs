@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::backend::DashmapBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
-use super::backend::DashmapBuilder;
 
 /// Config for Dashmap services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,4 +43,3 @@ impl crate::Configurator for DashmapConfig {
         DashmapBuilder { config: self }
     }
 }
-

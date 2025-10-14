@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::YandexDiskBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::YandexDiskBuilder;
 
 /// Config for YandexDisk services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -56,4 +56,3 @@ impl crate::Configurator for YandexDiskConfig {
         }
     }
 }
-

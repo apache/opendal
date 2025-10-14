@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::backend::PersyBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::PersyBuilder;
 
 /// Config for persy service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -38,4 +38,3 @@ impl crate::Configurator for PersyConfig {
         PersyBuilder { config: self }
     }
 }
-

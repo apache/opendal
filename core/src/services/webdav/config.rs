@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::WebdavBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

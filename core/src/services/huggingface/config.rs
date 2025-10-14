@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::HuggingfaceBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::HuggingfaceBuilder;
 
 /// Configuration for Huggingface service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -81,4 +81,3 @@ impl crate::Configurator for HuggingfaceConfig {
         HuggingfaceBuilder { config: self }
     }
 }
-

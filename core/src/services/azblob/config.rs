@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AzblobBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::AzblobBuilder;
 
 /// Azure Storage Blob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -99,8 +99,6 @@ impl Debug for AzblobConfig {
         ds.finish()
     }
 }
-
-
 
 impl crate::Configurator for AzblobConfig {
     type Builder = AzblobBuilder;
@@ -223,7 +221,8 @@ mod tests {
             Some("https://test.blob.core.windows.net".to_string())
         );
 
-        let json = r#"{"container": "test", "azure_endpoint": "https://test.blob.core.windows.net"}"#;
+        let json =
+            r#"{"container": "test", "azure_endpoint": "https://test.blob.core.windows.net"}"#;
         let config: AzblobConfig = serde_json::from_str(json).unwrap();
         assert_eq!(
             config.endpoint,
@@ -255,4 +254,3 @@ mod tests {
         assert_eq!(cfg.root.as_deref(), Some("nested/root"));
     }
 }
-

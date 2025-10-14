@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::PostgresqlBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::PostgresqlBuilder;
 
 /// Config for PostgreSQL services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -72,4 +72,3 @@ impl crate::Configurator for PostgresqlConfig {
         PostgresqlBuilder { config: self }
     }
 }
-

@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::OssBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::OssBuilder;
 
 /// Config for Aliyun Object Storage Service (OSS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

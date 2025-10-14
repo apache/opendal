@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::HttpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::HttpBuilder;
 
 /// Config for Http service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

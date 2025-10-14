@@ -350,7 +350,7 @@ impl FtpBackend {
 mod build_test {
     use super::FtpBuilder;
     use crate::services::FtpConfig;
-        use crate::*;
+    use crate::*;
 
     #[test]
     fn test_build() {

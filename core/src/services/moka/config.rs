@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use super::backend::MokaBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::MokaBuilder;
 
 /// Config for Moka services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -68,4 +68,3 @@ impl crate::Configurator for MokaConfig {
         }
     }
 }
-

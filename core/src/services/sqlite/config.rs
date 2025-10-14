@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SqliteBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::SqliteBuilder;
 
 /// Config for Sqlite support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -76,4 +76,3 @@ impl crate::Configurator for SqliteConfig {
         SqliteBuilder { config: self }
     }
 }
-

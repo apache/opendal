@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GridfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::GridfsBuilder;
 
 /// Config for Grid file system support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -56,4 +56,3 @@ impl crate::Configurator for GridfsConfig {
         GridfsBuilder { config: self }
     }
 }
-

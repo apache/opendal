@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AzdlsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -100,4 +100,3 @@ impl crate::Configurator for AzdlsConfig {
         }
     }
 }
-

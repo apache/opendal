@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::MongodbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::MongodbBuilder;
 
 /// Config for Mongodb service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,4 +60,3 @@ impl crate::Configurator for MongodbConfig {
         MongodbBuilder { config: self }
     }
 }
-

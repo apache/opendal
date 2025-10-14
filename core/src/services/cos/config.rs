@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::CosBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::CosBuilder;
 
 /// Tencent-Cloud COS services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

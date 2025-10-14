@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GithubBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::GithubBuilder;
 
 /// Config for GitHub services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -70,4 +70,3 @@ impl crate::Configurator for GithubConfig {
         }
     }
 }
-

@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AzfileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::AzfileBuilder;
 
 /// Azure File services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -72,4 +72,3 @@ impl crate::Configurator for AzfileConfig {
         }
     }
 }
-

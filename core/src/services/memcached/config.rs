@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::time::Duration;
 
+use super::backend::MemcachedBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::MemcachedBuilder;
 
 /// Config for MemCached services support
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -49,4 +49,3 @@ impl crate::Configurator for MemcachedConfig {
         MemcachedBuilder { config: self }
     }
 }
-

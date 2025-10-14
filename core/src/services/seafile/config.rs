@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SeafileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::SeafileBuilder;
 
 /// Config for seafile services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -67,4 +67,3 @@ impl crate::Configurator for SeafileConfig {
         }
     }
 }
-

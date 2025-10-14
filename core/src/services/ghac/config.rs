@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 
+use super::backend::GhacBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::GhacBuilder;
 
 /// Config for GitHub Action Cache Services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -47,4 +47,3 @@ impl crate::Configurator for GhacConfig {
         }
     }
 }
-

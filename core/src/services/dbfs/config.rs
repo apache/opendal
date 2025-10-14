@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::DbfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::DbfsBuilder;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -54,4 +54,3 @@ impl crate::Configurator for DbfsConfig {
         DbfsBuilder { config: self }
     }
 }
-

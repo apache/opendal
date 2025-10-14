@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::KoofrBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::KoofrBuilder;
 
 /// Config for Koofr services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -61,4 +61,3 @@ impl crate::Configurator for KoofrConfig {
         }
     }
 }
-

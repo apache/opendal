@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 
+use super::backend::RocksdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::RocksdbBuilder;
 
 /// Config for Rocksdb Service.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,4 +40,3 @@ impl crate::Configurator for RocksdbConfig {
         RocksdbBuilder { config: self }
     }
 }
-

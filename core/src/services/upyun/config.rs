@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::UpyunBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::UpyunBuilder;
 
 /// Config for upyun services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

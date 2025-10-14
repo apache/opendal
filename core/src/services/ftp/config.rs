@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use serde::Deserialize;
-use serde::Serialize;
 use super::FTP_SCHEME;
 use super::backend::FtpBuilder;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

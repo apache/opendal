@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GcsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::GcsBuilder;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -84,8 +84,6 @@ impl Debug for GcsConfig {
     }
 }
 
-
-
 impl crate::Configurator for GcsConfig {
     type Builder = GcsBuilder;
 
@@ -142,11 +140,17 @@ mod tests {
 
         let config_json = r#"{"google_service_account_path": "/path/to/sa2.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
-        assert_eq!(Some("/path/to/sa2.json".to_string()), config.service_account);
+        assert_eq!(
+            Some("/path/to/sa2.json".to_string()),
+            config.service_account
+        );
 
         let config_json = r#"{"service_account_path": "/path/to/sa3.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
-        assert_eq!(Some("/path/to/sa3.json".to_string()), config.service_account);
+        assert_eq!(
+            Some("/path/to/sa3.json".to_string()),
+            config.service_account
+        );
     }
 
     #[test]
@@ -164,7 +168,10 @@ mod tests {
     fn test_credential_path_aliases() {
         let config_json = r#"{"google_application_credentials": "/path/to/app.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
-        assert_eq!(Some("/path/to/app.json".to_string()), config.credential_path);
+        assert_eq!(
+            Some("/path/to/app.json".to_string()),
+            config.credential_path
+        );
     }
 
     #[test]
@@ -190,4 +197,3 @@ mod tests {
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }
-

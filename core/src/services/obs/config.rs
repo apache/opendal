@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::ObsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::backend::ObsBuilder;
 
 /// Config for Huawei-Cloud Object Storage Service (OBS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

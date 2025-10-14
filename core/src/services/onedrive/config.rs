@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::builder::OnedriveBuilder;
 use serde::Deserialize;
 use serde::Serialize;
-use super::builder::OnedriveBuilder;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -58,4 +58,3 @@ impl crate::Configurator for OnedriveConfig {
         }
     }
 }
-

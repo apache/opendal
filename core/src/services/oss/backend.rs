@@ -27,7 +27,6 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
-use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::OssDeleter;
 use super::error::parse_error;

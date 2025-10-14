@@ -27,7 +27,6 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 
-use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::GcsDeleter;
 use super::error::parse_error;

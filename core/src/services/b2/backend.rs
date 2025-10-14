@@ -25,7 +25,6 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
-use super::DEFAULT_SCHEME;
 use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;

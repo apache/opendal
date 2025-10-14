@@ -28,9 +28,29 @@ use super::core::HttpCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::HttpConfig;
+use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for HttpConfig {
     type Builder = HttpBuilder;
+
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", Scheme::Http)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert(
+            "endpoint".to_string(),
+            format!("{}://{}", uri.scheme(), authority),
+        );
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -287,5 +307,51 @@ impl Access for HttpBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "http://example.com/static/assets".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("static/assets"));
+    }
+
+    #[test]
+    fn from_uri_preserves_query_options() {
+        let uri = OperatorUri::new(
+            "http://cdn.example.com/data?token=abc123".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://cdn.example.com"));
+        assert_eq!(cfg.token.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn from_uri_ignores_endpoint_override() {
+        let uri = OperatorUri::new(
+            "http://example.com/data".parse().unwrap(),
+            vec![(
+                "endpoint".to_string(),
+                "https://cdn.example.com".to_string(),
+            )],
+        )
+        .unwrap();
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
     }
 }

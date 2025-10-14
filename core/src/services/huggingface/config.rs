@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::HuggingfaceBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -71,5 +72,12 @@ impl Debug for HuggingfaceConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for HuggingfaceConfig {
+    type Builder = HuggingfaceBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HuggingfaceBuilder { config: self }
     }
 }

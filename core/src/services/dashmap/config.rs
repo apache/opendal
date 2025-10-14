@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::backend::DashmapBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
@@ -33,5 +34,12 @@ impl Debug for DashmapConfig {
         f.debug_struct("DashmapConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for DashmapConfig {
+    type Builder = DashmapBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DashmapBuilder { config: self }
     }
 }

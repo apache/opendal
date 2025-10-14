@@ -170,7 +170,7 @@ impl oio::Write for MonoiofsWriter {
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())
-            .with_last_modified(parse_datetime_from_system_time(
+            .with_last_modified(Timestamp::try_from(
                 file_meta.modified().map_err(new_std_io_error)?,
             )?);
         Ok(meta)

@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HDFS_SCHEME;
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
@@ -32,17 +32,11 @@ use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
-impl Configurator for HdfsConfig {
-    type Builder = HdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HdfsBuilder { config: self }
-    }
-}
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsBuilder {
-    config: HdfsConfig,
+    pub(super) config: HdfsConfig,
 }
 
 impl Debug for HdfsBuilder {
@@ -173,7 +167,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(HDFS_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
@@ -249,7 +243,7 @@ impl Access for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(parse_datetime_from_system_time(meta.modified())?);
+        m.set_last_modified(Timestamp::try_from(meta.modified())?);
 
         Ok(RpStat::new(m))
     }

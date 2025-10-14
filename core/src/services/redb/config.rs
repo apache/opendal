@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::RedbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -31,4 +32,14 @@ pub struct RedbConfig {
     pub root: Option<String>,
     /// The table name for redb.
     pub table: Option<String>,
+}
+
+impl crate::Configurator for RedbConfig {
+    type Builder = RedbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        RedbBuilder {
+            config: self,
+            database: None,
+        }
+    }
 }

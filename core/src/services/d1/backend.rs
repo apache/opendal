@@ -31,22 +31,12 @@ use crate::raw::*;
 use crate::services::D1Config;
 use crate::*;
 
-impl Configurator for D1Config {
-    type Builder = D1Builder;
-    fn into_builder(self) -> Self::Builder {
-        D1Builder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct D1Builder {
-    config: D1Config,
+    pub(super) config: D1Config,
 
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for D1Builder {

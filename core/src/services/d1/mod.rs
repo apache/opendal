@@ -15,14 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-d1")]
 mod error;
-#[cfg(feature = "services-d1")]
 mod model;
 
-#[cfg(feature = "services-d1")]
 mod backend;
-#[cfg(feature = "services-d1")]
 pub use backend::D1Builder as D1;
 
 mod config;

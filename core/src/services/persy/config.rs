@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::backend::PersyBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -29,4 +30,11 @@ pub struct PersyConfig {
     pub segment: Option<String>,
     /// That name of the persy index.
     pub index: Option<String>,
+}
+
+impl crate::Configurator for PersyConfig {
+    type Builder = PersyBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PersyBuilder { config: self }
+    }
 }

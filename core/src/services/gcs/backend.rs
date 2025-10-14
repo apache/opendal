@@ -27,7 +27,7 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 
-use super::DEFAULT_SCHEME;
+use super::GCS_SCHEME;
 use super::core::*;
 use super::delete::GcsDeleter;
 use super::error::parse_error;
@@ -41,28 +41,15 @@ use crate::*;
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
-impl Configurator for GcsConfig {
-    type Builder = GcsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GcsBuilder {
-            config: self,
-            http_client: None,
-            customized_token_loader: None,
-        }
-    }
-}
-
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GcsBuilder {
-    config: GcsConfig,
+    pub(super) config: GcsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
-    customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    pub(super) http_client: Option<HttpClient>,
+    pub(super) customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl Debug for GcsBuilder {
@@ -307,7 +294,7 @@ impl Builder for GcsBuilder {
             core: Arc::new(GcsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(GCS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

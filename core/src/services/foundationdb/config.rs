@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::FoundationdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,12 @@ impl Debug for FoundationdbConfig {
         ds.field("config_path", &self.config_path);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for FoundationdbConfig {
+    type Builder = FoundationdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        FoundationdbBuilder { config: self }
     }
 }

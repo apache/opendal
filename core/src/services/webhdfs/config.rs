@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::WebhdfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -48,5 +49,12 @@ impl Debug for WebhdfsConfig {
             .field("user_name", &self.user_name)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for WebhdfsConfig {
+    type Builder = WebhdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        WebhdfsBuilder { config: self }
     }
 }

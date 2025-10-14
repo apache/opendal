@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use super::backend::MiniMokaBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -52,5 +53,12 @@ impl Debug for MiniMokaConfig {
             .field("time_to_idle", &self.time_to_idle)
             .field("root", &self.root)
             .finish()
+    }
+}
+
+impl crate::Configurator for MiniMokaConfig {
+    type Builder = MiniMokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MiniMokaBuilder { config: self }
     }
 }

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::ObsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,5 +50,51 @@ impl Debug for ObsConfig {
             .field("secret_access_key", &"<redacted>")
             .field("bucket", &self.bucket)
             .finish()
+    }
+}
+
+impl crate::Configurator for ObsConfig {
+    type Builder = ObsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        ObsBuilder {
+            config: self,
+
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "obs://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = ObsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

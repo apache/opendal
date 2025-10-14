@@ -22,11 +22,10 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
-use jiff::Timestamp;
 use log::debug;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::ALIYUN_DRIVE_SCHEME;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
@@ -36,25 +35,14 @@ use super::writer::AliyunDriveWriter;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
-impl Configurator for AliyunDriveConfig {
-    type Builder = AliyunDriveBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AliyunDriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AliyunDriveBuilder {
-    config: AliyunDriveConfig,
+    pub(super) config: AliyunDriveConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AliyunDriveBuilder {
@@ -176,7 +164,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(ALIYUN_DRIVE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

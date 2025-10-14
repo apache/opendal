@@ -30,18 +30,11 @@ use crate::raw::*;
 use crate::services::PersyConfig;
 use crate::*;
 
-impl Configurator for PersyConfig {
-    type Builder = PersyBuilder;
-    fn into_builder(self) -> Self::Builder {
-        PersyBuilder { config: self }
-    }
-}
-
 /// persy service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct PersyBuilder {
-    config: PersyConfig,
+    pub(super) config: PersyConfig,
 }
 
 impl PersyBuilder {

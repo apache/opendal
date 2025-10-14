@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::HdfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -55,5 +56,12 @@ impl Debug for HdfsConfig {
             .field("enable_append", &self.enable_append)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for HdfsConfig {
+    type Builder = HdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HdfsBuilder { config: self }
     }
 }

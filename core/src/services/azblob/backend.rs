@@ -30,7 +30,7 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::DEFAULT_SCHEME;
+use super::AZBLOB_SCHEME;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
@@ -56,26 +56,13 @@ impl From<AzureStorageConfig> for AzblobConfig {
     }
 }
 
-impl Configurator for AzblobConfig {
-    type Builder = AzblobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzblobBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
-    config: AzblobConfig,
+    pub(super) config: AzblobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzblobBuilder {
@@ -397,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::WebdavBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,5 +50,82 @@ impl Debug for WebdavConfig {
             .field("root", &self.root);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for WebdavConfig {
+    type Builder = WebdavBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Webdav)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        WebdavBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "webdav://webdav.example.com/remote.php/webdav"
+                .parse()
+                .unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = WebdavConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://webdav.example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("remote.php/webdav"));
+    }
+
+    #[test]
+    fn from_uri_ignores_endpoint_override() {
+        let uri = OperatorUri::new(
+            "webdav://dav.internal/data".parse().unwrap(),
+            vec![(
+                "endpoint".to_string(),
+                "http://dav.internal:8080".to_string(),
+            )],
+        )
+        .unwrap();
+
+        let cfg = WebdavConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://dav.internal"));
+    }
+
+    #[test]
+    fn from_uri_propagates_disable_copy() {
+        let uri = OperatorUri::new(
+            "webdav://dav.example.com".parse().unwrap(),
+            vec![("disable_copy".to_string(), "true".to_string())],
+        )
+        .unwrap();
+
+        let cfg = WebdavConfig::from_uri(&uri).unwrap();
+        assert!(cfg.disable_copy);
     }
 }

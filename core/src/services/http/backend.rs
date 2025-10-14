@@ -23,32 +23,21 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HTTP_SCHEME;
 use super::core::HttpCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::HttpConfig;
 use crate::*;
-impl Configurator for HttpConfig {
-    type Builder = HttpBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        HttpBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HttpBuilder {
-    config: HttpConfig,
+    pub(super) config: HttpConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for HttpBuilder {
@@ -157,7 +146,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(HTTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

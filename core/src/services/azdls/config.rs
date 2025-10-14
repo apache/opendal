@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AzdlsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -85,5 +86,17 @@ impl Debug for AzdlsConfig {
             ds.field("sas_token", &"<redacted>");
         }
         ds.finish()
+    }
+}
+
+impl crate::Configurator for AzdlsConfig {
+    type Builder = AzdlsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AzdlsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

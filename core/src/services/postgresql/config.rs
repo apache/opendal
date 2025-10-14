@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::PostgresqlBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -62,5 +63,12 @@ impl Debug for PostgresqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl crate::Configurator for PostgresqlConfig {
+    type Builder = PostgresqlBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PostgresqlBuilder { config: self }
     }
 }

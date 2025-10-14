@@ -776,7 +776,10 @@ const fn entry_mode2file_type(mode: EntryMode) -> FileType {
 }
 
 fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32) -> FileAttr {
-    let last_modified = metadata.last_modified().map(|t| t.into()).unwrap_or(atime);
+    let last_modified = match metadata.last_modified() {
+        None => atime,
+        Some(ts) => ts.into(),
+    };
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
         size: metadata.content_length(),

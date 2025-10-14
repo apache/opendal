@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::TikvBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -48,5 +49,12 @@ impl Debug for TikvConfig {
             .field("cert_path", &self.cert_path)
             .field("key_path", &self.key_path)
             .finish()
+    }
+}
+
+impl crate::Configurator for TikvConfig {
+    type Builder = TikvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        TikvBuilder { config: self }
     }
 }

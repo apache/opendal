@@ -26,7 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::DEFAULT_SCHEME;
+use super::AZFILE_SCHEME;
 use super::core::AzfileCore;
 use super::delete::AzfileDeleter;
 use super::error::parse_error;
@@ -49,26 +49,14 @@ impl From<AzureStorageConfig> for AzfileConfig {
     }
 }
 
-impl Configurator for AzfileConfig {
-    type Builder = AzfileBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzfileBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// Azure File services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzfileBuilder {
-    config: AzfileConfig,
+    pub(super) config: AzfileConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzfileBuilder {
@@ -225,7 +213,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::EtcdBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -82,5 +83,12 @@ impl Debug for EtcdConfig {
             ds.field("key_path", &key_path);
         }
         ds.finish()
+    }
+}
+
+impl crate::Configurator for EtcdConfig {
+    type Builder = EtcdBuilder;
+    fn into_builder(self) -> Self::Builder {
+        EtcdBuilder { config: self }
     }
 }

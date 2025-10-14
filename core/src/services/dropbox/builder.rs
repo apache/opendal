@@ -15,39 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
-impl Configurator for DropboxConfig {
-    type Builder = DropboxBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        DropboxBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Dropbox](https://www.dropbox.com/) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DropboxBuilder {
-    config: DropboxConfig,
+    pub(super) config: DropboxConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for DropboxBuilder {
@@ -179,7 +167,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(DROPBOX_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

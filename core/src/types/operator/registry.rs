@@ -18,15 +18,12 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
-use http::Uri;
-use percent_encoding::percent_decode_str;
-
-use crate::services;
 use crate::types::builder::{Builder, Configurator};
+use crate::types::{IntoOperatorUri, OperatorUri};
 use crate::{Error, ErrorKind, Operator, Result};
 
 /// Factory signature used to construct [`Operator`] from a URI and extra options.
-pub type OperatorFactory = fn(&str, Vec<(String, String)>) -> Result<Operator>;
+pub type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;
 
 /// Default registry initialized with builtin services.
 pub static DEFAULT_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> = LazyLock::new(|| {
@@ -60,70 +57,52 @@ impl OperatorRegistry {
     }
 
     /// Load an [`Operator`] via the factory registered for the URI's scheme.
-    pub fn load(
-        &self,
-        uri: &str,
-        options: impl IntoIterator<Item = (String, String)>,
-    ) -> Result<Operator> {
-        let parsed = uri.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
-        })?;
+    pub fn load(&self, uri: impl IntoOperatorUri) -> Result<Operator> {
+        let parsed = uri.into_operator_uri()?;
+        let scheme = parsed.scheme();
 
-        let scheme = parsed
-            .scheme_str()
-            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "uri scheme is required"))?;
-
-        let key = scheme.to_ascii_lowercase();
         let factory = self
             .factories
             .lock()
             .expect("operator registry mutex poisoned")
-            .get(key.as_str())
+            .get(scheme)
             .copied()
             .ok_or_else(|| {
                 Error::new(ErrorKind::Unsupported, "scheme is not registered")
-                    .with_context("scheme", scheme)
+                    .with_context("scheme", scheme.to_string())
             })?;
 
-        let opts: Vec<(String, String)> = options.into_iter().collect();
-        factory(uri, opts)
+        factory(&parsed)
     }
 }
 
 fn register_builtin_services(registry: &OperatorRegistry) {
+    let _ = registry;
+
     #[cfg(feature = "services-memory")]
-    registry.register::<services::Memory>(services::MEMORY_SCHEME);
+    registry.register::<crate::services::Memory>(crate::services::MEMORY_SCHEME);
     #[cfg(feature = "services-fs")]
-    registry.register::<services::Fs>(services::FS_SCHEME);
+    registry.register::<crate::services::Fs>(crate::services::FS_SCHEME);
     #[cfg(feature = "services-s3")]
-    registry.register::<services::S3>(services::S3_SCHEME);
+    registry.register::<crate::services::S3>(crate::services::S3_SCHEME);
+    #[cfg(feature = "services-azblob")]
+    registry.register::<crate::services::Azblob>(crate::services::AZBLOB_SCHEME);
+    #[cfg(feature = "services-b2")]
+    registry.register::<crate::services::B2>(crate::services::B2_SCHEME);
+    #[cfg(feature = "services-cos")]
+    registry.register::<crate::services::Cos>(crate::services::COS_SCHEME);
+    #[cfg(feature = "services-gcs")]
+    registry.register::<crate::services::Gcs>(crate::services::GCS_SCHEME);
+    #[cfg(feature = "services-obs")]
+    registry.register::<crate::services::Obs>(crate::services::OBS_SCHEME);
+    #[cfg(feature = "services-oss")]
+    registry.register::<crate::services::Oss>(crate::services::OSS_SCHEME);
+    #[cfg(feature = "services-upyun")]
+    registry.register::<crate::services::Upyun>(crate::services::UPYUN_SCHEME);
 }
 
 /// Factory adapter that builds an operator from a configurator type.
-fn factory<C: Configurator>(uri: &str, options: Vec<(String, String)>) -> Result<Operator> {
-    let parsed = uri.parse::<Uri>().map_err(|err| {
-        Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
-    })?;
-
-    let mut params = HashMap::new();
-    if let Some(query) = parsed.query() {
-        for pair in query.split('&') {
-            if pair.is_empty() {
-                continue;
-            }
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next().unwrap_or("");
-            let value = parts.next().unwrap_or("");
-            let key = percent_decode_str(key).decode_utf8_lossy().to_string();
-            let value = percent_decode_str(value).decode_utf8_lossy().to_string();
-            params.insert(key.to_ascii_lowercase(), value);
-        }
-    }
-
-    for (key, value) in options {
-        params.insert(key.to_ascii_lowercase(), value);
-    }
-
-    let cfg = C::from_uri(&parsed, &params)?;
+fn factory<C: Configurator>(uri: &OperatorUri) -> Result<Operator> {
+    let cfg = C::from_uri(uri)?;
     Ok(Operator::from_config(cfg)?.finish())
 }

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::UpyunBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -47,5 +48,50 @@ impl Debug for UpyunConfig {
         ds.field("operator", &self.operator);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for UpyunConfig {
+    type Builder = UpyunBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        UpyunBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "upyun://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = UpyunConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

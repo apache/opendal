@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::HdfsNativeBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,12 @@ impl Debug for HdfsNativeConfig {
             .field("name_node", &self.name_node)
             .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for HdfsNativeConfig {
+    type Builder = HdfsNativeBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HdfsNativeBuilder { config: self }
     }
 }

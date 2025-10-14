@@ -395,7 +395,7 @@ pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
         md.set_content_type(&content_type);
     }
     md.set_content_length(blob.size);
-    md.set_last_modified(parse_datetime_from_rfc3339(&blob.uploaded_at)?);
+    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
     md.set_content_disposition(&blob.content_disposition);
     Ok(md)
 }

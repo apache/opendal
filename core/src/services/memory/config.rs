@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::MemoryBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -27,4 +28,41 @@ use serde::Serialize;
 pub struct MemoryConfig {
     /// root of the backend.
     pub root: Option<String>,
+}
+
+impl crate::Configurator for MemoryConfig {
+    type Builder = MemoryBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+        if !map.contains_key("root") {
+            if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri = OperatorUri::new(
+            "memory://localhost/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = MemoryConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
 }

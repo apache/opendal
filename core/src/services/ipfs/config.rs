@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::IpfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -29,4 +30,16 @@ pub struct IpfsConfig {
     pub endpoint: Option<String>,
     /// IPFS root.
     pub root: Option<String>,
+}
+
+impl crate::Configurator for IpfsConfig {
+    type Builder = IpfsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        IpfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
 }

@@ -28,7 +28,7 @@ use reqsign::HuaweicloudObsConfig;
 use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
-use super::DEFAULT_SCHEME;
+use super::OBS_SCHEME;
 use super::core::ObsCore;
 use super::core::constants;
 use super::delete::ObsDeleter;
@@ -39,27 +39,15 @@ use super::writer::ObsWriters;
 use crate::raw::*;
 use crate::services::ObsConfig;
 use crate::*;
-impl Configurator for ObsConfig {
-    type Builder = ObsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        ObsBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct ObsBuilder {
-    config: ObsConfig,
+    pub(super) config: ObsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for ObsBuilder {
@@ -226,7 +214,7 @@ impl Builder for ObsBuilder {
             core: Arc::new(ObsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(OBS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

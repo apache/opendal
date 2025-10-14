@@ -428,7 +428,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     }
 
     // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-    m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
+    m.set_last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
     Ok(m)

@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use super::backend::RedisBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -75,5 +76,39 @@ impl Debug for RedisConfig {
         }
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for RedisConfig {
+    type Builder = RedisBuilder;
+    fn into_builder(self) -> Self::Builder {
+        RedisBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_redis_builder_interface() {
+        // Test that RedisBuilder still works with the new implementation
+        let builder = RedisBuilder::default()
+            .endpoint("redis://localhost:6379")
+            .username("testuser")
+            .password("testpass")
+            .db(1)
+            .root("/test");
+
+        // The builder should be able to create configuration
+        assert!(builder.config.endpoint.is_some());
+        assert_eq!(
+            builder.config.endpoint.as_ref().unwrap(),
+            "redis://localhost:6379"
+        );
+        assert_eq!(builder.config.username.as_ref().unwrap(), "testuser");
+        assert_eq!(builder.config.password.as_ref().unwrap(), "testpass");
+        assert_eq!(builder.config.db, 1);
+        assert_eq!(builder.config.root.as_ref().unwrap(), "/test");
     }
 }

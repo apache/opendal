@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for s3 service.
-#[cfg(feature = "services-s3")]
 pub const S3_SCHEME: &str = "s3";
-#[cfg(feature = "services-s3")]
 mod core;
-#[cfg(feature = "services-s3")]
 mod delete;
-#[cfg(feature = "services-s3")]
 mod error;
-#[cfg(feature = "services-s3")]
 mod lister;
-#[cfg(feature = "services-s3")]
 mod writer;
 
-#[cfg(feature = "services-s3")]
 mod backend;
-#[cfg(feature = "services-s3")]
 pub use backend::S3Builder as S3;
 
 mod config;

@@ -35,17 +35,10 @@ use crate::raw::*;
 use crate::services::SqliteConfig;
 use crate::*;
 
-impl Configurator for SqliteConfig {
-    type Builder = SqliteBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SqliteBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SqliteBuilder {
-    config: SqliteConfig,
+    pub(super) config: SqliteConfig,
 }
 
 impl Debug for SqliteBuilder {

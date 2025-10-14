@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::CompfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -27,4 +28,11 @@ pub struct CompfsConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
+}
+
+impl crate::Configurator for CompfsConfig {
+    type Builder = CompfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CompfsBuilder { config: self }
+    }
 }

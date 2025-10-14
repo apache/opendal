@@ -23,7 +23,7 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HDFS_NATIVE_SCHEME;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
@@ -34,17 +34,10 @@ use crate::services::HdfsNativeConfig;
 use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
-impl Configurator for HdfsNativeConfig {
-    type Builder = HdfsNativeBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HdfsNativeBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsNativeBuilder {
-    config: HdfsNativeConfig,
+    pub(super) config: HdfsNativeConfig,
 }
 
 impl Debug for HdfsNativeBuilder {
@@ -152,7 +145,7 @@ impl Access for HdfsNativeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(DEFAULT_SCHEME)
+        am.set_scheme(HDFS_NATIVE_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -205,7 +198,7 @@ impl Access for HdfsNativeBackend {
 
         let mut metadata = Metadata::new(mode);
         metadata
-            .set_last_modified(parse_datetime_from_timestamp_millis(
+            .set_last_modified(Timestamp::from_millisecond(
                 status.modification_time as i64,
             )?)
             .set_content_length(status.length as u64);

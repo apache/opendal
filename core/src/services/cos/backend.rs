@@ -26,7 +26,7 @@ use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
-use super::DEFAULT_SCHEME;
+use super::COS_SCHEME;
 use super::core::*;
 use super::delete::CosDeleter;
 use super::error::parse_error;
@@ -39,27 +39,15 @@ use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
 use crate::*;
-impl Configurator for CosConfig {
-    type Builder = CosBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        CosBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct CosBuilder {
-    config: CosConfig,
+    pub(super) config: CosConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CosBuilder {
@@ -221,7 +209,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(COS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {

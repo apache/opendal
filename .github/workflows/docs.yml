@@ -38,8 +38,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This same toolchain for rust 1.85.1 but nightly so we can use new features.
-  RUST_DOC_TOOLCHAIN: nightly-2025-03-18
+  # This is the toolchain used by docs.rs
+  # 
+  # Check this page for updating: https://docs.rs/crate/opendal/0.54.1/builds
+  RUST_DOC_TOOLCHAIN: nightly-2025-10-12
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 

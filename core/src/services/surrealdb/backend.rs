@@ -30,17 +30,10 @@ use crate::raw::normalize_root;
 use crate::services::SurrealdbConfig;
 use crate::*;
 
-impl Configurator for SurrealdbConfig {
-    type Builder = SurrealdbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SurrealdbBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SurrealdbBuilder {
-    config: SurrealdbConfig,
+    pub(super) config: SurrealdbConfig,
 }
 
 impl Debug for SurrealdbBuilder {

@@ -29,7 +29,6 @@ use crate::*;
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
-use jiff::Timestamp;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {

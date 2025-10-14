@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GridfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -46,5 +47,12 @@ impl Debug for GridfsConfig {
             .field("chunk_size", &self.chunk_size)
             .field("root", &self.root)
             .finish()
+    }
+}
+
+impl crate::Configurator for GridfsConfig {
+    type Builder = GridfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        GridfsBuilder { config: self }
     }
 }

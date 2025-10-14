@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::LakefsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -77,5 +78,12 @@ impl Debug for LakefsConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for LakefsConfig {
+    type Builder = LakefsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        LakefsBuilder { config: self }
     }
 }

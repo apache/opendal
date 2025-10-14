@@ -17,8 +17,7 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::raw::BytesRange;
-use jiff::Timestamp;
+use crate::raw::{BytesRange, Timestamp};
 use std::collections::HashMap;
 
 /// Options for delete operations.

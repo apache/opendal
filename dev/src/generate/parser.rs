@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::{anyhow, Context};
-use anyhow::{bail, Result};
+use anyhow::{Context, anyhow};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;

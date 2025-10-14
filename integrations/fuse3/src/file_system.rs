@@ -23,17 +23,17 @@ use std::time::Duration;
 use std::time::SystemTime;
 
 use bytes::Bytes;
-use fuse3::path::prelude::*;
 use fuse3::Errno;
 use fuse3::Result;
+use fuse3::path::prelude::*;
+use futures_util::StreamExt;
 use futures_util::stream;
 use futures_util::stream::BoxStream;
-use futures_util::StreamExt;
-use opendal::raw::normalize_path;
 use opendal::EntryMode;
 use opendal::ErrorKind;
 use opendal::Metadata;
 use opendal::Operator;
+use opendal::raw::normalize_path;
 use sharded_slab::Slab;
 use tokio::sync::Mutex;
 
@@ -776,7 +776,10 @@ const fn entry_mode2file_type(mode: EntryMode) -> FileType {
 }
 
 fn metadata2file_attr(metadata: &Metadata, atime: SystemTime, uid: u32, gid: u32) -> FileAttr {
-    let last_modified = metadata.last_modified().map(|t| t.into()).unwrap_or(atime);
+    let last_modified = match metadata.last_modified() {
+        None => atime,
+        Some(ts) => ts.into(),
+    };
     let kind = entry_mode2file_type(metadata.mode());
     FileAttr {
         size: metadata.content_length(),

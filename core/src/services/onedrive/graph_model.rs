@@ -22,7 +22,7 @@ use serde::Serialize;
 pub struct GraphOAuthRefreshTokenResponseBody {
     pub access_token: String,
     pub refresh_token: String,
-    pub expires_in: i64, // in seconds
+    pub expires_in: u64, // in seconds
 }
 
 /// We `$select` some fields when sending GET requests.

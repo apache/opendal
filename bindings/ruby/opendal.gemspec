@@ -41,29 +41,59 @@ Gem::Specification.new do |spec|
   spec.homepage = "https://opendal.apache.org/"
   spec.license = "Apache-2.0"
 
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/apache/opendal"
-  spec.metadata["changelog_uri"] = "https://github.com/apache/opendal/releases"
-  spec.metadata["rubygems_mfa_required"] = "true"
+  spec.metadata = {
+    "bug_tracker_uri" => "https://github.com/apache/opendal/issues",
+    "changelog_uri" => "https://github.com/apache/opendal/releases",
+    "documentation_uri" => "https://opendal.apache.org/docs/ruby/",
+    "homepage_uri" => spec.homepage,
+    "source_code_uri" => "https://github.com/apache/opendal",
+    "rubygems_mfa_required" => "true"
+  }
 
-  # Specify which files should be added to the gem when it is released.
+  # Specify which files should be added to a source release gem when we release OpenDAL Ruby gem.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
   spec.files = Dir.chdir(__dir__) do
-    `git ls-files -z`.split("\x0").reject do |f|
-      (File.expand_path(f) == __FILE__) || f.start_with?(*%w[gems/ pkg/ target/ tmp/ .git])
+    git_files = `git ls-files -z`.split("\x0").reject do |f|
+      (File.expand_path(f) == __FILE__) || f.start_with?(*%w[gems/ pkg/ target/ tmp/ .git]) || f == "core"
     end
+
+    # Copy core directory
+    src = "../../core"
+    dst = "./core"
+    `cp -RL #{src} #{dst}`
+
+    # Include core directory files, excluding symlinks
+    core_files = Dir.chdir("./core") do
+      `git ls-files -z`.split("\x0").reject do |f|
+        File.symlink?(File.join("./core", f))
+      end.map { |f| "core/#{f}" }
+    end
+
+    # Resolve symlinks: copy actual files from their target locations
+    # This handles recursive symbol link cases. e.g., core/CHANGELOG.md -> ../CHANGELOG.md
+    symlink_targets = Dir.chdir("./core") do
+      `git ls-files -z`.split("\x0").select do |f|
+        File.symlink?(File.join("./core", f))
+      end.filter_map do |f|
+        link_target = File.readlink(File.join("./core", f))
+        resolved_path = File.expand_path(link_target, File.join(__dir__, "core"))
+        File.exist?(resolved_path) ? "core/#{f}" : nil
+      end
+    end
+
+    git_files + core_files + symlink_targets
   end
 
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
   spec.extensions = ["./extconf.rb"]
 
-  spec.requirements = ["Rust >= 1.82"]
+  spec.requirements = ["Rust >= 1.85"]
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life
+  #
+  # keep in sync with `Rakefile`.
   spec.required_ruby_version = ">= 3.2"
 
   # intentionally skipping rb_sys gem because newer Rubygems will be present

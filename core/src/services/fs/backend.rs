@@ -20,19 +20,20 @@ use std::sync::Arc;
 
 use log::debug;
 
+use super::FS_SCHEME;
 use super::core::*;
 use super::delete::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
-use super::FS_SCHEME;
 use crate::raw::*;
 use crate::services::FsConfig;
 use crate::types::OperatorUri;
 use crate::*;
 impl Configurator for FsConfig {
     type Builder = FsBuilder;
+
     fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
@@ -48,6 +49,7 @@ impl Configurator for FsConfig {
 
         Self::from_iter(map)
     }
+
     fn into_builder(self) -> Self::Builder {
         FsBuilder { config: self }
     }

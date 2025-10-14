@@ -20,12 +20,12 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::atomic::AtomicBool;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
 use http::Response;
@@ -41,6 +41,7 @@ use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
 
+use super::S3_SCHEME;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
@@ -50,7 +51,6 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use super::S3_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -805,7 +805,7 @@ impl Builder for S3Builder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     format!("{v:?} is not a supported checksum_algorithm."),
-                ))
+                ));
             }
         };
 

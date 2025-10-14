@@ -822,7 +822,7 @@ impl Metadata {
     /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified().map(|ta| ta.to_rfc3339())
+        self.0.last_modified().map(|ta| ta.to_string())
     }
 
     /// mode represent this entry's mode.

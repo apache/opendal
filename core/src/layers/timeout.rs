@@ -369,8 +369,8 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::future::pending;
     use std::future::Future;
+    use std::future::pending;
     use std::sync::Arc;
     use std::time::Duration;
 

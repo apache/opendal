@@ -124,7 +124,7 @@ impl oio::PageList for GcsLister {
                 meta.set_content_type(&object.content_type);
             }
 
-            meta.set_last_modified(parse_datetime_from_rfc3339(object.updated.as_str())?);
+            meta.set_last_modified(object.updated.parse::<Timestamp>()?);
 
             let de = oio::Entry::with(path, meta);
 

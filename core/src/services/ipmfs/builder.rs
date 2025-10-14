@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::backend::IpmfsBackend;
 use super::core::IpmfsCore;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;

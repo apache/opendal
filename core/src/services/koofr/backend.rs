@@ -26,6 +26,7 @@ use log::debug;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
@@ -34,7 +35,6 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::KoofrConfig;
 use crate::*;
@@ -265,7 +265,7 @@ impl Access for KoofrBackend {
 
                 md.set_content_length(file.size)
                     .set_content_type(&file.content_type)
-                    .set_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+                    .set_last_modified(Timestamp::from_millisecond(file.modified)?);
 
                 Ok(RpStat::new(md))
             }

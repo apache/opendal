@@ -21,20 +21,20 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use constants::X_MS_META_PREFIX;
-use http::header::HeaderName;
+use http::HeaderValue;
+use http::Request;
+use http::Response;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use http::header::HeaderName;
 use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use http::HeaderValue;
-use http::Request;
-use http::Response;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -212,17 +212,11 @@ impl AzblobCore {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req

@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
-use http::request;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::request;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -395,7 +395,7 @@ pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
         md.set_content_type(&content_type);
     }
     md.set_content_length(blob.size);
-    md.set_last_modified(parse_datetime_from_rfc3339(&blob.uploaded_at)?);
+    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
     md.set_content_disposition(&blob.content_disposition);
     Ok(md)
 }

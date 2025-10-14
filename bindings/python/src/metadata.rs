@@ -15,11 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use chrono::prelude::*;
-use pyo3::prelude::*;
-use std::collections::HashMap;
-
 use crate::*;
+use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
 pub struct Entry(ocore::Entry);
@@ -123,8 +120,8 @@ impl Metadata {
 
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
-        self.0.last_modified()
+    pub fn last_modified(&self) -> Option<jiff::Timestamp> {
+        self.0.last_modified().map(Into::into)
     }
 
     /// Version of this entry, if available.

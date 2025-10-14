@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use monoio::fs::OpenOptions;
 use std::fmt::Debug;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
-use monoio::fs::OpenOptions;
-
-use super::core::MonoiofsCore;
 use super::core::BUFFER_SIZE;
+use super::core::MonoiofsCore;
 use super::delete::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
@@ -126,11 +124,9 @@ impl Access for MonoiofsBackend {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
+            .with_last_modified(Timestamp::try_from(
+                meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(RpStat::new(m))
     }
 

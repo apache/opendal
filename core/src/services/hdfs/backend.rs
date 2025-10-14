@@ -24,11 +24,11 @@ use std::sync::Arc;
 
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
@@ -133,7 +133,7 @@ impl Builder for HdfsBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
-                    .with_context("service", Scheme::Hdfs))
+                    .with_context("service", Scheme::Hdfs));
             }
         };
 
@@ -249,7 +249,7 @@ impl Access for HdfsBackend {
         };
         let mut m = Metadata::new(mode);
         m.set_content_length(meta.len());
-        m.set_last_modified(meta.modified().into());
+        m.set_last_modified(Timestamp::try_from(meta.modified())?);
 
         Ok(RpStat::new(m))
     }
@@ -355,7 +355,7 @@ impl Access for HdfsBackend {
                     Ok((RpList::default(), None))
                 } else {
                     Err(new_std_io_error(e))
-                }
+                };
             }
         };
 

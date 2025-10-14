@@ -23,13 +23,13 @@ use http::StatusCode;
 use log::debug;
 use sha2::Digest;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
+use crate::services::ghac::core::GhacCore;
 use crate::*;
 fn value_or_env(
     explicit_value: Option<String>,

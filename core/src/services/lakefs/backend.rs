@@ -20,19 +20,17 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::TimeZone;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
@@ -242,7 +240,7 @@ impl Access for LakefsBackend {
                     meta.set_content_disposition(v);
                 }
 
-                meta.set_last_modified(Utc.timestamp_opt(decoded_response.mtime, 0).unwrap());
+                meta.set_last_modified(Timestamp::from_second(decoded_response.mtime).unwrap());
 
                 Ok(RpStat::new(meta))
             }

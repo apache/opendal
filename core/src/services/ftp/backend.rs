@@ -24,19 +24,19 @@ use std::sync::Arc;
 use http::Uri;
 use log::debug;
 use services::ftp::core::Manager;
-use suppaftp::list::File;
-use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::list::File;
+use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
+use super::DEFAULT_SCHEME;
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::FtpConfig;
 use crate::*;
@@ -258,7 +258,7 @@ impl Access for FtpBackend {
 
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(file.modified().into());
+        meta.set_last_modified(Timestamp::try_from(file.modified())?);
 
         Ok(RpStat::new(meta))
     }

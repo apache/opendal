@@ -20,7 +20,7 @@ edition = "2021"
 license = "Apache-2.0"
 name = "opendal-fuzz"
 publish = false
-rust-version = "1.82"
+rust-version = "1.85"
 version = "0.0.0"
 
 [package.metadata]
@@ -76,9 +76,9 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 
 [dependencies]
-arbitrary = { version = "1.3.0", features = ["derive"] }
+arbitrary = { version = "1.4.2", features = ["derive"] }
 libfuzzer-sys = "0.4"
-log = { version = "0.4.22" }
+log = { version = "0.4.28" }
 logforth = { version = "0.23.1", default-features = false }
 opendal = { path = "..", features = ["tests"] }
 uuid = { version = "1", features = ["v4"] }

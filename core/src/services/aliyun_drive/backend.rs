@@ -20,19 +20,18 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use tokio::sync::Mutex;
 
+use super::DEFAULT_SCHEME;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
@@ -167,7 +166,7 @@ impl Builder for AliyunDriveBuilder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "drive_type is invalid.",
-                ))
+                ));
             }
         };
         debug!("backend use drive_type {drive_type:?}");
@@ -325,22 +324,18 @@ impl Access for AliyunDriveBackend {
 
         if file.path_type == "folder" {
             let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                file.updated_at
-                    .parse::<chrono::DateTime<Utc>>()
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                    })?,
+                file.updated_at.parse::<Timestamp>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                })?,
             );
 
             return Ok(RpStat::new(meta));
         }
 
         let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-            file.updated_at
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
+            file.updated_at.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?,
         );
         if let Some(v) = file.size {
             meta = meta.with_content_length(v);

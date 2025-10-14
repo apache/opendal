@@ -18,6 +18,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -27,26 +28,25 @@ use jni::objects::JValueOwned;
 use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jsize;
-use jni::JNIEnv;
-use opendal::blocking;
 use opendal::Entry;
 use opendal::Operator;
 use opendal::Scheme;
+use opendal::blocking;
 
+use crate::Result;
 use crate::convert::{
     bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
     read_int64_field,
 };
+use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::executor::get_current_env;
-use crate::executor::Executor;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
-use crate::Result;
 use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
     mut env: JNIEnv,
     _: JClass,
@@ -69,32 +69,34 @@ fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate(
     _: JNIEnv,
     _: JClass,
     op: *mut Operator,
 ) -> jlong {
-    let op = &mut *op;
+    let op = unsafe { &mut *op };
     Box::into_raw(Box::new(op.clone())) as jlong
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_disposeInternal(
     _: JNIEnv,
     _: JObject,
     op: *mut Operator,
 ) {
-    drop(Box::from_raw(op));
+    unsafe {
+        drop(Box::from_raw(op));
+    }
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write(
     mut env: JNIEnv,
     _: JClass,
@@ -140,7 +142,7 @@ fn intern_write(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat(
     mut env: JNIEnv,
     _: JClass,
@@ -181,7 +183,7 @@ fn intern_stat(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read(
     mut env: JNIEnv,
     _: JClass,
@@ -203,18 +205,19 @@ fn intern_read(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    // Prepare inputs before spawning
     let id = request_id(env)?;
-
-    let path = jstring_to_string(env, &path)?;
-
+    let path_str = jstring_to_string(env, &path)?;
     let offset = read_int64_field(env, &options, "offset")?;
     let length = read_int64_field(env, &options, "length")?;
+    let range = offset_length_to_range(offset, length)?;
 
-    let mut read_op = op.read_with(&path);
-    read_op = read_op.range(offset_length_to_range(offset, length)?);
+    // Clone operator handle to move into the task
+    let op_cloned = unsafe { &*op }.clone();
 
     executor_or_default(env, executor)?.spawn(async move {
+        let mut read_op = op_cloned.read_with(&path_str);
+        read_op = read_op.range(range);
         let result = read_op.await.map_err(Into::into);
 
         let mut env = unsafe { get_current_env() };
@@ -228,7 +231,7 @@ fn intern_read(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete(
     mut env: JNIEnv,
     _: JClass,
@@ -268,7 +271,7 @@ fn intern_delete(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp(
     mut env: JNIEnv,
     _: JClass,
@@ -295,7 +298,7 @@ fn intern_make_blocking_op(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperatorInfo(
     mut env: JNIEnv,
     _: JClass,
@@ -315,7 +318,7 @@ fn intern_make_operator_info(env: &mut JNIEnv, op: *mut Operator) -> Result<jobj
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir(
     mut env: JNIEnv,
     _: JClass,
@@ -355,7 +358,7 @@ fn intern_create_dir(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy(
     mut env: JNIEnv,
     _: JClass,
@@ -398,7 +401,7 @@ fn intern_copy(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename(
     mut env: JNIEnv,
     _: JClass,
@@ -441,7 +444,7 @@ fn intern_rename(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll(
     mut env: JNIEnv,
     _: JClass,
@@ -481,7 +484,7 @@ fn intern_remove_all(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list(
     mut env: JNIEnv,
     _: JClass,
@@ -538,7 +541,7 @@ fn make_entries<'local>(entries: Result<Vec<Entry>>) -> Result<JObject<'local>> 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead(
     mut env: JNIEnv,
     _: JClass,
@@ -578,7 +581,7 @@ fn intern_presign_read(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite(
     mut env: JNIEnv,
     _: JClass,
@@ -619,7 +622,7 @@ fn intern_presign_write(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat(
     mut env: JNIEnv,
     _: JClass,

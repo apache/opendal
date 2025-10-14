@@ -20,20 +20,19 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bytes::Buf;
-use http::StatusCode;
-
 use super::DEFAULT_SCHEME;
+use crate::ErrorKind;
 use crate::raw::*;
+use crate::services::CloudflareKvConfig;
 use crate::services::cloudflare_kv::core::CloudflareKvCore;
 use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
 use crate::services::cloudflare_kv::error::parse_error;
 use crate::services::cloudflare_kv::lister::CloudflareKvLister;
 use crate::services::cloudflare_kv::model::*;
 use crate::services::cloudflare_kv::writer::CloudflareWriter;
-use crate::services::CloudflareKvConfig;
-use crate::ErrorKind;
 use crate::*;
+use bytes::Buf;
+use http::StatusCode;
 
 impl Configurator for CloudflareKvConfig {
     type Builder = CloudflareKvBuilder;
@@ -117,7 +116,7 @@ impl Builder for CloudflareKvBuilder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "api_token is required",
-                ))
+                ));
             }
         };
 
@@ -249,7 +248,7 @@ impl Access for CloudflareKvAccessor {
             // Create metadata for current directory
             let cf_kv_metadata = CfKvMetadata {
                 etag: build_tmp_path_of(&current_path),
-                last_modified: chrono::Local::now().to_rfc3339(),
+                last_modified: Timestamp::now().to_string(),
                 content_length: 0,
                 is_dir: true,
             };
@@ -348,7 +347,9 @@ impl Access for CloudflareKvAccessor {
         }
 
         // Parse since time once for both time-based conditions
-        let last_modified = chrono::DateTime::parse_from_rfc3339(&metadata.last_modified)
+        let last_modified = metadata
+            .last_modified
+            .parse::<Timestamp>()
             .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
         // Check modified_since condition
@@ -378,7 +379,7 @@ impl Access for CloudflareKvAccessor {
         })
         .with_etag(metadata.etag)
         .with_content_length(metadata.content_length as u64)
-        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?);
+        .with_last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
         Ok(RpStat::new(meta))
     }
@@ -437,7 +438,9 @@ impl Access for CloudflareKvAccessor {
             }
 
             // Parse since time once for both time-based conditions
-            let last_modified = chrono::DateTime::parse_from_rfc3339(&metadata.last_modified)
+            let last_modified = metadata
+                .last_modified
+                .parse::<Timestamp>()
                 .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
             // Check modified_since condition

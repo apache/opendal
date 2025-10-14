@@ -24,11 +24,11 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::DEFAULT_SCHEME;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;
@@ -234,9 +234,7 @@ impl Access for HuggingfaceBackend {
                 // NOTE: if the file is not found, the server will return 200 with an empty array
                 if let Some(status) = decoded_response.first() {
                     if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
+                        meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
                     }
 
                     meta.set_content_length(status.size);

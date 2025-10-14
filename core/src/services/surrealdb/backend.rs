@@ -19,14 +19,14 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
+use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
-use surrealdb::Surreal;
 use tokio::sync::OnceCell;
 
+use crate::raw::Access;
 use crate::raw::adapters::kv;
 use crate::raw::normalize_root;
-use crate::raw::Access;
 use crate::services::SurrealdbConfig;
 use crate::*;
 
@@ -153,7 +153,7 @@ impl Builder for SurrealdbBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", Scheme::Surrealdb),
-                )
+                );
             }
         };
 
@@ -161,21 +161,21 @@ impl Builder for SurrealdbBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "namespace is empty")
-                    .with_context("service", Scheme::Surrealdb))
+                    .with_context("service", Scheme::Surrealdb));
             }
         };
         let database = match self.config.database.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is empty")
-                    .with_context("service", Scheme::Surrealdb))
+                    .with_context("service", Scheme::Surrealdb));
             }
         };
         let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Surrealdb))
+                    .with_context("service", Scheme::Surrealdb));
             }
         };
 
@@ -301,7 +301,10 @@ impl kv::Adapter for Adapter {
         let query: String = if self.key_field == "id" {
             "SELECT type::field($value_field) FROM type::thing($table, $path)".to_string()
         } else {
-            format!("SELECT type::field($value_field) FROM type::table($table) WHERE {} = $path LIMIT 1", self.key_field)
+            format!(
+                "SELECT type::field($value_field) FROM type::table($table) WHERE {} = $path LIMIT 1",
+                self.key_field
+            )
         };
 
         let mut result = self

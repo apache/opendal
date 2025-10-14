@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -30,9 +30,10 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::DEFAULT_SCHEME;
+use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
-use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
 use super::lister::AzblobLister;

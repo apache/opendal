@@ -22,11 +22,11 @@ use bytes::Buf;
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
 use super::error::parse_error;
-use crate::raw::oio::Entry;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::oio::Entry;
+use crate::raw::*;
 
 pub struct UpyunLister {
     core: Arc<UpyunCore>,
@@ -89,7 +89,7 @@ impl oio::PageList for UpyunLister {
                 let m = Metadata::new(EntryMode::FILE)
                     .with_content_length(file.length)
                     .with_content_type(file.type_field)
-                    .with_last_modified(parse_datetime_from_from_timestamp(file.last_modified)?);
+                    .with_last_modified(Timestamp::from_second(file.last_modified)?);
                 Entry::new(&path, m)
             };
 

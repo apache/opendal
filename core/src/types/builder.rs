@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::raw::*;
 use crate::types::OperatorUri;

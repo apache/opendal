@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-use sqlx::postgres::PgConnectOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgConnectOptions;
 use tokio::sync::OnceCell;
 
 use crate::raw::adapters::kv;
@@ -121,7 +121,7 @@ impl Builder for PostgresqlBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", Scheme::Postgresql),
-                )
+                );
             }
         };
 
@@ -135,7 +135,7 @@ impl Builder for PostgresqlBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Postgresql))
+                    .with_context("service", Scheme::Postgresql));
             }
         };
 

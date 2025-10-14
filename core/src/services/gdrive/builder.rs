@@ -15,27 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use log::debug;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-
-use chrono::DateTime;
-use chrono::Utc;
-use log::debug;
 use tokio::sync::Mutex;
 
+use super::DEFAULT_SCHEME;
 use super::backend::GdriveBackend;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
-use super::DEFAULT_SCHEME;
-use crate::raw::normalize_root;
+use crate::Scheme;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::raw::PathCacher;
+use crate::raw::Timestamp;
+use crate::raw::normalize_root;
 use crate::services::GdriveConfig;
-use crate::Scheme;
 use crate::*;
 impl Configurator for GdriveConfig {
     type Builder = GdriveBuilder;
@@ -175,7 +173,7 @@ impl Builder for GdriveBuilder {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
                 // We will never expire user specified access token.
-                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+                signer.expires_in = Timestamp::MAX;
             }
             (None, Some(refresh_token)) => {
                 let client_id = self.config.client_id.ok_or_else(|| {
@@ -202,14 +200,14 @@ impl Builder for GdriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Gdrive))
+                .with_context("service", Scheme::Gdrive));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Gdrive))
+                .with_context("service", Scheme::Gdrive));
             }
         };
 

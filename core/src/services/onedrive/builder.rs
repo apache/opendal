@@ -15,25 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-
-use chrono::DateTime;
-use chrono::Utc;
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::backend::OnedriveBackend;
 use super::DEFAULT_SCHEME;
-use crate::raw::normalize_root;
+use super::backend::OnedriveBackend;
+use crate::Scheme;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
+use crate::raw::Timestamp;
+use crate::raw::normalize_root;
 use crate::services::OnedriveConfig;
-use crate::Scheme;
 use crate::*;
 impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
@@ -192,7 +190,7 @@ impl Builder for OnedriveBuilder {
         match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
-                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+                signer.expires_in = Timestamp::MAX;
             }
             (None, Some(refresh_token)) => {
                 let client_id = self.config.client_id.ok_or_else(|| {
@@ -214,14 +212,14 @@ impl Builder for OnedriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", Scheme::Onedrive));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", Scheme::Onedrive));
             }
         };
 

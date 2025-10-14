@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Timestamp;
 use dict_derive::FromPyObject;
 use opendal::{self as ocore, raw::BytesRange};
 use pyo3::pyclass;
@@ -33,8 +32,8 @@ pub struct ReadOptions {
     pub size: Option<usize>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<Timestamp>,
-    pub if_unmodified_since: Option<Timestamp>,
+    pub if_modified_since: Option<jiff::Timestamp>,
+    pub if_unmodified_since: Option<jiff::Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,
@@ -146,8 +145,8 @@ pub struct StatOptions {
     pub version: Option<String>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<Timestamp>,
-    pub if_unmodified_since: Option<Timestamp>,
+    pub if_modified_since: Option<jiff::Timestamp>,
+    pub if_unmodified_since: Option<jiff::Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,

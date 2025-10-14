@@ -144,14 +144,15 @@ impl AliyunDriveCore {
                 access_token,
                 expire_at,
             ) => {
-                if *expire_at < Timestamp::now().as_second() || access_token.is_none() {
+                if *expire_at < Timestamp::now().into_inner().as_second() || access_token.is_none()
+                {
                     let res = self
                         .get_access_token(client_id, client_secret, refresh_token)
                         .await?;
                     let output: RefreshTokenResponse = serde_json::from_reader(res.reader())
                         .map_err(new_json_deserialize_error)?;
                     *access_token = Some(output.access_token);
-                    *expire_at = output.expires_in + Timestamp::now().as_second();
+                    *expire_at = output.expires_in + Timestamp::now().into_inner().as_second();
                     *refresh_token = output.refresh_token;
                 }
                 access_token.clone()

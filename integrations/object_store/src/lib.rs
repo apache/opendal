@@ -107,7 +107,5 @@ fn timestamp_to_datetime(ts: opendal::raw::Timestamp) -> Option<chrono::DateTime
 }
 
 fn datetime_to_timestamp(dt: chrono::DateTime<chrono::Utc>) -> Option<opendal::raw::Timestamp> {
-    jiff::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32)
-        .ok()
-        .map(opendal::raw::Timestamp::from)
+    opendal::raw::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32).ok()
 }

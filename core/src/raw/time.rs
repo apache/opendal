@@ -97,31 +97,26 @@ impl Timestamp {
         self.0.strftime("%FT%TZ").to_string()
     }
 
-    /// Returns this timestamp as a number of seconds since the Unix epoch.
-    ///
-    /// This only returns the number of whole seconds. That is, if there are
-    /// any fractional seconds in this timestamp, then they are truncated.
-    pub fn as_second(self) -> i64 {
-        self.0.as_second()
-    }
-
-    /// Returns this timestamp as a number of milliseconds since the Unix epoch.
-    pub fn as_millisecond(self) -> i64 {
-        self.0.as_millisecond()
-    }
-
-    /// Returns the fractional second component of this timestamp in units of
-    /// nanoseconds.
-    ///
-    /// It is guaranteed that this will never return a value that is greater
-    /// than 1 second (or less than -1 second).
-    pub fn subsec_nanosecond(self) -> i32 {
-        self.0.subsec_nanosecond()
-    }
-
     /// Convert to `SystemTime`.
     pub fn as_system_time(self) -> SystemTime {
         SystemTime::from(self.0)
+    }
+
+    /// Creates a new instant in time from the number of seconds elapsed since the Unix epoch.
+    ///
+    /// When second is negative, it corresponds to an instant in time before the Unix epoch.
+    /// A smaller number corresponds to an instant in time further into the past.
+    pub fn new(second: i64, nanosecond: i32) -> Result<Self, Error> {
+        match jiff::Timestamp::new(second, nanosecond) {
+            Ok(t) => Ok(Timestamp(t)),
+            Err(err) => Err(Error::new(
+                ErrorKind::Unexpected,
+                format!(
+                    "create timestamp from '{second}' seconds and '{nanosecond}' nanoseconds failed"
+                ),
+            )
+            .set_source(err)),
+        }
     }
 
     /// Creates a new instant in time from the number of milliseconds elapsed
@@ -196,17 +191,12 @@ impl Timestamp {
         Ok(Timestamp(ts))
     }
 
-    /// Convert to inner jiff::Timestamp for compatibility.
+    /// Convert to inner `jiff::Timestamp` for compatibility.
     ///
-    /// This method is provided for accessing the underlying jiff::Timestamp
+    /// This method is provided for accessing the underlying `jiff::Timestamp`
     /// when needed for interoperability with jiff-specific APIs.
     pub fn into_inner(self) -> jiff::Timestamp {
         self.0
-    }
-
-    /// Convert to a Zoned datetime in the given timezone.
-    pub fn to_zoned(self, tz: jiff::tz::TimeZone) -> jiff::Zoned {
-        self.0.to_zoned(tz)
     }
 
     /// Format the timestamp using `strftime` format string.
@@ -224,6 +214,12 @@ impl Timestamp {
 impl From<jiff::Timestamp> for Timestamp {
     fn from(t: jiff::Timestamp) -> Self {
         Timestamp(t)
+    }
+}
+
+impl From<Timestamp> for jiff::Timestamp {
+    fn from(t: Timestamp) -> Self {
+        t.0
     }
 }
 

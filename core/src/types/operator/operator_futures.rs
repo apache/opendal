@@ -382,15 +382,15 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::raw::Timestamp;
+    /// use jiff::Timestamp;
     /// use opendal::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_modified_since(time).await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn if_modified_since(mut self, v: Timestamp) -> Self {
-        self.args.if_modified_since = Some(v);
+    pub fn if_modified_since(mut self, v: impl Into<Timestamp>) -> Self {
+        self.args.if_modified_since = Some(v.into());
         self
     }
 
@@ -403,7 +403,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::raw::Timestamp;
+    /// use jiff::Timestamp;
     /// use opendal::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut metadata = op
@@ -413,8 +413,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn if_unmodified_since(mut self, v: Timestamp) -> Self {
-        self.args.if_unmodified_since = Some(v);
+    pub fn if_unmodified_since(mut self, v: impl Into<Timestamp>) -> Self {
+        self.args.if_unmodified_since = Some(v.into());
         self
     }
 }
@@ -574,7 +574,7 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::raw::Timestamp;
+    /// use jiff::Timestamp;
     /// use opendal::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut r = op
@@ -584,8 +584,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn if_modified_since(mut self, v: Timestamp) -> Self {
-        self.args.if_modified_since = Some(v);
+    pub fn if_modified_since(mut self, v: impl Into<Timestamp>) -> Self {
+        self.args.if_modified_since = Some(v.into());
         self
     }
 
@@ -598,7 +598,7 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     ///
     /// ```
     /// # use opendal::Result;
-    /// use opendal::raw::Timestamp;
+    /// use jiff::Timestamp;
     /// use opendal::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut r = op
@@ -608,8 +608,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn if_unmodified_since(mut self, v: Timestamp) -> Self {
-        self.args.if_unmodified_since = Some(v);
+    pub fn if_unmodified_since(mut self, v: impl Into<Timestamp>) -> Self {
+        self.args.if_unmodified_since = Some(v.into());
         self
     }
 }

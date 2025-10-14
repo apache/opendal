@@ -120,7 +120,7 @@ impl Metadata {
 
     /// Last modified time
     #[getter]
-    pub fn last_modified(&self) -> Option<crate::Timestamp> {
+    pub fn last_modified(&self) -> Option<jiff::Timestamp> {
         self.0.last_modified().map(Into::into)
     }
 

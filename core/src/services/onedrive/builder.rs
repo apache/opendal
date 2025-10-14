@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
@@ -30,6 +29,7 @@ use crate::Scheme;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
+use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::OnedriveConfig;
 use crate::*;

@@ -17,7 +17,6 @@
 
 use crate::raw::*;
 use crate::*;
-use jiff::Timestamp;
 use std::collections::HashMap;
 
 /// Metadata contains all the information related to a specific path.

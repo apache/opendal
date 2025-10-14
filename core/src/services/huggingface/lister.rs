@@ -67,7 +67,7 @@ impl oio::PageList for HuggingfaceLister {
             let mut meta = Metadata::new(entry_type);
 
             if let Some(commit_info) = status.last_commit.as_ref() {
-                meta.set_last_modified(parse_datetime_from_rfc3339(commit_info.date.as_str())?);
+                meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
             }
 
             if entry_type == EntryMode::FILE {

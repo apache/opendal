@@ -93,7 +93,7 @@ impl oio::PageList for AzdlsLister {
                     Error::new(ErrorKind::Unexpected, "content length is not valid integer")
                         .set_source(err)
                 })?)
-                .with_last_modified(parse_datetime_from_rfc2822(&object.last_modified)?);
+                .with_last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
 
             let mut path = build_rel_path(&self.core.root, &object.name);
             if mode.is_dir() {

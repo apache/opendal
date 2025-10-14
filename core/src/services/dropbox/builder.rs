@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;

@@ -22,7 +22,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde_json::json;
 use std::fmt::Debug;

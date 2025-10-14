@@ -19,7 +19,6 @@ use super::core::{MiniMokaCore, MiniMokaValue};
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
-use jiff::Timestamp;
 use std::sync::Arc;
 
 pub struct MiniMokaWriter {

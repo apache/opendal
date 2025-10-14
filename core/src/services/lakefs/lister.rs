@@ -23,7 +23,6 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 use bytes::Buf;
-use jiff::Timestamp;
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,

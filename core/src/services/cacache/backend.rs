@@ -18,7 +18,6 @@
 use crate::raw::*;
 use crate::services::CacacheConfig;
 use crate::*;
-use jiff::Timestamp;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -108,10 +107,8 @@ impl Access for CacacheAccessor {
                 let mut md = Metadata::new(EntryMode::FILE);
                 md.set_content_length(meta.size as u64);
                 // Convert u128 milliseconds to Timestamp
-                let millis = meta.time;
-                let secs = (millis / 1000) as i64;
-                let nanos = ((millis % 1000) * 1_000_000) as i32;
-                if let Ok(dt) = Timestamp::new(secs, nanos) {
+                let millis = meta.time as i64;
+                if let Ok(dt) = Timestamp::from_millisecond(millis) {
                     md.set_last_modified(dt);
                 }
                 Ok(RpStat::new(md))

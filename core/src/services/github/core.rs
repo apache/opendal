@@ -27,7 +27,6 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 use http::request;
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 

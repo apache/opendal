@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::DbfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -44,5 +45,12 @@ impl Debug for DbfsConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for DbfsConfig {
+    type Builder = DbfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DbfsBuilder { config: self }
     }
 }

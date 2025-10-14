@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
-use crate::services;
 use crate::types::builder::{Builder, Configurator};
 use crate::types::{IntoOperatorUri, OperatorUri};
 use crate::{Error, ErrorKind, Operator, Result};
@@ -78,26 +77,28 @@ impl OperatorRegistry {
 }
 
 fn register_builtin_services(registry: &OperatorRegistry) {
+    let _ = registry;
+
     #[cfg(feature = "services-memory")]
-    registry.register::<services::Memory>(services::MEMORY_SCHEME);
+    registry.register::<crate::services::Memory>(crate::services::MEMORY_SCHEME);
     #[cfg(feature = "services-fs")]
-    registry.register::<services::Fs>(services::FS_SCHEME);
+    registry.register::<crate::services::Fs>(crate::services::FS_SCHEME);
     #[cfg(feature = "services-s3")]
-    registry.register::<services::S3>(services::S3_SCHEME);
+    registry.register::<crate::services::S3>(crate::services::S3_SCHEME);
     #[cfg(feature = "services-azblob")]
-    registry.register::<services::Azblob>(services::AZBLOB_SCHEME);
+    registry.register::<crate::services::Azblob>(crate::services::AZBLOB_SCHEME);
     #[cfg(feature = "services-b2")]
-    registry.register::<services::B2>(services::B2_SCHEME);
+    registry.register::<crate::services::B2>(crate::services::B2_SCHEME);
     #[cfg(feature = "services-cos")]
-    registry.register::<services::Cos>(services::COS_SCHEME);
+    registry.register::<crate::services::Cos>(crate::services::COS_SCHEME);
     #[cfg(feature = "services-gcs")]
-    registry.register::<services::Gcs>(services::GCS_SCHEME);
+    registry.register::<crate::services::Gcs>(crate::services::GCS_SCHEME);
     #[cfg(feature = "services-obs")]
-    registry.register::<services::Obs>(services::OBS_SCHEME);
+    registry.register::<crate::services::Obs>(crate::services::OBS_SCHEME);
     #[cfg(feature = "services-oss")]
-    registry.register::<services::Oss>(services::OSS_SCHEME);
+    registry.register::<crate::services::Oss>(crate::services::OSS_SCHEME);
     #[cfg(feature = "services-upyun")]
-    registry.register::<services::Upyun>(services::UPYUN_SCHEME);
+    registry.register::<crate::services::Upyun>(crate::services::UPYUN_SCHEME);
 }
 
 /// Factory adapter that builds an operator from a configurator type.

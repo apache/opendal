@@ -32,18 +32,11 @@ use crate::raw::adapters::kv;
 use crate::services::TikvConfig;
 use crate::*;
 
-impl Configurator for TikvConfig {
-    type Builder = TikvBuilder;
-    fn into_builder(self) -> Self::Builder {
-        TikvBuilder { config: self }
-    }
-}
-
 /// TiKV backend builder
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct TikvBuilder {
-    config: TikvConfig,
+    pub(super) config: TikvConfig,
 }
 
 impl Debug for TikvBuilder {

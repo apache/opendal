@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SurrealdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -60,5 +61,12 @@ impl Debug for SurrealdbConfig {
             .field("value_field", &self.value_field)
             .field("root", &self.root)
             .finish()
+    }
+}
+
+impl crate::Configurator for SurrealdbConfig {
+    type Builder = SurrealdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SurrealdbBuilder { config: self }
     }
 }

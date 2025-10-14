@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SwiftBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,5 +50,12 @@ impl Debug for SwiftConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for SwiftConfig {
+    type Builder = SwiftBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SwiftBuilder { config: self }
     }
 }

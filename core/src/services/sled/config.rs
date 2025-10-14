@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SledBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,12 @@ impl Debug for SledConfig {
             .field("root", &self.root)
             .field("tree", &self.tree)
             .finish()
+    }
+}
+
+impl crate::Configurator for SledConfig {
+    type Builder = SledBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SledBuilder { config: self }
     }
 }

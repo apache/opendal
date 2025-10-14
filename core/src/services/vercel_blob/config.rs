@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::VercelBlobBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,17 @@ impl Debug for VercelBlobConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for VercelBlobConfig {
+    type Builder = VercelBlobBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        VercelBlobBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

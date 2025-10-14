@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::WEBDAV_SCHEME;
 use super::core::*;
 use super::delete::WebdavDeleter;
 use super::error::parse_error;
@@ -32,44 +32,16 @@ use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
 use crate::services::WebdavConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for WebdavConfig {
-    type Builder = WebdavBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", Scheme::Webdav)
-        })?;
-
-        let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        WebdavBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct WebdavBuilder {
-    config: WebdavConfig,
+    pub(super) config: WebdavConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for WebdavBuilder {
@@ -192,7 +164,7 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(WEBDAV_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
@@ -331,52 +303,5 @@ impl Access for WebdavBackend {
             }
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn from_uri_sets_endpoint_and_root() {
-        let uri = OperatorUri::new(
-            "webdav://webdav.example.com/remote.php/webdav"
-                .parse()
-                .unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-
-        let cfg = WebdavConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.endpoint.as_deref(), Some("https://webdav.example.com"));
-        assert_eq!(cfg.root.as_deref(), Some("remote.php/webdav"));
-    }
-
-    #[test]
-    fn from_uri_ignores_endpoint_override() {
-        let uri = OperatorUri::new(
-            "webdav://dav.internal/data".parse().unwrap(),
-            vec![(
-                "endpoint".to_string(),
-                "http://dav.internal:8080".to_string(),
-            )],
-        )
-        .unwrap();
-
-        let cfg = WebdavConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.endpoint.as_deref(), Some("https://dav.internal"));
-    }
-
-    #[test]
-    fn from_uri_propagates_disable_copy() {
-        let uri = OperatorUri::new(
-            "webdav://dav.example.com".parse().unwrap(),
-            vec![("disable_copy".to_string(), "true".to_string())],
-        )
-        .unwrap();
-
-        let cfg = WebdavConfig::from_uri(&uri).unwrap();
-        assert!(cfg.disable_copy);
     }
 }

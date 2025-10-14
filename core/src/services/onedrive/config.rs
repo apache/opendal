@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::builder::OnedriveBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -45,5 +46,15 @@ impl Debug for OnedriveConfig {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for OnedriveConfig {
+    type Builder = OnedriveBuilder;
+    fn into_builder(self) -> Self::Builder {
+        OnedriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

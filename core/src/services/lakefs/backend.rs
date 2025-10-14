@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::LAKEFS_SCHEME;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
@@ -34,18 +34,12 @@ use super::writer::LakefsWriter;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
-impl Configurator for LakefsConfig {
-    type Builder = LakefsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        LakefsBuilder { config: self }
-    }
-}
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct LakefsBuilder {
-    config: LakefsConfig,
+    pub(super) config: LakefsConfig,
 }
 
 impl Debug for LakefsBuilder {
@@ -173,7 +167,7 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(LAKEFS_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

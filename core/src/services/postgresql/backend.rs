@@ -28,18 +28,11 @@ use crate::raw::*;
 use crate::services::PostgresqlConfig;
 use crate::*;
 
-impl Configurator for PostgresqlConfig {
-    type Builder = PostgresqlBuilder;
-    fn into_builder(self) -> Self::Builder {
-        PostgresqlBuilder { config: self }
-    }
-}
-
 /// [PostgreSQL](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PostgresqlBuilder {
-    config: PostgresqlConfig,
+    pub(super) config: PostgresqlConfig,
 }
 
 impl Debug for PostgresqlBuilder {

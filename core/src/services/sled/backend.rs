@@ -31,18 +31,11 @@ use crate::*;
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
-impl Configurator for SledConfig {
-    type Builder = SledBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SledBuilder { config: self }
-    }
-}
-
 /// Sled services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SledBuilder {
-    config: SledConfig,
+    pub(super) config: SledConfig,
 }
 
 impl Debug for SledBuilder {

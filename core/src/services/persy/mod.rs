@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-persy")]
 mod backend;
-#[cfg(feature = "services-persy")]
 pub use backend::PersyBuilder as Persy;
 
 mod config;

@@ -25,7 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::WEBHDFS_SCHEME;
 use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
@@ -40,18 +40,11 @@ use crate::services::WebhdfsConfig;
 use crate::*;
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
-impl Configurator for WebhdfsConfig {
-    type Builder = WebhdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        WebhdfsBuilder { config: self }
-    }
-}
-
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct WebhdfsBuilder {
-    config: WebhdfsConfig,
+    pub(super) config: WebhdfsConfig,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -180,7 +173,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(WEBHDFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

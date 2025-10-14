@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::B2Builder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -60,5 +61,52 @@ impl Debug for B2Config {
             .field("bucket", &self.bucket);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for B2Config {
+    type Builder = B2Builder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        B2Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "b2://example-bucket/path/to/root".parse().unwrap(),
+            vec![("bucket_id".to_string(), "bucket-id".to_string())],
+        )
+        .unwrap();
+
+        let cfg = B2Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        assert_eq!(cfg.bucket_id, "bucket-id");
     }
 }

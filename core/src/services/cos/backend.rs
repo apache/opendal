@@ -38,43 +38,16 @@ use super::writer::CosWriters;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::CosConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for CosConfig {
-    type Builder = CosBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-
-        if let Some(name) = uri.name() {
-            map.insert("bucket".to_string(), name.to_string());
-        }
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        CosBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct CosBuilder {
-    config: CosConfig,
+    pub(super) config: CosConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CosBuilder {
@@ -453,24 +426,5 @@ impl Access for CosBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-
-    #[test]
-    fn from_uri_extracts_bucket_and_root() {
-        let uri = OperatorUri::new(
-            "cos://example-bucket/path/to/root".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = CosConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
-        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

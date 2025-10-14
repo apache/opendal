@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AlluxioBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -46,5 +47,17 @@ impl Debug for AlluxioConfig {
             .field("endpoint", &self.endpoint);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for AlluxioConfig {
+    type Builder = AlluxioBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AlluxioBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

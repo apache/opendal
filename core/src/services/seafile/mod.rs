@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for seafile service.
-#[cfg(feature = "services-seafile")]
-pub(super) const DEFAULT_SCHEME: &str = "seafile";
-#[cfg(feature = "services-seafile")]
+pub(super) const SEAFILE_SCHEME: &str = "seafile";
 mod core;
-#[cfg(feature = "services-seafile")]
 mod delete;
-#[cfg(feature = "services-seafile")]
 mod error;
-#[cfg(feature = "services-seafile")]
 mod lister;
-#[cfg(feature = "services-seafile")]
 mod writer;
 
-#[cfg(feature = "services-seafile")]
 mod backend;
-#[cfg(feature = "services-seafile")]
 pub use backend::SeafileBuilder as Seafile;
 
 mod config;

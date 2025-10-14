@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::MINI_MOKA_SCHEME;
 use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
@@ -32,18 +32,12 @@ use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::MiniMokaConfig;
 use crate::*;
-impl Configurator for MiniMokaConfig {
-    type Builder = MiniMokaBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MiniMokaBuilder { config: self }
-    }
-}
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MiniMokaBuilder {
-    config: MiniMokaConfig,
+    pub(super) config: MiniMokaConfig,
 }
 
 impl Debug for MiniMokaBuilder {
@@ -155,7 +149,7 @@ impl Access for MiniMokaBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(MINI_MOKA_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

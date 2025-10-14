@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::KoofrBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -46,5 +47,17 @@ impl Debug for KoofrConfig {
         ds.field("email", &self.email);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for KoofrConfig {
+    type Builder = KoofrBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        KoofrBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

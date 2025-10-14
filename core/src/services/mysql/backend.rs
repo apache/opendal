@@ -27,17 +27,10 @@ use crate::raw::*;
 use crate::services::MysqlConfig;
 use crate::*;
 
-impl Configurator for MysqlConfig {
-    type Builder = MysqlBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MysqlBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MysqlBuilder {
-    config: MysqlConfig,
+    pub(super) config: MysqlConfig,
 }
 
 impl Debug for MysqlBuilder {

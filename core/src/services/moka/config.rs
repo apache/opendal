@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use super::backend::MokaBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -55,5 +56,15 @@ impl Debug for MokaConfig {
             .field("time_to_idle", &self.time_to_idle)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for MokaConfig {
+    type Builder = MokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MokaBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }

@@ -31,17 +31,10 @@ use crate::raw::*;
 use crate::services::FoundationdbConfig;
 use crate::*;
 
-impl Configurator for FoundationdbConfig {
-    type Builder = FoundationdbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        FoundationdbBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FoundationdbBuilder {
-    config: FoundationdbConfig,
+    pub(super) config: FoundationdbConfig,
 }
 
 impl FoundationdbBuilder {

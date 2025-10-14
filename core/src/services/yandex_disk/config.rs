@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::YandexDiskBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,17 @@ impl Debug for YandexDiskConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for YandexDiskConfig {
+    type Builder = YandexDiskBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        YandexDiskBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

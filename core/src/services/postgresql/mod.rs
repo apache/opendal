@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-postgresql")]
 mod backend;
-#[cfg(feature = "services-postgresql")]
 pub use backend::PostgresqlBuilder as Postgresql;
 
 mod config;

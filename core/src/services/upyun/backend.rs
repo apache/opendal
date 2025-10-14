@@ -32,42 +32,16 @@ use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
 use crate::services::UpyunConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for UpyunConfig {
-    type Builder = UpyunBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-
-        if let Some(name) = uri.name() {
-            map.insert("bucket".to_string(), name.to_string());
-        }
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        UpyunBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [upyun](https://www.upyun.com/products/file-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct UpyunBuilder {
-    config: UpyunConfig,
+    pub(super) config: UpyunConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for UpyunBuilder {
@@ -328,24 +302,5 @@ impl Access for UpyunBackend {
             StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-
-    #[test]
-    fn from_uri_extracts_bucket_and_root() {
-        let uri = OperatorUri::new(
-            "upyun://example-bucket/path/to/root".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = UpyunConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.bucket, "example-bucket");
-        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

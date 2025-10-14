@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::time::Duration;
 
+use super::backend::CloudflareKvBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -51,5 +52,15 @@ impl Debug for CloudflareKvConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for CloudflareKvConfig {
+    type Builder = CloudflareKvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CloudflareKvBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

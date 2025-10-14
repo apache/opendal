@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AzfileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -57,5 +58,17 @@ impl Debug for AzfileConfig {
         }
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for AzfileConfig {
+    type Builder = AzfileBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AzfileBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

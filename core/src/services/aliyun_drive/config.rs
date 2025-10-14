@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::AliyunDriveBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -68,5 +69,17 @@ impl Debug for AliyunDriveConfig {
             .field("drive_type", &self.drive_type);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for AliyunDriveConfig {
+    type Builder = AliyunDriveBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AliyunDriveBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

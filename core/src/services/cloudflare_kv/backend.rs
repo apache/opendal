@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::DEFAULT_SCHEME;
+use super::CLOUDFLARE_KV_SCHEME;
 use crate::ErrorKind;
 use crate::raw::*;
 use crate::services::CloudflareKvConfig;
@@ -34,23 +34,13 @@ use crate::*;
 use bytes::Buf;
 use http::StatusCode;
 
-impl Configurator for CloudflareKvConfig {
-    type Builder = CloudflareKvBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CloudflareKvBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
-    config: CloudflareKvConfig,
+    pub(super) config: CloudflareKvConfig,
 
     /// The HTTP client used to communicate with CloudFlare.
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
@@ -160,7 +150,7 @@ impl Builder for CloudflareKvBuilder {
                 expiration_ttl: self.config.default_ttl,
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(CLOUDFLARE_KV_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             create_dir: true,

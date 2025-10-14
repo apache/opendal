@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::PcloudBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -47,5 +48,17 @@ impl Debug for PcloudConfig {
         ds.field("username", &self.username);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for PcloudConfig {
+    type Builder = PcloudBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        PcloudBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

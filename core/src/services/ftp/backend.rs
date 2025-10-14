@@ -30,7 +30,7 @@ use suppaftp::list::File;
 use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::FTP_SCHEME;
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
@@ -39,40 +39,13 @@ use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
 use crate::services::FtpConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for FtpConfig {
-    type Builder = FtpBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", Scheme::Ftp)
-        })?;
-
-        let mut map = uri.options().clone();
-        map.insert(
-            "endpoint".to_string(),
-            format!("{DEFAULT_SCHEME}://{authority}"),
-        );
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    fn into_builder(self) -> Self::Builder {
-        FtpBuilder { config: self }
-    }
-}
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct FtpBuilder {
-    config: FtpConfig,
+    pub(super) config: FtpConfig,
 }
 
 impl Debug for FtpBuilder {
@@ -182,7 +155,7 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme(DEFAULT_SCHEME)
+            .set_scheme(FTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -377,7 +350,6 @@ impl FtpBackend {
 mod build_test {
     use super::FtpBuilder;
     use crate::services::FtpConfig;
-    use crate::types::OperatorUri;
     use crate::*;
 
     #[test]

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::FsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -30,4 +31,47 @@ pub struct FsConfig {
 
     /// tmp dir for atomic write
     pub atomic_write_dir: Option<String>,
+}
+
+impl crate::Configurator for FsConfig {
+    type Builder = FsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(value) = match (uri.name(), uri.root()) {
+            (Some(name), Some(rest)) if !rest.is_empty() => Some(format!("/{}/{}", name, rest)),
+            (Some(name), _) => Some(format!("/{}", name)),
+            (None, Some(rest)) if !rest.is_empty() => Some(format!("/{}", rest)),
+            (None, Some(rest)) => Some(rest.to_string()),
+            _ => None,
+        } {
+            map.insert("root".to_string(), value);
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        FsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+    use http::Uri;
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri = OperatorUri::new(
+            Uri::from_static("fs://tmp/data"),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+    }
 }

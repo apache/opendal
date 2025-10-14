@@ -27,17 +27,10 @@ use crate::raw::adapters::kv;
 use crate::raw::*;
 use crate::*;
 
-impl Configurator for GridfsConfig {
-    type Builder = GridfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        GridfsBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GridfsBuilder {
-    config: GridfsConfig,
+    pub(super) config: GridfsConfig,
 }
 
 impl Debug for GridfsBuilder {

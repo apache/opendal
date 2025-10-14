@@ -23,7 +23,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
 use crate::Scheme;
 use crate::raw::Access;
@@ -33,22 +33,13 @@ use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::OnedriveConfig;
 use crate::*;
-impl Configurator for OnedriveConfig {
-    type Builder = OnedriveBuilder;
-    fn into_builder(self) -> Self::Builder {
-        OnedriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
-    config: OnedriveConfig,
-    http_client: Option<HttpClient>,
+    pub(super) config: OnedriveConfig,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {
@@ -142,7 +133,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(ONEDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,

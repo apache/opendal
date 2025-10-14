@@ -37,47 +37,19 @@ use super::writer::GcsWriters;
 use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
 use crate::services::GcsConfig;
-use crate::types::OperatorUri;
 use crate::*;
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-
-impl Configurator for GcsConfig {
-    type Builder = GcsBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-
-        if let Some(name) = uri.name() {
-            map.insert("bucket".to_string(), name.to_string());
-        }
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GcsBuilder {
-            config: self,
-            http_client: None,
-            customized_token_loader: None,
-        }
-    }
-}
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GcsBuilder {
-    config: GcsConfig,
+    pub(super) config: GcsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
-    customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    pub(super) http_client: Option<HttpClient>,
+    pub(super) customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl Debug for GcsBuilder {
@@ -510,24 +482,5 @@ impl Access for GcsBackend {
             parts.uri,
             parts.headers,
         )))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-
-    #[test]
-    fn from_uri_extracts_bucket_and_root() {
-        let uri = OperatorUri::new(
-            "gcs://example-bucket/path/to/root".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = GcsConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.bucket, "example-bucket");
-        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

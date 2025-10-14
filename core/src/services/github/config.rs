@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GithubBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -55,5 +56,17 @@ impl Debug for GithubConfig {
             .field("repo", &self.repo);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for GithubConfig {
+    type Builder = GithubBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

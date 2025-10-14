@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HUGGINGFACE_SCHEME;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
@@ -32,18 +32,12 @@ use super::lister::HuggingfaceLister;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;
-impl Configurator for HuggingfaceConfig {
-    type Builder = HuggingfaceBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HuggingfaceBuilder { config: self }
-    }
-}
 
 /// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct HuggingfaceBuilder {
-    config: HuggingfaceConfig,
+    pub(super) config: HuggingfaceConfig,
 }
 
 impl Debug for HuggingfaceBuilder {
@@ -172,7 +166,7 @@ impl Builder for HuggingfaceBuilder {
             core: Arc::new(HuggingfaceCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(HUGGINGFACE_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

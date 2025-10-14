@@ -24,7 +24,7 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use super::DEFAULT_SCHEME;
+use super::DBFS_SCHEME;
 use super::core::DbfsCore;
 use super::delete::DbfsDeleter;
 use super::error::parse_error;
@@ -33,18 +33,12 @@ use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
-impl Configurator for DbfsConfig {
-    type Builder = DbfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DbfsBuilder { config: self }
-    }
-}
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct DbfsBuilder {
-    config: DbfsConfig,
+    pub(super) config: DbfsConfig,
 }
 
 impl Debug for DbfsBuilder {
@@ -149,7 +143,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(DEFAULT_SCHEME)
+        am.set_scheme(DBFS_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::MysqlBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -62,5 +63,12 @@ impl Debug for MysqlConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl crate::Configurator for MysqlConfig {
+    type Builder = MysqlBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MysqlBuilder { config: self }
     }
 }

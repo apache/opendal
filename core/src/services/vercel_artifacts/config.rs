@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::builder::VercelArtifactsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,5 +36,17 @@ impl Debug for VercelArtifactsConfig {
         f.debug_struct("VercelArtifactsConfig")
             .field("access_token", &"<redacted>")
             .finish()
+    }
+}
+
+impl crate::Configurator for VercelArtifactsConfig {
+    type Builder = VercelArtifactsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        VercelArtifactsBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

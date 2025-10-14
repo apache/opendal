@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::MongodbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -50,5 +51,12 @@ impl Debug for MongodbConfig {
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .finish()
+    }
+}
+
+impl crate::Configurator for MongodbConfig {
+    type Builder = MongodbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MongodbBuilder { config: self }
     }
 }

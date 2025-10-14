@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::GhacBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -33,4 +34,16 @@ pub struct GhacConfig {
     pub endpoint: Option<String>,
     /// The runtime token for ghac service.
     pub runtime_token: Option<String>,
+}
+
+impl crate::Configurator for GhacConfig {
+    type Builder = GhacBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GhacBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
 }

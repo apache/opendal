@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SqliteBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -66,5 +67,12 @@ impl Debug for SqliteConfig {
             .field("root", &self.root);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for SqliteConfig {
+    type Builder = SqliteBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SqliteBuilder { config: self }
     }
 }

@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::builder::DropboxBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -43,5 +44,17 @@ impl Debug for DropboxConfig {
         f.debug_struct("DropBoxConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for DropboxConfig {
+    type Builder = DropboxBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        DropboxBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

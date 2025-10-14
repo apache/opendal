@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::CacacheBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -25,4 +26,11 @@ use serde::Serialize;
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
     pub datadir: Option<String>,
+}
+
+impl crate::Configurator for CacacheConfig {
+    type Builder = CacacheBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CacacheBuilder { config: self }
+    }
 }

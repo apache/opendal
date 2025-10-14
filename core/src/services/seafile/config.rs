@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::SeafileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -52,5 +53,17 @@ impl Debug for SeafileConfig {
             .field("repo_name", &self.repo_name);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for SeafileConfig {
+    type Builder = SeafileBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        SeafileBuilder {
+            config: self,
+            http_client: None,
+        }
     }
 }

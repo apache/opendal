@@ -30,18 +30,11 @@ use crate::raw::*;
 use crate::services::MonoiofsConfig;
 use crate::*;
 
-impl Configurator for MonoiofsConfig {
-    type Builder = MonoiofsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MonoiofsBuilder { config: self }
-    }
-}
-
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct MonoiofsBuilder {
-    config: MonoiofsConfig,
+    pub(super) config: MonoiofsConfig,
 }
 
 impl MonoiofsBuilder {

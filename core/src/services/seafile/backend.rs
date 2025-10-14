@@ -37,26 +37,15 @@ use super::writer::SeafileWriters;
 use crate::raw::*;
 use crate::services::SeafileConfig;
 use crate::*;
-impl Configurator for SeafileConfig {
-    type Builder = SeafileBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        SeafileBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [seafile](https://www.seafile.com) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SeafileBuilder {
-    config: SeafileConfig,
+    pub(super) config: SeafileConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for SeafileBuilder {

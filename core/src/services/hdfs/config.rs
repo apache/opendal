@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::HdfsBuilder;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
@@ -57,3 +58,11 @@ impl Debug for HdfsConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for HdfsConfig {
+    type Builder = HdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HdfsBuilder { config: self }
+    }
+}
+

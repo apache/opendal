@@ -32,17 +32,11 @@ use super::writer::HdfsWriter;
 use crate::raw::*;
 use crate::services::HdfsConfig;
 use crate::*;
-impl Configurator for HdfsConfig {
-    type Builder = HdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HdfsBuilder { config: self }
-    }
-}
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsBuilder {
-    config: HdfsConfig,
+    pub(super) config: HdfsConfig,
 }
 
 impl Debug for HdfsBuilder {

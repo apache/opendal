@@ -32,26 +32,15 @@ use super::writer::AlluxioWriters;
 use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;
-impl Configurator for AlluxioConfig {
-    type Builder = AlluxioBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AlluxioBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Alluxio](https://www.alluxio.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AlluxioBuilder {
-    config: AlluxioConfig,
+    pub(super) config: AlluxioConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AlluxioBuilder {

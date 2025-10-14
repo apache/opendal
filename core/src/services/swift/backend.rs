@@ -32,12 +32,6 @@ use super::writer::SwiftWriter;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
-impl Configurator for SwiftConfig {
-    type Builder = SwiftBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SwiftBuilder { config: self }
-    }
-}
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
@@ -45,7 +39,7 @@ impl Configurator for SwiftConfig {
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
-    config: SwiftConfig,
+    pub(super) config: SwiftConfig,
 }
 
 impl Debug for SwiftBuilder {

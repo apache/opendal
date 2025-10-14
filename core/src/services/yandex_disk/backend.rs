@@ -34,26 +34,15 @@ use super::writer::YandexDiskWriters;
 use crate::raw::*;
 use crate::services::YandexDiskConfig;
 use crate::*;
-impl Configurator for YandexDiskConfig {
-    type Builder = YandexDiskBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        YandexDiskBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct YandexDiskBuilder {
-    config: YandexDiskConfig,
+    pub(super) config: YandexDiskConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for YandexDiskBuilder {

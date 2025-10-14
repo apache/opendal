@@ -35,18 +35,11 @@ use crate::raw::*;
 use crate::services::EtcdConfig;
 use crate::*;
 
-impl Configurator for EtcdConfig {
-    type Builder = EtcdBuilder;
-    fn into_builder(self) -> Self::Builder {
-        EtcdBuilder { config: self }
-    }
-}
-
 /// [Etcd](https://etcd.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct EtcdBuilder {
-    config: EtcdConfig,
+    pub(super) config: EtcdConfig,
 }
 
 impl Debug for EtcdBuilder {

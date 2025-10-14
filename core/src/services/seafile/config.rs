@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::SeafileBuilder;
 
 /// Config for seafile services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -54,3 +55,16 @@ impl Debug for SeafileConfig {
         d.finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for SeafileConfig {
+    type Builder = SeafileBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        SeafileBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

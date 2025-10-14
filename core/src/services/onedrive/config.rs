@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::builder::OnedriveBuilder;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -47,3 +48,14 @@ impl Debug for OnedriveConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for OnedriveConfig {
+    type Builder = OnedriveBuilder;
+    fn into_builder(self) -> Self::Builder {
+        OnedriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

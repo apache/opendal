@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::VercelBlobBuilder;
 
 /// Config for VercelBlob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,3 +44,16 @@ impl Debug for VercelBlobConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for VercelBlobConfig {
+    type Builder = VercelBlobBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        VercelBlobBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

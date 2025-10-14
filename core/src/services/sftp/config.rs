@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::SftpBuilder;
 
 /// Config for Sftp Service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -46,5 +47,68 @@ impl Debug for SftpConfig {
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for SftpConfig {
+    type Builder = SftpBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Sftp)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), authority.to_string());
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        SftpBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "sftp://sftp.example.com/home/alice".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("sftp.example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("home/alice"));
+    }
+
+    #[test]
+    fn from_uri_applies_connection_overrides() {
+        let uri = OperatorUri::new(
+            "sftp://host".parse().unwrap(),
+            vec![
+                ("user".to_string(), "alice".to_string()),
+                ("key".to_string(), "/home/alice/.ssh/id_rsa".to_string()),
+                ("known_hosts_strategy".to_string(), "accept".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("host"));
+        assert_eq!(cfg.user.as_deref(), Some("alice"));
+        assert_eq!(cfg.key.as_deref(), Some("/home/alice/.ssh/id_rsa"));
+        assert_eq!(cfg.known_hosts_strategy.as_deref(), Some("accept"));
     }
 }

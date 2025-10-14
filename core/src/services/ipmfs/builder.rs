@@ -25,17 +25,6 @@ use super::core::IpmfsCore;
 use crate::raw::*;
 use crate::services::IpmfsConfig;
 use crate::*;
-impl Configurator for IpmfsConfig {
-    type Builder = IpmfsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        IpmfsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
@@ -79,10 +68,10 @@ impl Configurator for IpmfsConfig {
 /// ```
 #[derive(Default, Debug)]
 pub struct IpmfsBuilder {
-    config: IpmfsConfig,
+    pub(super) config: IpmfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl IpmfsBuilder {

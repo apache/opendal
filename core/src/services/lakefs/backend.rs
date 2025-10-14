@@ -34,18 +34,12 @@ use super::writer::LakefsWriter;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
-impl Configurator for LakefsConfig {
-    type Builder = LakefsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        LakefsBuilder { config: self }
-    }
-}
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct LakefsBuilder {
-    config: LakefsConfig,
+    pub(super) config: LakefsConfig,
 }
 
 impl Debug for LakefsBuilder {

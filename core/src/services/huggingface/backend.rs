@@ -32,18 +32,12 @@ use super::lister::HuggingfaceLister;
 use crate::raw::*;
 use crate::services::HuggingfaceConfig;
 use crate::*;
-impl Configurator for HuggingfaceConfig {
-    type Builder = HuggingfaceBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HuggingfaceBuilder { config: self }
-    }
-}
 
 /// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct HuggingfaceBuilder {
-    config: HuggingfaceConfig,
+    pub(super) config: HuggingfaceConfig,
 }
 
 impl Debug for HuggingfaceBuilder {

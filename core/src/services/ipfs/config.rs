@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::IpfsBuilder;
 
 /// Config for IPFS file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -30,3 +31,16 @@ pub struct IpfsConfig {
     /// IPFS root.
     pub root: Option<String>,
 }
+
+impl crate::Configurator for IpfsConfig {
+    type Builder = IpfsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        IpfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::TikvBuilder;
 
 /// Config for Tikv services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -50,3 +51,11 @@ impl Debug for TikvConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for TikvConfig {
+    type Builder = TikvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        TikvBuilder { config: self }
+    }
+}
+

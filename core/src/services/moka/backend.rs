@@ -31,15 +31,6 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
-impl Configurator for MokaConfig {
-    type Builder = MokaBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MokaBuilder {
-            config: self,
-            ..Default::default()
-        }
-    }
-}
 
 /// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
 pub type MokaCache<K, V> = moka::future::Cache<K, V>;
@@ -50,8 +41,8 @@ pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MokaBuilder {
-    config: MokaConfig,
-    builder: MokaCacheBuilder<String, MokaValue>,
+    pub(super) config: MokaConfig,
+    pub(super) builder: MokaCacheBuilder<String, MokaValue>,
 }
 
 impl Debug for MokaBuilder {

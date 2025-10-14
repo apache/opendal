@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::HuggingfaceBuilder;
 
 /// Configuration for Huggingface service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -73,3 +74,11 @@ impl Debug for HuggingfaceConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for HuggingfaceConfig {
+    type Builder = HuggingfaceBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HuggingfaceBuilder { config: self }
+    }
+}
+

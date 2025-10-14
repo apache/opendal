@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::CloudflareKvBuilder;
 
 /// Cloudflare KV Service Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -53,3 +54,14 @@ impl Debug for CloudflareKvConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for CloudflareKvConfig {
+    type Builder = CloudflareKvBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CloudflareKvBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

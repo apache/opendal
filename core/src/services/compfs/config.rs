@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::CompfsBuilder;
 
 /// compio-based file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -28,3 +29,11 @@ pub struct CompfsConfig {
     /// All operations will happen under this root.
     pub root: Option<String>,
 }
+
+impl crate::Configurator for CompfsConfig {
+    type Builder = CompfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        CompfsBuilder { config: self }
+    }
+}
+

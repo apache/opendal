@@ -35,26 +35,15 @@ use super::writer::GithubWriters;
 use crate::raw::*;
 use crate::services::GithubConfig;
 use crate::*;
-impl Configurator for GithubConfig {
-    type Builder = GithubBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GithubBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GithubBuilder {
-    config: GithubConfig,
+    pub(super) config: GithubConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for GithubBuilder {

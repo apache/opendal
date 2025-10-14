@@ -31,26 +31,15 @@ use super::ipld::PBNode;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;
-impl Configurator for IpfsConfig {
-    type Builder = IpfsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        IpfsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
-    config: IpfsConfig,
+    pub(super) config: IpfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl IpfsBuilder {

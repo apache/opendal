@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MysqlBuilder;
 
 /// Config for Mysql services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -64,3 +65,11 @@ impl Debug for MysqlConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for MysqlConfig {
+    type Builder = MysqlBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MysqlBuilder { config: self }
+    }
+}
+

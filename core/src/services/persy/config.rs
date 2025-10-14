@@ -17,6 +17,7 @@
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::PersyBuilder;
 
 /// Config for persy service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -30,3 +31,11 @@ pub struct PersyConfig {
     /// That name of the persy index.
     pub index: Option<String>,
 }
+
+impl crate::Configurator for PersyConfig {
+    type Builder = PersyBuilder;
+    fn into_builder(self) -> Self::Builder {
+        PersyBuilder { config: self }
+    }
+}
+

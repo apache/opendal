@@ -38,26 +38,15 @@ use super::writer::KoofrWriters;
 use crate::raw::*;
 use crate::services::KoofrConfig;
 use crate::*;
-impl Configurator for KoofrConfig {
-    type Builder = KoofrBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        KoofrBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Koofr](https://app.koofr.net/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct KoofrBuilder {
-    config: KoofrConfig,
+    pub(super) config: KoofrConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for KoofrBuilder {

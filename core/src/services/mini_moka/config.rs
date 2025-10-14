@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MiniMokaBuilder;
 
 /// Config for mini-moka support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -54,3 +55,11 @@ impl Debug for MiniMokaConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for MiniMokaConfig {
+    type Builder = MiniMokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MiniMokaBuilder { config: self }
+    }
+}
+

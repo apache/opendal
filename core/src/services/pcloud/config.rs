@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::PcloudBuilder;
 
 /// Config for Pcloud services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -49,3 +50,16 @@ impl Debug for PcloudConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for PcloudConfig {
+    type Builder = PcloudBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        PcloudBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

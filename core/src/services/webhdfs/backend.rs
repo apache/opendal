@@ -40,18 +40,11 @@ use crate::services::WebhdfsConfig;
 use crate::*;
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
-impl Configurator for WebhdfsConfig {
-    type Builder = WebhdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        WebhdfsBuilder { config: self }
-    }
-}
-
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct WebhdfsBuilder {
-    config: WebhdfsConfig,
+    pub(super) config: WebhdfsConfig,
 }
 
 impl Debug for WebhdfsBuilder {

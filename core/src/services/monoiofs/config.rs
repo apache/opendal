@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MonoiofsBuilder;
 
 /// Config for monoiofs services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,3 +33,11 @@ pub struct MonoiofsConfig {
     /// Builder::build will return error if not set.
     pub root: Option<String>,
 }
+
+impl crate::Configurator for MonoiofsConfig {
+    type Builder = MonoiofsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MonoiofsBuilder { config: self }
+    }
+}
+

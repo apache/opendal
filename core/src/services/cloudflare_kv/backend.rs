@@ -34,23 +34,13 @@ use crate::*;
 use bytes::Buf;
 use http::StatusCode;
 
-impl Configurator for CloudflareKvConfig {
-    type Builder = CloudflareKvBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CloudflareKvBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
-    config: CloudflareKvConfig,
+    pub(super) config: CloudflareKvConfig,
 
     /// The HTTP client used to communicate with CloudFlare.
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {

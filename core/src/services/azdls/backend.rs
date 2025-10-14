@@ -53,26 +53,14 @@ impl From<AzureStorageConfig> for AzdlsConfig {
     }
 }
 
-impl Configurator for AzdlsConfig {
-    type Builder = AzdlsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzdlsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// Azure Data Lake Storage Gen2 Support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzdlsBuilder {
-    config: AzdlsConfig,
+    pub(super) config: AzdlsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzdlsBuilder {

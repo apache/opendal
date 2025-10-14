@@ -36,26 +36,15 @@ use super::writer::VercelBlobWriters;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
-impl Configurator for VercelBlobConfig {
-    type Builder = VercelBlobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        VercelBlobBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [VercelBlob](https://vercel.com/docs/storage/vercel-blob) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct VercelBlobBuilder {
-    config: VercelBlobConfig,
+    pub(super) config: VercelBlobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for VercelBlobBuilder {

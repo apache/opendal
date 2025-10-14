@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::SurrealdbBuilder;
 
 /// Config for Surrealdb services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -62,3 +63,11 @@ impl Debug for SurrealdbConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for SurrealdbConfig {
+    type Builder = SurrealdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SurrealdbBuilder { config: self }
+    }
+}
+

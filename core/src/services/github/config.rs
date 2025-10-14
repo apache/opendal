@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::GithubBuilder;
 
 /// Config for GitHub services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,3 +58,16 @@ impl Debug for GithubConfig {
         d.finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for GithubConfig {
+    type Builder = GithubBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

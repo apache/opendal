@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MokaBuilder;
 
 /// Config for Moka services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,3 +58,14 @@ impl Debug for MokaConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for MokaConfig {
+    type Builder = MokaBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MokaBuilder {
+            config: self,
+            ..Default::default()
+        }
+    }
+}
+

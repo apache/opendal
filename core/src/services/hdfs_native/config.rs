@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::HdfsNativeBuilder;
 
 /// Config for HdfsNative services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,3 +44,11 @@ impl Debug for HdfsNativeConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for HdfsNativeConfig {
+    type Builder = HdfsNativeBuilder;
+    fn into_builder(self) -> Self::Builder {
+        HdfsNativeBuilder { config: self }
+    }
+}
+

@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::AliyunDriveBuilder;
 
 /// Config for Aliyun Drive services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -70,3 +71,16 @@ impl Debug for AliyunDriveConfig {
         d.finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for AliyunDriveConfig {
+    type Builder = AliyunDriveBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AliyunDriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

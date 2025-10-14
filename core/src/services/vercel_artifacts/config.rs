@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::builder::VercelArtifactsBuilder;
 
 /// Config for Vercel Cache support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -37,3 +38,16 @@ impl Debug for VercelArtifactsConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for VercelArtifactsConfig {
+    type Builder = VercelArtifactsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        VercelArtifactsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

@@ -26,32 +26,13 @@ use super::writer::MemoryWriter;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::MemoryConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for MemoryConfig {
-    type Builder = MemoryBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-        if !map.contains_key("root") {
-            if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
-                map.insert("root".to_string(), root.to_string());
-            }
-        }
-
-        Self::from_iter(map)
-    }
-
-    fn into_builder(self) -> Self::Builder {
-        MemoryBuilder { config: self }
-    }
-}
 
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MemoryBuilder {
-    config: MemoryConfig,
+    pub(super) config: MemoryConfig,
 }
 
 impl MemoryBuilder {
@@ -184,32 +165,5 @@ impl Access for MemoryAccessor {
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-
-    #[test]
-    fn test_accessor_metadata_name() {
-        let b1 = MemoryBuilder::default().build().unwrap();
-        assert_eq!(b1.info().name(), b1.info().name());
-
-        let b2 = MemoryBuilder::default().build().unwrap();
-        assert_ne!(b1.info().name(), b2.info().name())
-    }
-
-    #[test]
-    fn from_uri_extracts_root() {
-        let uri = OperatorUri::new(
-            "memory://localhost/path/to/root".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = MemoryConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

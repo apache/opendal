@@ -29,37 +29,13 @@ use super::writer::FsWriter;
 use super::writer::FsWriters;
 use crate::raw::*;
 use crate::services::FsConfig;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for FsConfig {
-    type Builder = FsBuilder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-
-        if let Some(value) = match (uri.name(), uri.root()) {
-            (Some(name), Some(rest)) if !rest.is_empty() => Some(format!("/{}/{}", name, rest)),
-            (Some(name), _) => Some(format!("/{}", name)),
-            (None, Some(rest)) if !rest.is_empty() => Some(format!("/{}", rest)),
-            (None, Some(rest)) => Some(rest.to_string()),
-            _ => None,
-        } {
-            map.insert("root".to_string(), value);
-        }
-
-        Self::from_iter(map)
-    }
-
-    fn into_builder(self) -> Self::Builder {
-        FsBuilder { config: self }
-    }
-}
 
 /// POSIX file system support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct FsBuilder {
-    config: FsConfig,
+    pub(super) config: FsConfig,
 }
 
 impl FsBuilder {
@@ -287,24 +263,5 @@ impl Access for FsBackend {
     async fn rename(&self, from: &str, to: &str, _args: OpRename) -> Result<RpRename> {
         self.core.fs_rename(from, to).await?;
         Ok(RpRename::default())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-    use http::Uri;
-
-    #[test]
-    fn from_uri_extracts_root() {
-        let uri = OperatorUri::new(
-            Uri::from_static("fs://tmp/data"),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = FsConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
     }
 }

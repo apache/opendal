@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::WebhdfsBuilder;
 
 /// Config for WebHDFS support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -50,3 +51,11 @@ impl Debug for WebhdfsConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for WebhdfsConfig {
+    type Builder = WebhdfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        WebhdfsBuilder { config: self }
+    }
+}
+

@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::AlluxioBuilder;
 
 /// Config for alluxio services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -48,3 +49,16 @@ impl Debug for AlluxioConfig {
         d.finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for AlluxioConfig {
+    type Builder = AlluxioBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AlluxioBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

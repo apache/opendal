@@ -31,18 +31,12 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
-impl Configurator for DashmapConfig {
-    type Builder = DashmapBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DashmapBuilder { config: self }
-    }
-}
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {
-    config: DashmapConfig,
+    pub(super) config: DashmapConfig,
 }
 
 impl Debug for DashmapBuilder {

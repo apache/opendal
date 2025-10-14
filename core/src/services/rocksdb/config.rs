@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::RocksdbBuilder;
 
 /// Config for Rocksdb Service.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,3 +33,11 @@ pub struct RocksdbConfig {
     /// default is "/"
     pub root: Option<String>,
 }
+
+impl crate::Configurator for RocksdbConfig {
+    type Builder = RocksdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        RocksdbBuilder { config: self }
+    }
+}
+

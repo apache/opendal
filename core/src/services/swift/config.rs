@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::SwiftBuilder;
 
 /// Config for OpenStack Swift support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,3 +52,11 @@ impl Debug for SwiftConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for SwiftConfig {
+    type Builder = SwiftBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SwiftBuilder { config: self }
+    }
+}
+

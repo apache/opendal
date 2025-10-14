@@ -35,26 +35,15 @@ use super::writer::PcloudWriters;
 use crate::raw::*;
 use crate::services::PcloudConfig;
 use crate::*;
-impl Configurator for PcloudConfig {
-    type Builder = PcloudBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        PcloudBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [pCloud](https://www.pcloud.com/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PcloudBuilder {
-    config: PcloudConfig,
+    pub(super) config: PcloudConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for PcloudBuilder {

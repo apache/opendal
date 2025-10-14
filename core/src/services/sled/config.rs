@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::SledBuilder;
 
 /// Config for Sled services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,3 +44,11 @@ impl Debug for SledConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for SledConfig {
+    type Builder = SledBuilder;
+    fn into_builder(self) -> Self::Builder {
+        SledBuilder { config: self }
+    }
+}
+

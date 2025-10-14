@@ -27,18 +27,11 @@ use crate::raw::*;
 use crate::services::MemcachedConfig;
 use crate::*;
 
-impl Configurator for MemcachedConfig {
-    type Builder = MemcachedBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MemcachedBuilder { config: self }
-    }
-}
-
 /// [Memcached](https://memcached.org/) service support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct MemcachedBuilder {
-    config: MemcachedConfig,
+    pub(super) config: MemcachedConfig,
 }
 
 impl MemcachedBuilder {

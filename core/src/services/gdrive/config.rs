@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::builder::GdriveBuilder;
 
 /// [GoogleDrive](https://drive.google.com/) configuration.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -45,3 +46,16 @@ impl Debug for GdriveConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for GdriveConfig {
+    type Builder = GdriveBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GdriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

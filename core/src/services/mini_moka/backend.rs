@@ -32,18 +32,12 @@ use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
 use crate::services::MiniMokaConfig;
 use crate::*;
-impl Configurator for MiniMokaConfig {
-    type Builder = MiniMokaBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MiniMokaBuilder { config: self }
-    }
-}
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MiniMokaBuilder {
-    config: MiniMokaConfig,
+    pub(super) config: MiniMokaConfig,
 }
 
 impl Debug for MiniMokaBuilder {

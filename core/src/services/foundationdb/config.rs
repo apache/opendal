@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::FoundationdbBuilder;
 
 /// [foundationdb](https://www.foundationdb.org/) service support.
 ///Config for FoundationDB.
@@ -43,3 +44,11 @@ impl Debug for FoundationdbConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for FoundationdbConfig {
+    type Builder = FoundationdbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        FoundationdbBuilder { config: self }
+    }
+}
+

@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::builder::IpmfsBuilder;
 
 /// Config for IPFS MFS support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -30,3 +31,16 @@ pub struct IpmfsConfig {
     /// Endpoint for ipfs.
     pub endpoint: Option<String>,
 }
+
+impl crate::Configurator for IpmfsConfig {
+    type Builder = IpmfsBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        IpmfsBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

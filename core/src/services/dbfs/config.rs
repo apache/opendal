@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::DbfsBuilder;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -46,3 +47,11 @@ impl Debug for DbfsConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for DbfsConfig {
+    type Builder = DbfsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DbfsBuilder { config: self }
+    }
+}
+

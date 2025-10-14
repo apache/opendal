@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MemcachedBuilder;
 
 /// Config for MemCached services support
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -41,3 +42,11 @@ pub struct MemcachedConfig {
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
 }
+
+impl crate::Configurator for MemcachedConfig {
+    type Builder = MemcachedBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MemcachedBuilder { config: self }
+    }
+}
+

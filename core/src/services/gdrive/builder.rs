@@ -35,26 +35,15 @@ use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::GdriveConfig;
 use crate::*;
-impl Configurator for GdriveConfig {
-    type Builder = GdriveBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GdriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
 #[derive(Default)]
 #[doc = include_str!("docs.md")]
 pub struct GdriveBuilder {
-    config: GdriveConfig,
+    pub(super) config: GdriveConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for GdriveBuilder {

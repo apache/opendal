@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::OssBuilder;
 
 /// Config for Aliyun Object Storage Service (OSS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -109,5 +110,51 @@ impl Debug for OssConfig {
             .field("allow_anonymous", &self.allow_anonymous);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for OssConfig {
+    type Builder = OssBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        OssBuilder {
+            config: self,
+
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "oss://example-bucket/path/to/root".parse().unwrap(),
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = OssConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

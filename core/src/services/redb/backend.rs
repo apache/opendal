@@ -28,23 +28,13 @@ use crate::raw::*;
 use crate::services::RedbConfig;
 use crate::*;
 
-impl Configurator for RedbConfig {
-    type Builder = RedbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        RedbBuilder {
-            config: self,
-            database: None,
-        }
-    }
-}
-
 /// Redb service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct RedbBuilder {
-    config: RedbConfig,
+    pub(super) config: RedbConfig,
 
-    database: Option<Arc<redb::Database>>,
+    pub(super) database: Option<Arc<redb::Database>>,
 }
 
 impl RedbBuilder {

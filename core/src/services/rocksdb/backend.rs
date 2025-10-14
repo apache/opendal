@@ -27,18 +27,11 @@ use crate::raw::*;
 use crate::services::RocksdbConfig;
 use crate::*;
 
-impl Configurator for RocksdbConfig {
-    type Builder = RocksdbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        RocksdbBuilder { config: self }
-    }
-}
-
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct RocksdbBuilder {
-    config: RocksdbConfig,
+    pub(super) config: RocksdbConfig,
 }
 
 impl RocksdbBuilder {

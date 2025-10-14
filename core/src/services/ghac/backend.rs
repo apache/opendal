@@ -48,26 +48,14 @@ fn value_or_env(
     })
 }
 
-impl Configurator for GhacConfig {
-    type Builder = GhacBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GhacBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// GitHub Action Cache Services support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct GhacBuilder {
-    config: GhacConfig,
+    pub(super) config: GhacConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl GhacBuilder {

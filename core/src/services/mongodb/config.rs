@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::MongodbBuilder;
 
 /// Config for Mongodb service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -52,3 +53,11 @@ impl Debug for MongodbConfig {
             .finish()
     }
 }
+
+impl crate::Configurator for MongodbConfig {
+    type Builder = MongodbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        MongodbBuilder { config: self }
+    }
+}
+

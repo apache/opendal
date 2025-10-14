@@ -31,17 +31,11 @@ use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
 use crate::services::CompfsConfig;
 use crate::*;
-impl Configurator for CompfsConfig {
-    type Builder = CompfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CompfsBuilder { config: self }
-    }
-}
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Clone, Default)]
 pub struct CompfsBuilder {
-    config: CompfsConfig,
+    pub(super) config: CompfsConfig,
 }
 
 impl CompfsBuilder {

@@ -27,26 +27,15 @@ use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
 use crate::services::VercelArtifactsConfig;
 use crate::*;
-impl Configurator for VercelArtifactsConfig {
-    type Builder = VercelArtifactsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        VercelArtifactsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Vercel Cache](https://vercel.com/docs/concepts/monorepos/remote-caching) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct VercelArtifactsBuilder {
-    config: VercelArtifactsConfig,
+    pub(super) config: VercelArtifactsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for VercelArtifactsBuilder {

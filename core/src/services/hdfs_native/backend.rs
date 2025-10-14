@@ -34,17 +34,10 @@ use crate::services::HdfsNativeConfig;
 use crate::*;
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
-impl Configurator for HdfsNativeConfig {
-    type Builder = HdfsNativeBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HdfsNativeBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HdfsNativeBuilder {
-    config: HdfsNativeConfig,
+    pub(super) config: HdfsNativeConfig,
 }
 
 impl Debug for HdfsNativeBuilder {

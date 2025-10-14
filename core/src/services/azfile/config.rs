@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::AzfileBuilder;
 
 /// Azure File services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -59,3 +60,16 @@ impl Debug for AzfileConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for AzfileConfig {
+    type Builder = AzfileBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AzfileBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

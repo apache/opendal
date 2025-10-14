@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::LakefsBuilder;
 
 /// Configuration for Lakefs service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -79,3 +80,11 @@ impl Debug for LakefsConfig {
         ds.finish()
     }
 }
+
+impl crate::Configurator for LakefsConfig {
+    type Builder = LakefsBuilder;
+    fn into_builder(self) -> Self::Builder {
+        LakefsBuilder { config: self }
+    }
+}
+

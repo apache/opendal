@@ -33,18 +33,12 @@ use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
-impl Configurator for DbfsConfig {
-    type Builder = DbfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DbfsBuilder { config: self }
-    }
-}
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct DbfsBuilder {
-    config: DbfsConfig,
+    pub(super) config: DbfsConfig,
 }
 
 impl Debug for DbfsBuilder {

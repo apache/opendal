@@ -18,6 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
+use super::backend::DashmapBuilder;
 
 /// Config for Dashmap services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -35,3 +36,11 @@ impl Debug for DashmapConfig {
             .finish_non_exhaustive()
     }
 }
+
+impl crate::Configurator for DashmapConfig {
+    type Builder = DashmapBuilder;
+    fn into_builder(self) -> Self::Builder {
+        DashmapBuilder { config: self }
+    }
+}
+

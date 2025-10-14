@@ -25,18 +25,12 @@ use super::CACACHE_SCHEME;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
-impl Configurator for CacacheConfig {
-    type Builder = CacacheBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CacacheBuilder { config: self }
-    }
-}
 
 /// cacache service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CacacheBuilder {
-    config: CacacheConfig,
+    pub(super) config: CacacheConfig,
 }
 
 impl CacacheBuilder {

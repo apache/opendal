@@ -29,17 +29,10 @@ use crate::raw::*;
 use crate::services::MongodbConfig;
 use crate::*;
 
-impl Configurator for MongodbConfig {
-    type Builder = MongodbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MongodbBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MongodbBuilder {
-    config: MongodbConfig,
+    pub(super) config: MongodbConfig,
 }
 
 impl Debug for MongodbBuilder {

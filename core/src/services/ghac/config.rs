@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::GhacBuilder;
 
 /// Config for GitHub Action Cache Services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -34,3 +35,16 @@ pub struct GhacConfig {
     /// The runtime token for ghac service.
     pub runtime_token: Option<String>,
 }
+
+impl crate::Configurator for GhacConfig {
+    type Builder = GhacBuilder;
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GhacBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+

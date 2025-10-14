@@ -37,42 +37,16 @@ use super::writer::B2Writer;
 use super::writer::B2Writers;
 use crate::raw::*;
 use crate::services::B2Config;
-use crate::types::OperatorUri;
 use crate::*;
-impl Configurator for B2Config {
-    type Builder = B2Builder;
-
-    fn from_uri(uri: &OperatorUri) -> Result<Self> {
-        let mut map = uri.options().clone();
-
-        if let Some(name) = uri.name() {
-            map.insert("bucket".to_string(), name.to_string());
-        }
-
-        if let Some(root) = uri.root() {
-            map.insert("root".to_string(), root.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        B2Builder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct B2Builder {
-    config: B2Config,
+    pub(super) config: B2Config,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for B2Builder {
@@ -445,26 +419,5 @@ impl Access for B2Backend {
                 "operation is not supported",
             )),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
-
-    #[test]
-    fn from_uri_extracts_bucket_and_root() {
-        let uri = OperatorUri::new(
-            "b2://example-bucket/path/to/root".parse().unwrap(),
-            vec![("bucket_id".to_string(), "bucket-id".to_string())],
-        )
-        .unwrap();
-
-        let cfg = B2Config::from_uri(&uri).unwrap();
-        assert_eq!(cfg.bucket, "example-bucket");
-        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
-        assert_eq!(cfg.bucket_id, "bucket-id");
     }
 }

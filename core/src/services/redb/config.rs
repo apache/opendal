@@ -19,6 +19,7 @@ use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use super::backend::RedbBuilder;
 
 /// Config for redb service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,3 +33,14 @@ pub struct RedbConfig {
     /// The table name for redb.
     pub table: Option<String>,
 }
+
+impl crate::Configurator for RedbConfig {
+    type Builder = RedbBuilder;
+    fn into_builder(self) -> Self::Builder {
+        RedbBuilder {
+            config: self,
+            database: None,
+        }
+    }
+}
+

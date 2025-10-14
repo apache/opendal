@@ -33,22 +33,13 @@ use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::OnedriveConfig;
 use crate::*;
-impl Configurator for OnedriveConfig {
-    type Builder = OnedriveBuilder;
-    fn into_builder(self) -> Self::Builder {
-        OnedriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
-    config: OnedriveConfig,
-    http_client: Option<HttpClient>,
+    pub(super) config: OnedriveConfig,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {

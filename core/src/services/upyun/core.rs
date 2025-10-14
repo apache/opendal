@@ -86,7 +86,7 @@ impl UpyunCore {
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
         // get rfc1123 date
-        let date = Timestamp::now().strftime("%a, %d %b %Y %H:%M:%S GMT");
+        let date = Timestamp::now().format_http_date();
         let authorization =
             self.signer
                 .authorization(&date, req.method().as_str(), req.uri().path());

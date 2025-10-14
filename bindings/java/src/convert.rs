@@ -136,17 +136,15 @@ pub(crate) fn read_instant_field_to_timestamp(
         .call_method(&result, "getEpochSecond", "()J", &[])?
         .j()?;
     let nano = env.call_method(&result, "getNano", "()I", &[])?.i()?;
-
-    opendal::raw::Timestamp::from_second(epoch_second)
-        .map(Some)
-        .map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                format!("invalid timestamp: seconds={epoch_second}, nanos={nano}"),
-            )
-            .set_source(err)
-            .into()
-        })
+    match opendal::raw::Timestamp::new(epoch_second, nano) {
+        Ok(ts) => Ok(Some(ts)),
+        Err(err) => Err(Error::new(
+            ErrorKind::Unexpected,
+            format!("invalid timestamp: seconds={epoch_second}, nanos={nano}"),
+        )
+        .set_source(err)
+        .into()),
+    }
 }
 
 pub(crate) fn offset_length_to_range(offset: i64, length: i64) -> Result<(Bound<u64>, Bound<u64>)> {

@@ -21,7 +21,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::GDRIVE_SCHEME;
 use super::backend::GdriveBackend;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
@@ -140,7 +140,7 @@ impl Builder for GdriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(GDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

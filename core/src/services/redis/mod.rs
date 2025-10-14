@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for redis service.
-pub(super) const DEFAULT_SCHEME: &str = "redis";
+pub(super) const REDIS_SCHEME: &str = "redis";
 mod backend;
 mod core;
 mod delete;

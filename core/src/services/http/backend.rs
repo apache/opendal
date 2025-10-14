@@ -23,7 +23,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HTTP_SCHEME;
 use super::core::HttpCore;
 use super::error::parse_error;
 use crate::raw::*;
@@ -177,7 +177,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(HTTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

@@ -24,7 +24,7 @@ use http::StatusCode;
 use log::debug;
 use prost::Message;
 
-use super::DEFAULT_SCHEME;
+use super::IPFS_SCHEME;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
@@ -131,7 +131,7 @@ impl Builder for IpfsBuilder {
         debug!("backend use endpoint {}", &endpoint);
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(IPFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

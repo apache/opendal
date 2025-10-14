@@ -26,7 +26,7 @@ use log::debug;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::KOOFR_SCHEME;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
@@ -174,7 +174,7 @@ impl Builder for KoofrBuilder {
             core: Arc::new(KoofrCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(KOOFR_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

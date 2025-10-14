@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for gdrive service.
-pub(super) const DEFAULT_SCHEME: &str = "gdrive";
+pub(super) const GDRIVE_SCHEME: &str = "gdrive";
 mod backend;
 mod core;
 mod delete;

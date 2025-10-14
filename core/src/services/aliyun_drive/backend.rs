@@ -25,7 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::ALIYUN_DRIVE_SCHEME;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
@@ -175,7 +175,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(ALIYUN_DRIVE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

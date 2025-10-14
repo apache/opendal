@@ -26,7 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::DEFAULT_SCHEME;
+use super::AZFILE_SCHEME;
 use super::core::AzfileCore;
 use super::delete::AzfileDeleter;
 use super::error::parse_error;
@@ -225,7 +225,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
@@ -178,7 +178,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(DROPBOX_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

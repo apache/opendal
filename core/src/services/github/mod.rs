@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for github service.
-pub(super) const DEFAULT_SCHEME: &str = "github";
+pub(super) const GITHUB_SCHEME: &str = "github";
 mod core;
 mod delete;
 mod error;

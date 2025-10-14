@@ -21,7 +21,7 @@ use crate::*;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::DEFAULT_SCHEME;
+use super::CACACHE_SCHEME;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
@@ -61,7 +61,7 @@ impl Builder for CacacheBuilder {
         };
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(CACACHE_SCHEME);
         info.set_name(&datadir_path);
         info.set_root("/");
         info.set_native_capability(Capability {

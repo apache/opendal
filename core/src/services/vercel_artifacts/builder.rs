@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::DEFAULT_SCHEME;
+use super::VERCEL_ARTIFACTS_SCHEME;
 use super::backend::VercelArtifactsBackend;
 use super::core::VercelArtifactsCore;
 use crate::raw::Access;
@@ -85,7 +85,7 @@ impl Builder for VercelArtifactsBuilder {
 
     fn build(self) -> Result<impl Access> {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(VERCEL_ARTIFACTS_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

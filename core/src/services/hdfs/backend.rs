@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HDFS_SCHEME;
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
@@ -173,7 +173,7 @@ impl Builder for HdfsBuilder {
         Ok(HdfsBackend {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(HDFS_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

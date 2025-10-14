@@ -24,7 +24,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
-use super::DEFAULT_SCHEME;
+use super::SEAFILE_SCHEME;
 use super::core::SeafileCore;
 use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
@@ -188,7 +188,7 @@ impl Builder for SeafileBuilder {
             core: Arc::new(SeafileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(SEAFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

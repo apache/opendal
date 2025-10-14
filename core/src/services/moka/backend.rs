@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::MOKA_SCHEME;
 use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
@@ -200,7 +200,7 @@ pub struct MokaAccessor {
 impl MokaAccessor {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(MOKA_SCHEME);
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
         info.set_native_capability(Capability {

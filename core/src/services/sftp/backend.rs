@@ -27,7 +27,7 @@ use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::SFTP_SCHEME;
 use super::core::SftpCore;
 use super::delete::SftpDeleter;
 use super::error::is_not_found;
@@ -198,7 +198,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(DEFAULT_SCHEME)
+            .set_scheme(SFTP_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

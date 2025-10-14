@@ -22,7 +22,7 @@ use std::time::Duration;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::MINI_MOKA_SCHEME;
 use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
@@ -155,7 +155,7 @@ impl Access for MiniMokaBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(MINI_MOKA_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

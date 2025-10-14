@@ -21,7 +21,7 @@ use std::sync::Arc;
 use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
 
-use super::DEFAULT_SCHEME;
+use super::COMPFS_SCHEME;
 use super::core::CompfsCore;
 use super::delete::CompfsDeleter;
 use super::lister::CompfsLister;
@@ -90,7 +90,7 @@ impl Builder for CompfsBuilder {
         let core = CompfsCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(COMPFS_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

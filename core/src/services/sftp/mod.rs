@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for sftp service.
-pub(super) const DEFAULT_SCHEME: &str = "sftp";
+pub(super) const SFTP_SCHEME: &str = "sftp";
 mod delete;
 mod error;
 mod lister;

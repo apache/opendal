@@ -25,7 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::WEBHDFS_SCHEME;
 use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
@@ -180,7 +180,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(WEBHDFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

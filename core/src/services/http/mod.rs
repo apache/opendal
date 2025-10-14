@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for http service.
-pub(super) const DEFAULT_SCHEME: &str = "http";
+pub(super) const HTTP_SCHEME: &str = "http";
 mod error;
 
 mod backend;

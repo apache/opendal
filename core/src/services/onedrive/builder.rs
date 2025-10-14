@@ -23,7 +23,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
 use crate::Scheme;
 use crate::raw::Access;
@@ -142,7 +142,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(ONEDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,

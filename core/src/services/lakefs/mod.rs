@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for lakefs service.
-pub(super) const DEFAULT_SCHEME: &str = "lakefs";
+pub(super) const LAKEFS_SCHEME: &str = "lakefs";
 mod core;
 mod delete;
 mod error;

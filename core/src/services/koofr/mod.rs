@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for koofr service.
-pub(super) const DEFAULT_SCHEME: &str = "koofr";
+pub(super) const KOOFR_SCHEME: &str = "koofr";
 mod core;
 mod delete;
 mod error;

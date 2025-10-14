@@ -23,7 +23,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::SWIFT_SCHEME;
 use super::core::*;
 use super::delete::SwfitDeleter;
 use super::error::parse_error;
@@ -155,7 +155,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(SWIFT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for ftp service.
-pub(super) const DEFAULT_SCHEME: &str = "ftp";
+pub(super) const FTP_SCHEME: &str = "ftp";
 mod delete;
 mod err;
 mod lister;

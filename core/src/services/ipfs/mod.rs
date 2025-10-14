@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for ipfs service.
-pub(super) const DEFAULT_SCHEME: &str = "ipfs";
+pub(super) const IPFS_SCHEME: &str = "ipfs";
 mod error;
 mod ipld;
 

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for onedrive service.
-pub(super) const DEFAULT_SCHEME: &str = "onedrive";
+pub(super) const ONEDRIVE_SCHEME: &str = "onedrive";
 mod backend;
 mod core;
 mod delete;

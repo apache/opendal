@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub(super) const DEFAULT_SCHEME: &str = "etcd";
+pub(super) const ETCD_SCHEME: &str = "etcd";
 mod backend;
 mod core;
 mod deleter;

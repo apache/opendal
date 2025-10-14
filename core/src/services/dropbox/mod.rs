@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for dropbox service.
-pub(super) const DEFAULT_SCHEME: &str = "dropbox";
+pub(super) const DROPBOX_SCHEME: &str = "dropbox";
 mod backend;
 mod core;
 mod delete;

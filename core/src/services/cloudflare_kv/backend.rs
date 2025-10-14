@@ -20,7 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::DEFAULT_SCHEME;
+use super::CLOUDFLARE_KV_SCHEME;
 use crate::ErrorKind;
 use crate::raw::*;
 use crate::services::CloudflareKvConfig;
@@ -160,7 +160,7 @@ impl Builder for CloudflareKvBuilder {
                 expiration_ttl: self.config.default_ttl,
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(CLOUDFLARE_KV_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             create_dir: true,

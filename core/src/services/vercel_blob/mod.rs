@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for vercel_blob service.
-pub(super) const DEFAULT_SCHEME: &str = "vercel_blob";
+pub(super) const VERCEL_BLOB_SCHEME: &str = "vercel_blob";
 mod core;
 mod delete;
 mod error;

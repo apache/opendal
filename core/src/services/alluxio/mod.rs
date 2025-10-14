@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for alluxio service.
-pub(super) const DEFAULT_SCHEME: &str = "alluxio";
+pub(super) const ALLUXIO_SCHEME: &str = "alluxio";
 mod core;
 mod delete;
 mod error;

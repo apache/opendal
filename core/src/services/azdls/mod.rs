@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for azdls service.
-pub(super) const DEFAULT_SCHEME: &str = "azdls";
+pub(super) const AZDLS_SCHEME: &str = "azdls";
 mod backend;
 mod core;
 mod delete;

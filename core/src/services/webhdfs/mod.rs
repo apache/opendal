@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for webhdfs service.
-pub(super) const DEFAULT_SCHEME: &str = "webhdfs";
+pub(super) const WEBHDFS_SCHEME: &str = "webhdfs";
 mod delete;
 mod error;
 mod lister;

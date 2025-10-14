@@ -24,7 +24,7 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use super::DEFAULT_SCHEME;
+use super::DBFS_SCHEME;
 use super::core::DbfsCore;
 use super::delete::DbfsDeleter;
 use super::error::parse_error;
@@ -149,7 +149,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(DEFAULT_SCHEME)
+        am.set_scheme(DBFS_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,

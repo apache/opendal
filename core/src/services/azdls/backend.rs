@@ -26,7 +26,7 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::DEFAULT_SCHEME;
+use super::AZDLS_SCHEME;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
@@ -295,7 +295,7 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {

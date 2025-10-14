@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for moka service.
-pub(super) const DEFAULT_SCHEME: &str = "moka";
+pub(super) const MOKA_SCHEME: &str = "moka";
 mod backend;
 mod core;
 mod delete;

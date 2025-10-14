@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for seafile service.
-pub(super) const DEFAULT_SCHEME: &str = "seafile";
+pub(super) const SEAFILE_SCHEME: &str = "seafile";
 mod core;
 mod delete;
 mod error;

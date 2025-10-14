@@ -22,7 +22,7 @@ use std::sync::Arc;
 use http::Response;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::ALLUXIO_SCHEME;
 use super::core::AlluxioCore;
 use super::delete::AlluxioDeleter;
 use super::error::parse_error;
@@ -125,7 +125,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(ALLUXIO_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

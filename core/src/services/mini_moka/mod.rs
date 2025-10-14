@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for mini_moka service.
-pub(super) const DEFAULT_SCHEME: &str = "mini_moka";
+pub(super) const MINI_MOKA_SCHEME: &str = "mini_moka";
 mod backend;
 mod core;
 mod delete;

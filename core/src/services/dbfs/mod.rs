@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for dbfs service.
-pub(super) const DEFAULT_SCHEME: &str = "dbfs";
+pub(super) const DBFS_SCHEME: &str = "dbfs";
 mod core;
 mod delete;
 mod error;

@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::YANDEX_DISK_SCHEME;
 use super::core::*;
 use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
@@ -126,7 +126,7 @@ impl Builder for YandexDiskBuilder {
             core: Arc::new(YandexDiskCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(YANDEX_DISK_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub(super) const DEFAULT_SCHEME: &str = "cloudflare_kv";
+pub(super) const CLOUDFLARE_KV_SCHEME: &str = "cloudflare_kv";
 mod error;
 
 mod backend;

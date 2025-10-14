@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for dashmap service.
-pub(super) const DEFAULT_SCHEME: &str = "dashmap";
+pub(super) const DASHMAP_SCHEME: &str = "dashmap";
 mod backend;
 mod core;
 mod delete;

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for azfile service.
-pub(super) const DEFAULT_SCHEME: &str = "azfile";
+pub(super) const AZFILE_SCHEME: &str = "azfile";
 mod core;
 mod delete;
 mod error;

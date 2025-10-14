@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for webdav service.
-pub(super) const DEFAULT_SCHEME: &str = "webdav";
+pub(super) const WEBDAV_SCHEME: &str = "webdav";
 mod core;
 mod delete;
 mod error;

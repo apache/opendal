@@ -25,7 +25,7 @@ use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::ETCD_SCHEME;
 use super::core::EtcdCore;
 use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
@@ -204,7 +204,7 @@ pub struct EtcdAccessor {
 impl EtcdAccessor {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(ETCD_SCHEME);
         info.set_name("etcd");
         info.set_root(root);
         info.set_native_capability(Capability {

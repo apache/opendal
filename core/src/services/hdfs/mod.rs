@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for hdfs service.
-pub(super) const DEFAULT_SCHEME: &str = "hdfs";
+pub(super) const HDFS_SCHEME: &str = "hdfs";
 mod delete;
 mod lister;
 mod reader;

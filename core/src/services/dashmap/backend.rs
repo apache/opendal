@@ -22,7 +22,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::DASHMAP_SCHEME;
 use super::core::DashmapCore;
 use super::delete::DashmapDeleter;
 use super::lister::DashmapLister;
@@ -100,7 +100,7 @@ pub struct DashmapAccessor {
 impl DashmapAccessor {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(DASHMAP_SCHEME);
         info.set_name("dashmap");
         info.set_root(&root);
         info.set_native_capability(Capability {

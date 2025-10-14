@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for ghac service.
-pub(super) const DEFAULT_SCHEME: &str = "ghac";
+pub(super) const GHAC_SCHEME: &str = "ghac";
 mod error;
 mod writer;
 

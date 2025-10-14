@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for monoiofs service.
-pub(super) const DEFAULT_SCHEME: &str = "monoiofs";
+pub(super) const MONOIOFS_SCHEME: &str = "monoiofs";
 mod core;
 mod delete;
 mod reader;

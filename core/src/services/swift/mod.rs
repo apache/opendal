@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for swift service.
-pub(super) const DEFAULT_SCHEME: &str = "swift";
+pub(super) const SWIFT_SCHEME: &str = "swift";
 mod core;
 mod delete;
 mod error;

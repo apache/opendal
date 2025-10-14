@@ -23,7 +23,7 @@ use http::StatusCode;
 use log::debug;
 use sha2::Digest;
 
-use super::DEFAULT_SCHEME;
+use super::GHAC_SCHEME;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
@@ -173,7 +173,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(GHAC_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {

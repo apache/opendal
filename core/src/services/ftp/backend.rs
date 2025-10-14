@@ -30,7 +30,7 @@ use suppaftp::list::File;
 use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::FTP_SCHEME;
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
@@ -53,7 +53,7 @@ impl Configurator for FtpConfig {
         let mut map = uri.options().clone();
         map.insert(
             "endpoint".to_string(),
-            format!("{DEFAULT_SCHEME}://{authority}"),
+            format!("{FTP_SCHEME}://{authority}"),
         );
 
         if let Some(root) = uri.root() {
@@ -182,7 +182,7 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme(DEFAULT_SCHEME)
+            .set_scheme(FTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

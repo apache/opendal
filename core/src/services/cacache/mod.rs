@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for cacache service.
-pub(super) const DEFAULT_SCHEME: &str = "cacache";
+pub(super) const CACACHE_SCHEME: &str = "cacache";
 mod backend;
 mod core;
 mod delete;

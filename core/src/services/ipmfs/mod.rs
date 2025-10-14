@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for ipmfs service.
-pub(super) const DEFAULT_SCHEME: &str = "ipmfs";
+pub(super) const IPMFS_SCHEME: &str = "ipmfs";
 mod backend;
 mod core;
 mod delete;

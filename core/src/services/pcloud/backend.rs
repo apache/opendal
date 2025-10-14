@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::PCLOUD_SCHEME;
 use super::core::*;
 use super::delete::PcloudDeleter;
 use super::error::PcloudError;
@@ -168,7 +168,7 @@ impl Builder for PcloudBuilder {
             core: Arc::new(PcloudCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(PCLOUD_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

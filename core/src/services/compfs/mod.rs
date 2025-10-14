@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for compfs service.
-pub(super) const DEFAULT_SCHEME: &str = "compfs";
+pub(super) const COMPFS_SCHEME: &str = "compfs";
 mod core;
 mod delete;
 mod lister;

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for hdfs_native service.
-pub(super) const DEFAULT_SCHEME: &str = "hdfs_native";
+pub(super) const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
 mod delete;
 mod error;
 mod lister;

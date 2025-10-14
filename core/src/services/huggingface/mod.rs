@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for huggingface service.
-pub(super) const DEFAULT_SCHEME: &str = "huggingface";
+pub(super) const HUGGINGFACE_SCHEME: &str = "huggingface";
 mod core;
 mod error;
 mod lister;

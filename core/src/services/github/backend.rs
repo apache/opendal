@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::GITHUB_SCHEME;
 use super::core::Entry;
 use super::core::GithubCore;
 use super::delete::GithubDeleter;
@@ -150,7 +150,7 @@ impl Builder for GithubBuilder {
             core: Arc::new(GithubCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(GITHUB_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HUGGINGFACE_SCHEME;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
@@ -172,7 +172,7 @@ impl Builder for HuggingfaceBuilder {
             core: Arc::new(HuggingfaceCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(HUGGINGFACE_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

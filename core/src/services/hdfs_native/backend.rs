@@ -23,7 +23,7 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::HDFS_NATIVE_SCHEME;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
@@ -152,7 +152,7 @@ impl Access for HdfsNativeBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(DEFAULT_SCHEME)
+        am.set_scheme(HDFS_NATIVE_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for pcloud service.
-pub(super) const DEFAULT_SCHEME: &str = "pcloud";
+pub(super) const PCLOUD_SCHEME: &str = "pcloud";
 mod core;
 mod delete;
 mod error;

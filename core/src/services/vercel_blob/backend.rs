@@ -24,7 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::VERCEL_BLOB_SCHEME;
 use super::core::Blob;
 use super::core::VercelBlobCore;
 use super::core::parse_blob;
@@ -127,7 +127,7 @@ impl Builder for VercelBlobBuilder {
             core: Arc::new(VercelBlobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(VERCEL_BLOB_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

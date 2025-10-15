@@ -46,7 +46,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["aliyun_drive"],
+        scheme: Literal["aliyun-drive"],
         /,
         *,
         drive_type: str,
@@ -142,7 +142,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["cloudflare_kv"],
+        scheme: Literal["cloudflare-kv"],
         /,
         *,
         token: str = ...,
@@ -294,7 +294,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["hdfs_native"],
+        scheme: Literal["hdfs-native"],
         /,
         *,
         root: str = ...,
@@ -403,7 +403,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["mini_moka"],
+        scheme: Literal["mini-moka"],
         /,
         *,
         max_capacity: _int = ...,
@@ -460,7 +460,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["nebula_graph"],
+        scheme: Literal["nebula-graph"],
         /,
         *,
         host: str = ...,
@@ -711,7 +711,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["vercel_artifacts"],
+        scheme: Literal["vercel-artifacts"],
         /,
         *,
         access_token: str = ...,
@@ -719,7 +719,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["vercel_blob"],
+        scheme: Literal["vercel-blob"],
         /,
         *,
         root: str = ...,
@@ -754,7 +754,7 @@ class _Base:
     @overload
     def __init__(
         self,
-        scheme: Literal["yandex_disk"],
+        scheme: Literal["yandex-disk"],
         /,
         *,
         access_token: str,

@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::FoundationdbBuilder;
-use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -51,17 +50,20 @@ impl crate::Configurator for FoundationdbConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(authority) = uri.authority() {
-            let decoded = percent_decode_str(authority).decode_utf8_lossy();
-            if !decoded.is_empty() {
-                map.entry("config_path".to_string())
-                    .or_insert_with(|| decoded.to_string());
-            }
-        }
-
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                if let Some((config, root)) = path.rsplit_once('/') {
+                    if !config.is_empty() {
+                        map.entry("config_path".to_string())
+                            .or_insert_with(|| format!("/{config}"));
+                    }
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                } else {
+                    map.entry("config_path".to_string())
+                        .or_insert_with(|| format!("/{path}"));
+                }
             }
         }
 
@@ -82,7 +84,7 @@ mod tests {
     #[test]
     fn from_uri_sets_config_path_and_root() {
         let uri = OperatorUri::new(
-            "foundationdb://%2Fetc%2Ffoundationdb%2Ffdb.cluster/data"
+            "foundationdb:/etc/foundationdb/fdb.cluster/data"
                 .parse()
                 .unwrap(),
             Vec::<(String, String)>::new(),

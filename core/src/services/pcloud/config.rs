@@ -103,12 +103,12 @@ mod tests {
 
     #[test]
     fn from_uri_requires_authority() {
-        let uri = OperatorUri::new(
-            "pcloud:///drive".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-
-        assert!(PcloudConfig::from_uri(&uri).is_err());
+        assert!(
+            OperatorUri::new(
+                "pcloud:///drive".parse().unwrap(),
+                Vec::<(String, String)>::new(),
+            )
+            .is_err()
+        );
     }
 }

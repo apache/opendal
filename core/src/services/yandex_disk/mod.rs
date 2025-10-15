@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for yandex_disk service.
-pub(super) const YANDEX_DISK_SCHEME: &str = "yandex_disk";
+pub(super) const YANDEX_DISK_SCHEME: &str = "yandex-disk";
 mod core;
 mod delete;
 mod error;

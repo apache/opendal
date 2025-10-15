@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::SledBuilder;
-use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -51,30 +50,30 @@ impl crate::Configurator for SledConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(authority) = uri.authority() {
-            let decoded = percent_decode_str(authority).decode_utf8_lossy();
-            if !decoded.is_empty() {
-                map.entry("datadir".to_string())
-                    .or_insert_with(|| decoded.to_string());
-            }
-        }
-
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                let (tree, rest) = match path.split_once('/') {
-                    Some((tree, remainder)) => (tree, Some(remainder)),
-                    None => (path, None),
-                };
-
-                if !tree.is_empty() {
-                    map.entry("tree".to_string())
-                        .or_insert_with(|| tree.to_string());
-                }
-
-                if let Some(root) = rest {
-                    if !root.is_empty() {
-                        map.insert("root".to_string(), root.to_string());
+                if let Some((datadir_part, rest)) = path.split_once("//") {
+                    if !datadir_part.is_empty() {
+                        map.entry("datadir".to_string())
+                            .or_insert_with(|| format!("/{datadir_part}"));
                     }
+
+                    let mut segments = rest.splitn(2, '/');
+                    if let Some(tree) = segments.next() {
+                        if !tree.is_empty() {
+                            map.entry("tree".to_string())
+                                .or_insert_with(|| tree.to_string());
+                        }
+                    }
+
+                    if let Some(root) = segments.next() {
+                        if !root.is_empty() {
+                            map.insert("root".to_string(), root.to_string());
+                        }
+                    }
+                } else {
+                    map.entry("datadir".to_string())
+                        .or_insert_with(|| format!("/{path}"));
                 }
             }
         }
@@ -96,7 +95,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_tree_and_root() {
         let uri = OperatorUri::new(
-            "sled://%2Fvar%2Fdata%2Fsled/cache/items".parse().unwrap(),
+            "sled:/var/data/sled//cache/items".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

@@ -57,7 +57,13 @@ impl crate::Configurator for OnedriveConfig {
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
+                let normalized = match root.split_once('/') {
+                    Some((_, rest)) if !rest.is_empty() => rest.to_string(),
+                    _ => root.to_string(),
+                };
+                if !normalized.is_empty() {
+                    map.insert("root".to_string(), normalized);
+                }
             }
         }
 

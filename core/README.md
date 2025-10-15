@@ -29,12 +29,12 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 | Type                           | Services                                                                                                                                 | 
 |--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel_blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs_native] [ipfs] [webhdfs]                                        |
-| Consumer Cloud Storage Service | [aliyun_drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex_disk]                                      |
-| Key-Value Storage Services     | [cacache] [cloudflare_kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                                  |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                                        |
+| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                      |
+| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
-| Cache Storage Services         | [ghac] [memcached] [mini_moka] [moka] [vercel_artifacts]                                                                                 |
+| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                                 |
 | Git Based Storage Services     | [huggingface]                                                                                                                            |
 
 [sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
@@ -49,7 +49,7 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 [b2]: https://www.backblaze.com/
 [openstack_swift]: https://docs.openstack.org/swift/latest/
 [upyun]: https://www.upyun.com/
-[vercel_blob]: https://vercel.com/docs/storage/vercel-blob
+[vercel-blob]: https://vercel.com/docs/storage/vercel-blob
 
 [alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
 [azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
@@ -58,21 +58,21 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 [dbfs]: https://docs.databricks.com/en/dbfs/index.html
 [gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/
 [hdfs]: https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html
-[hdfs_native]: https://github.com/Kimahriman/hdfs-native
+[hdfs-native]: https://github.com/Kimahriman/hdfs-native
 [ipfs]: https://ipfs.tech/
 [webhdfs]: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
 
-[aliyun_drive]: https://www.aliyundrive.com/
+[aliyun-drive]: https://www.aliyundrive.com/
 [gdrive]: https://www.google.com/drive/
 [onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
 [dropbox]: https://www.dropbox.com/
 [koofr]: https://koofr.eu/
 [pcloud]: https://www.pcloud.com/
 [seafile]: https://www.seafile.com/
-[yandex_disk]: https://360.yandex.com/disk/
+[yandex-disk]: https://360.yandex.com/disk/
 
 [cacache]: https://crates.io/crates/cacache
-[cloudflare_kv]: https://developers.cloudflare.com/kv/
+[cloudflare-kv]: https://developers.cloudflare.com/kv/
 [dashmap]: https://github.com/xacrimon/dashmap
 [etcd]: https://etcd.io/
 [foundationdb]: https://www.foundationdb.org/
@@ -92,9 +92,9 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 
 [ghac]: https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows
 [memcached]: https://memcached.org/
-[mini_moka]: https://github.com/moka-rs/mini-moka
+[mini-moka]: https://github.com/moka-rs/mini-moka
 [moka]: https://github.com/moka-rs/moka
-[vercel_artifacts]: https://vercel.com/docs/concepts/monorepos/remote-caching
+[vercel-artifacts]: https://vercel.com/docs/concepts/monorepos/remote-caching
 
 [huggingface]: https://huggingface.co/
 

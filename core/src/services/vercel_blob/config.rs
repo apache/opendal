@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn from_uri_sets_root() {
         let uri = OperatorUri::new(
-            "vercel_blob://project-assets/images".parse().unwrap(),
+            "vercel-blob://project-assets/images".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

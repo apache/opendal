@@ -16,7 +16,6 @@
 // under the License.
 
 use super::backend::PersyBuilder;
-use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -38,31 +37,31 @@ impl crate::Configurator for PersyConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(authority) = uri.authority() {
-            let decoded = percent_decode_str(authority).decode_utf8_lossy();
-            if !decoded.is_empty() {
-                map.entry("datafile".to_string())
-                    .or_insert_with(|| decoded.to_string());
-            }
-        }
-
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                let (segment, rest) = match path.split_once('/') {
-                    Some((segment, remainder)) => (segment, Some(remainder)),
-                    None => (path, None),
-                };
-
-                if !segment.is_empty() {
-                    map.entry("segment".to_string())
-                        .or_insert_with(|| segment.to_string());
-                }
-
-                if let Some(index) = rest {
-                    if !index.is_empty() {
-                        map.entry("index".to_string())
-                            .or_insert_with(|| index.to_string());
+                if let Some((datafile_part, rest)) = path.split_once("//") {
+                    if !datafile_part.is_empty() {
+                        map.entry("datafile".to_string())
+                            .or_insert_with(|| format!("/{datafile_part}"));
                     }
+
+                    let mut segments = rest.splitn(2, '/');
+                    if let Some(segment) = segments.next() {
+                        if !segment.is_empty() {
+                            map.entry("segment".to_string())
+                                .or_insert_with(|| segment.to_string());
+                        }
+                    }
+
+                    if let Some(index) = segments.next() {
+                        if !index.is_empty() {
+                            map.entry("index".to_string())
+                                .or_insert_with(|| index.to_string());
+                        }
+                    }
+                } else {
+                    map.entry("datafile".to_string())
+                        .or_insert_with(|| format!("/{path}"));
                 }
             }
         }
@@ -84,9 +83,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datafile_segment_and_index() {
         let uri = OperatorUri::new(
-            "persy://%2Fvar%2Fdata%2Fpersy/segment/index"
-                .parse()
-                .unwrap(),
+            "persy:/var/data/persy//segment/index".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

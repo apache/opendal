@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 
 use super::backend::RocksdbBuilder;
-use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -40,17 +39,20 @@ impl crate::Configurator for RocksdbConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(authority) = uri.authority() {
-            let decoded = percent_decode_str(authority).decode_utf8_lossy();
-            if !decoded.is_empty() {
-                map.entry("datadir".to_string())
-                    .or_insert_with(|| decoded.to_string());
-            }
-        }
-
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                if let Some((datadir_part, root)) = path.split_once("//") {
+                    if !datadir_part.is_empty() {
+                        map.entry("datadir".to_string())
+                            .or_insert_with(|| format!("/{datadir_part}"));
+                    }
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                } else {
+                    map.entry("datadir".to_string())
+                        .or_insert_with(|| format!("/{path}"));
+                }
             }
         }
 
@@ -71,7 +73,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_and_root() {
         let uri = OperatorUri::new(
-            "rocksdb://%2Fvar%2Fdb/namespace".parse().unwrap(),
+            "rocksdb:/var/db//namespace".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

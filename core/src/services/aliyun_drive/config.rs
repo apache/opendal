@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn from_uri_sets_drive_type_and_root() {
         let uri = OperatorUri::new(
-            "aliyun_drive://resource/library/photos".parse().unwrap(),
+            "aliyun-drive://resource/library/photos".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn from_uri_allows_missing_drive_type() {
         let uri = OperatorUri::new(
-            "aliyun_drive:///documents".parse().unwrap(),
+            "aliyun-drive:///documents".parse().unwrap(),
             Vec::<(String, String)>::new(),
         )
         .unwrap();

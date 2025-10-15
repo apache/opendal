@@ -1,0 +1,172 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Default recipe to 'help' to display this help screen
+default: help
+
+# ==============================================================================
+# Configuration & Variables
+# ==============================================================================
+
+set ignore-comments := true
+
+# Virtual environment.
+
+venv := '.venv'
+venv_bin := if os() == "windows" { venv + "/Scripts" } else { venv + "/bin" }
+
+# Tool executables, resolved within the venv.
+
+python := venv_bin + '/python'
+uv := venv_bin + '/uv'
+ruff := venv_bin + '/ruff'
+maturin := venv_bin + '/maturin'
+dprint := venv_bin + '/dprint'
+
+# ==============================================================================
+# Setup & Maintenance
+# ==============================================================================
+
+# Set up the dev environment and install all dependencies.
+[group('maintenance')]
+setup:
+    @if [ ! -d "{{ venv }}" ]; then \
+        @echo "{{ BOLD }}--- Setting up Python virtual environment at '{{ venv }}' ---{{ NORMAL }}"; \
+        unset CONDA_PREFIX; \
+        python3 -m venv {{ venv }}; \
+        {{ python }} -m pip install --quiet --upgrade pip uv; \
+    fi
+
+    @{{ uv }} venv --allow-existing {{ venv }};
+    @just _requirements
+
+# Install/refresh all Python dependencies using uv.
+[group('maintenance')]
+_requirements:
+    @echo "{{ BOLD }}--- Installing dependencies using uv ---{{ NORMAL }}"
+    @unset CONDA_PREFIX \
+    && {{ uv }} sync --all-groups --all-extras --no-install-workspace --compile-bytecode --no-build --no-install-package greenify \
+    && {{ uv }} pip install --compile-bytecode greenify  # greenify lacks wheels, so it's installed separately
+
+# Clean up all caches, build artifacts, and the venv
+[group('maintenance')]
+clean:
+    @echo "{{ BOLD }}--- Cleaning Python cache (Ruff) ---{{ NORMAL }}"
+    @if [ -f "{{ ruff }}" ]; then {{ ruff }} clean; fi
+    @echo "{{ BOLD }}--- Cleaning Rust build artifacts (Cargo) ---{{ NORMAL }}"
+    @cargo clean
+    @echo "{{ BOLD }}--- Removing venv, build/dist directories, and other caches ---{{ NORMAL }}"
+    @rm -rf {{ venv }} build/ dist/ .pytest_cache/ .mypy_cache/ .hypothesis/
+    @echo "{{ BOLD }}--- Removing Python bytecode and compiled extensions ---{{ NORMAL }}"
+    @find . -type f -name '*.py[co]' -delete \
+        -o -type d -name __pycache__ -exec rm -rf {} + \
+        -o -type f -name '_opendal*.so' -delete
+
+# ==============================================================================
+# Dev & Build
+# ==============================================================================
+
+# Compile and produce a development wheel
+[group('dev')]
+build-dev *args: setup
+    @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} build -m ./Cargo.toml {{ args }}
+    @{{ uv }} run mkdocs build
+
+# Compile and produce a release wheel with optimizations
+[group('release')]
+build-release *args: setup
+    @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} build -m ./Cargo.toml --profile release --strip --release {{ args }}
+    @{{ uv }} run mkdocs build
+
+# Build and install the development wheel in the current venv
+[group('dev')]
+install-dev *args: setup
+    @echo "{{ BOLD }}--- Installing development version (editable) ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} develop -m ./Cargo.toml {{ args }}
+
+# Build and install the release wheel in the current venv
+[group('release')]
+install-release *args: setup
+    @echo "{{ BOLD }}--- Installing release version ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} develop -m ./Cargo.toml --profile release --strip --release {{ args }}
+
+# Run tests
+[group('dev')]
+test *args: setup
+    @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
+    @{{ uv }} run pytest -v {{ args }}
+
+# Run python repl
+[group('dev')]
+repl: setup
+    @echo "{{ BOLD }}--- Running Python REPL ---{{ NORMAL }}"
+    @{{ python }} -i
+
+# Run python repl with asyncio
+[group('dev')]
+repl-asyncio: setup
+    @echo "{{ BOLD }}--- Running Python REPL ---{{ NORMAL }}"
+    @{{ python }} -m asyncio
+
+# ==============================================================================
+# Code Quality & Formatting
+# ==============================================================================
+
+# Auto-fix linting issues in Rust and Python
+[group('lint')]
+fix: setup
+    @echo "{{ BOLD }}--- Applying automatic fixes (Rust) ---{{ NORMAL }}"
+    @cargo clippy --workspace --all-targets --all-features --fix --allow-dirty
+    @echo "{{ BOLD }}--- Applying automatic fixes (Python) ---{{ NORMAL }}"
+    @{{ ruff }} check --fix
+    @just fmt
+
+# Run all lint checks for Rust and Python
+[group('lint')]
+lint: setup
+    @echo "{{ BOLD }}--- Running Rust linter (Clippy) ---{{ NORMAL }}"
+    @cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -D clippy::dbg_macro
+    @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
+    @{{ ruff }} check
+    @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
+    @{{ dprint }} check
+    @just --fmt --unstable --check
+
+# Format all code (Rust, Python, etc.)
+[group('lint')]
+fmt: setup
+    @echo "{{ BOLD }}--- Formatting Rust ---{{ NORMAL }}"
+    @cargo fmt --all
+    @echo "{{ BOLD }}--- Formatting Python ---{{ NORMAL }}"
+    @{{ ruff }} format --quiet
+    @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"
+    @{{ dprint }} fmt --allow-no-files --log-level silent
+    @just --fmt --unstable
+
+# Run all code formatting and quality checks
+[group('lint')]
+pre-commit: fmt lint
+
+# Display this help screen
+help:
+    @just --list

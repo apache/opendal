@@ -23,9 +23,9 @@ import pytest
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
-async def test_async_remove_all(service_name, operator, async_operator):
+async def test_async_remove_all(service_name, operator, async_operator) -> None:
     content = os.urandom(1024)
-    target = f"random_{str(uuid4())}"
+    target = f"random_{uuid4()!s}"
     await async_operator.write(target, content)
     assert await async_operator.exists(target)
     assert not await async_operator.exists(target + "1")

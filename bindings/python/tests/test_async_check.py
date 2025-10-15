@@ -20,5 +20,5 @@ import pytest
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("list")
-async def test_async_check(service_name, operator, async_operator):
+async def test_async_check(service_name, operator, async_operator) -> None:
     await async_operator.check()

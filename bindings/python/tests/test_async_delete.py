@@ -25,8 +25,8 @@ from opendal.exceptions import NotFound
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
-async def test_async_remove_all(service_name, operator, async_operator):
-    parent = f"random_dir_{str(uuid4())}"
+async def test_async_remove_all(service_name, operator, async_operator) -> None:
+    parent = f"random_dir_{uuid4()!s}"
     excepted = [
         "x/",
         "x/y",

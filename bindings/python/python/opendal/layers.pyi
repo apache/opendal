@@ -15,20 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from typing import Optional, final
+from typing import final
 
-class Layer:
-    pass
+class Layer: ...
 
 @final
 class RetryLayer(Layer):
     def __init__(
         self,
-        max_times: Optional[int] = None,
-        factor: Optional[float] = None,
+        max_times: int | None = None,
+        factor: float | None = None,
         jitter: bool = False,
-        max_delay: Optional[float] = None,
-        min_delay: Optional[float] = None,
+        max_delay: float | None = None,
+        min_delay: float | None = None,
     ) -> None: ...
 
 @final

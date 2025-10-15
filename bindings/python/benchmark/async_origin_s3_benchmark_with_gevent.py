@@ -60,32 +60,28 @@ TEST_CASE = [
 ]
 
 
-def async_origin_s3_write():
+def async_origin_s3_write() -> None:
     tasks = []
     for case in TEST_CASE:
         tasks.append(
             gevent.spawn(
                 S3_CLIENT.put_object,
-                **dict(
-                    Bucket=SETTINGS.aws_s3_bucket,
-                    Key=f"benchmark/async_write/{case['name']}",
-                    Body=case["data"],
-                ),
+                Bucket=SETTINGS.aws_s3_bucket,
+                Key=f"benchmark/async_write/{case['name']}",
+                Body=case["data"],
             )
         )
     gevent.joinall(tasks)
 
 
-def async_origin_s3_read():
+def async_origin_s3_read() -> None:
     tasks = []
     for case in TEST_CASE:
         tasks.append(
             gevent.spawn(
                 S3_CLIENT.get_object,
-                **dict(
-                    Bucket=SETTINGS.aws_s3_bucket,
-                    Key=f"benchmark/async_write/{case['name']}",
-                ),
+                Bucket=SETTINGS.aws_s3_bucket,
+                Key=f"benchmark/async_write/{case['name']}",
             )
         )
     gevent.joinall(tasks)
@@ -95,7 +91,7 @@ def async_origin_s3_read():
     gevent.joinall(read_tasks)
 
 
-def async_s3_benchmark():
+def async_s3_benchmark() -> None:
     for func in (async_origin_s3_write, async_origin_s3_read):
         print(f"{func.__name__}: {timeit.timeit(func, number=3)}")
 

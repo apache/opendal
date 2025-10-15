@@ -46,7 +46,7 @@ benchmark = [
   "greenlet>=3.1.1",
   "pydantic>=2.10.6",
 ]
-dev = ["maturin>=1.8.2"]
+dev = ["dprint-py>=0.50.2.0", "maturin>=1.8.2"]
 docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
 lint = ["ruff>=0.9.10"]
 test = [

@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ._opendal import *
+from opendal._opendal import *
 
 __all__ = _opendal.__all__

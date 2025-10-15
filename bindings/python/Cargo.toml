@@ -19,13 +19,13 @@
 name = "opendal-python"
 publish = false
 
+version = "0.46.1"
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
-version = "0.46.1"
 
 [features]
 default = [
@@ -162,10 +162,7 @@ dict_derive = "0.6.0"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }
 # this crate won't be published, we always use the local version
-opendal = { version = ">=0", path = "../../core", features = [
-  "blocking",
-  "layers-mime-guess"
-] }
+opendal = { version = ">=0", path = "../../core", features = ["blocking", "layers-mime-guess"] }
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
 tokio = "1"
@@ -181,3 +178,9 @@ features = [
 ]
 path = "../../core"
 version = ">=0"
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+strip = true

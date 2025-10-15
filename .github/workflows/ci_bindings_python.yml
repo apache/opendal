@@ -50,3 +50,29 @@ jobs:
         run: |
           pip install ruff
           ruff check .
+
+  smoke-python-314t:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install Python 3.14 variants
+        run: |
+          uv python install python3.14t
+      - name: Build and import with python3.14t
+        working-directory: "bindings/python"
+        shell: bash
+        run: |
+          uv venv --python=python3.14t .venv-py314t
+          source .venv-py314t/bin/activate
+          pip install -q "maturin>=1.8.2"
+          maturin develop -F services-all
+          python -c "import opendal"
+          deactivate
+          rm -rf .venv-py314t

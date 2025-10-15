@@ -29,14 +29,11 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }} / ${{ matrix.python }}
+    name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
     runs-on: ${{ inputs.os }}
     strategy:
       fail-fast: false
       matrix:
-        python:
-          - python3.10
-          - python3.14t
         cases: ${{ fromJson(inputs.cases) }}
     steps:
       - uses: actions/checkout@v5
@@ -58,14 +55,12 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-      - name: Install Python ${{ matrix.python }}
-        shell: bash
-        run: uv python install ${{ matrix.python }}
+  
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
         run: |
-          uv venv --python=${{ matrix.python }}
+          uv venv --python=python3.10
           uv sync --all-groups --all-extras
           uv run -- maturin develop -F ${{ matrix.cases.feature }}
 

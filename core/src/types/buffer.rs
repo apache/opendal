@@ -25,6 +25,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::{self};
+use std::iter::FusedIterator;
 use std::mem;
 use std::ops::Bound;
 use std::ops::RangeBounds;
@@ -330,6 +331,25 @@ impl Buffer {
                 }
                 ret
             }
+        }
+    }
+
+    /// Split the buffer into an iterator of chunks, each with at most `chunk_size` bytes.
+    ///
+    /// The chunks share the same underlying storage with the original buffer. The last chunk
+    /// will be shorter if `self.len()` is not a multiple of `chunk_size`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `chunk_size` is zero.
+    pub fn chunks(&self, chunk_size: usize) -> BufferChunks {
+        assert!(chunk_size != 0, "chunk size must be greater than 0");
+
+        BufferChunks {
+            buffer: self.clone(),
+            chunk_size,
+            position: 0,
+            len: self.len(),
         }
     }
 }
@@ -682,6 +702,43 @@ impl BufRead for Buffer {
     }
 }
 
+/// Iterator that yields [`Buffer`] chunks of at most a configured length.
+pub struct BufferChunks {
+    buffer: Buffer,
+    chunk_size: usize,
+    position: usize,
+    len: usize,
+}
+
+impl Iterator for BufferChunks {
+    type Item = Buffer;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.position >= self.len {
+            return None;
+        }
+
+        let end = (self.position + self.chunk_size).min(self.len);
+        let chunk = self.buffer.slice(self.position..end);
+        self.position = end;
+        Some(chunk)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.len.saturating_sub(self.position);
+        let chunks = remaining.div_ceil(self.chunk_size);
+        (chunks, Some(chunks))
+    }
+}
+
+impl ExactSizeIterator for BufferChunks {
+    fn len(&self) -> usize {
+        self.size_hint().0
+    }
+}
+
+impl FusedIterator for BufferChunks {}
+
 #[cfg(test)]
 mod tests {
     use std::io::BufRead;
@@ -790,6 +847,49 @@ mod tests {
 
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    #[test]
+    fn test_buffer_chunks_contiguous() {
+        let buf = Buffer::from(Bytes::from("abcdefg"));
+
+        let chunks = buf
+            .chunks(3)
+            .map(|chunk| chunk.to_bytes())
+            .collect::<Vec<Bytes>>();
+
+        assert_eq!(
+            chunks,
+            vec![Bytes::from("abc"), Bytes::from("def"), Bytes::from("g")]
+        );
+
+        assert_eq!(Buffer::new().chunks(4).count(), 0);
+    }
+
+    #[test]
+    fn test_buffer_chunks_non_contiguous() {
+        let buf = Buffer::from(vec![
+            Bytes::from("ab"),
+            Bytes::from("c"),
+            Bytes::from("def"),
+        ]);
+
+        let chunks = buf
+            .chunks(2)
+            .map(|chunk| chunk.to_bytes())
+            .collect::<Vec<Bytes>>();
+
+        assert_eq!(
+            chunks,
+            vec![Bytes::from("ab"), Bytes::from("cd"), Bytes::from("ef"),]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "chunk size must be greater than 0")]
+    fn test_buffer_chunks_zero_panics() {
+        let buf = Buffer::from(Bytes::from("abc"));
+        let _ = buf.chunks(0);
     }
 
     /// This setup will return

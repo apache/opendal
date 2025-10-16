@@ -24,11 +24,11 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 
 @pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_file(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_file(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     operator.rename(source_path, target_path)
     with pytest.raises(NotFound):
         operator.read(source_path)
@@ -38,36 +38,36 @@ def test_sync_rename_file(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_non_exists_file(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_non_exists_file(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(NotFound):
         operator.rename(source_path, target_path)
 
 
 @pytest.mark.need_capability("read", "write", "rename", "create_dir")
-def test_sync_rename_directory(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}/"
+def test_sync_rename_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory):
         operator.rename(source_path, target_path)
 
 
 @pytest.mark.need_capability("read", "write", "rename", "create_dir")
-def test_sync_rename_file_to_directory(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_file_to_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/"
+    target_path = f"random_file_{str(uuid4())}/"
     with pytest.raises(IsADirectory):
         operator.rename(source_path, target_path)
     operator.delete(source_path)
 
 
 @pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_self(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_self(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     with pytest.raises(IsSameFile):
@@ -76,11 +76,11 @@ def test_sync_rename_self(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_nested(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_nested(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/{uuid4()!s}/{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     operator.rename(source_path, target_path)
     with pytest.raises(NotFound):
         operator.read(source_path)
@@ -90,9 +90,9 @@ def test_sync_rename_nested(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "rename")
-def test_sync_rename_overwrite(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+def test_sync_rename_overwrite(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     source_content = os.urandom(1024)
     target_content = os.urandom(1024)
     assert source_content != target_content

@@ -21,7 +21,7 @@ from opendal import exceptions
 from opendal.exceptions import Error
 
 
-def test_exceptions() -> None:
+def test_exceptions():
     for _name, obj in inspect.getmembers(exceptions):
         if inspect.isclass(obj):
             assert issubclass(obj, Error)

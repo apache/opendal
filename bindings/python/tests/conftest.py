@@ -27,7 +27,7 @@ load_dotenv()
 pytest_plugins = ("pytest_asyncio",)
 
 
-def pytest_configure(config) -> None:
+def pytest_configure(config):
     # register an additional marker
     config.addinivalue_line(
         "markers",
@@ -53,7 +53,7 @@ def setup_config(service_name):
             config[key[len(prefix) :].lower()] = os.environ.get(key)
     disable_random_root = os.environ.get("OPENDAL_DISABLE_RANDOM_ROOT") == "true"
     if not disable_random_root:
-        config["root"] = f"{config.get('root', '/')}/{uuid4()!s}/"
+        config["root"] = f"{config.get('root', '/')}/{str(uuid4())}/"
     return config
 
 

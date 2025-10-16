@@ -47,7 +47,6 @@ select = [
   "PT",     # flake8-pytest-style
   "PTH",    # flake8-use-pathlib
   "PYI",    # flake8-pyi
-  "RUF",    # ruff-specific rules
   "SIM",    # flake8-simplify
   "TD",     # flake8-todos
   "TID",    # flake8-tidy-imports

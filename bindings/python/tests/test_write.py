@@ -26,9 +26,9 @@ from opendal.exceptions import NotFound
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
-def test_sync_write(service_name, operator, async_operator) -> None:
+def test_sync_write(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     size = len(content)
     operator.write(filename, content, content_type="text/plain")
@@ -41,9 +41,9 @@ def test_sync_write(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
-def test_sync_write_path(service_name, operator, async_operator) -> None:
+def test_sync_write_path(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = Path(f"test_file_{uuid4()!s}.txt")
+    filename = Path(f"test_file_{str(uuid4())}.txt")
     content = os.urandom(size)
     size = len(content)
     operator.write(filename, content, content_type="text/plain")
@@ -57,9 +57,9 @@ def test_sync_write_path(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete", "stat")
-async def test_async_write(service_name, operator, async_operator) -> None:
+async def test_async_write(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     size = len(content)
     await async_operator.write(filename, content)
@@ -73,9 +73,9 @@ async def test_async_write(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete", "stat")
-async def test_async_write_path(service_name, operator, async_operator) -> None:
+async def test_async_write_path(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = Path(f"test_file_{uuid4()!s}.txt")
+    filename = Path(f"test_file_{str(uuid4())}.txt")
     content = os.urandom(size)
     size = len(content)
     await async_operator.write(filename, content)
@@ -88,8 +88,8 @@ async def test_async_write_path(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("create_dir", "stat")
-def test_sync_create_dir(service_name, operator, async_operator) -> None:
-    path = f"test_dir_{uuid4()!s}/"
+def test_sync_create_dir(service_name, operator, async_operator):
+    path = f"test_dir_{str(uuid4())}/"
     operator.create_dir(path)
     metadata = operator.stat(path)
     assert metadata is not None
@@ -100,8 +100,8 @@ def test_sync_create_dir(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("create_dir", "stat")
-async def test_async_create_dir(service_name, operator, async_operator) -> None:
-    path = f"test_dir_{uuid4()!s}/"
+async def test_async_create_dir(service_name, operator, async_operator):
+    path = f"test_dir_{str(uuid4())}/"
     await async_operator.create_dir(path)
     metadata = await async_operator.stat(path)
     assert metadata is not None
@@ -111,9 +111,9 @@ async def test_async_create_dir(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("delete", "stat")
-def test_sync_delete(service_name, operator, async_operator) -> None:
+def test_sync_delete(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     size = len(content)
     operator.write(filename, content)
@@ -124,9 +124,9 @@ def test_sync_delete(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("delete", "stat")
-async def test_async_delete(service_name, operator, async_operator) -> None:
+async def test_async_delete(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     size = len(content)
     await async_operator.write(filename, content)
@@ -137,9 +137,9 @@ async def test_async_delete(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete")
-async def test_async_writer(service_name, operator, async_operator) -> None:
+async def test_async_writer(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = await async_operator.open(filename, "wb")
     written_bytes = await f.write(content)
@@ -152,9 +152,9 @@ async def test_async_writer(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
-async def test_async_writer_options(service_name, operator, async_operator) -> None:
+async def test_async_writer_options(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = await async_operator.open(filename, "wb")
     written_bytes = await f.write(content)
@@ -168,9 +168,9 @@ async def test_async_writer_options(service_name, operator, async_operator) -> N
 
 
 @pytest.mark.need_capability("write", "delete")
-def test_sync_writer(service_name, operator, async_operator) -> None:
+def test_sync_writer(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = operator.open(filename, "wb")
     written_bytes = f.write(content)
@@ -182,9 +182,9 @@ def test_sync_writer(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
-def test_sync_writer_options(service_name, operator, async_operator) -> None:
+def test_sync_writer_options(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"test_file_{uuid4()!s}.txt"
+    filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
     f = operator.open(filename, "wb")
     written_bytes = f.write(content)

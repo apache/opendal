@@ -25,11 +25,11 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename")
-async def test_async_rename_file(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_file(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     await async_operator.rename(source_path, target_path)
     with pytest.raises(NotFound):
         await async_operator.read(source_path)
@@ -40,34 +40,30 @@ async def test_async_rename_file(service_name, operator, async_operator) -> None
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename")
-async def test_async_rename_non_exists_file(
-    service_name, operator, async_operator
-) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_non_exists_file(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(NotFound):
         await async_operator.rename(source_path, target_path)
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename", "create_dir")
-async def test_async_rename_directory(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}/"
+async def test_async_rename_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(source_path)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory):
         await async_operator.rename(source_path, target_path)
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename", "create_dir")
-async def test_async_rename_file_to_directory(
-    service_name, operator, async_operator
-) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_file_to_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/"
+    target_path = f"random_file_{str(uuid4())}/"
     with pytest.raises(IsADirectory):
         await async_operator.rename(source_path, target_path)
     await async_operator.delete(source_path)
@@ -75,8 +71,8 @@ async def test_async_rename_file_to_directory(
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename")
-async def test_async_rename_self(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_self(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
     with pytest.raises(IsSameFile):
@@ -86,11 +82,11 @@ async def test_async_rename_self(service_name, operator, async_operator) -> None
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename")
-async def test_async_rename_nested(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_nested(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/{uuid4()!s}/{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     await async_operator.rename(source_path, target_path)
     with pytest.raises(NotFound):
         await async_operator.read(source_path)
@@ -101,9 +97,9 @@ async def test_async_rename_nested(service_name, operator, async_operator) -> No
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "rename")
-async def test_async_rename_overwrite(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+async def test_async_rename_overwrite(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     source_content = os.urandom(1024)
     target_content = os.urandom(1024)
     assert source_content != target_content

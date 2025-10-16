@@ -24,11 +24,11 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 
 @pytest.mark.need_capability("read", "write", "copy")
-def test_sync_copy(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_copy(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     operator.copy(source_path, target_path)
     read_content = operator.read(target_path)
     assert read_content is not None
@@ -38,28 +38,28 @@ def test_sync_copy(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "copy")
-def test_sync_copy_non_exist(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+def test_sync_copy_non_exist(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(NotFound):
         operator.copy(source_path, target_path)
 
 
 @pytest.mark.need_capability("read", "write", "copy", "create_dir")
-def test_sync_copy_source_directory(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}/"
+def test_sync_copy_source_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(source_path)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory):
         operator.copy(source_path, target_path)
 
 
 @pytest.mark.need_capability("read", "write", "copy", "create_dir")
-def test_sync_copy_target_directory(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_copy_target_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/"
+    target_path = f"random_file_{str(uuid4())}/"
     operator.create_dir(target_path)
     with pytest.raises(IsADirectory):
         operator.copy(source_path, target_path)
@@ -68,8 +68,8 @@ def test_sync_copy_target_directory(service_name, operator, async_operator) -> N
 
 
 @pytest.mark.need_capability("read", "write", "copy")
-def test_sync_copy_self(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+def test_sync_copy_self(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     with pytest.raises(IsSameFile):
@@ -78,9 +78,9 @@ def test_sync_copy_self(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "copy")
-def test_sync_copy_nested(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}/{uuid4()!s}/{uuid4()!s}"
+def test_sync_copy_nested(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     content = os.urandom(1024)
     operator.write(source_path, content)
     operator.copy(source_path, target_path)
@@ -92,9 +92,9 @@ def test_sync_copy_nested(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "copy")
-def test_sync_copy_overwrite(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+def test_sync_copy_overwrite(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     source_content = os.urandom(1024)
     target_content = os.urandom(1024)
     assert source_content != target_content

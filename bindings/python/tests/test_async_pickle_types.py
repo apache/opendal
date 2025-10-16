@@ -25,10 +25,10 @@ import pytest
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "shared")
-async def test_operator_pickle(service_name, operator, async_operator) -> None:
+async def test_operator_pickle(service_name, operator, async_operator):
     """Test AsyncOperator's pickle serialization and deserialization."""
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     await async_operator.write(filename, content)
 

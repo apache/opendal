@@ -25,11 +25,11 @@ from opendal.exceptions import IsADirectory, IsSameFile, NotFound
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
-async def test_async_copy(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_copy(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     await async_operator.copy(source_path, target_path)
     read_content = await async_operator.read(target_path)
     assert read_content is not None
@@ -40,34 +40,30 @@ async def test_async_copy(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
-async def test_async_copy_non_exist(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+async def test_async_copy_non_exist(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(NotFound):
         await async_operator.copy(source_path, target_path)
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy", "create_dir")
-async def test_async_copy_source_directory(
-    service_name, operator, async_operator
-) -> None:
-    source_path = f"random_file_{uuid4()!s}/"
+async def test_async_copy_source_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(source_path)
-    target_path = f"random_file_{uuid4()!s}"
+    target_path = f"random_file_{str(uuid4())}"
     with pytest.raises(IsADirectory):
         await async_operator.copy(source_path, target_path)
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy", "create_dir")
-async def test_async_copy_target_directory(
-    service_name, operator, async_operator
-) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_copy_target_directory(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
-    target_path = f"random_file_{uuid4()!s}/"
+    target_path = f"random_file_{str(uuid4())}/"
     await async_operator.create_dir(target_path)
     with pytest.raises(IsADirectory):
         await async_operator.copy(source_path, target_path)
@@ -77,8 +73,8 @@ async def test_async_copy_target_directory(
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
-async def test_async_copy_self(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
+async def test_async_copy_self(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
     with pytest.raises(IsSameFile):
@@ -88,9 +84,9 @@ async def test_async_copy_self(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
-async def test_async_copy_nested(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}/{uuid4()!s}/{uuid4()!s}"
+async def test_async_copy_nested(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}/{str(uuid4())}/{str(uuid4())}"
     content = os.urandom(1024)
     await async_operator.write(source_path, content)
     await async_operator.copy(source_path, target_path)
@@ -103,9 +99,9 @@ async def test_async_copy_nested(service_name, operator, async_operator) -> None
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "copy")
-async def test_async_copy_overwrite(service_name, operator, async_operator) -> None:
-    source_path = f"random_file_{uuid4()!s}"
-    target_path = f"random_file_{uuid4()!s}"
+async def test_async_copy_overwrite(service_name, operator, async_operator):
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
     source_content = os.urandom(1024)
     target_content = os.urandom(1024)
     assert source_content != target_content

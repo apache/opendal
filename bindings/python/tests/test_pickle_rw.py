@@ -23,7 +23,7 @@ import pytest
 
 
 @pytest.mark.need_capability("read", "write", "delete")
-def test_sync_file_pickle(service_name, operator, async_operator) -> None:
+def test_sync_file_pickle(service_name, operator, async_operator):
     """Test pickle streaming serialization and deserialization using operator."""
     data = {
         "a": 1,
@@ -38,7 +38,7 @@ def test_sync_file_pickle(service_name, operator, async_operator) -> None:
         "k": datetime.strptime("2024-01-01", "%Y-%m-%d"),
     }
 
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     with operator.open(filename, "wb") as f:
         pickle.dump(data, f)
 

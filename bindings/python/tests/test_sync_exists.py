@@ -22,9 +22,9 @@ import pytest
 
 
 @pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
-def test_sync_exists(service_name, operator, async_operator) -> None:
+def test_sync_exists(service_name, operator, async_operator):
     content = os.urandom(1024)
-    target = f"random_{uuid4()!s}"
+    target = f"random_{str(uuid4())}"
     operator.write(target, content)
     assert operator.exists(target)
     assert not operator.exists(target + "1")

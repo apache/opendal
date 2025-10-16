@@ -28,9 +28,9 @@ from opendal.exceptions import ConditionNotMatch, NotFound
 
 
 @pytest.mark.need_capability("read", "write", "delete")
-def test_sync_read(service_name, operator, async_operator) -> None:
+def test_sync_read(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     operator.write(filename, content)
 
@@ -42,9 +42,9 @@ def test_sync_read(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "delete")
-def test_sync_reader(service_name, operator, async_operator) -> None:
+def test_sync_reader(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     operator.write(filename, content)
 
@@ -92,10 +92,10 @@ def test_sync_reader(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read", "write", "delete")
-def test_sync_reader_readline(service_name, operator, async_operator) -> None:
+def test_sync_reader_readline(service_name, operator, async_operator):
     size = randint(1, 1024)
     lines = randint(1, min(100, size))
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = bytearray(os.urandom(size))
 
     for idx in choices(range(size), k=lines):
@@ -120,9 +120,9 @@ def test_sync_reader_readline(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
-async def test_async_read(service_name, operator, async_operator) -> None:
+async def test_async_read(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     await async_operator.write(filename, content)
 
@@ -135,9 +135,9 @@ async def test_async_read(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
-async def test_async_read_path(service_name, operator, async_operator) -> None:
+async def test_async_read_path(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = Path(f"random_file_{uuid4()!s}")
+    filename = Path(f"random_file_{str(uuid4())}")
     content = os.urandom(size)
     await async_operator.write(filename, content)
 
@@ -150,9 +150,9 @@ async def test_async_read_path(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
-async def test_async_reader(service_name, operator, async_operator) -> None:
+async def test_async_reader(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     await async_operator.write(filename, content)
 
@@ -196,11 +196,9 @@ async def test_async_reader(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete")
-async def test_async_reader_without_context(
-    service_name, operator, async_operator
-) -> None:
+async def test_async_reader_without_context(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     await async_operator.write(filename, content)
 
@@ -214,9 +212,9 @@ async def test_async_reader_without_context(
 
 
 @pytest.mark.need_capability("read", "write", "delete", "stat")
-def test_sync_read_stat(service_name, operator, async_operator) -> None:
+def test_sync_read_stat(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     operator.write(filename, content)
 
@@ -230,9 +228,9 @@ def test_sync_read_stat(service_name, operator, async_operator) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "stat")
-async def test_async_read_stat(service_name, operator, async_operator) -> None:
+async def test_async_read_stat(service_name, operator, async_operator):
     size = randint(1, 1024)
-    filename = f"random_file_{uuid4()!s}"
+    filename = f"random_file_{str(uuid4())}"
     content = os.urandom(size)
     await async_operator.write(filename, content)
 
@@ -247,14 +245,14 @@ async def test_async_read_stat(service_name, operator, async_operator) -> None:
 
 
 @pytest.mark.need_capability("read")
-def test_sync_read_not_exists(service_name, operator, async_operator) -> None:
+def test_sync_read_not_exists(service_name, operator, async_operator):
     with pytest.raises(NotFound):
         operator.read(str(uuid4()))
 
 
 @pytest.mark.asyncio
 @pytest.mark.need_capability("read")
-async def test_async_read_not_exists(service_name, operator, async_operator) -> None:
+async def test_async_read_not_exists(service_name, operator, async_operator):
     with pytest.raises(NotFound):
         await async_operator.read(str(uuid4()))
 
@@ -262,8 +260,8 @@ async def test_async_read_not_exists(service_name, operator, async_operator) -> 
 @pytest.mark.need_capability(
     "read", "read_with_if_modified_since", "read_with_if_unmodified_since"
 )
-def test_sync_conditional_reads(service_name, operator) -> None:
-    path = f"random_file_{uuid4()!s}"
+def test_sync_conditional_reads(service_name, operator):
+    path = f"random_file_{str(uuid4())}"
     content = b"test data"
     operator.write(path, content)
 

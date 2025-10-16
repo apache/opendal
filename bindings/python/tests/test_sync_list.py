@@ -21,7 +21,7 @@ import pytest
 
 
 @pytest.mark.need_capability("read", "write", "copy", "list", "list_with_start_after")
-def test_sync_list_with_start_after(service_name, operator, async_operator) -> None:
+def test_sync_list_with_start_after(service_name, operator, async_operator):
     test_dir = f"test_sync_list_dir_{uuid4()}/"
     operator.create_dir(test_dir)
 

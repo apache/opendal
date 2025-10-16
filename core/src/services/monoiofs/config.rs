@@ -62,8 +62,7 @@ mod tests {
 
     #[test]
     fn from_uri_sets_root() {
-        let uri =
-            OperatorUri::new("monoiofs://workspace/tmp", Vec::<(String, String)>::new()).unwrap();
+        let uri = OperatorUri::new("monoiofs:///tmp", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = MonoiofsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("tmp"));

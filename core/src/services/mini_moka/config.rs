@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn from_uri_sets_root_and_preserves_ttl() {
         let uri = OperatorUri::new(
-            "mini-moka://cache/session",
+            "mini-moka:///session",
             vec![("time_to_live".to_string(), "300s".to_string())],
         )
         .unwrap();

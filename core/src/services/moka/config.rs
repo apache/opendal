@@ -65,10 +65,8 @@ impl crate::Configurator for MokaConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(name) = uri.name() {
-            if !name.is_empty() {
-                map.insert("name".to_string(), name.to_string());
-            }
+        if let Some(name) = uri.option("name") {
+            map.insert("name".to_string(), name.to_string());
         }
 
         if let Some(root) = uri.root() {
@@ -96,7 +94,8 @@ mod tests {
 
     #[test]
     fn from_uri_sets_name_and_root() {
-        let uri = OperatorUri::new("moka://session/cache", Vec::<(String, String)>::new()).unwrap();
+        let uri =
+            OperatorUri::new("moka:///cache?name=session", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = MokaConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.name.as_deref(), Some("session"));

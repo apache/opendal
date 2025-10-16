@@ -57,11 +57,8 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri = OperatorUri::new(
-            "memory://localhost/path/to/root",
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("memory:///path/to/root", Vec::<(String, String)>::new()).unwrap();
         let cfg = MemoryConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }

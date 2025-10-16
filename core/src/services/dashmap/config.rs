@@ -64,8 +64,7 @@ mod tests {
 
     #[test]
     fn from_uri_sets_root() {
-        let uri =
-            OperatorUri::new("dashmap://namespace/cache", Vec::<(String, String)>::new()).unwrap();
+        let uri = OperatorUri::new("dashmap:///cache", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = DashmapConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("cache"));

@@ -39,14 +39,9 @@ impl crate::Configurator for FsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(value) = match (uri.name(), uri.root()) {
-            (Some(name), Some(rest)) if !rest.is_empty() => Some(format!("/{}/{}", name, rest)),
-            (Some(name), _) => Some(format!("/{}", name)),
-            (None, Some(rest)) if !rest.is_empty() => Some(format!("/{}", rest)),
-            (None, Some(rest)) => Some(rest.to_string()),
-            _ => None,
-        } {
-            map.insert("root".to_string(), value);
+        if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+            map.entry("root".to_string())
+                .or_insert_with(|| format!("/{}", root));
         }
 
         Self::from_iter(map)
@@ -65,7 +60,7 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri = OperatorUri::new("fs://tmp/data", Vec::<(String, String)>::new()).unwrap();
+        let uri = OperatorUri::new("fs:///tmp/data", Vec::<(String, String)>::new()).unwrap();
         let cfg = FsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
     }

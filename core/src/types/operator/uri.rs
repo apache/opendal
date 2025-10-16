@@ -73,10 +73,7 @@ impl OperatorUri {
             }
         });
 
-        let name = url
-            .host_str()
-            .filter(|host| !host.is_empty())
-            .map(|host| host.to_string());
+        let name = authority.clone();
 
         let decoded_path = percent_decode_str(url.path()).decode_utf8_lossy();
         let trimmed = decoded_path.trim_matches('/');
@@ -130,6 +127,13 @@ impl OperatorUri {
     /// Normalized option map merged from query string and extra options (excluding reserved keys).
     pub fn options(&self) -> &HashMap<String, String> {
         &self.options
+    }
+
+    /// Retrieve a specific option by key (case-insensitive).
+    pub fn option(&self, key: &str) -> Option<&str> {
+        self.options
+            .get(&key.to_ascii_lowercase())
+            .map(String::as_str)
     }
 }
 

@@ -99,7 +99,7 @@ mod tests {
     #[test]
     fn from_uri_extracts_bucket_and_root() {
         let uri = OperatorUri::new(
-            "b2://example-bucket/path/to/root".parse().unwrap(),
+            "b2://example-bucket/path/to/root",
             vec![("bucket_id".to_string(), "bucket-id".to_string())],
         )
         .unwrap();

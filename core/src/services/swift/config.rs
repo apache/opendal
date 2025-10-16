@@ -55,7 +55,79 @@ impl Debug for SwiftConfig {
 
 impl crate::Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("endpoint".to_string())
+                .or_insert_with(|| format!("https://{authority}"));
+        } else if !map.contains_key("endpoint") {
+            return Err(
+                crate::Error::new(crate::ErrorKind::ConfigInvalid, "endpoint is required")
+                    .with_context("service", crate::Scheme::Swift),
+            );
+        }
+
+        if let Some(path) = uri.root() {
+            if let Some((container, rest)) = path.split_once('/') {
+                if !container.is_empty() {
+                    map.insert("container".to_string(), container.to_string());
+                }
+                if !rest.is_empty() {
+                    map.insert("root".to_string(), rest.to_string());
+                }
+            } else if !path.is_empty() {
+                map.insert("container".to_string(), path.to_string());
+            }
+        }
+
+        if !map.contains_key("container") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "container is required",
+            )
+            .with_context("service", crate::Scheme::Swift));
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         SwiftBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_container_and_root() {
+        let uri = OperatorUri::new(
+            "swift://swift.example.com/container/assets/images",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SwiftConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://swift.example.com"));
+        assert_eq!(cfg.container.as_deref(), Some("container"));
+        assert_eq!(cfg.root.as_deref(), Some("assets/images"));
+    }
+
+    #[test]
+    fn from_uri_accepts_container_from_query() {
+        let uri = OperatorUri::new(
+            "swift://swift.example.com",
+            vec![("container".to_string(), "logs".to_string())],
+        )
+        .unwrap();
+
+        let cfg = SwiftConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.container.as_deref(), Some("logs"));
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://swift.example.com"));
     }
 }

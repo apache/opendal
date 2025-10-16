@@ -5382,6 +5382,7 @@ dependencies = [
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "url",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",

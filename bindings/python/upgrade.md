@@ -17,7 +17,7 @@ The following services have been removed due to lack of maintainers and users:
 
 - `atomicserver` - This service is no longer supported
 - `icloud` - This service is no longer supported
-- `nebula_graph` - This service is no longer supported
+- `nebula-graph` - This service is no longer supported
 
 If you were using any of these services, you'll need to migrate to an alternative
 storage backend.

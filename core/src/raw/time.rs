@@ -18,6 +18,7 @@
 //! Time related utils.
 
 use crate::*;
+use jiff::SignedDuration;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
@@ -223,6 +224,23 @@ impl SubAssign<Duration> for Timestamp {
     fn sub_assign(&mut self, rhs: Duration) {
         *self = *self - rhs
     }
+}
+
+/// Convert an unsigned [`Duration`] into a jiff [`SignedDuration`].
+/// Parse a duration encoded either as ISO-8601 (e.g. `PT5M`) or friendly (e.g. `5m`).
+#[inline]
+pub fn signed_to_duration(value: &str) -> Result<Duration> {
+    let signed = value.parse::<SignedDuration>().map_err(|err| {
+        Error::new(ErrorKind::ConfigInvalid, "failed to parse duration").set_source(err)
+    })?;
+
+    Duration::try_from(signed).map_err(|err| {
+        Error::new(
+            ErrorKind::ConfigInvalid,
+            "duration must not be negative or overflow",
+        )
+        .set_source(err)
+    })
 }
 
 #[cfg(test)]

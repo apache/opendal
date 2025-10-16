@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for aliyun_drive service.
-pub(super) const ALIYUN_DRIVE_SCHEME: &str = "aliyun_drive";
+pub(super) const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 mod core;
 
 mod backend;

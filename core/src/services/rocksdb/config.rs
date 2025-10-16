@@ -36,7 +36,40 @@ pub struct RocksdbConfig {
 
 impl crate::Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| format!("/{path}"));
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         RocksdbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_datadir_and_root() {
+        let uri = OperatorUri::new(
+            "rocksdb:///var/db?root=namespace",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = RocksdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datadir.as_deref(), Some("/var/db"));
+        assert_eq!(cfg.root.as_deref(), Some("namespace"));
     }
 }

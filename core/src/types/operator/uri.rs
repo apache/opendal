@@ -73,7 +73,10 @@ impl OperatorUri {
             }
         });
 
-        let name = authority.clone();
+        let name = url
+            .host_str()
+            .filter(|host| !host.is_empty())
+            .map(|host| host.to_string());
 
         let decoded_path = percent_decode_str(url.path()).decode_utf8_lossy();
         let trimmed = decoded_path.trim_matches('/');

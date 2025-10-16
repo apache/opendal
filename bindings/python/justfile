@@ -158,6 +158,8 @@ lint: setup
     @cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -D clippy::dbg_macro
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @{{ ruff }} check
+    @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
+    @hawkeye check --config ../../licenserc.toml
     @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
     @{{ dprint }} check
     @just --fmt --unstable --check
@@ -169,6 +171,8 @@ fmt: setup
     @cargo fmt --all
     @echo "{{ BOLD }}--- Formatting Python ---{{ NORMAL }}"
     @{{ ruff }} format --quiet
+    @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
+    @hawkeye format --config ../../licenserc.toml --fail-if-updated false
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"
     @{{ dprint }} fmt --allow-no-files --log-level silent
     @just --fmt --unstable

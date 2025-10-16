@@ -42,7 +42,7 @@ TEST_CASE = [
 ]
 
 
-async def opendal_write() -> None:
+async def opendal_write():
     op = opendal.AsyncOperator(
         "s3",
         bucket=SETTINGS.aws_s3_bucket,
@@ -56,7 +56,7 @@ async def opendal_write() -> None:
     _ = await asyncio.gather(*tasks)
 
 
-async def opendal_read() -> None:
+async def opendal_read():
     op = opendal.AsyncOperator(
         "s3",
         bucket=SETTINGS.aws_s3_bucket,
@@ -67,18 +67,17 @@ async def opendal_read() -> None:
     _ = await asyncio.gather(*tasks)
 
 
-def read_run() -> None:
+def read_run():
     asyncio.run(opendal_read())
 
 
-def write_run() -> None:
+def write_run():
     asyncio.run(opendal_write())
 
 
-def opendal_benchmark() -> None:
-    for func in (write_run, read_run):
-        fn_name = func.__name__
-        print(f"async_opendal_benchmark::{fn_name}: {timeit.timeit(func, number=3)}")
+def opendal_benchmark():
+    print(f"OpenDAL S3 Client async write: {timeit.timeit(write_run, number=3)}")
+    print(f"OpenDAL S3 Client async read: {timeit.timeit(read_run, number=3)}")
 
 
 if __name__ == "__main__":

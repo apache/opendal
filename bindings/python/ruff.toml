@@ -74,5 +74,5 @@ known-first-party = ["opendal"]
 
 [lint.per-file-ignores]
 "*.pyi" = ["PYI021", "ANN003", "RUF100", "ANN201", "ANN001"]
-"benchmark/*" = ["D100", "D101", "D103"]
+"benchmark/*" = ["D100", "D101", "D103", "ANN201"]
 "tests/*" = ["D101", "D100", "D103", "ANN201", "ANN001"]

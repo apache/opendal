@@ -62,7 +62,7 @@ TEST_CASE = [
 ]
 
 
-def async_origin_s3_write() -> None:
+def async_origin_s3_write():
     tasks = [
         gevent.spawn(
             S3_CLIENT.put_object,
@@ -75,7 +75,7 @@ def async_origin_s3_write() -> None:
     gevent.joinall(tasks)
 
 
-def async_origin_s3_read() -> None:
+def async_origin_s3_read():
     tasks = [
         gevent.spawn(
             S3_CLIENT.get_object,
@@ -90,7 +90,7 @@ def async_origin_s3_read() -> None:
     gevent.joinall(read_tasks)
 
 
-def async_s3_benchmark() -> None:
+def async_s3_benchmark():
     for func in (async_origin_s3_write, async_origin_s3_read):
         fn_name = func.__name__
         print(f"async_origin_s3_benchmark::{fn_name}: {timeit.timeit(func, number=3)}")

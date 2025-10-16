@@ -32,8 +32,7 @@ set ignore-comments := true
 [group('maintenance')]
 setup:
     @echo "{{ BOLD }}--- Installing/ validating dependencies ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
-    @uv sync --managed-python --all-groups --all-extras --no-install-workspace --compile-bytecode --upgrade
+    @uv sync --managed-python --all-groups --all-extras --compile-bytecode --upgrade
 
 # Clean up all caches, build artifacts, and the venv
 [group('maintenance')]
@@ -55,7 +54,6 @@ clean:
 [group('release')]
 build-release *args: setup
     @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run maturin build -m ./Cargo.toml --profile release --strip --release --out dist {{ args }}
     @uv run mkdocs build
 
@@ -63,7 +61,6 @@ build-release *args: setup
 [group('release')]
 install-release *args: setup
     @echo "{{ BOLD }}--- Installing release wheel ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run maturin develop -m ./Cargo.toml --profile release --strip --release {{ args }}
 
 # Build and install the release wheel in the current venv
@@ -71,7 +68,6 @@ install-release *args: setup
 [working-directory('benchmark')]
 bench: install-release
     @echo "{{ BOLD }}--- Bench release ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run async_opendal_benchmark.py
     @uv run async_origin_s3_benchmark_with_gevent.py
 
@@ -79,14 +75,12 @@ bench: install-release
 [group('release')]
 sdist *args: setup
     @echo "{{ BOLD }}--- Building source distribution without compiling ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run maturin sdist -m ./Cargo.toml --out dist {{ args }}
 
 # Compile and produce a development wheel
 [group('dev')]
 build-dev *args: setup
     @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run maturin build -m ./Cargo.toml --out dist {{ args }}
     @uv run mkdocs build
 
@@ -94,7 +88,6 @@ build-dev *args: setup
 [group('dev')]
 install-dev *args: setup
     @echo "{{ BOLD }}--- Installing development wheel ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
     @uv run maturin develop -m ./Cargo.toml {{ args }}
 
 # Run tests
@@ -103,30 +96,9 @@ test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
 
-# Run python repl
-[group('dev')]
-repl: setup
-    @echo "{{ BOLD }}--- Running Python REPL ---{{ NORMAL }}"
-    @uv run python -i
-
-# Run python repl with asyncio
-[group('dev')]
-repl-asyncio: setup
-    @echo "{{ BOLD }}--- Running Python asyncio REPL ---{{ NORMAL }}"
-    @uv run python -m asyncio
-
 # ==============================================================================
 # Code Quality & Formatting
 # ==============================================================================
-
-# Auto-fix linting issues in Rust and Python
-[group('lint')]
-fix: setup
-    @echo "{{ BOLD }}--- Applying automatic fixes (Rust) ---{{ NORMAL }}"
-    @cargo clippy --fix
-    @echo "{{ BOLD }}--- Applying automatic fixes (Python) ---{{ NORMAL }}"
-    @uv run ruff check --fix
-    @just fmt
 
 # Run all lint checks for Rust and Python
 [group('lint')]

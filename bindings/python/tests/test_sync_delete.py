@@ -56,7 +56,7 @@ def test_sync_delete_many(service_name, operator, async_operator):
     for path in targets:
         operator.write(path, os.urandom(16))
 
-    operator.delete_many(targets)
+    operator.delete(targets)
 
     for path in targets:
         assert not operator.exists(path)

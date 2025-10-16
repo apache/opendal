@@ -135,11 +135,6 @@ lint: setup
     @cargo clippy -- -D warnings -D clippy::dbg_macro
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
-    @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
-    @hawkeye check --config ../../licenserc.toml
-    @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
-    @taplo lint --config ../../.taplo.toml
-    @just --fmt --unstable --check
 
 # Format all code (Rust, Python, etc.)
 [group('lint')]
@@ -157,6 +152,11 @@ fmt: setup
 # Run all code formatting and quality checks
 [group('lint')]
 pre-commit: fmt lint
+    @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
+    @hawkeye check --config ../../licenserc.toml
+    @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
+    @taplo lint --config ../../.taplo.toml
+    @just --fmt --unstable --check
 
 # Display this help screen
 help:

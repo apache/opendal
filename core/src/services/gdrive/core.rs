@@ -181,7 +181,7 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
-        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,size,modifiedTime,md5Checksum,version";
 
         let file_name = get_basename(path);
 
@@ -232,7 +232,7 @@ impl GdriveCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url =
-            format!("https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media");
+            format!("https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&fields=id,size,modifiedTime,md5Checksum,version");
 
         let mut req = Request::patch(url)
             .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -484,6 +484,11 @@ pub struct GdriveFile {
     // if other operations(such as search) do not specify the `fields` query parameter,
     // try to access this field, it will be `None`.
     pub modified_time: Option<String>,
+    // The MD5 checksum for the content of the file.
+    // Only applicable to files with binary content in Google Drive.
+    pub md5_checksum: Option<String>,
+    // A short-lived link to the file's version.
+    pub version: Option<String>,
 }
 
 /// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list

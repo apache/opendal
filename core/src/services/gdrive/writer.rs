@@ -43,6 +43,34 @@ impl GdriveWriter {
             file_id,
         }
     }
+
+    fn parse_metadata(file: GdriveFile) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(size) = file.size {
+            let content_length = size.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?;
+            metadata.set_content_length(content_length);
+        }
+
+        if let Some(modified_time) = file.modified_time {
+            let last_modified = modified_time.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?;
+            metadata.set_last_modified(last_modified);
+        }
+
+        if let Some(md5_checksum) = file.md5_checksum {
+            metadata.set_content_md5(&md5_checksum);
+        }
+
+        if let Some(version) = file.version {
+            metadata.set_version(&version);
+        }
+
+        Ok(metadata)
+    }
 }
 
 impl oio::OneShotWrite for GdriveWriter {
@@ -62,14 +90,17 @@ impl oio::OneShotWrite for GdriveWriter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::CREATED => {
+                let bs = resp.into_body();
+                let file: GdriveFile =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
                 // If we don't have the file id before, let's update the cache to avoid re-fetching.
                 if self.file_id.is_none() {
-                    let bs = resp.into_body();
-                    let file: GdriveFile =
-                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                     self.core.path_cache.insert(&self.path, &file.id).await;
                 }
-                Ok(Metadata::default())
+
+                let metadata = GdriveWriter::parse_metadata(file)?;
+                Ok(metadata)
             }
             _ => Err(parse_error(resp)),
         }

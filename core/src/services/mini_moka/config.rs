@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use super::backend::MiniMokaBuilder;
-use jiff::SignedDuration;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,11 +34,11 @@ pub struct MiniMokaConfig {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<SignedDuration>,
+    pub time_to_live: Option<String>,
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<SignedDuration>,
+    pub time_to_idle: Option<String>,
 
     /// root path of this backend
     pub root: Option<String>,

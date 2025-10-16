@@ -227,15 +227,13 @@ impl SubAssign<Duration> for Timestamp {
 }
 
 /// Convert an unsigned [`Duration`] into a jiff [`SignedDuration`].
+/// Parse a duration encoded either as ISO-8601 (e.g. `PT5M`) or friendly (e.g. `5m`).
 #[inline]
-pub fn duration_to_signed(duration: Duration) -> SignedDuration {
-    SignedDuration::try_from(duration)
-        .expect("std::time::Duration should always convert to SignedDuration")
-}
+pub fn signed_to_duration(value: &str) -> Result<Duration> {
+    let signed = value.parse::<SignedDuration>().map_err(|err| {
+        Error::new(ErrorKind::ConfigInvalid, "failed to parse duration").set_source(err)
+    })?;
 
-/// Convert a jiff [`SignedDuration`] back into an unsigned [`Duration`].
-#[inline]
-pub fn signed_to_duration(signed: SignedDuration) -> Result<Duration> {
     Duration::try_from(signed).map_err(|err| {
         Error::new(
             ErrorKind::ConfigInvalid,

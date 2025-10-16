@@ -231,8 +231,9 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let url =
-            format!("https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&fields=id,size,modifiedTime,md5Checksum,version");
+        let url = format!(
+            "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&fields=id,size,modifiedTime,md5Checksum,version"
+        );
 
         let mut req = Request::patch(url)
             .header(header::CONTENT_TYPE, "application/octet-stream")

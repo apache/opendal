@@ -51,7 +51,7 @@ public interface ServiceConfig {
     Map<String, String> configMap();
 
     /**
-     * Configuration for service aliyun_drive.
+     * Configuration for service aliyun-drive.
      */
     @Builder
     @Data
@@ -94,7 +94,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "aliyun_drive";
+            return "aliyun-drive";
         }
 
         @Override
@@ -509,7 +509,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service cloudflare_kv.
+     * Configuration for service cloudflare-kv.
      */
     @Builder
     @Data
@@ -534,7 +534,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "cloudflare_kv";
+            return "cloudflare-kv";
         }
 
         @Override
@@ -1279,7 +1279,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service hdfs_native.
+     * Configuration for service hdfs-native.
      */
     @Builder
     @Data
@@ -1300,7 +1300,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "hdfs_native";
+            return "hdfs-native";
         }
 
         @Override
@@ -1773,7 +1773,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service mini_moka.
+     * Configuration for service mini-moka.
      */
     @Builder
     @Data
@@ -1801,7 +1801,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "mini_moka";
+            return "mini-moka";
         }
 
         @Override
@@ -2045,7 +2045,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service nebula_graph.
+     * Configuration for service nebula-graph.
      */
     @Builder
     @Data
@@ -2090,7 +2090,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "nebula_graph";
+            return "nebula-graph";
         }
 
         @Override
@@ -3402,7 +3402,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service vercel_artifacts.
+     * Configuration for service vercel-artifacts.
      */
     @Builder
     @Data
@@ -3415,7 +3415,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "vercel_artifacts";
+            return "vercel-artifacts";
         }
 
         @Override
@@ -3429,7 +3429,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service vercel_blob.
+     * Configuration for service vercel-blob.
      */
     @Builder
     @Data
@@ -3447,7 +3447,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "vercel_blob";
+            return "vercel-blob";
         }
 
         @Override
@@ -3588,7 +3588,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service yandex_disk.
+     * Configuration for service yandex-disk.
      */
     @Builder
     @Data
@@ -3606,7 +3606,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "yandex_disk";
+            return "yandex-disk";
         }
 
         @Override

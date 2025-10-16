@@ -59,11 +59,79 @@ impl Debug for SeafileConfig {
 impl crate::Configurator for SeafileConfig {
     type Builder = SeafileBuilder;
 
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Seafile)
+        })?;
+
+        let raw_path = uri.root().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri path must start with repo name",
+            )
+            .with_context("service", crate::Scheme::Seafile)
+        })?;
+
+        let mut segments = raw_path.splitn(2, '/');
+        let repo_name = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "repo name is required in uri path",
+            )
+            .with_context("service", crate::Scheme::Seafile)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        map.insert("repo_name".to_string(), repo_name.to_string());
+
+        if let Some(rest) = segments.next() {
+            if !rest.is_empty() {
+                map.insert("root".to_string(), rest.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         SeafileBuilder {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_repo_and_root() {
+        let uri = OperatorUri::new(
+            "seafile://files.example.com/myrepo/projects/app",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SeafileConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://files.example.com"));
+        assert_eq!(cfg.repo_name, "myrepo".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("projects/app"));
+    }
+
+    #[test]
+    fn from_uri_requires_repo_name() {
+        let uri = OperatorUri::new(
+            "seafile://files.example.com",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert!(SeafileConfig::from_uri(&uri).is_err());
     }
 }

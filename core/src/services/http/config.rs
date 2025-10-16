@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "http://example.com/static/assets".parse().unwrap(),
+            "http://example.com/static/assets",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn from_uri_preserves_query_options() {
         let uri = OperatorUri::new(
-            "http://cdn.example.com/data?token=abc123".parse().unwrap(),
+            "http://cdn.example.com/data?token=abc123",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn from_uri_ignores_endpoint_override() {
         let uri = OperatorUri::new(
-            "http://example.com/data".parse().unwrap(),
+            "http://example.com/data",
             vec![(
                 "endpoint".to_string(),
                 "https://cdn.example.com".to_string(),

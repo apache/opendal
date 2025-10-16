@@ -66,7 +66,73 @@ impl Debug for SurrealdbConfig {
 
 impl crate::Configurator for SurrealdbConfig {
     type Builder = SurrealdbBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("ws://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let mut segments = path.splitn(4, '/');
+                if let Some(namespace) = segments.next() {
+                    if !namespace.is_empty() {
+                        map.entry("namespace".to_string())
+                            .or_insert_with(|| namespace.to_string());
+                    }
+                }
+                if let Some(database) = segments.next() {
+                    if !database.is_empty() {
+                        map.entry("database".to_string())
+                            .or_insert_with(|| database.to_string());
+                    }
+                }
+                if let Some(table) = segments.next() {
+                    if !table.is_empty() {
+                        map.entry("table".to_string())
+                            .or_insert_with(|| table.to_string());
+                    }
+                }
+                if let Some(rest) = segments.next() {
+                    if !rest.is_empty() {
+                        map.insert("root".to_string(), rest.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         SurrealdbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_namespace_database_table_and_root() {
+        let uri = OperatorUri::new(
+            "surrealdb://db.example.com:8000/project/app/cache/static",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = SurrealdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("ws://db.example.com:8000")
+        );
+        assert_eq!(cfg.namespace.as_deref(), Some("project"));
+        assert_eq!(cfg.database.as_deref(), Some("app"));
+        assert_eq!(cfg.table.as_deref(), Some("cache"));
+        assert_eq!(cfg.root.as_deref(), Some("static"));
     }
 }

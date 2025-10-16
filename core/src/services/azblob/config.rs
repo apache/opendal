@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn from_uri_with_host_container() {
         let uri = OperatorUri::new(
-            "azblob://my-container/path/to/root".parse().unwrap(),
+            "azblob://my-container/path/to/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn from_uri_with_path_container() {
         let uri = OperatorUri::new(
-            "azblob://my-container/nested/root".parse().unwrap(),
+            "azblob://my-container/nested/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

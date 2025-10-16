@@ -68,7 +68,75 @@ impl Debug for MysqlConfig {
 
 impl crate::Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("mysql://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let (table_segment, rest) = match path.split_once('/') {
+                    Some((table, remainder)) => (table, Some(remainder)),
+                    None => (path, None),
+                };
+
+                if !table_segment.is_empty() {
+                    map.entry("table".to_string())
+                        .or_insert_with(|| table_segment.to_string());
+                }
+
+                if let Some(root) = rest {
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         MysqlBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_string_table_and_root() {
+        let uri = OperatorUri::new(
+            "mysql://db.example.com:3306/kv/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MysqlConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mysql://db.example.com:3306")
+        );
+        assert_eq!(cfg.table.as_deref(), Some("kv"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
+    }
+
+    #[test]
+    fn from_uri_respects_existing_table() {
+        let uri = OperatorUri::new(
+            "mysql://db.example.com:3306/users?root=logs",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MysqlConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.table.as_deref(), Some("users"));
+        assert_eq!(cfg.root.as_deref(), Some("logs"));
     }
 }

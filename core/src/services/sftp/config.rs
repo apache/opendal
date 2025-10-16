@@ -83,7 +83,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "sftp://sftp.example.com/home/alice".parse().unwrap(),
+            "sftp://sftp.example.com/home/alice",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn from_uri_applies_connection_overrides() {
         let uri = OperatorUri::new(
-            "sftp://host".parse().unwrap(),
+            "sftp://host",
             vec![
                 ("user".to_string(), "alice".to_string()),
                 ("key".to_string(), "/home/alice/.ssh/id_rsa".to_string()),

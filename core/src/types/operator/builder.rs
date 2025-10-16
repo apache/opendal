@@ -330,18 +330,13 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     /// async fn test() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
+    ///     let map = HashMap::new();
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
+    ///     let op: Operator = Operator::from_map::<Memory>(map)?.finish();
     ///
     ///     Ok(())
     /// }
@@ -371,15 +366,10 @@ impl Operator {
     /// use opendal::Operator;
     /// use opendal::Scheme;
     /// async fn test() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
+    ///     let map = HashMap::new();
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?;
+    ///     let op: Operator = Operator::via_map(Scheme::Memory, map)?;
     ///
     ///     Ok(())
     /// }
@@ -411,11 +401,11 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     ///
     /// # async fn test() -> Result<()> {
-    /// let op = Operator::new(Fs::default())?.finish();
+    /// let op = Operator::new(Memory::default())?.finish();
     /// let op = op.layer(LoggingLayer::default());
     /// // All operations will go through the new_layer
     /// let _ = op.read("test_file").await?;
@@ -466,8 +456,7 @@ impl Operator {
 ///
 /// async fn init(scheme: Scheme, cfg: HashMap<String, String>) -> Result<()> {
 ///     let _ = match scheme {
-///         Scheme::S3 => init_service::<services::S3>(cfg)?,
-///         Scheme::Fs => init_service::<services::Fs>(cfg)?,
+///         Scheme::Memory => init_service::<services::Memory>(cfg)?,
 ///         _ => todo!(),
 ///     };
 ///
@@ -506,11 +495,11 @@ impl<A: Access> OperatorBuilder<A> {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     ///
     /// # async fn test() -> Result<()> {
-    /// let op = Operator::new(Fs::default())?
+    /// let op = Operator::new(Memory::default())?
     ///     .layer(LoggingLayer::default())
     ///     .finish();
     /// // All operations will go through the new_layer

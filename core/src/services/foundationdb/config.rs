@@ -47,7 +47,43 @@ impl Debug for FoundationdbConfig {
 
 impl crate::Configurator for FoundationdbConfig {
     type Builder = FoundationdbBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                map.entry("config_path".to_string())
+                    .or_insert_with(|| format!("/{path}"));
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         FoundationdbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_config_path_and_root() {
+        let uri = OperatorUri::new(
+            "foundationdb:///etc/foundationdb/fdb.cluster?root=data",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FoundationdbConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.config_path.as_deref(),
+            Some("/etc/foundationdb/fdb.cluster")
+        );
+        assert_eq!(cfg.root.as_deref(), Some("data"));
     }
 }

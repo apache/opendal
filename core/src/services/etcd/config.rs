@@ -88,7 +88,44 @@ impl Debug for EtcdConfig {
 
 impl crate::Configurator for EtcdConfig {
     type Builder = EtcdBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("endpoints".to_string())
+                .or_insert_with(|| format!("http://{authority}"));
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         EtcdBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoints_and_root() {
+        let uri = OperatorUri::new(
+            "etcd://127.0.0.1:2379/app/config",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = EtcdConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoints.as_deref(), Some("http://127.0.0.1:2379"));
+        assert_eq!(cfg.root.as_deref(), Some("app/config"));
     }
 }

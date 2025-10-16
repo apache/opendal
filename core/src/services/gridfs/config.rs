@@ -52,7 +52,66 @@ impl Debug for GridfsConfig {
 
 impl crate::Configurator for GridfsConfig {
     type Builder = GridfsBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("mongodb://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let mut segments = path.splitn(3, '/');
+                if let Some(database) = segments.next() {
+                    if !database.is_empty() {
+                        map.entry("database".to_string())
+                            .or_insert_with(|| database.to_string());
+                    }
+                }
+                if let Some(bucket) = segments.next() {
+                    if !bucket.is_empty() {
+                        map.entry("bucket".to_string())
+                            .or_insert_with(|| bucket.to_string());
+                    }
+                }
+                if let Some(rest) = segments.next() {
+                    if !rest.is_empty() {
+                        map.insert("root".to_string(), rest.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         GridfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_database_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "gridfs://mongo.example.com:27017/app_files/assets/images",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = GridfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mongodb://mongo.example.com:27017")
+        );
+        assert_eq!(cfg.database.as_deref(), Some("app_files"));
+        assert_eq!(cfg.bucket.as_deref(), Some("assets"));
+        assert_eq!(cfg.root.as_deref(), Some("images"));
     }
 }

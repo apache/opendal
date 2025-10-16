@@ -24,53 +24,24 @@ default: help
 
 set ignore-comments := true
 
-# Virtual environment.
-
-venv := '.venv'
-venv_bin := if os() == "windows" { venv + "/Scripts" } else { venv + "/bin" }
-
-# Tool executables, resolved within the venv.
-
-python := venv_bin + '/python'
-uv := venv_bin + '/uv'
-ruff := venv_bin + '/ruff'
-maturin := venv_bin + '/maturin'
-dprint := venv_bin + '/dprint'
-
 # ==============================================================================
 # Setup & Maintenance
 # ==============================================================================
 
-# Set up the dev environment and install all dependencies.
-[group('maintenance')]
-setup:
-    @if [ ! -d "{{ venv }}" ]; then \
-        echo "{{ BOLD }}--- Setting up Python virtual environment at '{{ venv }}' ---{{ NORMAL }}"; \
-        unset CONDA_PREFIX; \
-        python3 -m venv {{ venv }}; \
-        {{ python }} -m pip install --quiet --upgrade pip uv; \
-    fi
-
-    @{{ uv }} venv --allow-existing {{ venv }};
-    @just _requirements
-
 # Install/refresh all Python dependencies using uv.
 [group('maintenance')]
-_requirements:
-    @echo "{{ BOLD }}--- Installing dependencies using uv ---{{ NORMAL }}"
-    @unset CONDA_PREFIX \
-    && {{ uv }} sync --all-groups --all-extras --no-install-workspace --compile-bytecode --no-build --no-install-package greenify \
-    && {{ uv }} pip install --compile-bytecode greenify  # greenify lacks wheels, so it's installed separately
+setup:
+    @echo "{{ BOLD }}--- Installing/ validating dependencies ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @uv sync --managed-python --all-groups --all-extras --no-install-workspace --compile-bytecode --upgrade
 
 # Clean up all caches, build artifacts, and the venv
 [group('maintenance')]
 clean:
-    @echo "{{ BOLD }}--- Cleaning Python cache (Ruff) ---{{ NORMAL }}"
-    @if [ -f "{{ ruff }}" ]; then {{ ruff }} clean; fi
     @echo "{{ BOLD }}--- Cleaning Rust build artifacts (Cargo) ---{{ NORMAL }}"
     @cargo clean
-    @echo "{{ BOLD }}--- Removing venv, build/dist directories, and other caches ---{{ NORMAL }}"
-    @rm -rf {{ venv }} build/ dist/ .pytest_cache/ .mypy_cache/ .hypothesis/
+    @echo "{{ BOLD }}--- Removing .venv/, build/, dist/ directories, and other caches ---{{ NORMAL }}"
+    @rm -rf .venv/ build/ dist/ .pytest_cache/ .mypy_cache/ .hypothesis/ .ruff_cache/
     @echo "{{ BOLD }}--- Removing Python bytecode and compiled extensions ---{{ NORMAL }}"
     @find . -type f -name '*.py[co]' -delete \
         -o -type d -name __pycache__ -exec rm -rf {} + \
@@ -85,58 +56,57 @@ clean:
 build-release *args: setup
     @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @{{ maturin }} build -m ./Cargo.toml --profile release --strip --release {{ args }}
-    @{{ uv }} run mkdocs build
+    @uv run maturin build -m ./Cargo.toml --profile release --strip --release {{ args }}
+    @uv run mkdocs build
 
 # Build and install the release wheel in the current venv
 [group('release')]
 install-release *args: setup
     @echo "{{ BOLD }}--- Installing release wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @{{ maturin }} develop -m ./Cargo.toml --profile release --strip --release {{ args }}
+    @uv run maturin develop -m ./Cargo.toml --profile release --strip --release {{ args }}
 
 # Build and install the release wheel in the current venv
 [group('release')]
 [working-directory('benchmark')]
-bench *args:
+bench: install-release
     @echo "{{ BOLD }}--- Bench release ---{{ NORMAL }}"
-    @../{{ maturin }} develop -m ../Cargo.toml -E=benchmark --profile release --strip --release {{ args }}
     @unset CONDA_PREFIX
-    @../{{ uv }} run async_opendal_benchmark.py
-    @../{{ uv }} run async_origin_s3_benchmark_with_gevent.py
+    @uv run async_opendal_benchmark.py
+    @uv run async_origin_s3_benchmark_with_gevent.py
 
 # Compile and produce a development wheel
 [group('dev')]
 build-dev *args: setup
     @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @{{ maturin }} build -m ./Cargo.toml {{ args }}
-    @{{ uv }} run mkdocs build
+    @uv run maturin build -m ./Cargo.toml {{ args }}
+    @uv run mkdocs build
 
 # Build and install the development wheel in the current venv
 [group('dev')]
 install-dev *args: setup
     @echo "{{ BOLD }}--- Installing development wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @{{ maturin }} develop -m ./Cargo.toml {{ args }}
+    @uv run maturin develop -m ./Cargo.toml {{ args }}
 
 # Run tests
 [group('dev')]
 test *args: setup
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
-    @{{ uv }} run pytest -v {{ args }}
+    @uv run pytest -v {{ args }}
 
 # Run python repl
 [group('dev')]
 repl: setup
     @echo "{{ BOLD }}--- Running Python REPL ---{{ NORMAL }}"
-    @{{ python }} -i
+    @uv run python -i
 
 # Run python repl with asyncio
 [group('dev')]
 repl-asyncio: setup
     @echo "{{ BOLD }}--- Running Python asyncio REPL ---{{ NORMAL }}"
-    @{{ python }} -m asyncio
+    @uv run python -m asyncio
 
 # ==============================================================================
 # Code Quality & Formatting
@@ -148,7 +118,7 @@ fix: setup
     @echo "{{ BOLD }}--- Applying automatic fixes (Rust) ---{{ NORMAL }}"
     @cargo clippy --workspace --all-targets --all-features --fix --allow-dirty
     @echo "{{ BOLD }}--- Applying automatic fixes (Python) ---{{ NORMAL }}"
-    @{{ ruff }} check --fix
+    @uv run ruff check --fix
     @just fmt
 
 # Run all lint checks for Rust and Python
@@ -157,11 +127,11 @@ lint: setup
     @echo "{{ BOLD }}--- Running Rust linter (Clippy) ---{{ NORMAL }}"
     @cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -D clippy::dbg_macro
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
-    @{{ ruff }} check
+    @uv run ruff check
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
     @hawkeye check --config ../../licenserc.toml
     @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
-    @{{ dprint }} check
+    @taplo lint --config ../../.taplo.toml
     @just --fmt --unstable --check
 
 # Format all code (Rust, Python, etc.)
@@ -170,11 +140,11 @@ fmt: setup
     @echo "{{ BOLD }}--- Formatting Rust ---{{ NORMAL }}"
     @cargo fmt --all
     @echo "{{ BOLD }}--- Formatting Python ---{{ NORMAL }}"
-    @{{ ruff }} format --quiet
+    @uv run ruff format --quiet
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
     @hawkeye format --config ../../licenserc.toml --fail-if-updated false
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"
-    @{{ dprint }} fmt --allow-no-files --log-level silent
+    @taplo fmt --config ../../.taplo.toml
     @just --fmt --unstable
 
 # Run all code formatting and quality checks

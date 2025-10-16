@@ -42,7 +42,9 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
+        with:
+          working-directory: "bindings/python"
       - uses: taiki-e/install-action@just
       - name: Run Lints
         working-directory: "bindings/python"

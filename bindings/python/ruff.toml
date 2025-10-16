@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+exclude = ["__base.pyi"] # Skip generated code
 line-length = 88
 show-fixes = true
 

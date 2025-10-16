@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from opendal._opendal import *
+# ruff: noqa: D104
 
-__all__ = _opendal.__all__
+from opendal._opendal import *  # noqa: F403
+
+__all__ = [_opendal.__all__]  # noqa: F405

@@ -99,7 +99,7 @@ install-dev *args: setup
 
 # Run tests
 [group('dev')]
-test *args: setup
+test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
 
@@ -123,7 +123,7 @@ repl-asyncio: setup
 [group('lint')]
 fix: setup
     @echo "{{ BOLD }}--- Applying automatic fixes (Rust) ---{{ NORMAL }}"
-    @cargo clippy --workspace --all-targets --all-features --fix --allow-dirty
+    @cargo clippy --fix
     @echo "{{ BOLD }}--- Applying automatic fixes (Python) ---{{ NORMAL }}"
     @uv run ruff check --fix
     @just fmt

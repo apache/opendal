@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# ruff: noqa: E402
+
 import timeit
 
 from gevent import monkey

@@ -10,20 +10,12 @@ get started.
 
 Before you begin, please ensure you have the following tools installed:
 
-- **Git**: For version control.
-- **Python**: Version 3.10 or newer.
-- **Just**: A command runner used to simplify our development workflow. You can install
-  it with:
-  ```shell
-  # macOS
-  brew install just
-
-  # Windows
-  choco install just
-
-  # Or with cargo (if you have Rust installed)
-  cargo install just
-  ```
+- **Git**: For version control. Setup instructions [here](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+- **uv**: To manage the python dependencies and environment. See Installation instructions [here](https://docs.astral.sh/uv/getting-started/installation/).
+- **cargo**: To manage the rust dependencies and environment. See Installation instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html).
+- **taplo**: Simple checker and formatter for TOML files. See Installation instructions [here](https://taplo.tamasfe.dev/cli/installation/cargo.html).
+- **hawkeye**: Simple license header checker and formatter. See Installation instructions [here](https://github.com/korandoru/hawkeye?tab=readme-ov-file#cargo-install).
+- **Just**: A command runner used to simplify our development workflow. See Installation instructions [here](https://just.systems/man/en/packages.html).
 
 ---
 
@@ -34,7 +26,7 @@ is as simple as running one command.
 
 1. **Clone the repository:**
    ```shell
-   git clone [https://github.com/apache/opendal.git](https://github.com/apache/opendal.git)
+   git clone git@github.com:apache/opendal.git
    cd opendal/bindings/python
    ```
 

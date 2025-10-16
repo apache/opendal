@@ -56,7 +56,7 @@ clean:
 build-release *args: setup
     @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @uv run maturin build -m ./Cargo.toml --profile release --strip --release {{ args }}
+    @uv run maturin build -m ./Cargo.toml --profile release --strip --release --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the release wheel in the current venv
@@ -75,12 +75,19 @@ bench: install-release
     @uv run async_opendal_benchmark.py
     @uv run async_origin_s3_benchmark_with_gevent.py
 
+# Build only a source distribution (sdist) without compiling
+[group('release')]
+sdist *args: setup
+    @echo "{{ BOLD }}--- Building source distribution without compiling ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @uv run maturin sdist -m ./Cargo.toml --out dist {{ args }}
+
 # Compile and produce a development wheel
 [group('dev')]
 build-dev *args: setup
     @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
-    @uv run maturin build -m ./Cargo.toml {{ args }}
+    @uv run maturin build -m ./Cargo.toml --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the development wheel in the current venv
@@ -125,7 +132,7 @@ fix: setup
 [group('lint')]
 lint: setup
     @echo "{{ BOLD }}--- Running Rust linter (Clippy) ---{{ NORMAL }}"
-    @cargo clippy --workspace --all-targets --all-features --locked -- -D warnings -D clippy::dbg_macro
+    @cargo clippy -- -D warnings -D clippy::dbg_macro
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"

@@ -1,8 +1,13 @@
 {
   "includes": [
-    "**/*.{toml,json}"
+    "**/*.{toml,json,md}"
   ],
+  "markdown": {
+    "lineWidth": 88,
+    "textWrap": "always"
+  },
   "excludes": [
+    "docs/**/*.md",
     ".venv/",
     "**/*-lock.json",
     "**/target/",
@@ -11,6 +16,7 @@
   ],
   "plugins": [
     "https://plugins.dprint.dev/toml-0.7.0.wasm",
-    "https://plugins.dprint.dev/ruff-0.4.8.wasm"
+    "https://plugins.dprint.dev/ruff-0.4.8.wasm",
+    "https://plugins.dprint.dev/markdown-0.18.0.wasm"
   ]
 }

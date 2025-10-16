@@ -49,15 +49,11 @@ async def opendal_write() -> None:
         region=SETTINGS.aws_region,
         endpoint=SETTINGS.aws_endpoint,
     )
-    tasks = []
-    for case in TEST_CASE:
-        tasks.append(
-            op.write(
-                f"/benchmark/opendal_write/{case['name']}",
-                case["data"],
-            )
-        )
-    await asyncio.gather(*tasks)
+    tasks = [
+        op.write(f"/benchmark/opendal_write/{case['name']}", case["data"])
+        for case in TEST_CASE
+    ]
+    _ = await asyncio.gather(*tasks)
 
 
 async def opendal_read() -> None:
@@ -67,10 +63,8 @@ async def opendal_read() -> None:
         region=SETTINGS.aws_region,
         endpoint=SETTINGS.aws_endpoint,
     )
-    tasks = []
-    for case in TEST_CASE:
-        tasks.append(op.read(f"/benchmark/opendal_write/{case['name']}"))
-    await asyncio.gather(*tasks)
+    tasks = [op.read(f"/benchmark/opendal_write/{case['name']}") for case in TEST_CASE]
+    _ = await asyncio.gather(*tasks)
 
 
 def read_run() -> None:
@@ -82,8 +76,9 @@ def write_run() -> None:
 
 
 def opendal_benchmark() -> None:
-    print(f"OpenDAL S3 Client async write: {timeit.timeit(write_run, number=3)}")
-    print(f"OpenDAL S3 Client async read: {timeit.timeit(read_run, number=3)}")
+    for func in (write_run, read_run):
+        fn_name = func.__name__
+        print(f"async_opendal_benchmark::{fn_name}: {timeit.timeit(func, number=3)}")
 
 
 if __name__ == "__main__":

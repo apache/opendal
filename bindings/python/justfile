@@ -45,7 +45,7 @@ dprint := venv_bin + '/dprint'
 [group('maintenance')]
 setup:
     @if [ ! -d "{{ venv }}" ]; then \
-        @echo "{{ BOLD }}--- Setting up Python virtual environment at '{{ venv }}' ---{{ NORMAL }}"; \
+        echo "{{ BOLD }}--- Setting up Python virtual environment at '{{ venv }}' ---{{ NORMAL }}"; \
         unset CONDA_PREFIX; \
         python3 -m venv {{ venv }}; \
         {{ python }} -m pip install --quiet --upgrade pip uv; \
@@ -80,14 +80,6 @@ clean:
 # Dev & Build
 # ==============================================================================
 
-# Compile and produce a development wheel
-[group('dev')]
-build-dev *args: setup
-    @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
-    @{{ maturin }} build -m ./Cargo.toml {{ args }}
-    @{{ uv }} run mkdocs build
-
 # Compile and produce a release wheel with optimizations
 [group('release')]
 build-release *args: setup
@@ -96,19 +88,37 @@ build-release *args: setup
     @{{ maturin }} build -m ./Cargo.toml --profile release --strip --release {{ args }}
     @{{ uv }} run mkdocs build
 
-# Build and install the development wheel in the current venv
-[group('dev')]
-install-dev *args: setup
-    @echo "{{ BOLD }}--- Installing development version (editable) ---{{ NORMAL }}"
-    @unset CONDA_PREFIX
-    @{{ maturin }} develop -m ./Cargo.toml {{ args }}
-
 # Build and install the release wheel in the current venv
 [group('release')]
 install-release *args: setup
-    @echo "{{ BOLD }}--- Installing release version ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Installing release wheel ---{{ NORMAL }}"
     @unset CONDA_PREFIX
     @{{ maturin }} develop -m ./Cargo.toml --profile release --strip --release {{ args }}
+
+# Build and install the release wheel in the current venv
+[group('release')]
+[working-directory('benchmark')]
+bench *args:
+    @echo "{{ BOLD }}--- Bench release ---{{ NORMAL }}"
+    @../{{ maturin }} develop -m ../Cargo.toml -E=benchmark --profile release --strip --release {{ args }}
+    @unset CONDA_PREFIX
+    @../{{ uv }} run async_opendal_benchmark.py
+    @../{{ uv }} run async_origin_s3_benchmark_with_gevent.py
+
+# Compile and produce a development wheel
+[group('dev')]
+build-dev *args: setup
+    @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} build -m ./Cargo.toml {{ args }}
+    @{{ uv }} run mkdocs build
+
+# Build and install the development wheel in the current venv
+[group('dev')]
+install-dev *args: setup
+    @echo "{{ BOLD }}--- Installing development wheel ---{{ NORMAL }}"
+    @unset CONDA_PREFIX
+    @{{ maturin }} develop -m ./Cargo.toml {{ args }}
 
 # Run tests
 [group('dev')]
@@ -125,7 +135,7 @@ repl: setup
 # Run python repl with asyncio
 [group('dev')]
 repl-asyncio: setup
-    @echo "{{ BOLD }}--- Running Python REPL ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Running Python asyncio REPL ---{{ NORMAL }}"
     @{{ python }} -m asyncio
 
 # ==============================================================================

@@ -152,6 +152,18 @@ class Operator(_Base):
         -------
             None
         """
+    def delete_many(self, paths: Iterable[PathBuf]) -> None:
+        """Delete multiple objects in a single request.
+
+        Args:
+            paths (Iterable[str | Path]): Collection of object paths to delete.
+                Each element is treated the same as calling :py:meth:`delete`
+                individually.
+
+        Notes
+        -----
+            Missing objects are ignored by default.
+        """
     def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.
 
@@ -380,6 +392,18 @@ class AsyncOperator(_Base):
         Returns
         -------
             None
+        """
+    async def delete_many(self, paths: Iterable[PathBuf]) -> None:
+        """Delete multiple objects in a single request.
+
+        Args:
+            paths (Iterable[str | Path]): Collection of object paths to delete.
+                Each element is treated the same as calling :py:meth:`delete`
+                individually.
+
+        Notes
+        -----
+            Missing objects are ignored by default.
         """
     async def stat(self, path: PathBuf, **kwargs) -> Metadata:
         """Get the metadata of the object at the given path.

@@ -47,3 +47,18 @@ async def test_async_remove_all(service_name, operator, async_operator):
             with pytest.raises(NotFound):
                 await async_operator.read(f"{parent}/{path}")
     await async_operator.remove_all(f"{parent}/")
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_delete_many(service_name, operator, async_operator):
+    parent = f"delete_many_{str(uuid4())}"
+    targets = [f"{parent}/file_{idx}.txt" for idx in range(3)]
+
+    for path in targets:
+        await async_operator.write(path, os.urandom(16))
+
+    await async_operator.delete_many(targets)
+
+    for path in targets:
+        assert not await async_operator.exists(path)

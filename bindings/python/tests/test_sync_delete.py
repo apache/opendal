@@ -46,3 +46,17 @@ def test_sync_remove_all(service_name, operator, async_operator):
             with pytest.raises(NotFound):
                 operator.read(f"{parent}/{path}")
     operator.remove_all(f"{parent}/")
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_delete_many(service_name, operator, async_operator):
+    parent = f"delete_many_{str(uuid4())}"
+    targets = [f"{parent}/file_{idx}.txt" for idx in range(3)]
+
+    for path in targets:
+        operator.write(path, os.urandom(16))
+
+    operator.delete_many(targets)
+
+    for path in targets:
+        assert not operator.exists(path)

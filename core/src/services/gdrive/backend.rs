@@ -74,11 +74,9 @@ impl Access for GdriveBackend {
                 Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
             })?);
         }
-        if let Some(v) = gdrive_file.modified_time {
-            meta = meta.with_last_modified(v.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?);
-        }
+        meta = meta.with_last_modified(gdrive_file.modified_time.parse::<Timestamp>().map_err(
+            |e| Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e),
+        )?);
         Ok(RpStat::new(meta))
     }
 

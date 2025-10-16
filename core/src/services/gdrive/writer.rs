@@ -54,12 +54,10 @@ impl GdriveWriter {
             metadata.set_content_length(content_length);
         }
 
-        if let Some(modified_time) = file.modified_time {
-            let last_modified = modified_time.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?;
-            metadata.set_last_modified(last_modified);
-        }
+        let last_modified = file.modified_time.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?;
+        metadata.set_last_modified(last_modified);
 
         if let Some(md5_checksum) = file.md5_checksum {
             metadata.set_content_md5(&md5_checksum);

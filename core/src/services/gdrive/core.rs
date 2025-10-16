@@ -34,6 +34,13 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
+// We append this as part of URL to request Google Drive file fields.
+// Must be kept in sync with `GdriveFile` struct fields.
+// For now, we only load the below fields for a smaller response.
+// Read more: https://developers.google.com/workspace/drive/api/guides/fields-parameter
+pub(crate) const DRIVE_FILE_FIELDS: &str =
+    "id,name,mimeType,size,modifiedTime,md5Checksum,version";
+
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,
 
@@ -61,14 +68,12 @@ impl GdriveCore {
             format!("path not found: {path}"),
         ))?;
 
-        // The file metadata in the Google Drive API is very complex.
-        // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
-            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
+            "https://www.googleapis.com/drive/v3/files/{file_id}?fields={DRIVE_FILE_FIELDS}"
         ))
-            .extension(Operation::Stat)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+        .extension(Operation::Stat)
+        .body(Buffer::new())
+        .map_err(new_request_build_error)?;
         self.sign(&mut req).await?;
 
         self.info.http_client().send(req).await
@@ -181,7 +186,9 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
-        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,size,modifiedTime,md5Checksum,version";
+        let url = format!(
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields={DRIVE_FILE_FIELDS}"
+        );
 
         let file_name = get_basename(path);
 
@@ -232,7 +239,7 @@ impl GdriveCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
-            "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&fields=id,size,modifiedTime,md5Checksum,version"
+            "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&fields={DRIVE_FILE_FIELDS}"
         );
 
         let mut req = Request::patch(url)
@@ -469,23 +476,19 @@ pub struct GdriveTokenResponse {
     expires_in: u64,
 }
 
-/// This is the file struct returned by the Google Drive API.
-/// This is a complex struct, but we only add the fields we need.
-/// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
+/// File struct for Google Drive API
+/// We select a few arbitrary fields.
+/// When update fields, keep `DRIVE_FILE_FIELDS` in sync to fetch related data.
+/// Read more [here](https://developers.google.com/drive/api/reference/rest/v3/files#File)
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GdriveFile {
     pub mime_type: String,
     pub id: String,
     pub name: String,
+    // Size may be null for folders or shortcuts
     pub size: Option<String>,
-    // The modified time is not returned unless the `fields`
-    // query parameter contains `modifiedTime`.
-    // As we only need the modified time when we do `stat` operation,
-    // if other operations(such as search) do not specify the `fields` query parameter,
-    // try to access this field, it will be `None`.
-    pub modified_time: Option<String>,
-    // The MD5 checksum for the content of the file.
+    pub modified_time: String,
     // Only applicable to files with binary content in Google Drive.
     pub md5_checksum: Option<String>,
     // A short-lived link to the file's version.

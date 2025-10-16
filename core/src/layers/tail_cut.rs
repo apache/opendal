@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 use std::time::Instant;
 
@@ -366,21 +366,35 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.with_deadline(Operation::CreateDir, None, self.inner.create_dir(path, args))
-            .await
+        self.with_deadline(
+            Operation::CreateDir,
+            None,
+            self.inner.create_dir(path, args),
+        )
+        .await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let size = args.range().size();
         self.with_deadline(Operation::Read, size, self.inner.read(path, args))
             .await
-            .map(|(rp, r)| (rp, TailCutWrapper::new(r, size, self.config.clone(), self.stats.clone())))
+            .map(|(rp, r)| {
+                (
+                    rp,
+                    TailCutWrapper::new(r, size, self.config.clone(), self.stats.clone()),
+                )
+            })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.with_deadline(Operation::Write, None, self.inner.write(path, args))
             .await
-            .map(|(rp, w)| (rp, TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone())))
+            .map(|(rp, w)| {
+                (
+                    rp,
+                    TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()),
+                )
+            })
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -401,13 +415,23 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.with_deadline(Operation::Delete, None, self.inner.delete())
             .await
-            .map(|(rp, d)| (rp, TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone())))
+            .map(|(rp, d)| {
+                (
+                    rp,
+                    TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()),
+                )
+            })
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.with_deadline(Operation::List, None, self.inner.list(path, args))
             .await
-            .map(|(rp, l)| (rp, TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone())))
+            .map(|(rp, l)| {
+                (
+                    rp,
+                    TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()),
+                )
+            })
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -425,7 +449,12 @@ pub struct TailCutWrapper<R> {
 }
 
 impl<R> TailCutWrapper<R> {
-    fn new(inner: R, size: Option<u64>, config: Arc<TailCutConfig>, stats: Arc<TailCutStats>) -> Self {
+    fn new(
+        inner: R,
+        size: Option<u64>,
+        config: Arc<TailCutConfig>,
+        stats: Arc<TailCutStats>,
+    ) -> Self {
         Self {
             inner,
             size,
@@ -465,11 +494,13 @@ impl<R> TailCutWrapper<R> {
         let result = if let Some(dl) = deadline {
             match tokio::time::timeout(dl, fut).await {
                 Ok(res) => res,
-                Err(_) => Err(Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
-                    .with_operation(op)
-                    .with_context("percentile", format!("P{}", percentile))
-                    .with_context("deadline", format!("{:?}", dl))
-                    .set_temporary()),
+                Err(_) => Err(
+                    Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
+                        .with_operation(op)
+                        .with_context("percentile", format!("P{}", percentile))
+                        .with_context("deadline", format!("{:?}", dl))
+                        .set_temporary(),
+                ),
             }
         } else {
             fut.await
@@ -611,12 +642,12 @@ impl OperationStats {
     fn new() -> Self {
         Self {
             buckets: vec![
-                SizeBucket::new(0, Some(4 * 1024)),                        // [0, 4KB)
-                SizeBucket::new(4 * 1024, Some(64 * 1024)),                // [4KB, 64KB)
-                SizeBucket::new(64 * 1024, Some(1024 * 1024)),             // [64KB, 1MB)
-                SizeBucket::new(1024 * 1024, Some(16 * 1024 * 1024)),      // [1MB, 16MB)
+                SizeBucket::new(0, Some(4 * 1024)),                   // [0, 4KB)
+                SizeBucket::new(4 * 1024, Some(64 * 1024)),           // [4KB, 64KB)
+                SizeBucket::new(64 * 1024, Some(1024 * 1024)),        // [64KB, 1MB)
+                SizeBucket::new(1024 * 1024, Some(16 * 1024 * 1024)), // [1MB, 16MB)
                 SizeBucket::new(16 * 1024 * 1024, Some(256 * 1024 * 1024)), // [16MB, 256MB)
-                SizeBucket::new(256 * 1024 * 1024, None),                  // [256MB, ∞)
+                SizeBucket::new(256 * 1024 * 1024, None),             // [256MB, ∞)
             ],
         }
     }
@@ -812,16 +843,46 @@ mod tests {
 
     #[test]
     fn test_latency_to_bucket() {
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(0)), 0);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(1)), 1);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(2)), 2);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(4)), 3);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(8)), 4);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_millis(500)), 9);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_secs(1)), 10);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_secs(2)), 11);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_secs(64)), 16);
-        assert_eq!(WindowedHistogram::latency_to_bucket(Duration::from_secs(1000)), 16);
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(0)),
+            0
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(1)),
+            1
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(2)),
+            2
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(4)),
+            3
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(8)),
+            4
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_millis(500)),
+            9
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_secs(1)),
+            10
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_secs(2)),
+            11
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_secs(64)),
+            16
+        );
+        assert_eq!(
+            WindowedHistogram::latency_to_bucket(Duration::from_secs(1000)),
+            16
+        );
     }
 
     #[test]

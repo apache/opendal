@@ -40,6 +40,8 @@ use crate::*;
 // Read more: https://developers.google.com/workspace/drive/api/guides/fields-parameter
 pub(crate) const DRIVE_FILE_FIELDS: &str = "id,name,mimeType,size,modifiedTime,md5Checksum,version";
 
+const GDRIVE_FOLDER_MIME_TYPE: &str = "application/vnd.google-apps.folder";
+
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,
 
@@ -76,6 +78,21 @@ impl GdriveCore {
         self.sign(&mut req).await?;
 
         self.info.http_client().send(req).await
+    }
+
+    /// Get metadata for a file from Google Drive.
+    pub async fn gdrive_get_metadata(&self, path: &str) -> Result<Metadata> {
+        let resp = self.gdrive_stat(path).await?;
+
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let bs = resp.into_body();
+        let gdrive_file: GdriveFile =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+        gdrive_file.to_metadata()
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -501,6 +518,14 @@ impl GdriveFile {
     /// to OpenDAL's standard metadata fields.
     pub(crate) fn to_metadata(&self) -> Result<Metadata> {
         let mut metadata = Metadata::default();
+
+        let file_type = if self.mime_type == GDRIVE_FOLDER_MIME_TYPE {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+        metadata.set_mode(file_type);
+        metadata.set_content_type(&self.mime_type);
 
         if let Some(ref size) = self.size {
             let content_length = size.parse::<u64>().map_err(|e| {

@@ -130,8 +130,8 @@ mod tests {
     #[test]
     fn from_uri_respects_existing_table() {
         let uri = OperatorUri::new(
-            "mysql://db.example.com:3306/logs",
-            vec![("table".to_string(), "users".to_string())],
+            "mysql://db.example.com:3306/users?root=logs",
+            Vec::<(String, String)>::new(),
         )
         .unwrap();
 

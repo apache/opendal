@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn from_uri_sets_owner_repo_and_root() {
         let uri = OperatorUri::new(
-            "github://apache/opendal/src/services".parse().unwrap(),
+            "github://apache/opendal/src/services",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -136,11 +136,7 @@ mod tests {
 
     #[test]
     fn from_uri_requires_repository() {
-        let uri = OperatorUri::new(
-            "github://apache".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri = OperatorUri::new("github://apache", Vec::<(String, String)>::new()).unwrap();
 
         assert!(GithubConfig::from_uri(&uri).is_err());
     }

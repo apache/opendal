@@ -112,11 +112,8 @@ mod tests {
 
     #[test]
     fn from_uri_sets_account_database_and_root() {
-        let uri = OperatorUri::new(
-            "d1://acc123/db456/cache".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("d1://acc123/db456/cache", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = D1Config::from_uri(&uri).unwrap();
         assert_eq!(cfg.account_id.as_deref(), Some("acc123"));

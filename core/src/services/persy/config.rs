@@ -39,30 +39,8 @@ impl crate::Configurator for PersyConfig {
 
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                if let Some((datafile_part, rest)) = path.split_once("//") {
-                    if !datafile_part.is_empty() {
-                        map.entry("datafile".to_string())
-                            .or_insert_with(|| format!("/{datafile_part}"));
-                    }
-
-                    let mut segments = rest.splitn(2, '/');
-                    if let Some(segment) = segments.next() {
-                        if !segment.is_empty() {
-                            map.entry("segment".to_string())
-                                .or_insert_with(|| segment.to_string());
-                        }
-                    }
-
-                    if let Some(index) = segments.next() {
-                        if !index.is_empty() {
-                            map.entry("index".to_string())
-                                .or_insert_with(|| index.to_string());
-                        }
-                    }
-                } else {
-                    map.entry("datafile".to_string())
-                        .or_insert_with(|| format!("/{path}"));
-                }
+                map.entry("datafile".to_string())
+                    .or_insert_with(|| format!("/{path}"));
             }
         }
 
@@ -83,7 +61,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datafile_segment_and_index() {
         let uri = OperatorUri::new(
-            "persy:/var/data/persy//segment/index".parse().unwrap(),
+            "persy:///var/data/persy?segment=segment&index=index",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

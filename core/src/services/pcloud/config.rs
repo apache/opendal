@@ -90,7 +90,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "pcloud://api.pcloud.com/drive/photos".parse().unwrap(),
+            "pcloud://api.pcloud.com/drive/photos",
             vec![("username".to_string(), "alice".to_string())],
         )
         .unwrap();
@@ -103,12 +103,8 @@ mod tests {
 
     #[test]
     fn from_uri_requires_authority() {
-        assert!(
-            OperatorUri::new(
-                "pcloud:///drive".parse().unwrap(),
-                Vec::<(String, String)>::new(),
-            )
-            .is_err()
-        );
+        let uri = OperatorUri::new("pcloud:///drive", Vec::<(String, String)>::new()).unwrap();
+
+        assert!(PcloudConfig::from_uri(&uri).is_err());
     }
 }

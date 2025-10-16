@@ -62,15 +62,10 @@ mod tests {
     use super::*;
     use crate::Configurator;
     use crate::types::OperatorUri;
-    use http::Uri;
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri = OperatorUri::new(
-            Uri::from_static("fs://tmp/data"),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri = OperatorUri::new("fs://tmp/data", Vec::<(String, String)>::new()).unwrap();
         let cfg = FsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
     }

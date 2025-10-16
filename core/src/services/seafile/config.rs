@@ -113,9 +113,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_repo_and_root() {
         let uri = OperatorUri::new(
-            "seafile://files.example.com/myrepo/projects/app"
-                .parse()
-                .unwrap(),
+            "seafile://files.example.com/myrepo/projects/app",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -129,7 +127,7 @@ mod tests {
     #[test]
     fn from_uri_requires_repo_name() {
         let uri = OperatorUri::new(
-            "seafile://files.example.com".parse().unwrap(),
+            "seafile://files.example.com",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

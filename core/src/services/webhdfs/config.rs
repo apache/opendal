@@ -87,9 +87,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "webhdfs://namenode.example.com:50070/user/hadoop/data"
-                .parse()
-                .unwrap(),
+            "webhdfs://namenode.example.com:50070/user/hadoop/data",
             vec![("user_name".to_string(), "hadoop".to_string())],
         )
         .unwrap();

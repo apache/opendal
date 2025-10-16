@@ -83,9 +83,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "dbfs://adb-1234567.azuredatabricks.net/api/2.0/dbfs/root"
-                .parse()
-                .unwrap(),
+            "dbfs://adb-1234567.azuredatabricks.net/api/2.0/dbfs/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

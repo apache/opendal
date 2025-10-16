@@ -120,9 +120,7 @@ mod tests {
     #[test]
     fn from_uri_sets_connection_namespace_database_table_and_root() {
         let uri = OperatorUri::new(
-            "surrealdb://db.example.com:8000/project/app/cache/static"
-                .parse()
-                .unwrap(),
+            "surrealdb://db.example.com:8000/project/app/cache/static",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

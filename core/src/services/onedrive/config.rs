@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn from_uri_sets_root() {
         let uri = OperatorUri::new(
-            "onedrive://drive/root/documents".parse().unwrap(),
+            "onedrive://drive/root/documents",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

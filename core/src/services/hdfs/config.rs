@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn from_uri_sets_name_node_and_root() {
         let uri = OperatorUri::new(
-            "hdfs://cluster.local:8020/user/data".parse().unwrap(),
+            "hdfs://cluster.local:8020/user/data",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

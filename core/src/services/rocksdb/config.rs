@@ -41,18 +41,8 @@ impl crate::Configurator for RocksdbConfig {
 
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                if let Some((datadir_part, root)) = path.split_once("//") {
-                    if !datadir_part.is_empty() {
-                        map.entry("datadir".to_string())
-                            .or_insert_with(|| format!("/{datadir_part}"));
-                    }
-                    if !root.is_empty() {
-                        map.insert("root".to_string(), root.to_string());
-                    }
-                } else {
-                    map.entry("datadir".to_string())
-                        .or_insert_with(|| format!("/{path}"));
-                }
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| format!("/{path}"));
             }
         }
 
@@ -73,7 +63,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_and_root() {
         let uri = OperatorUri::new(
-            "rocksdb:/var/db//namespace".parse().unwrap(),
+            "rocksdb:///var/db?root=namespace",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

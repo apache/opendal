@@ -157,9 +157,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_filesystem_root_and_account() {
         let uri = OperatorUri::new(
-            "azdls://account.dfs.core.windows.net/fs/data/2024"
-                .parse()
-                .unwrap(),
+            "azdls://account.dfs.core.windows.net/fs/data/2024",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -177,7 +175,7 @@ mod tests {
     #[test]
     fn from_uri_accepts_filesystem_from_query() {
         let uri = OperatorUri::new(
-            "azdls://account.dfs.core.windows.net".parse().unwrap(),
+            "azdls://account.dfs.core.windows.net",
             vec![("filesystem".to_string(), "logs".to_string())],
         )
         .unwrap();

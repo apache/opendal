@@ -129,9 +129,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_share_root_and_account() {
         let uri = OperatorUri::new(
-            "azfile://account.file.core.windows.net/share/documents/reports"
-                .parse()
-                .unwrap(),
+            "azfile://account.file.core.windows.net/share/documents/reports",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -149,7 +147,7 @@ mod tests {
     #[test]
     fn from_uri_accepts_share_from_query() {
         let uri = OperatorUri::new(
-            "azfile://account.file.core.windows.net".parse().unwrap(),
+            "azfile://account.file.core.windows.net",
             vec![("share_name".to_string(), "data".to_string())],
         )
         .unwrap();

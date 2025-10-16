@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::time::Duration;
 
 use super::backend::MiniMokaBuilder;
+use jiff::SignedDuration;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,11 +35,11 @@ pub struct MiniMokaConfig {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
+    pub time_to_live: Option<SignedDuration>,
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
+    pub time_to_idle: Option<SignedDuration>,
 
     /// root path of this backend
     pub root: Option<String>,
@@ -81,10 +81,11 @@ mod tests {
     use super::*;
     use crate::Configurator;
     use crate::types::OperatorUri;
+
     #[test]
     fn from_uri_sets_root_and_preserves_ttl() {
         let uri = OperatorUri::new(
-            "mini-moka://cache/session".parse().unwrap(),
+            "mini-moka://cache/session",
             vec![("time_to_live".to_string(), "300s".to_string())],
         )
         .unwrap();

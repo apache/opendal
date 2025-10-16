@@ -52,29 +52,8 @@ impl crate::Configurator for SledConfig {
 
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                if let Some((datadir_part, rest)) = path.split_once("//") {
-                    if !datadir_part.is_empty() {
-                        map.entry("datadir".to_string())
-                            .or_insert_with(|| format!("/{datadir_part}"));
-                    }
-
-                    let mut segments = rest.splitn(2, '/');
-                    if let Some(tree) = segments.next() {
-                        if !tree.is_empty() {
-                            map.entry("tree".to_string())
-                                .or_insert_with(|| tree.to_string());
-                        }
-                    }
-
-                    if let Some(root) = segments.next() {
-                        if !root.is_empty() {
-                            map.insert("root".to_string(), root.to_string());
-                        }
-                    }
-                } else {
-                    map.entry("datadir".to_string())
-                        .or_insert_with(|| format!("/{path}"));
-                }
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| format!("/{path}"));
             }
         }
 
@@ -95,7 +74,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_tree_and_root() {
         let uri = OperatorUri::new(
-            "sled:/var/data/sled//cache/items".parse().unwrap(),
+            "sled:///var/data/sled?tree=cache&root=items",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

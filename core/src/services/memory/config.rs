@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn from_uri_extracts_root() {
         let uri = OperatorUri::new(
-            "memory://localhost/path/to/root".parse().unwrap(),
+            "memory://localhost/path/to/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

@@ -116,11 +116,8 @@ mod tests {
 
     #[test]
     fn from_uri_sets_connection_string_table_and_root() {
-        let uri = OperatorUri::new(
-            "sqlite://data.db/kv/cache".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("sqlite://data.db/kv/cache", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = SqliteConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.connection_string.as_deref(), Some("sqlite://data.db"));

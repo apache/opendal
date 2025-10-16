@@ -41,29 +41,8 @@ impl crate::Configurator for RedbConfig {
 
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                if let Some((datadir_part, rest)) = path.split_once("//") {
-                    if !datadir_part.is_empty() {
-                        map.entry("datadir".to_string())
-                            .or_insert_with(|| format!("/{datadir_part}"));
-                    }
-
-                    let mut segments = rest.splitn(2, '/');
-                    if let Some(table) = segments.next() {
-                        if !table.is_empty() {
-                            map.entry("table".to_string())
-                                .or_insert_with(|| table.to_string());
-                        }
-                    }
-
-                    if let Some(root) = segments.next() {
-                        if !root.is_empty() {
-                            map.insert("root".to_string(), root.to_string());
-                        }
-                    }
-                } else {
-                    map.entry("datadir".to_string())
-                        .or_insert_with(|| format!("/{path}"));
-                }
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| format!("/{path}"));
             }
         }
 
@@ -87,7 +66,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_table_and_root() {
         let uri = OperatorUri::new(
-            "redb:/tmp/redb//op_table/cache".parse().unwrap(),
+            "redb:///tmp/redb?table=op_table&root=cache",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "ipfs://ipfs.io/ipfs/QmHash/path".parse().unwrap(),
+            "ipfs://ipfs.io/ipfs/QmHash/path",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

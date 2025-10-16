@@ -58,11 +58,8 @@ mod tests {
 
     #[test]
     fn from_uri_sets_root() {
-        let uri = OperatorUri::new(
-            "compfs://namespace/workdir".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("compfs://namespace/workdir", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = CompfsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("workdir"));

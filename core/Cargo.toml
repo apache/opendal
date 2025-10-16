@@ -248,10 +248,11 @@ futures = { version = "0.3", default-features = false, features = [
 ] }
 http = "1.1"
 http-body = "1"
-jiff = { version = "0.2.15" }
+jiff = { version = "0.2.15", features = ["serde"] }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
+url = "2.5"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.23", features = [
   "stream",

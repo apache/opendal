@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn from_uri_extracts_ids_and_root() {
         let uri = OperatorUri::new(
-            "cloudflare-kv://acc123/ns456/prefix/dir".parse().unwrap(),
+            "cloudflare-kv://acc123/ns456/prefix/dir",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -127,11 +127,8 @@ mod tests {
 
     #[test]
     fn from_uri_requires_namespace() {
-        let uri = OperatorUri::new(
-            "cloudflare-kv://acc123".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("cloudflare-kv://acc123", Vec::<(String, String)>::new()).unwrap();
 
         assert!(CloudflareKvConfig::from_uri(&uri).is_err());
     }

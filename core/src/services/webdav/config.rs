@@ -90,9 +90,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "webdav://webdav.example.com/remote.php/webdav"
-                .parse()
-                .unwrap(),
+            "webdav://webdav.example.com/remote.php/webdav",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -105,7 +103,7 @@ mod tests {
     #[test]
     fn from_uri_ignores_endpoint_override() {
         let uri = OperatorUri::new(
-            "webdav://dav.internal/data".parse().unwrap(),
+            "webdav://dav.internal/data",
             vec![(
                 "endpoint".to_string(),
                 "http://dav.internal:8080".to_string(),
@@ -120,7 +118,7 @@ mod tests {
     #[test]
     fn from_uri_propagates_disable_copy() {
         let uri = OperatorUri::new(
-            "webdav://dav.example.com".parse().unwrap(),
+            "webdav://dav.example.com",
             vec![("disable_copy".to_string(), "true".to_string())],
         )
         .unwrap();

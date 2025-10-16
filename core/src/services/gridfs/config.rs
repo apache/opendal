@@ -100,9 +100,7 @@ mod tests {
     #[test]
     fn from_uri_sets_connection_database_bucket_and_root() {
         let uri = OperatorUri::new(
-            "gridfs://mongo.example.com:27017/app_files/assets/images"
-                .parse()
-                .unwrap(),
+            "gridfs://mongo.example.com:27017/app_files/assets/images",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

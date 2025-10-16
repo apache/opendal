@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "ipmfs://localhost:5001/mfs/path".parse().unwrap(),
+            "ipmfs://localhost:5001/mfs/path",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

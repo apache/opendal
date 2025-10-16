@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn from_uri_extracts_bucket_and_root() {
         let uri = OperatorUri::new(
-            "obs://example-bucket/path/to/root".parse().unwrap(),
+            "obs://example-bucket/path/to/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

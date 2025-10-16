@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn from_uri_sets_connection_string_table_and_root() {
         let uri = OperatorUri::new(
-            "mysql://db.example.com:3306/kv/cache".parse().unwrap(),
+            "mysql://db.example.com:3306/kv/cache",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn from_uri_respects_existing_table() {
         let uri = OperatorUri::new(
-            "mysql://db.example.com:3306/logs".parse().unwrap(),
+            "mysql://db.example.com:3306/logs",
             vec![("table".to_string(), "users".to_string())],
         )
         .unwrap();

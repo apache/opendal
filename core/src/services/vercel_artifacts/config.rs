@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn from_uri_loads_access_token() {
         let uri = OperatorUri::new(
-            "vercel-artifacts://cache".parse().unwrap(),
+            "vercel-artifacts://cache",
             vec![("access_token".to_string(), "token123".to_string())],
         )
         .unwrap();

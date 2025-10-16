@@ -107,9 +107,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_container_and_root() {
         let uri = OperatorUri::new(
-            "swift://swift.example.com/container/assets/images"
-                .parse()
-                .unwrap(),
+            "swift://swift.example.com/container/assets/images",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -123,7 +121,7 @@ mod tests {
     #[test]
     fn from_uri_accepts_container_from_query() {
         let uri = OperatorUri::new(
-            "swift://swift.example.com".parse().unwrap(),
+            "swift://swift.example.com",
             vec![("container".to_string(), "logs".to_string())],
         )
         .unwrap();

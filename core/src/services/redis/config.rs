@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_db_and_root() {
         let uri = OperatorUri::new(
-            "redis://localhost:6379/2/cache".parse().unwrap(),
+            "redis://localhost:6379/2/cache",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -151,7 +151,7 @@ mod tests {
     #[test]
     fn from_uri_treats_non_numeric_path_as_root() {
         let uri = OperatorUri::new(
-            "redis://localhost:6379/app/data".parse().unwrap(),
+            "redis://localhost:6379/app/data",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

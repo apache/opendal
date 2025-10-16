@@ -80,7 +80,7 @@ mod tests {
     #[test]
     fn from_uri_sets_root() {
         let uri = OperatorUri::new(
-            "gdrive://service/root/folder".parse().unwrap(),
+            "gdrive://service/root/folder",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

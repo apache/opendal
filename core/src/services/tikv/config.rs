@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn from_uri_collects_endpoints() {
         let uri = OperatorUri::new(
-            "tikv://pd1:2379/pd2:2379,pd3:2379".parse().unwrap(),
+            "tikv://pd1:2379/pd2:2379,pd3:2379",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

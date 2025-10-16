@@ -158,9 +158,7 @@ mod tests {
     #[test]
     fn from_uri_sets_repo_type_id_and_revision() {
         let uri = OperatorUri::new(
-            "huggingface://model/opendal/sample/main/dataset"
-                .parse()
-                .unwrap(),
+            "huggingface://model/opendal/sample/main/dataset",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -175,9 +173,7 @@ mod tests {
     #[test]
     fn from_uri_uses_existing_revision_and_sets_root() {
         let uri = OperatorUri::new(
-            "huggingface://dataset/opendal/sample/data/train"
-                .parse()
-                .unwrap(),
+            "huggingface://dataset/opendal/sample/data/train",
             vec![("revision".to_string(), "dev".to_string())],
         )
         .unwrap();
@@ -192,7 +188,7 @@ mod tests {
     #[test]
     fn from_uri_requires_owner_and_repo() {
         let uri = OperatorUri::new(
-            "huggingface://model/opendal".parse().unwrap(),
+            "huggingface://model/opendal",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

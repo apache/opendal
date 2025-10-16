@@ -84,9 +84,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_version_and_root() {
         let uri = OperatorUri::new(
-            "ghac://cache.githubactions.io/v1/cache-prefix"
-                .parse()
-                .unwrap(),
+            "ghac://cache.githubactions.io/v1/cache-prefix",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -103,9 +101,7 @@ mod tests {
     #[test]
     fn from_uri_respects_version_override() {
         let uri = OperatorUri::new(
-            "ghac://cache.githubactions.io/cache-prefix"
-                .parse()
-                .unwrap(),
+            "ghac://cache.githubactions.io/cache-prefix",
             vec![("version".to_string(), "v2".to_string())],
         )
         .unwrap();

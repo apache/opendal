@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn from_uri_sets_connection_string_table_and_root() {
         let uri = OperatorUri::new(
-            "postgresql://db.example.com:5432/kv/cache".parse().unwrap(),
+            "postgresql://db.example.com:5432/kv/cache",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

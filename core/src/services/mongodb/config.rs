@@ -104,9 +104,7 @@ mod tests {
     #[test]
     fn from_uri_sets_connection_string_database_collection_and_root() {
         let uri = OperatorUri::new(
-            "mongodb://mongo.internal:27017/analytics/events/session"
-                .parse()
-                .unwrap(),
+            "mongodb://mongo.internal:27017/analytics/events/session",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

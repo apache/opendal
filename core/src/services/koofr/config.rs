@@ -107,9 +107,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_email_and_root() {
         let uri = OperatorUri::new(
-            "koofr://api.koofr.net/me%40example.com/library"
-                .parse()
-                .unwrap(),
+            "koofr://api.koofr.net/me%40example.com/library",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -122,11 +120,8 @@ mod tests {
 
     #[test]
     fn from_uri_requires_email_segment() {
-        let uri = OperatorUri::new(
-            "koofr://api.koofr.net".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("koofr://api.koofr.net", Vec::<(String, String)>::new()).unwrap();
 
         assert!(KoofrConfig::from_uri(&uri).is_err());
     }

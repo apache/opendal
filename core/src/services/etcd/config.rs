@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoints_and_root() {
         let uri = OperatorUri::new(
-            "etcd://127.0.0.1:2379/app/config".parse().unwrap(),
+            "etcd://127.0.0.1:2379/app/config",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

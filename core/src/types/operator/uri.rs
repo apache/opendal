@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 use http::Uri;
 use percent_encoding::percent_decode_str;
+use url::Url;
 
 use crate::{Error, ErrorKind, Result};
 
@@ -28,58 +29,56 @@ pub struct OperatorUri {
     scheme: String,
     authority: Option<String>,
     name: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
     root: Option<String>,
     options: HashMap<String, String>,
 }
 
 impl OperatorUri {
-    /// Build [`OperatorUri`] from a [`Uri`] plus additional options.
+    /// Build [`OperatorUri`] from a URI string plus additional options.
     pub fn new(
-        uri: Uri,
+        base: &str,
         extra_options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self> {
-        let scheme = uri
-            .scheme_str()
-            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "uri scheme is required"))?
-            .to_ascii_lowercase();
+        let url = Url::parse(base).map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
+        })?;
+
+        let scheme = url.scheme().to_ascii_lowercase();
 
         let mut options = HashMap::<String, String>::new();
 
-        if let Some(query) = uri.query() {
-            for pair in query.split('&') {
-                if pair.is_empty() {
-                    continue;
-                }
-                let mut parts = pair.splitn(2, '=');
-                let key = parts.next().unwrap_or("");
-                let value = parts.next().unwrap_or("");
-                let key = percent_decode_str(key)
-                    .decode_utf8_lossy()
-                    .to_ascii_lowercase();
-                let value = percent_decode_str(value).decode_utf8_lossy().to_string();
-                options.insert(key, value);
-            }
+        for (key, value) in url.query_pairs() {
+            options.insert(key.to_ascii_lowercase(), value.into_owned());
         }
 
         for (key, value) in extra_options {
             options.insert(key.to_ascii_lowercase(), value);
         }
 
-        let (authority, name) = match uri.authority() {
-            Some(authority) => {
-                let authority_str = authority.as_str().to_string();
-                let host = authority.host();
-                let name = if host.is_empty() {
-                    None
-                } else {
-                    Some(host.to_string())
-                };
-                (Some(authority_str), name)
-            }
-            None => (None, None),
+        let username = if url.username().is_empty() {
+            None
+        } else {
+            Some(url.username().to_string())
         };
 
-        let decoded_path = percent_decode_str(uri.path()).decode_utf8_lossy();
+        let password = url.password().map(|pwd| pwd.to_string());
+
+        let authority = url.host_str().filter(|host| !host.is_empty()).map(|host| {
+            if let Some(port) = url.port() {
+                format!("{host}:{port}")
+            } else {
+                host.to_string()
+            }
+        });
+
+        let name = url
+            .host_str()
+            .filter(|host| !host.is_empty())
+            .map(|host| host.to_string());
+
+        let decoded_path = percent_decode_str(url.path()).decode_utf8_lossy();
         let trimmed = decoded_path.trim_matches('/');
         let root = if trimmed.is_empty() {
             None
@@ -91,6 +90,8 @@ impl OperatorUri {
             scheme,
             authority,
             name,
+            username,
+            password,
             root,
             options,
         })
@@ -109,6 +110,16 @@ impl OperatorUri {
     /// Authority extracted from the URI, if present (host with optional port).
     pub fn authority(&self) -> Option<&str> {
         self.authority.as_deref()
+    }
+
+    /// Username extracted from the URI, if present.
+    pub fn username(&self) -> Option<&str> {
+        self.username.as_deref()
+    }
+
+    /// Password extracted from the URI, if present.
+    pub fn password(&self) -> Option<&str> {
+        self.password.as_deref()
     }
 
     /// Root path (without leading slash) extracted from the URI path, if present.
@@ -142,31 +153,27 @@ impl IntoOperatorUri for &OperatorUri {
 
 impl IntoOperatorUri for Uri {
     fn into_operator_uri(self) -> Result<OperatorUri> {
-        OperatorUri::new(self, Vec::<(String, String)>::new())
+        let serialized = self.to_string();
+        OperatorUri::new(&serialized, Vec::<(String, String)>::new())
     }
 }
 
 impl IntoOperatorUri for &Uri {
     fn into_operator_uri(self) -> Result<OperatorUri> {
-        OperatorUri::new(self.clone(), Vec::<(String, String)>::new())
+        let serialized = self.to_string();
+        OperatorUri::new(&serialized, Vec::<(String, String)>::new())
     }
 }
 
 impl IntoOperatorUri for &str {
     fn into_operator_uri(self) -> Result<OperatorUri> {
-        let uri = self.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
-        })?;
-        OperatorUri::new(uri, Vec::<(String, String)>::new())
+        OperatorUri::new(self, Vec::<(String, String)>::new())
     }
 }
 
 impl IntoOperatorUri for String {
     fn into_operator_uri(self) -> Result<OperatorUri> {
-        let uri = self.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
-        })?;
-        OperatorUri::new(uri, Vec::<(String, String)>::new())
+        OperatorUri::new(&self, Vec::<(String, String)>::new())
     }
 }
 
@@ -178,11 +185,12 @@ where
 {
     fn into_operator_uri(self) -> Result<OperatorUri> {
         let (uri, extra) = self;
+        let serialized = uri.to_string();
         let opts = extra
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect::<Vec<_>>();
-        OperatorUri::new(uri, opts)
+        OperatorUri::new(&serialized, opts)
     }
 }
 
@@ -194,11 +202,12 @@ where
 {
     fn into_operator_uri(self) -> Result<OperatorUri> {
         let (uri, extra) = self;
+        let serialized = uri.to_string();
         let opts = extra
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect::<Vec<_>>();
-        OperatorUri::new(uri.clone(), opts)
+        OperatorUri::new(&serialized, opts)
     }
 }
 
@@ -210,14 +219,11 @@ where
 {
     fn into_operator_uri(self) -> Result<OperatorUri> {
         let (base, extra) = self;
-        let uri = base.parse::<Uri>().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
-        })?;
         let opts = extra
             .into_iter()
             .map(|(k, v)| (k.into(), v.into()))
             .collect::<Vec<_>>();
-        OperatorUri::new(uri, opts)
+        OperatorUri::new(base, opts)
     }
 }
 
@@ -241,7 +247,7 @@ mod tests {
     #[test]
     fn parse_uri_with_name_and_root() {
         let uri = OperatorUri::new(
-            "s3://example-bucket/photos/2024".parse().unwrap(),
+            "s3://example-bucket/photos/2024",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -278,7 +284,7 @@ mod tests {
     #[test]
     fn parse_uri_with_port_preserves_authority() {
         let uri = OperatorUri::new(
-            "http://example.com:8080/root".parse().unwrap(),
+            "http://example.com:8080/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -287,5 +293,20 @@ mod tests {
         assert_eq!(uri.authority(), Some("example.com:8080"));
         assert_eq!(uri.name(), Some("example.com"));
         assert_eq!(uri.root(), Some("root"));
+    }
+
+    #[test]
+    fn parse_uri_with_credentials_splits_authority() {
+        let uri = OperatorUri::new(
+            "https://alice:secret@example.com:8443/path",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.scheme(), "https");
+        assert_eq!(uri.authority(), Some("example.com:8443"));
+        assert_eq!(uri.username(), Some("alice"));
+        assert_eq!(uri.password(), Some("secret"));
+        assert_eq!(uri.root(), Some("path"));
     }
 }

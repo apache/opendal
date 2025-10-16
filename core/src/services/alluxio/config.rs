@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "alluxio://127.0.0.1:39999/data/raw".parse().unwrap(),
+            "alluxio://127.0.0.1:39999/data/raw",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

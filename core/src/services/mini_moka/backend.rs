@@ -30,6 +30,7 @@ use super::writer::MiniMokaWriter;
 use crate::raw::oio;
 use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
+use crate::raw::{duration_to_signed, signed_to_duration};
 use crate::services::MiniMokaConfig;
 use crate::*;
 
@@ -69,7 +70,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_live = Some(v);
+            self.config.time_to_live = Some(duration_to_signed(v));
         }
         self
     }
@@ -79,7 +80,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_idle = Some(v);
+            self.config.time_to_idle = Some(duration_to_signed(v));
         }
         self
     }
@@ -111,11 +112,13 @@ impl Builder for MiniMokaBuilder {
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
-        if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v);
+        if let Some(signed) = self.config.time_to_live {
+            let duration = signed_to_duration(signed)?;
+            builder = builder.time_to_live(duration);
         }
-        if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v);
+        if let Some(signed) = self.config.time_to_idle {
+            let duration = signed_to_duration(signed)?;
+            builder = builder.time_to_idle(duration);
         }
 
         let cache = builder.build();

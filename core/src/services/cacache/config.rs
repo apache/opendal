@@ -57,7 +57,7 @@ mod tests {
     #[test]
     fn from_uri_sets_datadir_from_authority() {
         let uri = OperatorUri::new(
-            "cacache:/var/cache/opendal".parse().unwrap(),
+            "cacache:///var/cache/opendal",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -68,11 +68,7 @@ mod tests {
 
     #[test]
     fn from_uri_falls_back_to_path() {
-        let uri = OperatorUri::new(
-            "cacache:///tmp/cache".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri = OperatorUri::new("cacache:///tmp/cache", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = CacacheConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.datadir.as_deref(), Some("/tmp/cache"));

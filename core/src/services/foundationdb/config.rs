@@ -52,18 +52,8 @@ impl crate::Configurator for FoundationdbConfig {
 
         if let Some(path) = uri.root() {
             if !path.is_empty() {
-                if let Some((config, root)) = path.rsplit_once('/') {
-                    if !config.is_empty() {
-                        map.entry("config_path".to_string())
-                            .or_insert_with(|| format!("/{config}"));
-                    }
-                    if !root.is_empty() {
-                        map.insert("root".to_string(), root.to_string());
-                    }
-                } else {
-                    map.entry("config_path".to_string())
-                        .or_insert_with(|| format!("/{path}"));
-                }
+                map.entry("config_path".to_string())
+                    .or_insert_with(|| format!("/{path}"));
             }
         }
 
@@ -84,9 +74,7 @@ mod tests {
     #[test]
     fn from_uri_sets_config_path_and_root() {
         let uri = OperatorUri::new(
-            "foundationdb:/etc/foundationdb/fdb.cluster/data"
-                .parse()
-                .unwrap(),
+            "foundationdb:///etc/foundationdb/fdb.cluster?root=data",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

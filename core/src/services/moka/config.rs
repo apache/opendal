@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::time::Duration;
 
 use super::backend::MokaBuilder;
+use jiff::SignedDuration;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -37,11 +37,11 @@ pub struct MokaConfig {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
+    pub time_to_live: Option<SignedDuration>,
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
+    pub time_to_idle: Option<SignedDuration>,
 
     /// root path of this backend
     pub root: Option<String>,
@@ -96,11 +96,7 @@ mod tests {
 
     #[test]
     fn from_uri_sets_name_and_root() {
-        let uri = OperatorUri::new(
-            "moka://session/cache".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri = OperatorUri::new("moka://session/cache", Vec::<(String, String)>::new()).unwrap();
 
         let cfg = MokaConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.name.as_deref(), Some("session"));

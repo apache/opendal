@@ -160,9 +160,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_repository_branch_and_root() {
         let uri = OperatorUri::new(
-            "lakefs://api.example.com/sample/main/data/dir"
-                .parse()
-                .unwrap(),
+            "lakefs://api.example.com/sample/main/data/dir",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -176,11 +174,8 @@ mod tests {
 
     #[test]
     fn from_uri_requires_repository() {
-        let uri = OperatorUri::new(
-            "lakefs://api.example.com".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("lakefs://api.example.com", Vec::<(String, String)>::new()).unwrap();
 
         assert!(LakefsConfig::from_uri(&uri).is_err());
     }
@@ -188,7 +183,7 @@ mod tests {
     #[test]
     fn from_uri_respects_branch_override_and_sets_root() {
         let uri = OperatorUri::new(
-            "lakefs://api.example.com/sample/content".parse().unwrap(),
+            "lakefs://api.example.com/sample/content",
             vec![("branch".to_string(), "develop".to_string())],
         )
         .unwrap();

@@ -78,7 +78,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "memcached://cache.local:11211/app/session".parse().unwrap(),
+            "memcached://cache.local:11211/app/session",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

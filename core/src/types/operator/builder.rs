@@ -330,16 +330,16 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-/// use opendal::services::Memory;
-/// use opendal::Operator;
-/// async fn test() -> Result<()> {
-///     let map = HashMap::new();
-///
-///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::from_map::<Memory>(map)?.finish();
-///
-///     Ok(())
-/// }
+    /// use opendal::services::Memory;
+    /// use opendal::Operator;
+    /// async fn test() -> Result<()> {
+    ///     let map = HashMap::new();
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::from_map::<Memory>(map)?.finish();
+    ///
+    ///     Ok(())
+    /// }
     /// ```
     #[deprecated = "use from_iter instead"]
     pub fn from_map<B: Builder>(
@@ -363,13 +363,13 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-/// use opendal::Operator;
-/// use opendal::Scheme;
-/// async fn test() -> Result<()> {
-///     let map = HashMap::new();
-///
-///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::via_map(Scheme::Memory, map)?;
+    /// use opendal::Operator;
+    /// use opendal::Scheme;
+    /// async fn test() -> Result<()> {
+    ///     let map = HashMap::new();
+    ///
+    ///     // Build an `Operator` to start operating the storage.
+    ///     let op: Operator = Operator::via_map(Scheme::Memory, map)?;
     ///
     ///     Ok(())
     /// }
@@ -401,14 +401,14 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-/// use opendal::services::Memory;
-/// use opendal::Operator;
-///
-/// # async fn test() -> Result<()> {
-/// let op = Operator::new(Memory::default())?.finish();
-/// let op = op.layer(LoggingLayer::default());
-/// // All operations will go through the new_layer
-/// let _ = op.read("test_file").await?;
+    /// use opendal::services::Memory;
+    /// use opendal::Operator;
+    ///
+    /// # async fn test() -> Result<()> {
+    /// let op = Operator::new(Memory::default())?.finish();
+    /// let op = op.layer(LoggingLayer::default());
+    /// // All operations will go through the new_layer
+    /// let _ = op.read("test_file").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -495,13 +495,13 @@ impl<A: Access> OperatorBuilder<A> {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-/// use opendal::services::Memory;
-/// use opendal::Operator;
-///
-/// # async fn test() -> Result<()> {
-/// let op = Operator::new(Memory::default())?
-///     .layer(LoggingLayer::default())
-///     .finish();
+    /// use opendal::services::Memory;
+    /// use opendal::Operator;
+    ///
+    /// # async fn test() -> Result<()> {
+    /// let op = Operator::new(Memory::default())?
+    ///     .layer(LoggingLayer::default())
+    ///     .finish();
     /// // All operations will go through the new_layer
     /// let _ = op.read("test_file").await?;
     /// # Ok(())

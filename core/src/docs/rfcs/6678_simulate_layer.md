@@ -1,6 +1,6 @@
 - Proposal Name: `simulate_layer`
 - Start Date: 2025-10-16
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#6678](https://github.com/apache/opendal/pull/6678)
 - Tracking Issue: [apache/opendal#6676](https://github.com/apache/opendal/issues/6676)
 
 # Summary

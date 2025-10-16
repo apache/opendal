@@ -276,3 +276,7 @@ pub mod rfc_6209_glob_support {}
 /// Options API
 #[doc = include_str!("6213_options_api.md")]
 pub mod rfc_6213_options_api {}
+
+/// Simulate Layer
+#[doc = include_str!("6678_simulate_layer.md")]
+pub mod rfc_6678_simulate_layer {}

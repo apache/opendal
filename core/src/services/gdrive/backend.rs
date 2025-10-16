@@ -68,15 +68,9 @@ impl Access for GdriveBackend {
         } else {
             EntryMode::FILE
         };
-        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
-        if let Some(v) = gdrive_file.size {
-            meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-            })?);
-        }
-        meta = meta.with_last_modified(gdrive_file.modified_time.parse::<Timestamp>().map_err(
-            |e| Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e),
-        )?);
+        let mut meta = gdrive_file.to_metadata()?;
+        meta.set_mode(file_type);
+        meta.set_content_type(&gdrive_file.mime_type);
         Ok(RpStat::new(meta))
     }
 

@@ -494,6 +494,38 @@ pub struct GdriveFile {
     pub version: Option<String>,
 }
 
+impl GdriveFile {
+    /// Converts Google Drive file metadata to OpenDAL Metadata.
+    ///
+    /// This method parses the Google Drive API response fields and maps them
+    /// to OpenDAL's standard metadata fields.
+    pub(crate) fn to_metadata(&self) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(ref size) = self.size {
+            let content_length = size.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?;
+            metadata.set_content_length(content_length);
+        }
+
+        let last_modified = self.modified_time.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?;
+        metadata.set_last_modified(last_modified);
+
+        if let Some(ref md5_checksum) = self.md5_checksum {
+            metadata.set_content_md5(md5_checksum);
+        }
+
+        if let Some(ref version) = self.version {
+            metadata.set_version(version);
+        }
+
+        Ok(metadata)
+    }
+}
+
 /// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

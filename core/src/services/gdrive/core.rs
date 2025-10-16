@@ -38,8 +38,7 @@ use crate::*;
 // Must be kept in sync with `GdriveFile` struct fields.
 // For now, we only load the below fields for a smaller response.
 // Read more: https://developers.google.com/workspace/drive/api/guides/fields-parameter
-pub(crate) const DRIVE_FILE_FIELDS: &str =
-    "id,name,mimeType,size,modifiedTime,md5Checksum,version";
+pub(crate) const DRIVE_FILE_FIELDS: &str = "id,name,mimeType,size,modifiedTime,md5Checksum,version";
 
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,

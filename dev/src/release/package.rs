@@ -71,7 +71,6 @@ pub fn all_packages() -> Vec<Package> {
     let unftp_sbe = make_package("integrations/unftp-sbe", "0.3.1", vec![core.clone()]);
 
     // Binaries
-    let oay = make_package("bin/oay", "0.41.23", vec![core.clone(), dav_server.clone()]);
     let ofs = make_package(
         "bin/ofs",
         "0.0.24",
@@ -94,7 +93,6 @@ pub fn all_packages() -> Vec<Package> {
         object_store,
         parquet,
         unftp_sbe,
-        oay,
         ofs,
         oli,
         c,
@@ -114,7 +112,6 @@ pub fn update_package_version(package: &Package) -> bool {
         "integrations/object_store" => update_cargo_version(&package.path, &package.version),
         "integrations/parquet" => update_cargo_version(&package.path, &package.version),
         "integrations/unftp-sbe" => update_cargo_version(&package.path, &package.version),
-        "bin/oay" => update_cargo_version(&package.path, &package.version),
         "bin/ofs" => update_cargo_version(&package.path, &package.version),
         "bin/oli" => update_cargo_version(&package.path, &package.version),
 

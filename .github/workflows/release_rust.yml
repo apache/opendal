@@ -49,7 +49,6 @@ jobs:
           - "integrations/fuse3"
           - "integrations/unftp-sbe"
           - "integrations/cloud_filter"
-          - "bin/oay" # depends on integrations/dav-server
           - "bin/oli"
           - "bin/ofs" # depends on integrations/{fuse3,cloud_filter}
     steps:

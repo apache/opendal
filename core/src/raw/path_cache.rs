@@ -19,6 +19,7 @@ use std::collections::VecDeque;
 
 use futures::Future;
 use moka::sync::Cache;
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tokio::sync::MutexGuard;
 
@@ -56,13 +57,12 @@ pub trait PathQuery {
 /// then the path of file `a/b` in cache will be `/root/a/b`.
 pub struct PathCacher<Q: PathQuery> {
     query: Q,
-    cache: Cache<String, String>,
-
-    /// This optional lock here is used to prevent concurrent insertions of the same path.
-    ///
-    /// Some services like gdrive allows the same name to exist in the same directory. We need to introduce
-    /// a global lock to prevent concurrent insertions of the same path.
-    lock: Option<Mutex<()>>,
+    cache: Mutex<HashMap<String, String>>,
+    // This optional lock here is used to prevent concurrent insertions of the same path.
+    //
+    // Some services like gdrive allows the same name to exist in the same directory. We need to introduce
+    // a global lock to prevent concurrent insertions of the same path.
+    // lock: Option<Mutex<()>>,
 }
 
 impl<Q: PathQuery> PathCacher<Q> {
@@ -70,54 +70,58 @@ impl<Q: PathQuery> PathCacher<Q> {
     pub fn new(query: Q) -> Self {
         Self {
             query,
-            cache: Cache::new(64 * 1024),
-            lock: None,
+            cache: Mutex::new(HashMap::new()),
+            // lock: None,
         }
     }
 
-    /// Enable the lock for the path cacher.
-    pub fn with_lock(mut self) -> Self {
-        self.lock = Some(Mutex::default());
-        self
-    }
+    // Enable the lock for the path cacher.
+    // pub fn with_lock(mut self) -> Self {
+    //     self.lock = Some(Mutex::default());
+    //     self
+    // }
 
-    async fn lock(&self) -> Option<MutexGuard<'_, ()>> {
-        if let Some(l) = &self.lock {
-            Some(l.lock().await)
-        } else {
-            None
-        }
-    }
+    // async fn lock(&self) -> Option<MutexGuard<'_, ()>> {
+    //     if let Some(l) = &self.lock {
+    //         Some(l.lock().await)
+    //     } else {
+    //         None
+    //     }
+    // }
 
     /// Insert a new cache entry.
     pub async fn insert(&self, path: &str, id: &str) {
-        let _guard = self.lock().await;
+        let mut cache = self.cache.lock().await;
+        // let _guard = self.lock().await;
 
         // This should never happen, but let's ignore the insert if happened.
-        if self.cache.contains_key(path) {
+        if cache.contains_key(path) {
             debug_assert!(
-                self.cache.get(path) == Some(id.to_string()),
+                cache.get(path) == Some(&id.to_string()),
                 "path {path} exists but it's value is inconsistent"
             );
             return;
         }
 
-        self.cache.insert(path.to_string(), id.to_string());
+        cache.insert(path.to_string(), id.to_string());
     }
 
     /// Remove a cache entry.
     pub async fn remove(&self, path: &str) {
-        let _guard = self.lock().await;
+        let mut cache = self.cache.lock().await;
 
-        self.cache.invalidate(path)
+        // let _guard = self.lock().await;
+
+        cache.remove(path);
     }
 
     /// Get the id for the given path.
     pub async fn get(&self, path: &str) -> Result<Option<String>> {
-        let _guard = self.lock().await;
+        // let _guard = self.lock().await;
+        let mut cache = self.cache.lock().await;
 
-        if let Some(id) = self.cache.get(path) {
-            return Ok(Some(id));
+        if let Some(id) = cache.get(path) {
+            return Ok(Some(id.to_string()));
         }
 
         let mut paths = VecDeque::new();
@@ -126,13 +130,14 @@ impl<Q: PathQuery> PathCacher<Q> {
         while current_path != "/" && !current_path.is_empty() {
             paths.push_front(current_path.to_string());
             current_path = get_parent(current_path);
-            if let Some(id) = self.cache.get(current_path) {
+            if let Some(id) = cache.get(current_path) {
+                let id = id.to_string();
                 return self.query_down(&id, paths).await;
             }
         }
 
         let root_id = self.query.root().await?;
-        self.cache.insert("/".to_string(), root_id.clone());
+        cache.insert("/".to_string(), root_id.clone());
         self.query_down(&root_id, paths).await
     }
 
@@ -141,12 +146,13 @@ impl<Q: PathQuery> PathCacher<Q> {
     ///
     /// We should fetch the next `file_id` by sending `query`.
     async fn query_down(&self, start_id: &str, paths: VecDeque<String>) -> Result<Option<String>> {
+        let mut cache = self.cache.lock().await;
         let mut current_id = start_id.to_string();
         for path in paths.into_iter() {
             let name = get_basename(&path);
             current_id = match self.query.query(&current_id, name).await? {
                 Some(id) => {
-                    self.cache.insert(path, id.clone());
+                    cache.insert(path, id.clone());
                     id
                 }
                 None => return Ok(None),
@@ -157,7 +163,7 @@ impl<Q: PathQuery> PathCacher<Q> {
 
     /// Ensure input dir exists.
     pub async fn ensure_dir(&self, path: &str) -> Result<String> {
-        let _guard = self.lock().await;
+        let mut cache = self.cache.lock().await;
 
         let mut tmp = "".to_string();
         // All parents that need to check.
@@ -172,13 +178,13 @@ impl<Q: PathQuery> PathCacher<Q> {
             parents.push(tmp.to_string());
         }
 
-        let mut parent_id = match self.cache.get("/") {
-            Some(v) => v,
-            None => self.query.root().await?,
+        let mut parent_id = match cache.get("/") {
+            Some(v) => v.to_string(),
+            None => self.query.root().await?.to_string(),
         };
         for parent in parents {
-            parent_id = match self.cache.get(&parent) {
-                Some(value) => value,
+            parent_id = match cache.get(&parent) {
+                Some(value) => value.to_string(),
                 None => {
                     let value = match self.query.query(&parent_id, get_basename(&parent)).await? {
                         Some(value) => value,
@@ -188,13 +194,13 @@ impl<Q: PathQuery> PathCacher<Q> {
                                 .await?
                         }
                     };
-                    self.cache.insert(parent, value.clone());
-                    value
+                    cache.insert(parent, value.clone());
+                    value.to_string()
                 }
             }
         }
 
-        Ok(parent_id)
+        Ok(parent_id.to_string())
     }
 }
 
@@ -237,8 +243,9 @@ mod tests {
         for (name, input, expect) in cases {
             let cache = PathCacher::new(TestQuery {});
 
-            let actual = cache.get(input).await.unwrap();
-            assert_eq!(actual.as_deref(), expect, "{name}")
+            let actual_string = cache.get(input).await.unwrap();
+            let actual = actual_string.as_deref();
+            assert_eq!(actual, expect, "{name}")
         }
     }
 }

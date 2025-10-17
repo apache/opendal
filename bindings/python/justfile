@@ -32,7 +32,7 @@ set ignore-comments := true
 [group('maintenance')]
 setup:
     @echo "{{ BOLD }}--- Installing/ validating dependencies ---{{ NORMAL }}"
-    @uv sync --managed-python --all-groups --all-extras --compile-bytecode --upgrade
+    @uv sync --managed-python --all-groups --all-extras --compile-bytecode
 
 # Clean up all caches, build artifacts, and the venv
 [group('maintenance')]

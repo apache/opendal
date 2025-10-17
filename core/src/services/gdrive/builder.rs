@@ -16,6 +16,7 @@
 // under the License.
 
 use log::debug;
+use rand::rngs::StdRng;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -35,6 +36,7 @@ use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::GdriveConfig;
 use crate::*;
+use rand::SeedableRng;
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
 #[derive(Default)]
@@ -201,14 +203,18 @@ impl Builder for GdriveBuilder {
         };
 
         let signer = Arc::new(Mutex::new(signer));
+        let seed = [
+            42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 00, 0, 0,
+            0, 0, 0, 42,
+        ];
 
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
                 info: accessor_info.clone(),
                 root,
+                rng: Arc::new(Mutex::new(StdRng::from_seed(seed))),
                 signer: signer.clone(),
-                path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
-                    // .with_lock(),
+                path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer)), // .with_lock(),
             }),
         })
     }

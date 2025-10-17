@@ -208,7 +208,7 @@ impl Builder for GdriveBuilder {
                 root,
                 signer: signer.clone(),
                 path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
-                    .with_lock(),
+                    // .with_lock(),
             }),
         })
     }

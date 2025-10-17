@@ -70,14 +70,7 @@ pub fn all_packages() -> Vec<Package> {
     let parquet = make_package("integrations/parquet", "0.6.1", vec![core.clone()]);
     let unftp_sbe = make_package("integrations/unftp-sbe", "0.3.1", vec![core.clone()]);
 
-    // Binaries
-    let oay = make_package("bin/oay", "0.41.23", vec![core.clone(), dav_server.clone()]);
-    let ofs = make_package(
-        "bin/ofs",
-        "0.0.24",
-        vec![core.clone(), fuse3.clone(), cloud_filter.clone()],
-    );
-    let oli = make_package("bin/oli", "0.41.23", vec![core.clone()]);
+    // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
     let c = make_package("bindings/c", "0.46.3", vec![core.clone()]);
@@ -94,9 +87,6 @@ pub fn all_packages() -> Vec<Package> {
         object_store,
         parquet,
         unftp_sbe,
-        oay,
-        ofs,
-        oli,
         c,
         cpp,
         java,
@@ -114,9 +104,6 @@ pub fn update_package_version(package: &Package) -> bool {
         "integrations/object_store" => update_cargo_version(&package.path, &package.version),
         "integrations/parquet" => update_cargo_version(&package.path, &package.version),
         "integrations/unftp-sbe" => update_cargo_version(&package.path, &package.version),
-        "bin/oay" => update_cargo_version(&package.path, &package.version),
-        "bin/ofs" => update_cargo_version(&package.path, &package.version),
-        "bin/oli" => update_cargo_version(&package.path, &package.version),
 
         "bindings/c" => false,   // C bindings has no version to update
         "bindings/cpp" => false, // C++ bindings has no version to update

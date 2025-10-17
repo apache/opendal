@@ -87,15 +87,6 @@ updates:
           - "rand"
           - "getrandom"
 
-  - package-ecosystem: "cargo"
-    directory: "/bin/oay"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "monthly"
-    cooldown:
-      semver-patch-days: 90 # maximum 90 days
-      include:
-        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/bin/ofs"

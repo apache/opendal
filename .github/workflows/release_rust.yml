@@ -75,7 +75,7 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
-      - uses: rust-lang/crates-io-auth-action@e919bc7605cde86df457cf5b93c5e103838bd879
+      - uses: rust-lang/crates-io-auth-action@041cce5b4b821e6b0ebc9c9c38b58cac4e34dcc2
         id: auth
       - name: Publish ${{ matrix.package }}
         working-directory: ${{ matrix.package }}

@@ -115,6 +115,7 @@ services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
+services-compfs = ["opendal/services-compfs"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]
 services-etcd = ["opendal/services-etcd"]
@@ -148,7 +149,6 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
-services-compfs = ["opendal/services-compfs"]
 # we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
 abi3 = ["pyo3/abi3-py311"]
 
@@ -164,7 +164,7 @@ jiff = { version = "0.2.15" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
-  "layers-mime-guess"
+  "layers-mime-guess",
 ] }
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
@@ -181,3 +181,9 @@ features = [
 ]
 path = "../../core"
 version = ">=0"
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+strip = true

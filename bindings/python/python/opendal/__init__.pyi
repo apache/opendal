@@ -19,7 +19,7 @@ import os
 from collections.abc import AsyncIterable, Iterable
 from datetime import datetime
 from types import TracebackType
-from typing import Any, Union, final
+from typing import TypeAlias, final
 
 try:
     from warnings import deprecated
@@ -30,7 +30,7 @@ from opendal import layers as layers
 from opendal.__base import _Base
 from opendal.layers import Layer
 
-PathBuf = Union[str, os.PathLike]
+PathBuf: TypeAlias = str | os.PathLike
 
 @final
 class Operator(_Base):
@@ -45,12 +45,14 @@ class Operator(_Base):
         ```python
         import opendal
 
-        op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
+        op = opendal.Operator(
+            "s3", bucket="bucket", region="us-east-1"
+        )
         op.write("hello.txt", b"hello world")
         ```
     """
 
-    def __init__(self, scheme: str, **options: Any) -> None: ...
+    def __init__(self, scheme: str, **options) -> None: ...
     def layer(self, layer: Layer) -> Operator:
         """Add new layers upon the current operator.
 
@@ -61,7 +63,7 @@ class Operator(_Base):
         -------
             The new operator with the layer added.
         """
-    def open(self, path: PathBuf, mode: str, **options: Any) -> File:
+    def open(self, path: PathBuf, mode: str, **options) -> File:
         """Open a file at the given path for reading or writing.
 
         Args:
@@ -83,12 +85,14 @@ class Operator(_Base):
             ```python
             import opendal
 
-            op = opendal.Operator("s3", bucket="bucket", region="us-east-1")
+            op = opendal.Operator(
+                "s3", bucket="bucket", region="us-east-1"
+            )
             with op.open("hello.txt", "wb") as f:
                 f.write(b"hello world")
             ```
         """
-    def read(self, path: PathBuf, **options: Any) -> bytes:
+    def read(self, path: PathBuf, **options) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
@@ -120,7 +124,7 @@ class Operator(_Base):
         -------
             bytes: The content of the object as bytes.
         """
-    def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
+    def write(self, path: PathBuf, bs: bytes, **options) -> None:
         """Write the content to the object at the given path.
 
         Args:
@@ -174,6 +178,7 @@ class Operator(_Base):
                     the object.
                 - content_disposition (str): Sets how the object should be presented
                     (e.g., as an attachment).
+
         Returns
         -------
             Metadata: The metadata of the object.
@@ -282,14 +287,16 @@ class AsyncOperator(_Base):
         ```python
         import opendal
 
-        op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
+        op = opendal.AsyncOperator(
+            "s3", bucket="bucket", region="us-east-1"
+        )
         await op.write("hello.txt", b"hello world")
         ```
     """
 
-    def __init__(self, scheme: str, **options: Any) -> None: ...
+    def __init__(self, scheme: str, **options) -> None: ...
     def layer(self, layer: Layer) -> AsyncOperator: ...
-    async def open(self, path: PathBuf, mode: str, **options: Any) -> AsyncFile:
+    async def open(self, path: PathBuf, mode: str, **options) -> AsyncFile:
         """Open a file at the given path for reading or writing.
 
         Args:
@@ -311,12 +318,14 @@ class AsyncOperator(_Base):
             ```python
             import opendal
 
-            op = opendal.AsyncOperator("s3", bucket="bucket", region="us-east-1")
+            op = opendal.AsyncOperator(
+                "s3", bucket="bucket", region="us-east-1"
+            )
             async with await op.open("hello.txt", "wb") as f:
                 await f.write(b"hello world")
             ```
         """
-    async def read(self, path: PathBuf, **options: Any) -> bytes:
+    async def read(self, path: PathBuf, **options) -> bytes:
         """Read the content of the object at the given path.
 
         Args:
@@ -349,7 +358,7 @@ class AsyncOperator(_Base):
         -------
             The content of the object as bytes.
         """
-    async def write(self, path: PathBuf, bs: bytes, **options: Any) -> None:
+    async def write(self, path: PathBuf, bs: bytes, **options) -> None:
         """Write the content to the object at the given path.
 
         Args:
@@ -403,6 +412,7 @@ class AsyncOperator(_Base):
                     the object.
                 - content_disposition (str): Sets how the object should be presented
                     (e.g., as an attachment).
+
         Returns
         -------
             Metadata: The metadata of the object.
@@ -459,7 +469,6 @@ class AsyncOperator(_Base):
     @deprecated("Use `list()` instead.")
     async def scan(self, path: PathBuf, **kwargs) -> AsyncIterable[Entry]:
         """Scan the objects at the given path recursively.
-
 
         Args:
             path (str | Path): The path to the directory/ prefix.

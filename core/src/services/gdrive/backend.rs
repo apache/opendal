@@ -53,32 +53,7 @@ impl Access for GdriveBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gdrive_stat(path).await?;
-
-        if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
-        }
-
-        let bs = resp.into_body();
-        let gdrive_file: GdriveFile =
-            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-        let file_type = if gdrive_file.mime_type == "application/vnd.google-apps.folder" {
-            EntryMode::DIR
-        } else {
-            EntryMode::FILE
-        };
-        let mut meta = Metadata::new(file_type).with_content_type(gdrive_file.mime_type);
-        if let Some(v) = gdrive_file.size {
-            meta = meta.with_content_length(v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-            })?);
-        }
-        if let Some(v) = gdrive_file.modified_time {
-            meta = meta.with_last_modified(v.parse::<Timestamp>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-            })?);
-        }
+        let meta = self.core.gdrive_get_metadata(path).await?;
         Ok(RpStat::new(meta))
     }
 

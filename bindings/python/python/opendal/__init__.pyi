@@ -184,11 +184,12 @@ class Operator(_Base):
         Args:
             path (str|Path): The path to the directory.
         """
-    def delete(self, path: PathBuf) -> None:
-        """Delete the object at the given path.
+    def delete(self, path: PathBuf | Iterable[PathBuf]) -> None:
+        """Delete one object or multiple objects.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path | Iterable[str | Path]): Either a single path or
+                an iterable of paths to delete.
         """
     def exists(self, path: PathBuf) -> bool:
         """Check if the object at the given path exists.
@@ -413,11 +414,12 @@ class AsyncOperator(_Base):
         Args:
             path (str|Path): The path to the directory.
         """
-    async def delete(self, path: PathBuf) -> None:
-        """Delete the object at the given path.
+    async def delete(self, path: PathBuf | Iterable[PathBuf]) -> None:
+        """Delete one object or multiple objects.
 
         Args:
-            path (str|Path): The path to the object.
+            path (str | Path | Iterable[str | Path]): Either a single path or
+                an iterable of paths to delete.
         """
     async def exists(self, path: PathBuf) -> bool:
         """Check if the object at the given path exists.

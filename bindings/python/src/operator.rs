@@ -232,6 +232,18 @@ impl Operator {
         self.core.delete(&path).map_err(format_pyerr)
     }
 
+    /// Delete multiple paths in a single call.
+    ///
+    /// Accepts any iterable of path-like objects. Paths that do not exist are ignored.
+    pub fn delete_many(&self, paths: Vec<PathBuf>) -> PyResult<()> {
+        let paths: Vec<String> = paths
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+
+        self.core.delete_iter(paths).map_err(format_pyerr)
+    }
+
     /// Checks if the given path exists.
     ///
     /// # Notes
@@ -575,6 +587,25 @@ impl AsyncOperator {
             py,
             async move { this.delete(&path).await.map_err(format_pyerr) },
         )
+    }
+
+    /// Delete multiple paths in a single call.
+    ///
+    /// Accepts any iterable of path-like objects. Paths that do not exist are ignored.
+    pub fn delete_many<'p>(
+        &'p self,
+        py: Python<'p>,
+        paths: Vec<PathBuf>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let paths: Vec<String> = paths
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+
+        future_into_py(py, async move {
+            this.delete_iter(paths).await.map_err(format_pyerr)
+        })
     }
 
     /// Check given path is exists.

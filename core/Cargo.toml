@@ -155,7 +155,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
-services-gdrive = ["internal-path-cache"]
+services-gdrive = ["internal-path-cache", "dep:rand"]
 services-ghac = ["dep:ghac", "dep:prost", "services-azblob"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]

@@ -446,29 +446,6 @@ jobs:
           name: unftp-sbe-opendal-docs
           path: ./integrations/unftp-sbe/target/doc
 
-  build-virtiofs-opendal-doc:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Rust Nightly
-        run: |
-          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
-
-      - name: Build virtiofs-opendal doc
-        working-directory: "integrations/virtiofs"
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
-
-      - name: Upload docs
-        uses: actions/upload-artifact@v4
-        with:
-          name: virtiofs-opendal-docs
-          path: ./integrations/virtiofs/target/doc
-
   build-parquet-opendal-doc:
     runs-on: ubuntu-latest
 
@@ -511,7 +488,6 @@ jobs:
       - build-dav-server-opendalfs-doc
       - build-fuse3-opendal-doc
       - build-unftp-sbe-opendal-doc
-      - build-virtiofs-opendal-doc
       - build-parquet-opendal-doc
 
     steps:
@@ -617,12 +593,6 @@ jobs:
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal
-
-      - name: Download virtiofs-opendal docs
-        uses: actions/download-artifact@v5
-        with:
-          name: virtiofs-opendal-docs
-          path: ./website/static/docs/virtiofs-opendal
 
       - name: Install Dependencies
         working-directory: website

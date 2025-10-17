@@ -49,8 +49,6 @@ jobs:
           - "integrations/fuse3"
           - "integrations/unftp-sbe"
           - "integrations/cloud_filter"
-          - "bin/oli"
-          - "bin/ofs" # depends on integrations/{fuse3,cloud_filter}
     steps:
       - uses: actions/checkout@v5
       - name: Checkout python env

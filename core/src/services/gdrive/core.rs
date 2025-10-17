@@ -517,14 +517,12 @@ impl GdriveFile {
     /// This method parses the Google Drive API response fields and maps them
     /// to OpenDAL's standard metadata fields.
     pub(crate) fn to_metadata(&self) -> Result<Metadata> {
-        let mut metadata = Metadata::default();
-
         let file_type = if self.mime_type == GDRIVE_FOLDER_MIME_TYPE {
             EntryMode::DIR
         } else {
             EntryMode::FILE
         };
-        metadata.set_mode(file_type);
+        let mut metadata = Metadata::new(file_type);
         metadata.set_content_type(&self.mime_type);
 
         if let Some(ref size) = self.size {

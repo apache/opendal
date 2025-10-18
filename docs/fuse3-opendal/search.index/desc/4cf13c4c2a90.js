@@ -1,0 +1,1 @@
+rd_("CiCreate a new filesystem with given operator, uid and gid.AoReturns the argument unchanged.BaCalls <code>U::from(self)</code>.CiIn design, flush could be called multiple times for a \xe2\x80\xa6De<code>Filesystem</code> represents the filesystem that implements \xe2\x80\xa6Ea<code>fuse3_opendal</code> is an <code>fuse3</code> implementation using opendal.")

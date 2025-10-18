@@ -51,26 +51,23 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Capability module
     add_pymodule!(py, m, "capability", [Capability])?;
 
-    m.add_class::<Entry>()?;
-    m.add_class::<EntryMode>()?;
-    m.add_class::<Metadata>()?;
+    // Layers module
+    add_pymodule!(
+        py,
+        m,
+        "layers",
+        [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
+    )?;
+
+    // Types module
+    add_pymodule!(py, m, "types", [Entry, EntryMode, Metadata])?;
+
     m.add_class::<PresignedRequest>()?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;
     m.add_class::<ListOptions>()?;
     m.add_class::<StatOptions>()?;
-
-    // Layer module
-    let layers_module = PyModule::new(py, "layers")?;
-    layers_module.add_class::<Layer>()?;
-    layers_module.add_class::<RetryLayer>()?;
-    layers_module.add_class::<ConcurrentLimitLayer>()?;
-    layers_module.add_class::<MimeGuessLayer>()?;
-    m.add_submodule(&layers_module)?;
-    py.import("sys")?
-        .getattr("modules")?
-        .set_item("opendal.layers", layers_module)?;
 
     // Exceptions module
     add_pyexceptions!(

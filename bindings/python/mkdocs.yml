@@ -43,11 +43,14 @@ nav:
       - Pandas: examples/pandas.ipynb
       - Polars: examples/polars.ipynb
   - API Reference:
-      - api/operator.md
-      - api/file.md
-      - api/async_operator.md
-      - api/async_file.md
-      - api/metadata.md
+      - AsyncFile: api/async_file.md
+      - AsyncOperator: api/async_operator.md
+      - Capability: api/capability.md
+      - Exceptions: api/exceptions.md
+      - File: api/file.md
+      - Layers: api/layers.md
+      - Operator: api/operator.md
+      - Types: api/types.md
 
 markdown_extensions:
   - pymdownx.highlight:

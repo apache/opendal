@@ -1,6 +1,6 @@
-::: opendal.Metadata
+::: opendal.Capability
     options:
-      heading: "opendal.Metadata"
+      heading: "opendal.Capability"
       heading_level: 2
       show_source: false
       show_bases: false

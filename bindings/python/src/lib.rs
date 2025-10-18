@@ -59,9 +59,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
     )?;
 
-    m.add_class::<Entry>()?;
-    m.add_class::<EntryMode>()?;
-    m.add_class::<Metadata>()?;
+    // Types module
+    add_pymodule!(py, m, "types", [Entry, EntryMode, Metadata])?;
+
     m.add_class::<PresignedRequest>()?;
 
     m.add_class::<WriteOptions>()?;

@@ -17,7 +17,6 @@
 
 import os
 from collections.abc import AsyncIterable, Iterable
-from datetime import datetime
 from types import TracebackType
 from typing import TypeAlias, final
 
@@ -30,6 +29,7 @@ from opendal import layers as layers
 from opendal.__base import _Base
 from opendal.capability import Capability
 from opendal.layers import Layer
+from opendal.types import Entry, Metadata
 
 PathBuf: TypeAlias = str | os.PathLike
 
@@ -702,61 +702,6 @@ class AsyncFile:
         """Check if the file supports seeking."""
     async def writable(self) -> bool:
         """Check if the file is writable."""
-
-@final
-class Entry:
-    """An entry in the directory listing."""
-
-    @property
-    def path(self) -> str:
-        """The path of the entry."""
-    @property
-    def metadata(self) -> Metadata:
-        """The metadata of the entry."""
-
-@final
-class Metadata:
-    @property
-    def content_disposition(self) -> str | None:
-        """The content disposition of the object."""
-    @property
-    def content_length(self) -> int:
-        """The content length of the object."""
-    @property
-    def content_md5(self) -> str | None:
-        """The MD5 checksum of the object."""
-    @property
-    def content_type(self) -> str | None:
-        """The mime type of the object."""
-    @property
-    def content_encoding(self) -> str | None:
-        """The content encoding of the object."""
-    @property
-    def etag(self) -> str | None:
-        """The ETag of the object."""
-    @property
-    def mode(self) -> EntryMode:
-        """The mode of the object."""
-    @property
-    def is_file(self) -> bool:
-        """Returns `True` if this metadata is for a file."""
-    @property
-    def is_dir(self) -> bool:
-        """Returns `True` if this metadata is for a directory."""
-    @property
-    def last_modified(self) -> datetime | None:
-        """The last modified time of the object."""
-    @property
-    def version(self) -> str | None:
-        """The version of the object, if available."""
-    @property
-    def user_metadata(self) -> str | None:
-        """The user defined metadata of the object."""
-
-@final
-class EntryMode:
-    def is_file(self) -> bool: ...
-    def is_dir(self) -> bool: ...
 
 @final
 class PresignedRequest:

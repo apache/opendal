@@ -45,6 +45,12 @@ pub use metadata::opendal_metadata;
 mod operator;
 pub use operator::opendal_operator;
 
+// Add new async modules and types
+mod async_operator;
+pub use async_operator::opendal_async_operator;
+pub use async_operator::opendal_future_stat;
+pub use async_operator::opendal_result_future_stat;
+
 mod operator_info;
 
 mod result;

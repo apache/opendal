@@ -49,28 +49,47 @@ fn build_blocking_operator(
     Ok(op)
 }
 
-/// `Operator` is the entry for all public blocking APIs
+/// The blocking equivalent of `AsyncOperator`.
 ///
-/// Create a new blocking `Operator` with the given `scheme` and options(`**kwargs`).
-#[pyclass(module = "opendal")]
+/// `Operator` is the entry point for all blocking APIs.
+///
+/// See also
+/// --------
+/// AsyncOperator
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.operator")]
 pub struct Operator {
     core: ocore::blocking::Operator,
     __scheme: ocore::Scheme,
     __map: HashMap<String, String>,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl Operator {
+    /// Create a new blocking `Operator`.
+    ///
+    /// Parameters
+    /// ----------
+    /// scheme : str
+    ///     The scheme of the service.
+    /// **kwargs : dict
+    ///     The options for the service.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme, *, **map))]
-    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, **kwargs))]
+    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
                     .set_source(err)
             })
             .map_err(format_pyerr)?;
-        let map = map
+        let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
                     .expect("must be valid hashmap")
@@ -84,7 +103,17 @@ impl Operator {
         })
     }
 
-    /// Add new layers upon the existing operator
+    /// Add a new layer to this operator.
+    ///
+    /// Parameters
+    /// ----------
+    /// layer : Layer
+    ///     The layer to add.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     A new operator with the layer added.
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
@@ -98,8 +127,24 @@ impl Operator {
         })
     }
 
-    /// Open a file-like reader for the given path.
-    #[pyo3(signature = (path, mode, *, **kwargs))]
+    /// Open a file-like object for the given path.
+    ///
+    /// The returning file-like object is a context manager.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// mode : str
+    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    /// **kwargs : dict
+    ///     Additional options for the underlying reader or writer.
+    ///
+    /// Returns
+    /// -------
+    /// File
+    ///     A file-like object.
+    #[pyo3(signature = (path, mode, **kwargs))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -141,7 +186,19 @@ impl Operator {
         }
     }
 
-    /// Read the whole path into bytes.
+    /// Read the entire contents of a file at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// **kwargs : ReadOptions
+    ///     Additional options for the underlying reader.
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The contents of the file.
     #[pyo3(signature = (path, **kwargs))]
     pub fn read<'p>(
         &'p self,
@@ -160,7 +217,19 @@ impl Operator {
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Write bytes into a given path.
+    /// Write bytes to a file at the given path.
+    ///
+    /// This function will create a file if it does not exist, and will
+    /// overwrite its contents if it does.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// bs : bytes
+    ///     The contents to write to the file.
+    /// **kwargs : WriteOptions
+    ///     Additional options for the underlying writer.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
@@ -171,7 +240,19 @@ impl Operator {
             .map_err(format_pyerr)
     }
 
-    /// Get metadata for the current path **without cache** directly.
+    /// Get the metadata of a file at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// **kwargs : StatOptions
+    ///     Additional options for the underlying stat operation.
+    ///
+    /// Returns
+    /// -------
+    /// Metadata
+    ///     The metadata of the file.
     #[pyo3(signature = (path, **kwargs))]
     pub fn stat(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
@@ -185,64 +266,105 @@ impl Operator {
             .map(Metadata::new)
     }
 
-    /// Copy the source to the target.
+    /// Copy a file from one path to another.
+    ///
+    /// Parameters
+    /// ----------
+    /// source : str
+    ///     The path to the source file.
+    /// target : str
+    ///     The path to the target file.
     pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         self.core.copy(&source, &target).map_err(format_pyerr)
     }
 
-    /// Rename filename.
+    /// Rename (move) a file from one path to another.
+    ///
+    /// Parameters
+    /// ----------
+    /// source : str
+    ///     The path to the source file.
+    /// target : str
+    ///     The path to the target file.
     pub fn rename(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         self.core.rename(&source, &target).map_err(format_pyerr)
     }
 
-    /// Remove all files
+    /// Recursively remove all files and directories at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to remove.
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.remove_all(&path).map_err(format_pyerr)
     }
 
-    /// Create a dir at the given path.
+    /// Create a directory at the given path.
     ///
-    /// # Notes
+    /// Notes
+    /// -----
+    /// To indicate that a path is a directory, it must end with a `/`.
+    /// This operation is always recursive, like `mkdir -p`.
     ///
-    /// To indicate that a path is a directory, it is compulsory to include
-    /// a trailing / in the path. Failure to do so may result in
-    ///  a ` NotADirectory ` error being returned by OpenDAL.
-    ///
-    /// # Behavior
-    ///
-    /// - Create on existing dir will succeed.
-    /// - Create dir is always recursive, works like `mkdir -p`
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
     pub fn create_dir(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.create_dir(&path).map_err(format_pyerr)
     }
 
-    /// Delete given path.
+    /// Delete a file at the given path.
     ///
-    /// # Notes
+    /// Notes
+    /// -----
+    /// This operation will not return an error if the path does not exist.
     ///
-    /// - Delete not existing error won't return errors.
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
     pub fn delete(&self, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         self.core.delete(&path).map_err(format_pyerr)
     }
 
-    /// Checks if the given path exists.
+    /// Check if a path exists.
     ///
-    /// # Notes
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to check.
     ///
-    /// - Check not existing path won't return errors.
+    /// Returns
+    /// -------
+    /// bool
+    ///     True if the path exists, False otherwise.
     pub fn exists(&self, path: PathBuf) -> PyResult<bool> {
         let path = path.to_string_lossy().to_string();
         self.core.exists(&path).map_err(format_pyerr)
     }
 
-    /// List current dir path.
+    /// List entries in the given directory.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
+    /// **kwargs : ListOptions
+    ///     Additional options for the underlying list operation.
+    ///
+    /// Returns
+    /// -------
+    /// BlockingLister
+    ///     An iterator over the entries in the directory.
     #[pyo3(signature = (path, **kwargs))]
     pub fn list(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
@@ -259,7 +381,24 @@ impl Operator {
         Ok(BlockingLister::new(l))
     }
 
-    /// List dir in a flat way.
+    /// Recursively list entries in the given directory.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
+    /// **kwargs : ListOptions
+    ///     Additional options for the underlying list operation.
+    ///
+    /// Returns
+    /// -------
+    /// BlockingLister
+    ///     An iterator over the entries in the directory.
+    ///
+    /// Deprecated
+    /// ----------
+    ///     Use `list()` with `recursive=True` instead.
+    #[deprecated(note = "Use `list()` with `recursive=True` instead.")]
     #[pyo3(signature = (path, **kwargs))]
     pub fn scan<'p>(
         &self,
@@ -274,17 +413,34 @@ impl Operator {
         self.list(path, Some(kwargs))
     }
 
+    /// Get all capabilities of this operator.
+    ///
+    /// Returns
+    /// -------
+    /// Capability
+    ///     The capability of the operator.
     pub fn capability(&self) -> PyResult<capability::Capability> {
         Ok(capability::Capability::new(
             self.core.info().full_capability(),
         ))
     }
 
-    /// Check if this operator can work correctly.
+    /// Check if the operator is able to work correctly.
+    ///
+    /// Raises
+    /// ------
+    /// Exception
+    ///     If the operator is not able to work correctly.
     pub fn check(&self) -> PyResult<()> {
         self.core.check().map_err(format_pyerr)
     }
 
+    /// Create a new `AsyncOperator` from this blocking operator.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The async operator.
     pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
         Ok(AsyncOperator {
             core: self.core.clone().into(),
@@ -315,28 +471,47 @@ impl Operator {
     }
 }
 
-/// `AsyncOperator` is the entry for all public async APIs
+/// The async equivalent of `Operator`.
 ///
-/// Create a new `AsyncOperator` with the given `scheme` and options(`**kwargs`).
-#[pyclass(module = "opendal")]
+/// `AsyncOperator` is the entry point for all async APIs.
+///
+/// See also
+/// --------
+/// Operator
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.operator")]
 pub struct AsyncOperator {
     core: ocore::Operator,
     __scheme: ocore::Scheme,
     __map: HashMap<String, String>,
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl AsyncOperator {
+    /// Create a new `AsyncOperator`.
+    ///
+    /// Parameters
+    /// ----------
+    /// scheme : str
+    ///     The scheme of the service.
+    /// **kwargs : dict
+    ///     The options for the service.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme, *,  **map))]
-    pub fn new(scheme: &str, map: Option<&Bound<PyDict>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme, **kwargs))]
+    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
                 ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
                     .set_source(err)
             })
             .map_err(format_pyerr)?;
-        let map = map
+        let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
                     .expect("must be valid hashmap")
@@ -350,7 +525,17 @@ impl AsyncOperator {
         })
     }
 
-    /// Add new layers upon the existing operator
+    /// Add a new layer to the operator.
+    ///
+    /// Parameters
+    /// ----------
+    /// layer : Layer
+    ///     The layer to add.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     A new operator with the layer added.
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
@@ -360,8 +545,24 @@ impl AsyncOperator {
         })
     }
 
-    /// Open a file-like reader for the given path.
-    #[pyo3(signature = (path, mode, *, **kwargs))]
+    /// Open a file-like object for the given path.
+    ///
+    /// The returning file-like object is a context manager.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// mode : str
+    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    /// **kwargs : dict
+    ///     Additional options for the underlying reader or writer.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a file-like object.
+    #[pyo3(signature = (path, mode, **kwargs))]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
@@ -410,7 +611,19 @@ impl AsyncOperator {
         })
     }
 
-    /// Read the whole path into bytes.
+    /// Read the entire contents of a file at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// **kwargs : ReadOptions
+    ///     Additional options for the underlying reader.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns the contents of the file as bytes.
     #[pyo3(signature = (path, **kwargs))]
     pub fn read<'p>(
         &'p self,
@@ -435,7 +648,24 @@ impl AsyncOperator {
         })
     }
 
-    /// Write bytes into given path.
+    /// Write bytes to a file at the given path.
+    ///
+    /// This function will create a file if it does not exist, and will
+    /// overwrite its contents if it does.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// bs : bytes
+    ///     The contents to write to the file.
+    /// **kwargs : WriteOptions
+    ///     Additional options for the underlying writer.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the write is finished.
     #[pyo3(signature = (path, bs, **kwargs))]
     pub fn write<'p>(
         &'p self,
@@ -449,9 +679,7 @@ impl AsyncOperator {
         let bs = bs.as_bytes().to_vec();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let mut write = this
-                .write_with(&path, bs)
-                .append(kwargs.append.unwrap_or(false));
+            let mut write = this.write_with(&path, bs).append(kwargs.append);
             if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }
@@ -472,7 +700,19 @@ impl AsyncOperator {
         })
     }
 
-    /// Get metadata for the current path **without cache** directly.
+    /// Get the metadata of a file at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// **kwargs : StatOptions
+    ///     Additional options for the underlying stat operation.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns the metadata of the file.
     #[pyo3(signature = (path, **kwargs))]
     pub fn stat<'p>(
         &'p self,
@@ -498,7 +738,19 @@ impl AsyncOperator {
         })
     }
 
-    /// Copy source to target.``
+    /// Copy a file from one path to another.
+    ///
+    /// Parameters
+    /// ----------
+    /// source : str
+    ///     The path to the source file.
+    /// target : str
+    ///     The path to the target file.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the copy is finished.
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
@@ -513,7 +765,19 @@ impl AsyncOperator {
         })
     }
 
-    /// Rename filename
+    /// Rename (move) a file from one path to another.
+    ///
+    /// Parameters
+    /// ----------
+    /// source : str
+    ///     The path to the source file.
+    /// target : str
+    ///     The path to the target file.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the rename is finished.
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
@@ -528,7 +792,17 @@ impl AsyncOperator {
         })
     }
 
-    /// Remove all file
+    /// Recursively remove all files and directories at the given path.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to remove.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the removal is finished.
     pub fn remove_all<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -537,24 +811,38 @@ impl AsyncOperator {
         })
     }
 
-    /// Check if this operator can work correctly.
+    /// Check if the operator is able to work correctly.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the check is finished.
+    ///
+    /// Raises
+    /// ------
+    /// Exception
+    ///     If the operator is not able to work correctly.
     pub fn check<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move { this.check().await.map_err(format_pyerr) })
     }
 
-    /// Create a dir at given path.
+    /// Create a directory at the given path.
     ///
-    /// # Notes
+    /// Notes
+    /// -----
+    /// To indicate that a path is a directory, it must end with a `/`.
+    /// This operation is always recursive, like `mkdir -p`.
     ///
-    /// To indicate that a path is a directory, it is compulsory to include
-    /// a trailing / in the path. Failure to do so may result in
-    /// `NotADirectory` error being returned by OpenDAL.
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
     ///
-    /// # Behavior
-    ///
-    /// - Create on existing dir will succeed.
-    /// - Create dir is always recursive, works like `mkdir -p`
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the directory is created.
     pub fn create_dir<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -563,11 +851,21 @@ impl AsyncOperator {
         })
     }
 
-    /// Delete given path.
+    /// Delete a file at the given path.
     ///
-    /// # Notes
+    /// Notes
+    /// -----
+    /// This operation will not return an error if the path does not exist.
     ///
-    /// - Delete not existing error won't return errors.
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that completes when the file is deleted.
     pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -577,11 +875,17 @@ impl AsyncOperator {
         )
     }
 
-    /// Check given path is exists.
+    /// Check if a path exists.
     ///
-    /// # Notes
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to check.
     ///
-    /// - Check not existing path won't return errors.
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns True if the path exists, False otherwise.
     pub fn exists<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -591,7 +895,19 @@ impl AsyncOperator {
         )
     }
 
-    /// List current dir path.
+    /// List entries in the given directory.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
+    /// **kwargs : ListOptions
+    ///     Additional options for the underlying list operation.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns an async iterator over the entries.
     #[pyo3(signature = (path, **kwargs))]
     pub fn list<'p>(
         &'p self,
@@ -617,8 +933,25 @@ impl AsyncOperator {
         })
     }
 
-    /// List dir in a flat way.
+    /// Recursively list entries in the given directory.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the directory.
+    /// **kwargs : ListOptions
+    ///     Additional options for the underlying list operation.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns an async iterator over the entries.
+    ///
+    /// Deprecated
+    /// ----------
+    ///     Use `list()` with `recursive=True` instead.
     #[pyo3(signature = (path, **kwargs))]
+    #[deprecated(note = "Use `list()` with `recursive=True` instead.")]
     pub fn scan<'p>(
         &'p self,
         py: Python<'p>,
@@ -632,7 +965,20 @@ impl AsyncOperator {
         self.list(py, path, Some(kwargs))
     }
 
-    /// Presign an operation for stat(head) which expires after `expire_second` seconds.
+    /// Create a presigned request for a stat operation.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path of the object to stat.
+    /// expire_second : int
+    ///     The number of seconds until the presigned URL expires.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a presigned request object.
+    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
@@ -652,7 +998,20 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for read which expires after `expire_second` seconds.
+    /// Create a presigned request for a read operation.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path of the object to read.
+    /// expire_second : int
+    ///     The number of seconds until the presigned URL expires.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a presigned request object.
+    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
@@ -672,7 +1031,20 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for write which expires after `expire_second` seconds.
+    /// Create a presigned request for a write operation.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path of the object to write to.
+    /// expire_second : int
+    ///     The number of seconds until the presigned URL expires.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a presigned request object.
+    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
@@ -692,7 +1064,20 @@ impl AsyncOperator {
         })
     }
 
-    /// Presign an operation for delete which expires after `expire_second` seconds.
+    /// Create a presigned request for a delete operation.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path of the object to delete.
+    /// expire_second : int
+    ///     The number of seconds until the presigned URL expires.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a presigned request object.
+    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
     pub fn presign_delete<'p>(
         &'p self,
         py: Python<'p>,
@@ -712,12 +1097,24 @@ impl AsyncOperator {
         })
     }
 
-    pub fn capability(&self) -> PyResult<capability::Capability> {
+    /// Get all capabilities of this operator.
+    ///
+    /// Returns
+    /// -------
+    /// Capability
+    ///     The capability of the operator.
+    pub fn capability(&self) -> PyResult<Capability> {
         Ok(capability::Capability::new(
             self.core.info().full_capability(),
         ))
     }
 
+    /// Create a new blocking `Operator` from this async operator.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The blocking operator.
     pub fn to_operator(&self) -> PyResult<Operator> {
         let runtime = pyo3_async_runtimes::tokio::get_runtime();
         let _guard = runtime.enter();
@@ -756,24 +1153,35 @@ impl AsyncOperator {
     }
 }
 
-#[pyclass(module = "opendal")]
+/// A presigned request.
+///
+/// This contains the information required to make a request to the
+/// underlying service, including the URL, method, and headers.
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.types")]
 pub struct PresignedRequest(ocore::raw::PresignedRequest);
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl PresignedRequest {
-    /// Return the URL of this request.
+    /// The URL of this request.
     #[getter]
     pub fn url(&self) -> String {
         self.0.uri().to_string()
     }
 
-    /// Return the HTTP method of this request.
+    /// The HTTP method of this request.
     #[getter]
     pub fn method(&self) -> &str {
         self.0.method().as_str()
     }
 
-    /// Return the HTTP headers of this request.
+    /// The HTTP headers of this request.
+    ///
+    /// Returns
+    /// -------
+    /// dict
+    ///     The HTTP headers of this request.
     #[getter]
     pub fn headers(&self) -> PyResult<HashMap<&str, &str>> {
         let mut headers = HashMap::new();

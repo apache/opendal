@@ -36,9 +36,11 @@ use tokio::sync::Mutex;
 
 use crate::*;
 
-/// A file-like object.
-/// Can be used as a context manager.
-#[pyclass(module = "opendal")]
+/// A file-like object for reading and writing data.
+///
+/// Created by the `open` method of the `Operator` class.
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.file")]
 pub struct File(FileState);
 
 enum FileState {
@@ -57,10 +59,24 @@ impl File {
     }
 }
 
+#[gen_stub_pymethods]
 #[pymethods]
 impl File {
-    /// Read and return at most size bytes, or if size is not given, until EOF.
-    #[pyo3(signature = (size=None,))]
+    /// Read at most `size` bytes from this file.
+    ///
+    /// If `size` is not specified, read until EOF.
+    ///
+    /// Parameters
+    /// ----------
+    /// size : int, optional
+    ///     The maximum number of bytes to read.
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The bytes read from this file.
+    #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
+    #[pyo3(signature = (size=None))]
     pub fn read<'p>(
         &'p mut self,
         py: Python<'p>,
@@ -101,10 +117,26 @@ impl File {
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Read a single line from the file.
-    /// A newline character (`\n`) is left at the end of the string, and is only omitted on the last line of the file if the file doesn’t end in a newline.
-    /// If size is specified, at most size bytes will be read.
-    #[pyo3(signature = (size=None,))]
+    /// Read one line from this file.
+    ///
+    /// If `size` is not specified, read until newline.
+    ///
+    /// Parameters
+    /// ----------
+    /// size : int, optional
+    ///     The maximum number of bytes to read.
+    ///
+    /// Notes
+    /// -----
+    /// Retains newline characters after each line, unless
+    /// the file’s last line has no terminating newline.
+    ///
+    /// Returns
+    /// -------
+    /// bytes
+    ///     The bytes read from this file.
+    #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
+    #[pyo3(signature = (size=None))]
     pub fn readline<'p>(
         &'p mut self,
         py: Python<'p>,
@@ -146,8 +178,22 @@ impl File {
         Buffer::new(buffer).into_bytes_ref(py)
     }
 
-    /// Read bytes into a pre-allocated, writable buffer
-    pub fn readinto(&mut self, buffer: PyBuffer<u8>) -> PyResult<usize> {
+    /// Read bytes into a pre-allocated buffer.
+    ///
+    /// Parameters
+    /// ----------
+    /// buffer : bytes | bytearray
+    ///     A writable, pre-allocated buffer to read into.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     The number of bytes read.
+    pub fn readinto(
+        &mut self,
+        #[gen_stub(override_type(type_repr = "builtins.bytes | builtins.bytearray", imports=("builtins")))]
+        buffer: PyBuffer<u8>,
+    ) -> PyResult<usize> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -181,8 +227,21 @@ impl File {
         })
     }
 
-    /// Write bytes into the file.
-    pub fn write(&mut self, bs: &[u8]) -> PyResult<usize> {
+    /// Write bytes to this file.
+    ///
+    /// Parameters
+    /// ----------
+    /// bs : bytes
+    ///     The bytes to write to the file.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     The number of bytes written.
+    pub fn write(
+        &mut self,
+        #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))] bs: &[u8],
+    ) -> PyResult<usize> {
         let writer = match &mut self.0 {
             FileState::Reader(_) => {
                 return Err(PyIOError::new_err(
@@ -203,16 +262,20 @@ impl File {
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
-    /// Change the stream position to the given byte offset.
-    /// Offset is interpreted relative to the position indicated by `whence`.
-    /// The default value for whence is `SEEK_SET`. Values for `whence` are:
+    /// Change the position of this file to the given byte offset.
     ///
-    /// * `SEEK_SET` or `0` – start of the stream (the default); offset should be zero or positive
-    /// * `SEEK_CUR` or `1` – current stream position; offset may be negative
-    /// * `SEEK_END` or `2` – end of the stream; offset is usually negative
+    /// Parameters
+    /// ----------
+    /// pos : int
+    ///     The byte offset (position) to set.
+    /// whence : int, optional
+    ///     The reference point for the offset.
+    ///     0: start of file (default); 1: current position; 2: end of file.
     ///
-    /// Return the new absolute position.
-    #[pyo3(signature = (pos, whence = 0))]
+    /// Returns
+    /// -------
+    /// int
+    ///     The new absolute position.
     pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
         if !self.seekable()? {
             return Err(PyIOError::new_err(
@@ -245,7 +308,12 @@ impl File {
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
-    /// Return the current stream position.
+    /// Return the current position of this file.
+    ///
+    /// Returns
+    /// -------
+    /// int
+    ///     The current absolute position.
     pub fn tell(&mut self) -> PyResult<u64> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
@@ -266,6 +334,13 @@ impl File {
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
+    /// Close this file.
+    ///
+    /// This also flushes write buffers, if applicable.
+    ///
+    /// Notes
+    /// -----
+    /// A closed file cannot be used for further I/O operations.
     fn close(&mut self) -> PyResult<()> {
         if let FileState::Writer(w) = &mut self.0 {
             w.close().map_err(format_pyerr_from_io_error)?;
@@ -278,16 +353,25 @@ impl File {
         slf
     }
 
+    #[allow(unused_variables)]
+    #[pyo3(signature = (exc_type, exc_value, traceback))]
     pub fn __exit__(
         &mut self,
-        _exc_type: Py<PyAny>,
-        _exc_value: Py<PyAny>,
-        _traceback: Py<PyAny>,
+        #[gen_stub(override_type(type_repr = "type[builtins.BaseException] | None", imports=("builtins")))]
+        exc_type: Py<PyAny>,
+        #[gen_stub(override_type(type_repr = "builtins.BaseException | None", imports=("builtins")))]
+        exc_value: Py<PyAny>,
+        #[gen_stub(override_type(type_repr = "types.TracebackType | None", imports=("types")))]
+        traceback: Py<PyAny>,
     ) -> PyResult<()> {
         self.close()
     }
 
-    /// Flush the underlying writer. Is a no-op if the file is opened in reading mode.
+    /// Flush the underlying writer.
+    ///
+    /// Notes
+    /// -----
+    /// Is a no-op if the file is not `writable`.
     pub fn flush(&mut self) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
@@ -301,19 +385,24 @@ impl File {
         }
     }
 
-    /// Return True if the stream can be read from.
+    /// Return True if this file can be read from.
+    #[getter]
     pub fn readable(&self) -> PyResult<bool> {
         Ok(matches!(self.0, FileState::Reader(_)))
     }
 
-    /// Return True if the stream can be written to.
+    /// Return True if this file can be written to.
+    #[getter]
     pub fn writable(&self) -> PyResult<bool> {
         Ok(matches!(self.0, FileState::Writer(_)))
     }
 
-    /// Return True if the stream can be repositioned.
+    /// Return True if this file can be repositioned.
     ///
-    /// In OpenDAL this is limited to only *readable* streams.
+    /// Notes
+    /// -----
+    /// This is only applicable to *readable* files.
+    #[getter]
     pub fn seekable(&self) -> PyResult<bool> {
         match &self.0 {
             FileState::Reader(_) => Ok(true),
@@ -321,7 +410,7 @@ impl File {
         }
     }
 
-    /// Return True if the stream is closed.
+    /// Return True if this file is closed.
     #[getter]
     pub fn closed(&self) -> PyResult<bool> {
         Ok(matches!(self.0, FileState::Closed))

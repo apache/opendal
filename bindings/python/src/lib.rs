@@ -42,11 +42,11 @@ use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Operator>()?;
-    m.add_class::<AsyncOperator>()?;
+    // File module
+    add_pymodule!(py, m, "file", [File, AsyncFile])?;
 
-    m.add_class::<File>()?;
-    m.add_class::<AsyncFile>()?;
+    // Operator module
+    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
 
     // Capability module
     add_pymodule!(py, m, "capability", [Capability])?;
@@ -60,9 +60,12 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
 
     // Types module
-    add_pymodule!(py, m, "types", [Entry, EntryMode, Metadata])?;
-
-    m.add_class::<PresignedRequest>()?;
+    add_pymodule!(
+        py,
+        m,
+        "types",
+        [Entry, EntryMode, Metadata, PresignedRequest]
+    )?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;

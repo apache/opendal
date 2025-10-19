@@ -1,7 +1,7 @@
 - Proposal Name: capability_override_layer
-- Start Date: 2025-10-19
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Start Date: 2025-10-20
+- RFC PR: [apache/opendal#6707](https://github.com/apache/opendal/pull/6707)
+- Tracking Issue: [apache/opendal#6708](https://github.com/apache/opendal/issues/6708)
 
 # Summary
 
@@ -124,4 +124,3 @@ Not acting would leave us with an ever-growing list of service-specific toggles 
 - Offer an environment-driven helper (`CapabilityOverrideLayer::from_env`) for CLI tools and tests.
 - Build curated profiles for popular S3-compatible services (Cloudflare R2, Wasabi, etc.) once the foundational layer lands.
 - Investigate runtime detection or telemetry that suggests required overrides to users instead of manual discovery.
-

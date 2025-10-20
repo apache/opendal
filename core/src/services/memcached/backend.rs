@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
 use std::time::Duration;
 
-use bb8::RunError;
-use tokio::net::TcpStream;
 use tokio::sync::OnceCell;
 
-use super::binary;
-use crate::raw::adapters::kv;
+use super::core::*;
+use super::deleter::MemcachedDeleter;
+use super::writer::MemcachedWriter;
 use crate::raw::*;
 use crate::services::MemcachedConfig;
 use crate::*;
@@ -138,11 +138,11 @@ impl Builder for MemcachedBuilder {
         );
 
         let conn = OnceCell::new();
-        Ok(MemcachedBackend::new(Adapter {
+        Ok(MemcachedBackend::new(MemcachedCore {
+            conn,
             endpoint,
             username: self.config.username.clone(),
             password: self.config.password.clone(),
-            conn,
             default_ttl: self.config.default_ttl,
         })
         .with_normalized_root(root))
@@ -150,128 +150,92 @@ impl Builder for MemcachedBuilder {
 }
 
 /// Backend for memcached services.
-pub type MemcachedBackend = kv::Backend<Adapter>;
-
 #[derive(Clone, Debug)]
-pub struct Adapter {
-    endpoint: String,
-    username: Option<String>,
-    password: Option<String>,
-    default_ttl: Option<Duration>,
-    conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
+pub struct MemcachedBackend {
+    core: Arc<MemcachedCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Adapter {
-    async fn conn(&self) -> Result<bb8::PooledConnection<'_, MemcacheConnectionManager>> {
-        let pool = self
-            .conn
-            .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(
-                    &self.endpoint,
-                    self.username.clone(),
-                    self.password.clone(),
-                );
+impl MemcachedBackend {
+    pub fn new(core: MemcachedCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Memcached.into_static());
+        info.set_name("memcached");
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: true,
+            ..Default::default()
+        });
 
-                bb8::Pool::builder().build(mgr).await.map_err(|err| {
-                    Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
-                        .set_source(err)
-                })
-            })
-            .await?;
-
-        pool.get().await.map_err(|err| match err {
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
-            }
-            RunError::User(err) => err,
-        })
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Memcached,
-            "memcached",
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-
-                ..Default::default()
-            },
-        )
-    }
-
-    async fn get(&self, key: &str) -> Result<Option<Buffer>> {
-        let mut conn = self.conn().await?;
-        let result = conn.get(&percent_encode_path(key)).await?;
-        Ok(result.map(Buffer::from))
-    }
-
-    async fn set(&self, key: &str, value: Buffer) -> Result<()> {
-        let mut conn = self.conn().await?;
-
-        conn.set(
-            &percent_encode_path(key),
-            &value.to_vec(),
-            // Set expiration to 0 if ttl not set.
-            self.default_ttl
-                .map(|v| v.as_secs() as u32)
-                .unwrap_or_default(),
-        )
-        .await
-    }
-
-    async fn delete(&self, key: &str) -> Result<()> {
-        let mut conn = self.conn().await?;
-
-        conn.delete(&percent_encode_path(key)).await
-    }
-}
-
-/// A `bb8::ManageConnection` for `memcache_async::ascii::Protocol`.
-#[derive(Clone, Debug)]
-struct MemcacheConnectionManager {
-    address: String,
-    username: Option<String>,
-    password: Option<String>,
-}
-
-impl MemcacheConnectionManager {
-    fn new(address: &str, username: Option<String>, password: Option<String>) -> Self {
         Self {
-            address: address.to_string(),
-            username,
-            password,
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
         }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
     }
 }
 
-impl bb8::ManageConnection for MemcacheConnectionManager {
-    type Connection = binary::Connection;
-    type Error = Error;
+impl Access for MemcachedBackend {
+    type Reader = Buffer;
+    type Writer = MemcachedWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
 
-    /// TODO: Implement unix stream support.
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = TcpStream::connect(&self.address)
-            .await
-            .map_err(new_std_io_error)?;
-        let mut conn = binary::Connection::new(conn);
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
 
-        if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
-            conn.auth(username, password).await?;
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
+            }
         }
-        Ok(conn)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.version().await.map(|_| ())
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), MemcachedWriter::new(self.core.clone(), p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(MemcachedDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
     }
 }

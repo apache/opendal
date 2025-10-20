@@ -5,13 +5,12 @@ This service can be used to:
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
 - [x] delete
-- [x] copy
-- [x] rename
+- [ ] ~~create_dir~~
+- [ ] ~~copy~~
+- [ ] ~~rename~~
 - [ ] ~~list~~
 - [ ] ~~presign~~
-- [ ] ~~blocking~~
 
 ## Configuration
 

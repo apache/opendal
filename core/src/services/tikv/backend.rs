@@ -22,7 +22,7 @@ use std::sync::Arc;
 use tokio::sync::OnceCell;
 
 use super::core::*;
-use super::delete::TikvDeleter;
+use super::deleter::TikvDeleter;
 use super::writer::TikvWriter;
 use crate::raw::*;
 use crate::services::TikvConfig;

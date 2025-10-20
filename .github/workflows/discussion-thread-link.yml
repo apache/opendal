@@ -48,6 +48,8 @@ jobs:
             let discussion = context.payload.discussion || null;
             let number = discussion ? discussion.number : null;
 
+            let discussionRepoMismatch = false;
+
             if (manualUrl) {
               const match = manualUrl.match(/github\.com\/([^/]+)\/([^/]+)\/discussions\/(\d+)/i);
               if (!match) {
@@ -66,6 +68,9 @@ jobs:
                 { owner, repo, number }
               );
               discussion = data;
+              discussionRepoMismatch =
+                owner.toLowerCase() !== context.repo.owner.toLowerCase() ||
+                repo.toLowerCase() !== context.repo.repo.toLowerCase();
             }
 
             if (!discussion) {
@@ -199,6 +204,15 @@ jobs:
             }
 
             const threadUrl = `https://lists.apache.org/thread/${tid}`;
+
+            if (discussionRepoMismatch) {
+              core.warning(
+                `Discussion repository ${owner}/${repo} does not match workflow repository ` +
+                `${context.repo.owner}/${context.repo.repo}. Skipping PATCH.`
+              );
+              core.info(`Computed thread URL: ${threadUrl}`);
+              return;
+            }
 
             const { data: current } = await github.request(
               'GET /repos/{owner}/{repo}/discussions/{number}',

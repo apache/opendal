@@ -64,8 +64,8 @@ jobs:
                 return;
               }
               const { data } = await github.request(
-                'GET /repos/{owner}/{repo}/discussions/{number}',
-                { owner, repo, number }
+                'GET /repos/{owner}/{repo}/discussions/{discussion_number}',
+                { owner, repo, discussion_number: number }
               );
               discussion = data;
               discussionRepoMismatch =
@@ -215,8 +215,8 @@ jobs:
             }
 
             const { data: current } = await github.request(
-              'GET /repos/{owner}/{repo}/discussions/{number}',
-              { owner, repo, number }
+              'GET /repos/{owner}/{repo}/discussions/{discussion_number}',
+              { owner, repo, discussion_number: number }
             );
 
             const body = current.body || '';
@@ -228,9 +228,42 @@ jobs:
             const separator = body.trim().length ? '\n\n' : '';
             const newBody = `${body}${separator}---\n**Mailing list thread:** ${threadUrl}\n`;
 
-            await github.request(
-              'PATCH /repos/{owner}/{repo}/discussions/{discussion_number}',
-              { owner, repo, discussion_number: number, body: newBody }
-            );
+            let updated = false;
+
+            try {
+              await github.request(
+                'PATCH /repos/{owner}/{repo}/discussions/{discussion_number}',
+                {
+                  owner,
+                  repo,
+                  discussion_number: number,
+                  body: newBody,
+                  headers: { 'X-GitHub-Api-Version': '2022-11-28' },
+                }
+              );
+              updated = true;
+              core.info('Updated discussion via REST API');
+            } catch (error) {
+              const status = error && error.status ? error.status : 'unknown';
+              core.info(`REST update failed with status ${status}, attempting GraphQL`);
+              if (status !== 403 && status !== 404) {
+                throw error;
+              }
+            }
+
+            if (!updated) {
+              const mutation = `
+                mutation ($discussionId: ID!, $body: String!) {
+                  updateDiscussion(input: { discussionId: $discussionId, body: $body }) {
+                    discussion { number }
+                  }
+                }
+              `;
+              await github.graphql(mutation, {
+                discussionId: discussion.node_id,
+                body: newBody,
+              });
+              core.info('Updated discussion via GraphQL');
+            }
 
             core.info(`Appended ${threadUrl}`);

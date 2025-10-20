@@ -20,6 +20,11 @@ name: Append mailing-list thread link to new Discussion
 on:
   discussion:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      discussion_url:
+        description: 'Discussion URL to backfill mailing list link'
+        required: true
 
 permissions:
   discussions: write
@@ -33,12 +38,41 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const { context, github, core } = require('@actions/github');
+            let owner = context.repo.owner;
+            let repo = context.repo.repo;
 
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const discussion = context.payload.discussion;
-            const number = discussion.number;
+            const manualUrl = context.payload.inputs && context.payload.inputs.discussion_url
+              ? context.payload.inputs.discussion_url.trim()
+              : '';
+
+            let discussion = context.payload.discussion || null;
+            let number = discussion ? discussion.number : null;
+
+            if (manualUrl) {
+              const match = manualUrl.match(/github\.com\/([^/]+)\/([^/]+)\/discussions\/(\d+)/i);
+              if (!match) {
+                core.setFailed(`Invalid discussion URL: ${manualUrl}`);
+                return;
+              }
+              owner = match[1];
+              repo = match[2];
+              number = Number(match[3]);
+              if (!number || Number.isNaN(number)) {
+                core.setFailed(`Invalid discussion number in URL: ${manualUrl}`);
+                return;
+              }
+              const { data } = await github.request(
+                'GET /repos/{owner}/{repo}/discussions/{number}',
+                { owner, repo, number }
+              );
+              discussion = data;
+            }
+
+            if (!discussion) {
+              core.setFailed('Discussion payload missing and no discussion_url input provided');
+              return;
+            }
+
             const title = discussion.title || '';
 
             const baseUrl = 'https://lists.apache.org/api/stats.lua';

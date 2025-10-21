@@ -20,11 +20,11 @@ use std::time::Duration;
 
 use tokio::sync::OnceCell;
 
+use super::config::MemcachedConfig;
 use super::core::*;
 use super::deleter::MemcachedDeleter;
 use super::writer::MemcachedWriter;
 use crate::raw::*;
-use crate::services::MemcachedConfig;
 use crate::*;
 
 /// [Memcached](https://memcached.org/) service support.

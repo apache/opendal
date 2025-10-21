@@ -9,7 +9,7 @@ This service can be used to:
 - [x] delete
 - [ ] copy
 - [ ] rename
-- [ ] ~~list~~
+- [ ] list
 - [ ] ~~presign~~
 
 ## Configuration

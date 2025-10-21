@@ -15,12 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-mod core;
-mod deleter;
-mod writer;
+use std::sync::Arc;
 
-pub use backend::PostgresqlBuilder as Postgresql;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::PostgresqlConfig;
+pub struct MysqlDeleter {
+    core: Arc<MysqlCore>,
+    root: String,
+}
+
+impl MysqlDeleter {
+    pub fn new(core: Arc<MysqlCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MysqlDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

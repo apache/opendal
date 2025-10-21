@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::MysqlBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MysqlBuilder;
 
 /// Config for Mysql services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -68,6 +69,7 @@ impl Debug for MysqlConfig {
 
 impl crate::Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

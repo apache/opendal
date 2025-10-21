@@ -204,6 +204,7 @@ impl Operator {
         &'p self,
         py: Python<'p>,
         path: PathBuf,
+        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
         kwargs: Option<ReadOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy().to_string();
@@ -231,7 +232,13 @@ impl Operator {
     /// **kwargs : WriteOptions
     ///     Additional options for the underlying writer.
     #[pyo3(signature = (path, bs, **kwargs))]
-    pub fn write(&self, path: PathBuf, bs: Vec<u8>, kwargs: Option<WriteOptions>) -> PyResult<()> {
+    pub fn write(
+        &self,
+        path: PathBuf,
+        bs: Vec<u8>,
+        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
+        kwargs: Option<WriteOptions>,
+    ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
         let kwargs = kwargs.unwrap_or_default();
         self.core
@@ -398,7 +405,7 @@ impl Operator {
     /// Deprecated
     /// ----------
     ///     Use `list()` with `recursive=True` instead.
-    #[deprecated(note = "Use `list()` with `recursive=True` instead.")]
+    #[gen_stub(skip)]
     #[pyo3(signature = (path, **kwargs))]
     pub fn scan<'p>(
         &self,
@@ -463,6 +470,7 @@ impl Operator {
         }
     }
 
+    #[gen_stub(skip)]
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;
@@ -629,6 +637,7 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: PathBuf,
+        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
         kwargs: Option<ReadOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
@@ -672,6 +681,7 @@ impl AsyncOperator {
         py: Python<'p>,
         path: PathBuf,
         bs: &Bound<PyBytes>,
+        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
         kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let mut kwargs = kwargs.unwrap_or_default();
@@ -679,7 +689,9 @@ impl AsyncOperator {
         let bs = bs.as_bytes().to_vec();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let mut write = this.write_with(&path, bs).append(kwargs.append);
+            let mut write = this
+                .write_with(&path, bs)
+                .append(kwargs.append.unwrap_or(false));
             if let Some(buffer) = kwargs.chunk {
                 write = write.chunk(buffer);
             }
@@ -950,8 +962,8 @@ impl AsyncOperator {
     /// Deprecated
     /// ----------
     ///     Use `list()` with `recursive=True` instead.
+    #[gen_stub(skip)]
     #[pyo3(signature = (path, **kwargs))]
-    #[deprecated(note = "Use `list()` with `recursive=True` instead.")]
     pub fn scan<'p>(
         &'p self,
         py: Python<'p>,
@@ -1145,6 +1157,7 @@ impl AsyncOperator {
         }
     }
 
+    #[gen_stub(skip)]
     fn __getnewargs_ex__(&self, py: Python) -> PyResult<Py<PyAny>> {
         let args = vec![self.__scheme.to_string()];
         let args = PyTuple::new(py, args)?.into_py_any(py)?;

@@ -17,7 +17,6 @@
 
 import os
 from collections.abc import AsyncIterable, Iterable
-from types import TracebackType
 from typing import TypeAlias, final
 
 try:
@@ -28,8 +27,9 @@ from opendal import exceptions as exceptions
 from opendal import layers as layers
 from opendal.__base import _Base
 from opendal.capability import Capability
+from opendal.file import AsyncFile, File
 from opendal.layers import Layer
-from opendal.types import Entry, Metadata
+from opendal.types import Entry, Metadata, PresignedRequest
 
 PathBuf: TypeAlias = str | os.PathLike
 
@@ -554,75 +554,3 @@ class AsyncOperator(_Base):
             path (str|Path): The path to the directory.
         """
     def to_operator(self) -> Operator: ...
-
-@final
-class AsyncFile:
-    """
-    A file-like object for reading and writing data.
-
-    Created by the `open` method of the `AsyncOperator` class.
-    """
-
-    async def read(self, size: int | None = None) -> bytes:
-        """Read the content of the file.
-
-        Args:
-            size (int): The number of bytes to read. If None, read all.
-
-        Returns
-        -------
-            The content of the file as bytes.
-        """
-    async def write(self, bs: bytes) -> None:
-        """Write the content to the file.
-
-        Args:
-            bs (bytes): The content to write.
-        """
-    async def seek(self, pos: int, whence: int = 0) -> int:
-        """Set the file's current position.
-
-        Args:
-            pos (int): The position to set.
-            whence (int): The reference point for the position. Can be 0, 1, or 2.
-
-        Returns
-        -------
-            The new position in the file.
-        """
-    async def tell(self) -> int:
-        """Get the current position in the file.
-
-        Returns
-        -------
-            The current position in the file.
-        """
-    async def close(self) -> None:
-        """Close the file."""
-    def __aenter__(self) -> AsyncFile:
-        """Enter the runtime context related to this object."""
-    def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> None:
-        """Exit the runtime context related to this object."""
-    @property
-    async def closed(self) -> bool:
-        """Check if the file is closed."""
-    async def readable(self) -> bool:
-        """Check if the file is readable."""
-    async def seekable(self) -> bool:
-        """Check if the file supports seeking."""
-    async def writable(self) -> bool:
-        """Check if the file is writable."""
-
-@final
-class PresignedRequest:
-    @property
-    def url(self) -> str: ...
-    @property
-    def method(self) -> str: ...
-    @property
-    def headers(self) -> dict[str, str]: ...

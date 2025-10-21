@@ -17,19 +17,15 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
+use std::sync::Arc;
 
-use tikv_client::Config;
-use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
-use crate::Builder;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
-use crate::raw::Access;
-use crate::raw::adapters::kv;
-use crate::services::TikvConfig;
+use super::config::TikvConfig;
+use super::core::*;
+use super::deleter::TikvDeleter;
+use super::writer::TikvWriter;
+use crate::raw::*;
 use crate::*;
 
 /// TiKV backend builder
@@ -112,7 +108,7 @@ impl Builder for TikvBuilder {
             )?;
         }
 
-        Ok(TikvBackend::new(Adapter {
+        Ok(TikvBackend::new(TikvCore {
             client: OnceCell::new(),
             endpoints,
             insecure: self.config.insecure,
@@ -124,107 +120,86 @@ impl Builder for TikvBuilder {
 }
 
 /// Backend for TiKV service
-pub type TikvBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    client: OnceCell<RawClient>,
-    endpoints: Vec<String>,
-    insecure: bool,
-    ca_path: Option<String>,
-    cert_path: Option<String>,
-    key_path: Option<String>,
+#[derive(Clone, Debug)]
+pub struct TikvBackend {
+    core: Arc<TikvCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
+impl TikvBackend {
+    fn new(core: TikvCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Tikv.into_static());
+        info.set_name("TiKV");
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: true,
+            ..Default::default()
+        });
 
-        ds.field("endpoints", &self.endpoints);
-        ds.finish()
-    }
-}
-
-impl Adapter {
-    async fn get_connection(&self) -> Result<RawClient> {
-        if let Some(client) = self.client.get() {
-            return Ok(client.clone());
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
         }
-        let client = if self.insecure {
-            RawClient::new(self.endpoints.clone())
-                .await
-                .map_err(parse_tikv_config_error)?
-        } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
-            let (ca_path, key_path, cert_path) = (
-                self.ca_path.clone().unwrap(),
-                self.key_path.clone().unwrap(),
-                self.cert_path.clone().unwrap(),
-            );
-            let config = Config::default().with_security(ca_path, cert_path, key_path);
-            RawClient::new_with_config(self.endpoints.clone(), config)
-                .await
-                .map_err(parse_tikv_config_error)?
+    }
+}
+
+impl Access for TikvBackend {
+    type Reader = Buffer;
+    type Writer = TikvWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<TikvDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                    .with_context("service", Scheme::Tikv)
-                    .with_context("endpoints", format!("{:?}", self.endpoints)),
-            );
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => return Err(Error::new(ErrorKind::NotFound, "kv not found in tikv")),
         };
-        self.client.set(client.clone()).ok();
-        Ok(client)
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Tikv,
-            "TiKV",
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-                ..Default::default()
-            },
-        )
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let result = self
-            .get_connection()
-            .await?
-            .get(path.to_owned())
-            .await
-            .map_err(parse_tikv_error)?;
-        Ok(result.map(Buffer::from))
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), TikvWriter::new(self.core.clone(), p)))
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        self.get_connection()
-            .await?
-            .put(path.to_owned(), value.to_vec())
-            .await
-            .map_err(parse_tikv_error)
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(TikvDeleter::new(self.core.clone(), self.root.clone())),
+        ))
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.get_connection()
-            .await?
-            .delete(path.to_owned())
-            .await
-            .map_err(parse_tikv_error)
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
     }
-}
-
-fn parse_tikv_error(e: tikv_client::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from tikv").set_source(e)
-}
-
-fn parse_tikv_config_error(e: tikv_client::Error) -> Error {
-    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-        .with_context("service", Scheme::Tikv)
-        .set_source(e)
 }

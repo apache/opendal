@@ -2,5 +2,6 @@
   "include": ["python/opendal/"],
   "ignore": [
     "python/opendal/*.pyi"
-  ]
+  ],
+  "reportIgnoreCommentWithoutRule": false
 }

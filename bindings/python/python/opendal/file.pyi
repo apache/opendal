@@ -19,8 +19,135 @@
 # ruff: noqa: E501, F401
 
 import builtins
+import collections.abc
 import types
 import typing
+
+@typing.final
+class AsyncFile:
+    r"""
+    An async file-like object for reading and writing data.
+
+    Created by the `open` method of the `AsyncOperator` class.
+    """
+
+    def read(
+        self, size: builtins.int | None = None
+    ) -> collections.abc.Awaitable[builtins.bytes]:
+        r"""
+        Read at most `size` bytes from this file asynchronously.
+
+        If `size` is not specified, read until EOF.
+
+        Parameters
+        ----------
+        size : int, optional
+            The maximum number of bytes to read.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the bytes read from the stream.
+        """
+    def write(self, bs: builtins.bytes) -> collections.abc.Awaitable[builtins.int]:
+        r"""
+        Write bytes to this file asynchronously.
+
+        Parameters
+        ----------
+        bs : bytes
+            The bytes to write to the file.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the number of bytes written.
+        """
+    def seek(
+        self, pos: builtins.int, whence: builtins.int = 0
+    ) -> collections.abc.Awaitable[builtins.int]:
+        r"""
+        Change the position of this file to the given byte offset.
+
+        Parameters
+        ----------
+        pos : int
+            The byte offset (position) to set.
+        whence : int, optional
+            The reference point for the offset.
+            0: start of file (default); 1: current position; 2: end of file.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the current absolute position.
+        """
+    def tell(self) -> collections.abc.Awaitable[builtins.int]:
+        r"""
+        Return the current position of this file.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the current absolute position.
+        """
+    def close(self) -> collections.abc.Awaitable[None]:
+        r"""
+        Close this file.
+
+        This also flushes write buffers, if applicable.
+
+        Notes
+        -----
+        A closed file cannot be used for further I/O operations.
+        """
+    def __aenter__(self) -> typing.Self: ...
+    def __aexit__(
+        self,
+        exc_type: type[builtins.BaseException] | None,
+        exc_value: builtins.BaseException | None,
+        traceback: types.TracebackType | None,
+    ) -> None: ...
+    def readable(self) -> collections.abc.Awaitable[builtins.bool]:
+        r"""
+        Whether this file can be read from.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns True if this file can be read from.
+        """
+    def writable(self) -> collections.abc.Awaitable[builtins.bool]:
+        r"""
+        Whether this file can be written to.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns True if this file can be written to.
+        """
+    def seekable(self) -> collections.abc.Awaitable[builtins.bool]:
+        r"""
+        Whether this file can be repositioned.
+
+        Notes
+        -----
+        This is only applicable to *readable* files.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns True if this file can be repositioned.
+        """
+    def closed(self) -> collections.abc.Awaitable[builtins.bool]:
+        r"""
+        Whether this file is closed.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns True if this file is closed.
+        """
 
 @typing.final
 class File:
@@ -30,24 +157,6 @@ class File:
     Created by the `open` method of the `Operator` class.
     """
 
-    @property
-    def readable(self) -> builtins.bool:
-        r"""Return True if this file can be read from."""
-    @property
-    def writable(self) -> builtins.bool:
-        r"""Return True if this file can be written to."""
-    @property
-    def seekable(self) -> builtins.bool:
-        r"""
-        Return True if this file can be repositioned.
-
-        Notes
-        -----
-        This is only applicable to *readable* files.
-        """
-    @property
-    def closed(self) -> builtins.bool:
-        r"""Return True if this file is closed."""
     def read(self, size: builtins.int | None = None) -> builtins.bytes:
         r"""
         Read at most `size` bytes from this file.
@@ -113,7 +222,7 @@ class File:
         int
             The number of bytes written.
         """
-    def seek(self, pos: builtins.int, whence: builtins.int) -> builtins.int:
+    def seek(self, pos: builtins.int, whence: builtins.int = 0) -> builtins.int:
         r"""
         Change the position of this file to the given byte offset.
 
@@ -163,4 +272,44 @@ class File:
         Notes
         -----
         Is a no-op if the file is not `writable`.
+        """
+    def readable(self) -> builtins.bool:
+        r"""
+        Whether this file can be read from.
+
+        Returns
+        -------
+        bool
+            True if this file can be read from.
+        """
+    def writable(self) -> builtins.bool:
+        r"""
+        Whether this file can be written to.
+
+        Returns
+        -------
+        bool
+            True if this file can be written to.
+        """
+    def seekable(self) -> builtins.bool:
+        r"""
+        Whether this file can be repositioned.
+
+        Notes
+        -----
+        This is only applicable to *readable* files.
+
+        Returns
+        -------
+        bool
+            True if this file can be repositioned.
+        """
+    def closed(self) -> builtins.bool:
+        r"""
+        Whether this file is closed.
+
+        Returns
+        -------
+        bool
+            True if this file is closed.
         """

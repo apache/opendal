@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use sqlx::mysql::MySqlConnectOptions;
@@ -122,7 +121,7 @@ impl Builder for MysqlBuilder {
             }
         };
 
-        let config = MySqlConnectOptions::from_str(&conn).map_err(|err| {
+        let config = conn.parse::<MySqlConnectOptions>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
                 .with_context("service", Scheme::Mysql)
                 .set_source(err)

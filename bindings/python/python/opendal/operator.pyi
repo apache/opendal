@@ -25,6 +25,7 @@ import os
 import pathlib
 import typing
 
+import opendal.file
 import opendal.types
 from opendal.capability import Capability
 from opendal.file import File
@@ -78,11 +79,11 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         mode: builtins.str,
         **kwargs: typing.Any,
-    ) -> typing.Any:
+    ) -> collections.abc.Awaitable[opendal.file.AsyncFile]:
         r"""
-        Open a file-like object for the given path.
+        Open an async file-like object for the given path.
 
-        The returning file-like object is a context manager.
+        The returning async file-like object is a context manager.
 
         Parameters
         ----------
@@ -99,8 +100,24 @@ class AsyncOperator:
             An awaitable that returns a file-like object.
         """
     def read(
-        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
-    ) -> typing.Any:
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+        concurrent: builtins.int | None = None,
+        chunk: builtins.int | None = None,
+        gap: builtins.int | None = None,
+        offset: builtins.int | None = None,
+        prefetch: builtins.int | None = None,
+        size: builtins.int | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime = None,
+        if_unmodified_since: datetime.datetime = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+    ) -> collections.abc.Awaitable[builtins.bytes]:
         r"""
         Read the entire contents of a file at the given path.
 
@@ -108,8 +125,34 @@ class AsyncOperator:
         ----------
         path : str
             The path to the file.
-        **kwargs : ReadOptions
-            Additional options for the underlying reader.
+        version : str, optional
+            The version of the file.
+        concurrent : int, optional
+            The number of concurrent readers.
+        chunk : int, optional
+            The size of each chunk.
+        gap : int, optional
+            The gap between each chunk.
+        offset : int, optional
+            The offset of the file.
+        prefetch : int, optional
+            The number of bytes to prefetch.
+        size : int, optional
+            The size of the file.
+        if_match : str, optional
+            The ETag of the file.
+        if_none_match : str, optional
+            The ETag of the file.
+        if_modified_since : str, optional
+            The last modified time of the file.
+        if_unmodified_since : str, optional
+            The last modified time of the file.
+        content_type : str, optional
+            The content type of the file.
+        cache_control : str, optional
+            The cache control of the file.
+        content_disposition : str, optional
+            The content disposition of the file.
 
         Returns
         -------
@@ -119,9 +162,20 @@ class AsyncOperator:
     def write(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
-        bs: bytes,
-        **kwargs: typing.Any,
-    ) -> typing.Any:
+        bs: builtins.bytes,
+        *,
+        append: builtins.bool | None = None,
+        chunk: builtins.int | None = None,
+        concurrent: builtins.int | None = None,
+        cache_control: builtins.str | None = None,
+        content_type: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+        content_encoding: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_not_exists: builtins.bool | None = None,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = None,
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Write bytes to a file at the given path.
 
@@ -134,8 +188,28 @@ class AsyncOperator:
             The path to the file.
         bs : bytes
             The contents to write to the file.
-        **kwargs : WriteOptions
-            Additional options for the underlying writer.
+        append : bool, optional
+            Whether to append to the file instead of overwriting it.
+        chunk : int, optional
+            The chunk size to use when writing the file.
+        concurrent : int, optional
+            The number of concurrent requests to make when writing the file.
+        cache_control : str, optional
+            The cache control header to set on the file.
+        content_type : str, optional
+            The content type header to set on the file.
+        content_disposition : str, optional
+            The content disposition header to set on the file.
+        content_encoding : str, optional
+            The content encoding header to set on the file.
+        if_match : str, optional
+            The ETag to match when writing the file.
+        if_none_match : str, optional
+            The ETag to not match when writing the file.
+        if_not_exists : bool, optional
+            Whether to fail if the file already exists.
+        user_metadata : dict, optional
+            The user metadata to set on the file.
 
         Returns
         -------
@@ -143,8 +217,18 @@ class AsyncOperator:
             An awaitable that completes when the write is finished.
         """
     def stat(
-        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
-    ) -> typing.Any:
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime = None,
+        if_unmodified_since: datetime.datetime = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+    ) -> collections.abc.Awaitable[Metadata]:
         r"""
         Get the metadata of a file at the given path.
 
@@ -152,8 +236,22 @@ class AsyncOperator:
         ----------
         path : str
             The path to the file.
-        **kwargs : StatOptions
-            Additional options for the underlying stat operation.
+        version : str, optional
+            The version of the file.
+        if_match : str, optional
+            The ETag of the file.
+        if_none_match : str, optional
+            The ETag of the file.
+        if_modified_since : datetime, optional
+            The last modified time of the file.
+        if_unmodified_since : datetime, optional
+            The last modified time of the file.
+        content_type : str, optional
+            The content type of the file.
+        cache_control : str, optional
+            The cache control of the file.
+        content_disposition : str, optional
+            The content disposition of the file.
 
         Returns
         -------
@@ -164,7 +262,7 @@ class AsyncOperator:
         self,
         source: builtins.str | os.PathLike | pathlib.Path,
         target: builtins.str | os.PathLike | pathlib.Path,
-    ) -> typing.Any:
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Copy a file from one path to another.
 
@@ -184,7 +282,7 @@ class AsyncOperator:
         self,
         source: builtins.str | os.PathLike | pathlib.Path,
         target: builtins.str | os.PathLike | pathlib.Path,
-    ) -> typing.Any:
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Rename (move) a file from one path to another.
 
@@ -200,7 +298,9 @@ class AsyncOperator:
         coroutine
             An awaitable that completes when the rename is finished.
         """
-    def remove_all(self, path: builtins.str | os.PathLike | pathlib.Path) -> typing.Any:
+    def remove_all(
+        self, path: builtins.str | os.PathLike | pathlib.Path
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Recursively remove all files and directories at the given path.
 
@@ -214,7 +314,7 @@ class AsyncOperator:
         coroutine
             An awaitable that completes when the removal is finished.
         """
-    def check(self) -> typing.Any:
+    def check(self) -> collections.abc.Awaitable[None]:
         r"""
         Check if the operator is able to work correctly.
 
@@ -228,7 +328,9 @@ class AsyncOperator:
         Exception
             If the operator is not able to work correctly.
         """
-    def create_dir(self, path: builtins.str | os.PathLike | pathlib.Path) -> typing.Any:
+    def create_dir(
+        self, path: builtins.str | os.PathLike | pathlib.Path
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Create a directory at the given path.
 
@@ -247,7 +349,9 @@ class AsyncOperator:
         coroutine
             An awaitable that completes when the directory is created.
         """
-    def delete(self, path: builtins.str | os.PathLike | pathlib.Path) -> typing.Any:
+    def delete(
+        self, path: builtins.str | os.PathLike | pathlib.Path
+    ) -> collections.abc.Awaitable[None]:
         r"""
         Delete a file at the given path.
 
@@ -265,7 +369,9 @@ class AsyncOperator:
         coroutine
             An awaitable that completes when the file is deleted.
         """
-    def exists(self, path: builtins.str | os.PathLike | pathlib.Path) -> typing.Any:
+    def exists(
+        self, path: builtins.str | os.PathLike | pathlib.Path
+    ) -> collections.abc.Awaitable[builtins.bool]:
         r"""
         Check if a path exists.
 
@@ -280,8 +386,15 @@ class AsyncOperator:
             An awaitable that returns True if the path exists, False otherwise.
         """
     def list(
-        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
-    ) -> typing.Any:
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
+    ) -> collections.abc.AsyncIterable[opendal.types.Entry]:
         r"""
         List entries in the given directory.
 
@@ -289,8 +402,16 @@ class AsyncOperator:
         ----------
         path : str
             The path to the directory.
-        **kwargs : ListOptions
-            Additional options for the underlying list operation.
+        limit : int, optional
+            The maximum number of entries to return.
+        start_after : str, optional
+            The entry to start after.
+        recursive : bool, optional
+            Whether to list recursively.
+        versions : bool, optional
+            Whether to list versions.
+        deleted : bool, optional
+            Whether to list deleted entries.
 
         Returns
         -------
@@ -521,7 +642,7 @@ class Operator:
         Returns
         -------
         bytes
-            The contents of the file.
+            The contents of the file as bytes.
         """
     def write(
         self,

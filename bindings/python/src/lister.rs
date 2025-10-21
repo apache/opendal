@@ -25,7 +25,10 @@ use tokio::sync::Mutex;
 
 use crate::*;
 
-#[pyclass(unsendable, module = "opendal")]
+/// A blocking iterator over entries in a directory.
+///
+/// `BlockingLister` is an iterator that yields `Entry` objects.
+#[pyclass(unsendable, module = "opendal.lister")]
 pub struct BlockingLister(ocore::blocking::Lister);
 
 impl BlockingLister {
@@ -52,7 +55,10 @@ impl BlockingLister {
     }
 }
 
-#[pyclass(module = "opendal")]
+/// An asynchronous iterator over entries in a directory.
+///
+/// `AsyncLister` is an async iterator that yields `Entry` objects.
+#[pyclass(unsendable, module = "opendal.lister")]
 pub struct AsyncLister(Arc<Mutex<ocore::Lister>>);
 
 impl AsyncLister {

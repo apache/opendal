@@ -81,7 +81,7 @@ impl Operator {
     /// Operator
     ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme, **kwargs))]
+    #[pyo3(signature = (scheme, *, **kwargs))]
     pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
@@ -224,7 +224,7 @@ impl Operator {
     /// Returns
     /// -------
     /// bytes
-    ///     The contents of the file.
+    ///     The contents of the file as bytes.
     #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
     #[pyo3(signature = (path, *,
@@ -717,7 +717,7 @@ impl AsyncOperator {
     /// AsyncOperator
     ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme, **kwargs))]
+    #[pyo3(signature = (scheme, * ,**kwargs))]
     pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let scheme = ocore::Scheme::from_str(scheme)
             .map_err(|err| {
@@ -759,9 +759,9 @@ impl AsyncOperator {
         })
     }
 
-    /// Open a file-like object for the given path.
+    /// Open an async file-like object for the given path.
     ///
-    /// The returning file-like object is a context manager.
+    /// The returning async file-like object is a context manager.
     ///
     /// Parameters
     /// ----------
@@ -776,7 +776,11 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a file-like object.
-    #[pyo3(signature = (path, mode, **kwargs))]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.file.AsyncFile]",
+        imports=("collections.abc", "opendal.file")
+    ))]
+    #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open<'p>(
         &'p self,
         py: Python<'p>,
@@ -831,27 +835,102 @@ impl AsyncOperator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// **kwargs : ReadOptions
-    ///     Additional options for the underlying reader.
+    /// version : str, optional
+    ///     The version of the file.
+    /// concurrent : int, optional
+    ///     The number of concurrent readers.
+    /// chunk : int, optional
+    ///     The size of each chunk.
+    /// gap : int, optional
+    ///     The gap between each chunk.
+    /// offset : int, optional
+    ///     The offset of the file.
+    /// prefetch : int, optional
+    ///     The number of bytes to prefetch.
+    /// size : int, optional
+    ///     The size of the file.
+    /// if_match : str, optional
+    ///     The ETag of the file.
+    /// if_none_match : str, optional
+    ///     The ETag of the file.
+    /// if_modified_since : str, optional
+    ///     The last modified time of the file.
+    /// if_unmodified_since : str, optional
+    ///     The last modified time of the file.
+    /// content_type : str, optional
+    ///     The content type of the file.
+    /// cache_control : str, optional
+    ///     The cache control of the file.
+    /// content_disposition : str, optional
+    ///     The content disposition of the file.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns the contents of the file as bytes.
-    #[pyo3(signature = (path, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[builtins.bytes]",
+        imports=("collections.abc", "builtins")
+    ))]
+    #[pyo3(signature = (path, *,
+        version=None,
+        concurrent=None,
+        chunk=None,
+        gap=None,
+        offset=None,
+        prefetch=None,
+        size=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
     pub fn read<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        kwargs: Option<ReadOptions>,
+        version: Option<String>,
+        concurrent: Option<usize>,
+        chunk: Option<usize>,
+        gap: Option<usize>,
+        offset: Option<usize>,
+        prefetch: Option<usize>,
+        size: Option<usize>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs.unwrap_or_default();
+        let opts = ReadOptions {
+            version,
+            concurrent,
+            chunk,
+            gap,
+            offset,
+            prefetch,
+            size,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+        };
         future_into_py(py, async move {
-            let range = kwargs.make_range();
+            let range = opts.make_range();
             let res = this
-                .reader_options(&path, kwargs.into())
+                .reader_options(&path, opts.into())
                 .await
                 .map_err(format_pyerr)?
                 .read(range.to_range())
@@ -873,46 +952,90 @@ impl AsyncOperator {
     ///     The path to the file.
     /// bs : bytes
     ///     The contents to write to the file.
-    /// **kwargs : WriteOptions
-    ///     Additional options for the underlying writer.
+    /// append : bool, optional
+    ///     Whether to append to the file instead of overwriting it.
+    /// chunk : int, optional
+    ///     The chunk size to use when writing the file.
+    /// concurrent : int, optional
+    ///     The number of concurrent requests to make when writing the file.
+    /// cache_control : str, optional
+    ///     The cache control header to set on the file.
+    /// content_type : str, optional
+    ///     The content type header to set on the file.
+    /// content_disposition : str, optional
+    ///     The content disposition header to set on the file.
+    /// content_encoding : str, optional
+    ///     The content encoding header to set on the file.
+    /// if_match : str, optional
+    ///     The ETag to match when writing the file.
+    /// if_none_match : str, optional
+    ///     The ETag to not match when writing the file.
+    /// if_not_exists : bool, optional
+    ///     Whether to fail if the file already exists.
+    /// user_metadata : dict, optional
+    ///     The user metadata to set on the file.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that completes when the write is finished.
-    #[pyo3(signature = (path, bs, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
+    #[pyo3(signature = (path, bs, *,
+        append= None,
+        chunk = None,
+        concurrent = None,
+        cache_control = None,
+        content_type = None,
+        content_disposition = None,
+        content_encoding = None,
+        if_match = None,
+        if_none_match = None,
+        if_not_exists = None,
+        user_metadata = None))]
     pub fn write<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        bs: &Bound<PyBytes>,
-        kwargs: Option<WriteOptions>,
+        #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))] bs: &Bound<
+            PyBytes,
+        >,
+        append: Option<bool>,
+        chunk: Option<usize>,
+        concurrent: Option<usize>,
+        cache_control: Option<String>,
+        content_type: Option<String>,
+        content_disposition: Option<String>,
+        content_encoding: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        if_not_exists: Option<bool>,
+        user_metadata: Option<HashMap<String, String>>,
     ) -> PyResult<Bound<'p, PyAny>> {
-        let mut kwargs = kwargs.unwrap_or_default();
+        let opts = WriteOptions {
+            append,
+            chunk,
+            concurrent,
+            cache_control,
+            content_type,
+            content_disposition,
+            content_encoding,
+            if_match,
+            if_none_match,
+            if_not_exists,
+            user_metadata,
+        };
         let this = self.core.clone();
         let bs = bs.as_bytes().to_vec();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let mut write = this
-                .write_with(&path, bs)
-                .append(kwargs.append.unwrap_or(false));
-            if let Some(buffer) = kwargs.chunk {
-                write = write.chunk(buffer);
-            }
-            if let Some(content_type) = &kwargs.content_type {
-                write = write.content_type(content_type);
-            }
-            if let Some(content_disposition) = &kwargs.content_disposition {
-                write = write.content_disposition(content_disposition);
-            }
-            if let Some(cache_control) = &kwargs.cache_control {
-                write = write.cache_control(cache_control);
-            }
-            if let Some(user_metadata) = kwargs.user_metadata.take() {
-                write = write.user_metadata(user_metadata);
-            }
-
-            write.await.map(|_| ()).map_err(format_pyerr)
+            this.write_options(&path, bs, opts.into())
+                .await
+                .map(|_| ())
+                .map_err(format_pyerr)
         })
     }
 
@@ -922,30 +1045,72 @@ impl AsyncOperator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// **kwargs : StatOptions
-    ///     Additional options for the underlying stat operation.
+    /// version : str, optional
+    ///     The version of the file.
+    /// if_match : str, optional
+    ///     The ETag of the file.
+    /// if_none_match : str, optional
+    ///     The ETag of the file.
+    /// if_modified_since : datetime, optional
+    ///     The last modified time of the file.
+    /// if_unmodified_since : datetime, optional
+    ///     The last modified time of the file.
+    /// content_type : str, optional
+    ///     The content type of the file.
+    /// cache_control : str, optional
+    ///     The cache control of the file.
+    /// content_disposition : str, optional
+    ///     The content disposition of the file.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns the metadata of the file.
-    #[pyo3(signature = (path, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[Metadata]",
+        imports=("collections.abc")
+    ))]
+    #[pyo3(signature = (path, *,
+        version=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
     pub fn stat<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        kwargs: Option<&Bound<PyDict>>,
+        version: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs
-            .map(|v| v.extract::<StatOptions>())
-            .transpose()?
-            .unwrap_or_default();
+        let opts = StatOptions {
+            version,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+        };
 
         future_into_py(py, async move {
             let res: Metadata = this
-                .stat_options(&path, kwargs.into())
+                .stat_options(&path, opts.into())
                 .await
                 .map_err(format_pyerr)
                 .map(Metadata::new)?;
@@ -967,6 +1132,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that completes when the copy is finished.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
@@ -994,6 +1163,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that completes when the rename is finished.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
@@ -1019,6 +1192,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that completes when the removal is finished.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn remove_all<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -1038,6 +1215,10 @@ impl AsyncOperator {
     /// ------
     /// Exception
     ///     If the operator is not able to work correctly.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn check<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         future_into_py(py, async move { this.check().await.map_err(format_pyerr) })
@@ -1059,6 +1240,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that completes when the directory is created.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn create_dir<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -1082,6 +1267,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that completes when the file is deleted.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[None]",
+        imports=("collections.abc")
+    ))]
     pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -1102,6 +1291,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns True if the path exists, False otherwise.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[builtins.bool]",
+        imports=("collections.abc", "builtins")
+    ))]
     pub fn exists<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
@@ -1117,30 +1310,55 @@ impl AsyncOperator {
     /// ----------
     /// path : str
     ///     The path to the directory.
-    /// **kwargs : ListOptions
-    ///     Additional options for the underlying list operation.
+    /// limit : int, optional
+    ///     The maximum number of entries to return.
+    /// start_after : str, optional
+    ///     The entry to start after.
+    /// recursive : bool, optional
+    ///     Whether to list recursively.
+    /// versions : bool, optional
+    ///     Whether to list versions.
+    /// deleted : bool, optional
+    ///     Whether to list deleted entries.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns an async iterator over the entries.
-    #[pyo3(signature = (path, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.AsyncIterable[opendal.types.Entry]",
+        imports=("collections.abc", "opendal.types")
+    ))]
+    #[pyo3(signature = (path, *,
+        limit=None,
+        start_after=None,
+        recursive=None,
+        versions=None,
+        deleted=None))]
     pub fn list<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        kwargs: Option<&Bound<PyDict>>,
+        limit: Option<usize>,
+        start_after: Option<String>,
+        recursive: Option<bool>,
+        versions: Option<bool>,
+        deleted: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs
-            .map(|v| v.extract::<ListOptions>())
-            .transpose()?
-            .unwrap_or_default();
+        let opts = ListOptions {
+            limit,
+            start_after,
+            recursive,
+            versions,
+            deleted,
+        };
 
         future_into_py(py, async move {
             let lister = this
-                .lister_options(&path, kwargs.into())
+                .lister_options(&path, opts.into())
                 .await
                 .map_err(format_pyerr)?;
             let pylister = Python::attach(|py| AsyncLister::new(lister).into_py_any(py))?;
@@ -1151,34 +1369,47 @@ impl AsyncOperator {
 
     /// Recursively list entries in the given directory.
     ///
+    /// Deprecated
+    /// ----------
+    ///     Use `list()` with `recursive=True` instead.
+    ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the directory.
-    /// **kwargs : ListOptions
-    ///     Additional options for the underlying list operation.
+    /// limit : int, optional
+    ///     The maximum number of entries to return.
+    /// start_after : str, optional
+    ///     The entry to start after.
+    /// versions : bool, optional
+    ///     Whether to list versions.
+    /// deleted : bool, optional
+    ///     Whether to list deleted entries.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns an async iterator over the entries.
-    ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.AsyncIterable[opendal.types.Entry]",
+        imports=("collections.abc", "opendal.types")
+    ))]
     #[gen_stub(skip)]
-    #[pyo3(signature = (path, **kwargs))]
+    #[pyo3(signature = (path, *,
+        limit=None,
+        start_after=None,
+        versions=None,
+        deleted=None))]
     pub fn scan<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        kwargs: Option<&Bound<PyDict>>,
+        limit: Option<usize>,
+        start_after: Option<String>,
+        versions: Option<bool>,
+        deleted: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
-        let d = PyDict::new(py);
-        let kwargs = kwargs.unwrap_or(&d);
-        kwargs.set_item("recursive", true)?;
-
-        self.list(py, path, Some(kwargs))
+        self.list(py, path, limit, start_after, Some(true), versions, deleted)
     }
 
     /// Create a presigned request for a stat operation.

@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::SurrealdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SurrealdbBuilder;
 
 /// Config for Surrealdb services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -66,6 +67,7 @@ impl Debug for SurrealdbConfig {
 
 impl crate::Configurator for SurrealdbConfig {
     type Builder = SurrealdbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

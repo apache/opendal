@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::TikvBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::TikvBuilder;
 
 /// Config for Tikv services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -54,6 +55,7 @@ impl Debug for TikvConfig {
 
 impl crate::Configurator for TikvConfig {
     type Builder = TikvBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let map = uri.options().clone();
 

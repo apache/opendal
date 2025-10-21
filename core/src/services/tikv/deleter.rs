@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::TikvCore;
+use super::core::*;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;

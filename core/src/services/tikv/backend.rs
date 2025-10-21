@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::config::TikvConfig;
 use super::core::*;
 use super::deleter::TikvDeleter;
 use super::writer::TikvWriter;
 use crate::raw::*;
-use crate::services::TikvConfig;
 use crate::*;
 
 /// TiKV backend builder

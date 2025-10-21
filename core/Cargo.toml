@@ -259,7 +259,7 @@ reqwest = { version = "0.12.24", features = [
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.47", features = ["sync", "io-util"] }
+tokio = { version = "1.48", features = ["sync", "io-util"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
@@ -408,7 +408,7 @@ probe = { version = "0.5.1", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
-tokio = { version = "1.46", features = ["time"] }
+tokio = { version = "1.48", features = ["time"] }
 uuid = { version = "1.18", features = ["serde", "v4", "js"] }
 
 [dev-dependencies]
@@ -427,7 +427,7 @@ pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.5"
-tokio = { version = "1.47", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",

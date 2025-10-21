@@ -429,6 +429,7 @@ impl File {
     /// -------
     /// bool
     ///     True if this file is closed.
+    #[getter]
     pub fn closed(&self) -> PyResult<bool> {
         Ok(matches!(self.0, FileState::Closed))
     }
@@ -783,6 +784,7 @@ impl AsyncFile {
         type_repr="collections.abc.Awaitable[builtins.bool]",
         imports=("collections.abc", "builtins")
     ))]
+    #[getter]
     pub fn closed<'p>(&'p self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
         future_into_py(py, async move {

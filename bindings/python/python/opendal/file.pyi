@@ -31,6 +31,16 @@ class AsyncFile:
     Created by the `open` method of the `AsyncOperator` class.
     """
 
+    @property
+    def closed(self) -> collections.abc.Awaitable[builtins.bool]:
+        r"""
+        Whether this file is closed.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns True if this file is closed.
+        """
     def read(
         self, size: builtins.int | None = None
     ) -> collections.abc.Awaitable[builtins.bytes]:
@@ -139,15 +149,6 @@ class AsyncFile:
         coroutine
             An awaitable that returns True if this file can be repositioned.
         """
-    def closed(self) -> collections.abc.Awaitable[builtins.bool]:
-        r"""
-        Whether this file is closed.
-
-        Returns
-        -------
-        coroutine
-            An awaitable that returns True if this file is closed.
-        """
 
 @typing.final
 class File:
@@ -157,6 +158,16 @@ class File:
     Created by the `open` method of the `Operator` class.
     """
 
+    @property
+    def closed(self) -> builtins.bool:
+        r"""
+        Whether this file is closed.
+
+        Returns
+        -------
+        bool
+            True if this file is closed.
+        """
     def read(self, size: builtins.int | None = None) -> builtins.bytes:
         r"""
         Read at most `size` bytes from this file.
@@ -303,13 +314,4 @@ class File:
         -------
         bool
             True if this file can be repositioned.
-        """
-    def closed(self) -> builtins.bool:
-        r"""
-        Whether this file is closed.
-
-        Returns
-        -------
-        bool
-            True if this file is closed.
         """

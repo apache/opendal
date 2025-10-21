@@ -38,15 +38,15 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
-use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
+use pyo3_stub_gen::{define_stub_info_gatherer, derive::*, module_variable};
+
+// Add version
+module_variable!("opendal", "__version__", &str, env!("CARGO_PKG_VERSION"));
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // File module
     add_pymodule!(py, m, "file", [File, AsyncFile])?;
-
-    // Operator module
-    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
 
     // Capability module
     add_pymodule!(py, m, "capability", [Capability])?;
@@ -66,6 +66,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         "types",
         [Entry, EntryMode, Metadata, PresignedRequest]
     )?;
+
+    m.add_class::<Operator>()?;
+    m.add_class::<AsyncOperator>()?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;

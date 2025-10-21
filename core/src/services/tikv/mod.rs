@@ -16,6 +16,10 @@
 // under the License.
 
 mod backend;
+mod core;
+mod deleter;
+mod writer;
+
 pub use backend::TikvBuilder as Tikv;
 
 mod config;

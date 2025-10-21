@@ -19,6 +19,8 @@
 # ruff: noqa: E501, F401
 
 import builtins
+import collections.abc
+import datetime
 import os
 import pathlib
 import typing
@@ -27,7 +29,6 @@ import opendal.types
 from opendal.capability import Capability
 from opendal.file import File
 from opendal.layers import Layer
-from opendal.lister import BlockingLister
 from opendal.types import Metadata
 
 @typing.final
@@ -98,9 +99,7 @@ class AsyncOperator:
             An awaitable that returns a file-like object.
         """
     def read(
-        self,
-        path: builtins.str | os.PathLike | pathlib.Path,
-        **kwargs: builtins.dict[builtins.str, typing.Any],
+        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
     ) -> typing.Any:
         r"""
         Read the entire contents of a file at the given path.
@@ -121,7 +120,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         bs: bytes,
-        **kwargs: builtins.dict[builtins.str, typing.Any],
+        **kwargs: typing.Any,
     ) -> typing.Any:
         r"""
         Write bytes to a file at the given path.
@@ -456,7 +455,7 @@ class Operator:
             The path to the file.
         mode : str
             The mode to open the file in. Only "rb" and "wb" are supported.
-        **kwargs : dict
+        **kwargs
             Additional options for the underlying reader or writer.
 
         Returns
@@ -467,8 +466,22 @@ class Operator:
     def read(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
-        **kwargs: builtins.dict[builtins.str, typing.Any],
-    ) -> typing.Any:
+        *,
+        version: builtins.str | None = None,
+        concurrent: builtins.int | None = None,
+        chunk: builtins.int | None = None,
+        gap: builtins.int | None = None,
+        offset: builtins.int | None = None,
+        prefetch: builtins.int | None = None,
+        size: builtins.int | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime = None,
+        if_unmodified_since: datetime.datetime = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+    ) -> builtins.bytes:
         r"""
         Read the entire contents of a file at the given path.
 
@@ -476,8 +489,34 @@ class Operator:
         ----------
         path : str
             The path to the file.
-        **kwargs : ReadOptions
-            Additional options for the underlying reader.
+        version : str, optional
+            The version of the file.
+        concurrent : int, optional
+            The number of concurrent readers.
+        chunk : int, optional
+            The size of each chunk.
+        gap : int, optional
+            The gap between each chunk.
+        offset : int, optional
+            The offset of the file.
+        prefetch : int, optional
+            The number of bytes to prefetch.
+        size : int, optional
+            The size of the file.
+        if_match : str, optional
+            The ETag of the file.
+        if_none_match : str, optional
+            The ETag of the file.
+        if_modified_since : str, optional
+            The last modified time of the file.
+        if_unmodified_since : str, optional
+            The last modified time of the file.
+        content_type : str, optional
+            The content type of the file.
+        cache_control : str, optional
+            The cache control of the file.
+        content_disposition : str, optional
+            The content disposition of the file.
 
         Returns
         -------
@@ -487,8 +526,19 @@ class Operator:
     def write(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
-        bs: typing.Sequence[builtins.int],
-        **kwargs: builtins.dict[builtins.str, typing.Any],
+        bs: builtins.bytes,
+        *,
+        append: builtins.bool | None = None,
+        chunk: builtins.int | None = None,
+        concurrent: builtins.int | None = None,
+        cache_control: builtins.str | None = None,
+        content_type: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+        content_encoding: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_not_exists: builtins.bool | None = None,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = None,
     ) -> None:
         r"""
         Write bytes to a file at the given path.
@@ -502,11 +552,41 @@ class Operator:
             The path to the file.
         bs : bytes
             The contents to write to the file.
-        **kwargs : WriteOptions
-            Additional options for the underlying writer.
+        append : bool, optional
+            Whether to append to the file instead of overwriting it.
+        chunk : int, optional
+            The chunk size to use when writing the file.
+        concurrent : int, optional
+            The number of concurrent requests to make when writing the file.
+        cache_control : str, optional
+            The cache control header to set on the file.
+        content_type : str, optional
+            The content type header to set on the file.
+        content_disposition : str, optional
+            The content disposition header to set on the file.
+        content_encoding : str, optional
+            The content encoding header to set on the file.
+        if_match : str, optional
+            The ETag to match when writing the file.
+        if_none_match : str, optional
+            The ETag to not match when writing the file.
+        if_not_exists : bool, optional
+            Whether to fail if the file already exists.
+        user_metadata : dict, optional
+            The user metadata to set on the file.
         """
     def stat(
-        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime = None,
+        if_unmodified_since: datetime.datetime = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> Metadata:
         r"""
         Get the metadata of a file at the given path.
@@ -515,8 +595,22 @@ class Operator:
         ----------
         path : str
             The path to the file.
-        **kwargs : StatOptions
-            Additional options for the underlying stat operation.
+        version : str, optional
+            The version of the file.
+        if_match : str, optional
+            The ETag of the file.
+        if_none_match : str, optional
+            The ETag of the file.
+        if_modified_since : datetime, optional
+            The last modified time of the file.
+        if_unmodified_since : datetime, optional
+            The last modified time of the file.
+        content_type : str, optional
+            The content type of the file.
+        cache_control : str, optional
+            The cache control of the file.
+        content_disposition : str, optional
+            The content disposition of the file.
 
         Returns
         -------
@@ -604,8 +698,15 @@ class Operator:
             True if the path exists, False otherwise.
         """
     def list(
-        self, path: builtins.str | os.PathLike | pathlib.Path, **kwargs: typing.Any
-    ) -> BlockingLister:
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
+    ) -> collections.abc.Iterable[opendal.types.Entry]:
         r"""
         List entries in the given directory.
 
@@ -613,8 +714,50 @@ class Operator:
         ----------
         path : str
             The path to the directory.
-        **kwargs : ListOptions
-            Additional options for the underlying list operation.
+        limit : int, optional
+            The maximum number of entries to return.
+        start_after : str, optional
+            The entry to start after.
+        recursive : bool, optional
+            Whether to list recursively.
+        versions : bool, optional
+            Whether to list versions.
+        deleted : bool, optional
+            Whether to list deleted entries.
+
+        Returns
+        -------
+        BlockingLister
+            An iterator over the entries in the directory.
+        """
+    def scan(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
+    ) -> collections.abc.Iterable[opendal.types.Entry]:
+        r"""
+        Recursively list entries in the given directory.
+
+        Deprecated
+        ----------
+            Use `list()` with `recursive=True` instead.
+
+        Parameters
+        ----------
+        path : str
+            The path to the directory.
+        limit : int, optional
+            The maximum number of entries to return.
+        start_after : str, optional
+            The entry to start after.
+        versions : bool, optional
+            Whether to list versions.
+        deleted : bool, optional
+            Whether to list deleted entries.
 
         Returns
         -------

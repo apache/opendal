@@ -137,14 +137,14 @@ impl Operator {
     ///     The path to the file.
     /// mode : str
     ///     The mode to open the file in. Only "rb" and "wb" are supported.
-    /// **kwargs : dict
+    /// **kwargs
     ///     Additional options for the underlying reader or writer.
     ///
     /// Returns
     /// -------
     /// File
     ///     A file-like object.
-    #[pyo3(signature = (path, mode, **kwargs))]
+    #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open(
         &self,
         path: PathBuf,
@@ -192,26 +192,97 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// **kwargs : ReadOptions
-    ///     Additional options for the underlying reader.
+    /// version : str, optional
+    ///     The version of the file.
+    /// concurrent : int, optional
+    ///     The number of concurrent readers.
+    /// chunk : int, optional
+    ///     The size of each chunk.
+    /// gap : int, optional
+    ///     The gap between each chunk.
+    /// offset : int, optional
+    ///     The offset of the file.
+    /// prefetch : int, optional
+    ///     The number of bytes to prefetch.
+    /// size : int, optional
+    ///     The size of the file.
+    /// if_match : str, optional
+    ///     The ETag of the file.
+    /// if_none_match : str, optional
+    ///     The ETag of the file.
+    /// if_modified_since : str, optional
+    ///     The last modified time of the file.
+    /// if_unmodified_since : str, optional
+    ///     The last modified time of the file.
+    /// content_type : str, optional
+    ///     The content type of the file.
+    /// cache_control : str, optional
+    ///     The cache control of the file.
+    /// content_disposition : str, optional
+    ///     The content disposition of the file.
     ///
     /// Returns
     /// -------
     /// bytes
     ///     The contents of the file.
-    #[pyo3(signature = (path, **kwargs))]
+    #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(type_repr = "builtins.bytes", imports=("builtins")))]
+    #[pyo3(signature = (path, *,
+        version=None,
+        concurrent=None,
+        chunk=None,
+        gap=None,
+        offset=None,
+        prefetch=None,
+        size=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
     pub fn read<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
-        kwargs: Option<ReadOptions>,
+        version: Option<String>,
+        concurrent: Option<usize>,
+        chunk: Option<usize>,
+        gap: Option<usize>,
+        offset: Option<usize>,
+        prefetch: Option<usize>,
+        size: Option<usize>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs.unwrap_or_default();
+        let opts = ReadOptions {
+            version,
+            concurrent,
+            chunk,
+            gap,
+            offset,
+            prefetch,
+            size,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+        };
         let buffer = self
             .core
-            .read_options(&path, kwargs.into())
+            .read_options(&path, opts.into())
             .map_err(format_pyerr)?
             .to_vec();
 
@@ -229,20 +300,74 @@ impl Operator {
     ///     The path to the file.
     /// bs : bytes
     ///     The contents to write to the file.
-    /// **kwargs : WriteOptions
-    ///     Additional options for the underlying writer.
-    #[pyo3(signature = (path, bs, **kwargs))]
+    /// append : bool, optional
+    ///     Whether to append to the file instead of overwriting it.
+    /// chunk : int, optional
+    ///     The chunk size to use when writing the file.
+    /// concurrent : int, optional
+    ///     The number of concurrent requests to make when writing the file.
+    /// cache_control : str, optional
+    ///     The cache control header to set on the file.
+    /// content_type : str, optional
+    ///     The content type header to set on the file.
+    /// content_disposition : str, optional
+    ///     The content disposition header to set on the file.
+    /// content_encoding : str, optional
+    ///     The content encoding header to set on the file.
+    /// if_match : str, optional
+    ///     The ETag to match when writing the file.
+    /// if_none_match : str, optional
+    ///     The ETag to not match when writing the file.
+    /// if_not_exists : bool, optional
+    ///     Whether to fail if the file already exists.
+    /// user_metadata : dict, optional
+    ///     The user metadata to set on the file.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (path, bs, *,
+        append= None,
+        chunk = None,
+        concurrent = None,
+        cache_control = None,
+        content_type = None,
+        content_disposition = None,
+        content_encoding = None,
+        if_match = None,
+        if_none_match = None,
+        if_not_exists = None,
+        user_metadata = None))]
     pub fn write(
         &self,
         path: PathBuf,
-        bs: Vec<u8>,
-        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
-        kwargs: Option<WriteOptions>,
+        #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))] bs: Vec<u8>,
+        append: Option<bool>,
+        chunk: Option<usize>,
+        concurrent: Option<usize>,
+        cache_control: Option<String>,
+        content_type: Option<String>,
+        content_disposition: Option<String>,
+        content_encoding: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        if_not_exists: Option<bool>,
+        user_metadata: Option<HashMap<String, String>>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs.unwrap_or_default();
+        let opts = WriteOptions {
+            append,
+            chunk,
+            concurrent,
+            cache_control,
+            content_type,
+            content_disposition,
+            content_encoding,
+            if_match,
+            if_none_match,
+            if_not_exists,
+            user_metadata,
+        };
+
         self.core
-            .write_options(&path, bs, kwargs.into())
+            .write_options(&path, bs, opts.into())
             .map(|_| ())
             .map_err(format_pyerr)
     }
@@ -253,22 +378,64 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// **kwargs : StatOptions
-    ///     Additional options for the underlying stat operation.
+    /// version : str, optional
+    ///     The version of the file.
+    /// if_match : str, optional
+    ///     The ETag of the file.
+    /// if_none_match : str, optional
+    ///     The ETag of the file.
+    /// if_modified_since : datetime, optional
+    ///     The last modified time of the file.
+    /// if_unmodified_since : datetime, optional
+    ///     The last modified time of the file.
+    /// content_type : str, optional
+    ///     The content type of the file.
+    /// cache_control : str, optional
+    ///     The cache control of the file.
+    /// content_disposition : str, optional
+    ///     The content disposition of the file.
     ///
     /// Returns
     /// -------
     /// Metadata
     ///     The metadata of the file.
-    #[pyo3(signature = (path, **kwargs))]
-    pub fn stat(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<Metadata> {
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (path, *,
+        version=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
+    pub fn stat(
+        &self,
+        path: PathBuf,
+        version: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
+    ) -> PyResult<Metadata> {
         let path = path.to_string_lossy().to_string();
-        let kwargs = kwargs
-            .map(|v| v.extract::<StatOptions>())
-            .transpose()?
-            .unwrap_or_default();
+        let opts = StatOptions {
+            version,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+        };
         self.core
-            .stat_options(&path, kwargs.into())
+            .stat_options(&path, opts.into())
             .map_err(format_pyerr)
             .map(Metadata::new)
     }
@@ -365,59 +532,98 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the directory.
-    /// **kwargs : ListOptions
-    ///     Additional options for the underlying list operation.
+    /// limit : int, optional
+    ///     The maximum number of entries to return.
+    /// start_after : str, optional
+    ///     The entry to start after.
+    /// recursive : bool, optional
+    ///     Whether to list recursively.
+    /// versions : bool, optional
+    ///     Whether to list versions.
+    /// deleted : bool, optional
+    ///     Whether to list deleted entries.
     ///
     /// Returns
     /// -------
     /// BlockingLister
     ///     An iterator over the entries in the directory.
-    #[pyo3(signature = (path, **kwargs))]
-    pub fn list(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<BlockingLister> {
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Iterable[opendal.types.Entry]",
+        imports=("collections.abc", "opendal.types")
+    ))]
+    #[pyo3(signature = (path, *,
+        limit=None,
+        start_after=None,
+        recursive=None,
+        versions=None,
+        deleted=None))]
+    pub fn list(
+        &self,
+        path: PathBuf,
+        limit: Option<usize>,
+        start_after: Option<String>,
+        recursive: Option<bool>,
+        versions: Option<bool>,
+        deleted: Option<bool>,
+    ) -> PyResult<BlockingLister> {
         let path = path.to_string_lossy().to_string();
 
-        let kwargs = kwargs
-            .map(|v| v.extract::<ListOptions>())
-            .transpose()?
-            .unwrap_or_default();
+        let opts = ListOptions {
+            limit,
+            start_after,
+            recursive,
+            versions,
+            deleted,
+        };
 
         let l = self
             .core
-            .lister_options(&path, kwargs.into())
+            .lister_options(&path, opts.into())
             .map_err(format_pyerr)?;
         Ok(BlockingLister::new(l))
     }
 
     /// Recursively list entries in the given directory.
     ///
+    /// Deprecated
+    /// ----------
+    ///     Use `list()` with `recursive=True` instead.
+    ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the directory.
-    /// **kwargs : ListOptions
-    ///     Additional options for the underlying list operation.
+    /// limit : int, optional
+    ///     The maximum number of entries to return.
+    /// start_after : str, optional
+    ///     The entry to start after.
+    /// versions : bool, optional
+    ///     Whether to list versions.
+    /// deleted : bool, optional
+    ///     Whether to list deleted entries.
     ///
     /// Returns
     /// -------
     /// BlockingLister
     ///     An iterator over the entries in the directory.
-    ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
-    #[gen_stub(skip)]
-    #[pyo3(signature = (path, **kwargs))]
-    pub fn scan<'p>(
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Iterable[opendal.types.Entry]",
+        imports=("collections.abc", "opendal.types")
+    ))]
+    #[pyo3(signature = (path, *,
+        limit=None,
+        start_after=None,
+        versions=None,
+        deleted=None))]
+    pub fn scan(
         &self,
-        py: Python<'p>,
         path: PathBuf,
-        kwargs: Option<&Bound<PyDict>>,
+        limit: Option<usize>,
+        start_after: Option<String>,
+        versions: Option<bool>,
+        deleted: Option<bool>,
     ) -> PyResult<BlockingLister> {
-        let d = PyDict::new(py);
-        let kwargs = kwargs.unwrap_or(&d);
-        kwargs.set_item("recursive", true)?;
-
-        self.list(path, Some(kwargs))
+        self.list(path, limit, start_after, Some(true), versions, deleted)
     }
 
     /// Get all capabilities of this operator.
@@ -637,7 +843,6 @@ impl AsyncOperator {
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
         kwargs: Option<ReadOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
@@ -681,7 +886,6 @@ impl AsyncOperator {
         py: Python<'p>,
         path: PathBuf,
         bs: &Bound<PyBytes>,
-        #[gen_stub(override_type(type_repr = "builtins.dict[builtins.str, typing.Any]", imports=("builtins", "typing")))]
         kwargs: Option<WriteOptions>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let mut kwargs = kwargs.unwrap_or_default();

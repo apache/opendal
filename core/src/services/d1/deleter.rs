@@ -15,24 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use libtest_mimic::Failed;
+use std::sync::Arc;
 
-use crate::{ROOT_PATH, utils::list};
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-pub fn test_fetch_placeholder() -> Result<(), Failed> {
-    let files = ["normal_file.txt", "special_file  !@#$%^&()_+-=;',.txt"];
-    let dirs = ["normal_dir", "special_dir  !@#$%^&()_+-=;',"];
+pub struct D1Deleter {
+    core: Arc<D1Core>,
+    root: String,
+}
 
-    assert_eq!(
-        list(ROOT_PATH, "File").expect("list files"),
-        files,
-        "list files"
-    );
-    assert_eq!(
-        list(ROOT_PATH, "Directory").expect("list dirs"),
-        dirs,
-        "list dirs"
-    );
+impl D1Deleter {
+    pub fn new(core: Arc<D1Core>, root: String) -> Self {
+        Self { core, root }
+    }
+}
 
-    Ok(())
+impl oio::OneShotDelete for D1Deleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

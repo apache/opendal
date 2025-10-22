@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::D1Builder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::D1Builder;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,6 +58,7 @@ impl Debug for D1Config {
 
 impl crate::Configurator for D1Config {
     type Builder = D1Builder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let account_id = uri.name().ok_or_else(|| {
             crate::Error::new(

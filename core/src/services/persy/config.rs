@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::PersyBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::PersyBuilder;
 
 /// Config for persy service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -34,6 +35,7 @@ pub struct PersyConfig {
 
 impl crate::Configurator for PersyConfig {
     type Builder = PersyBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

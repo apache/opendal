@@ -15,14 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod core;
-mod deleter;
-mod error;
-mod model;
-mod writer;
+use std::sync::Arc;
 
-mod backend;
-pub use backend::D1Builder as D1;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::D1Config;
+pub struct SurrealdbDeleter {
+    core: Arc<SurrealdbCore>,
+    root: String,
+}
+
+impl SurrealdbDeleter {
+    pub fn new(core: Arc<SurrealdbCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for SurrealdbDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

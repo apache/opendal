@@ -16,8 +16,11 @@
 // under the License.
 
 mod backend;
-pub use backend::GridfsBuilder as Gridfs;
 mod core;
+mod deleter;
+mod writer;
+
+pub use backend::GridfsBuilder as Gridfs;
 
 mod config;
 pub use config::GridfsConfig;

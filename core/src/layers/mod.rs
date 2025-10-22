@@ -27,7 +27,9 @@ mod complete;
 pub(crate) use complete::CompleteLayer;
 
 mod concurrent_limit;
+pub use concurrent_limit::ConcurrencySemaphore;
 pub use concurrent_limit::ConcurrentLimitLayer;
+pub use concurrent_limit::TokioSemaphore;
 
 mod immutable_index;
 pub use immutable_index::ImmutableIndexLayer;

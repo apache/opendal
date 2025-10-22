@@ -45,7 +45,17 @@ class ServiceBase:
         access_token: builtins.str,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `yandex-disk` service."""
+        r"""
+        Create a new operator for `yandex-disk` service.
+
+        Parameters
+        ----------
+        access_token : builtins.str
+            yandex disk oauth access_token.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -59,7 +69,24 @@ class ServiceBase:
         disable_list_batch: builtins.bool = ...,
         atomic_write_dir: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `webhdfs` service."""
+        r"""
+        Create a new operator for `webhdfs` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            Root for webhdfs.
+        endpoint : builtins.str, optional
+            Endpoint for webhdfs.
+        user_name : builtins.str, optional
+            Name of the user for webhdfs.
+        delegation : builtins.str, optional
+            Delegation token for webhdfs.
+        disable_list_batch : builtins.bool, optional
+            Disable batch listing
+        atomic_write_dir : builtins.str, optional
+            atomic_write_dir of this backend
+        """
     @typing.overload
     def __new__(
         cls,
@@ -73,7 +100,24 @@ class ServiceBase:
         root: builtins.str = ...,
         disable_copy: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `webdav` service."""
+        r"""
+        Create a new operator for `webdav` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            endpoint of this backend
+        username : builtins.str, optional
+            username of this backend
+        password : builtins.str, optional
+            password of this backend
+        token : builtins.str, optional
+            token of this backend
+        root : builtins.str, optional
+            root of this backend
+        disable_copy : builtins.bool, optional
+            WebDAV Service doesn't support copy.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -82,7 +126,14 @@ class ServiceBase:
         *,
         access_token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `vercel-artifacts` service."""
+        r"""
+        Create a new operator for `vercel-artifacts` service.
+
+        Parameters
+        ----------
+        access_token : builtins.str, optional
+            The access token for Vercel.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -94,7 +145,21 @@ class ServiceBase:
         operator: builtins.str = ...,
         password: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `upyun` service."""
+        r"""
+        Create a new operator for `upyun` service.
+
+        Parameters
+        ----------
+        bucket : builtins.str
+            bucket address of this backend.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        operator : builtins.str, optional
+            username of this backend.
+        password : builtins.str, optional
+            password of this backend.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -106,7 +171,20 @@ class ServiceBase:
         root: builtins.str = ...,
         token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `swift` service."""
+        r"""
+        Create a new operator for `swift` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            The endpoint for Swift.
+        container : builtins.str, optional
+            The container for Swift.
+        root : builtins.str, optional
+            The root for Swift.
+        token : builtins.str, optional
+            The token for Swift.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -119,7 +197,36 @@ class ServiceBase:
         value_field: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `sqlite` service."""
+        r"""
+        Create a new operator for `sqlite` service.
+
+        Parameters
+        ----------
+        connection_string : builtins.str, optional
+            Set the connection_string of the sqlite service.
+            This connection string is used to connect to the
+            sqlite service.
+            The format of connect string resembles the url
+            format of the sqlite client: - `sqlite::memory:` -
+            `sqlite:data.db` - `sqlite://data.db` For more
+            information, please visit
+            <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
+        table : builtins.str, optional
+            Set the table name of the sqlite service to
+            read/write.
+        key_field : builtins.str, optional
+            Set the key field name of the sqlite service to
+            read/write.
+            Default to `key` if not specified.
+        value_field : builtins.str, optional
+            Set the value field name of the sqlite service to
+            read/write.
+            Default to `value` if not specified.
+        root : builtins.str, optional
+            set the working directory, all operations will be
+            performed under it.
+            default: "/"
+        """
     @typing.overload
     def __new__(
         cls,
@@ -130,7 +237,18 @@ class ServiceBase:
         root: builtins.str = ...,
         tree: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `sled` service."""
+        r"""
+        Create a new operator for `sled` service.
+
+        Parameters
+        ----------
+        datadir : builtins.str, optional
+            That path to the sled data directory.
+        root : builtins.str, optional
+            The root for sled.
+        tree : builtins.str, optional
+            The tree for sled.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -143,7 +261,24 @@ class ServiceBase:
         username: builtins.str = ...,
         password: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `seafile` service."""
+        r"""
+        Create a new operator for `seafile` service.
+
+        Parameters
+        ----------
+        repo_name : builtins.str
+            repo_name of this backend.
+            required.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        endpoint : builtins.str, optional
+            endpoint address of this backend.
+        username : builtins.str, optional
+            username of this backend.
+        password : builtins.str, optional
+            password of this backend.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -180,7 +315,171 @@ class ServiceBase:
         disable_list_objects_v2: builtins.bool = ...,
         enable_request_payer: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `s3` service."""
+        r"""
+        Create a new operator for `s3` service.
+
+        Parameters
+        ----------
+        bucket : builtins.str
+            bucket name of this backend.
+            required.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+            default to `/` if not set.
+        enable_versioning : builtins.bool, optional
+            is bucket versioning enabled for this bucket
+        endpoint : builtins.str, optional
+            endpoint of this backend.
+            Endpoint must be full uri, e.g.
+            - AWS S3: `https://s3.amazonaws.com` or
+            `https://s3.{region}.amazonaws.com` - Cloudflare R2:
+            `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` -
+            Aliyun OSS: `https://{region}.aliyuncs.com` -
+            Tencent COS: `https://cos.{region}.myqcloud.com` -
+            Minio: `http://127.0.0.1:9000` If user inputs
+            endpoint without scheme like "s3.amazonaws.com", we
+            will prepend "https://" before it.
+            - If endpoint is set, we will take user's input
+            first.
+            - If not, we will try to load it from environment.
+            - If still not set, default to
+            `https://s3.amazonaws.com`.
+        region : builtins.str, optional
+            Region represent the signing region of this
+            endpoint.
+            This is required if you are using the default AWS S3
+            endpoint.
+            If using a custom endpoint, - If region is set, we
+            will take user's input first.
+            - If not, we will try to load it from environment.
+        access_key_id : builtins.str, optional
+            access_key_id of this backend.
+            - If access_key_id is set, we will take user's input
+            first.
+            - If not, we will try to load it from environment.
+        secret_access_key : builtins.str, optional
+            secret_access_key of this backend.
+            - If secret_access_key is set, we will take user's
+            input first.
+            - If not, we will try to load it from environment.
+        session_token : builtins.str, optional
+            session_token (aka, security token) of this backend.
+            This token will expire after sometime, it's
+            recommended to set session_token by hand.
+        role_arn : builtins.str, optional
+            role_arn for this backend.
+            If `role_arn` is set, we will use already known
+            config as source credential to assume role with
+            `role_arn`.
+        external_id : builtins.str, optional
+            external_id for this backend.
+        role_session_name : builtins.str, optional
+            role_session_name for this backend.
+        disable_config_load : builtins.bool, optional
+            Disable config load so that opendal will not load
+            config from environment.
+            For examples: - envs like `AWS_ACCESS_KEY_ID` -
+            files like `~/.aws/config`
+        disable_ec2_metadata : builtins.bool, optional
+            Disable load credential from ec2 metadata.
+            This option is used to disable the default behavior
+            of opendal to load credential from ec2 metadata,
+            a.k.a, IMDSv2
+        allow_anonymous : builtins.bool, optional
+            Allow anonymous will allow opendal to send request
+            without signing when credential is not loaded.
+        server_side_encryption : builtins.str, optional
+            server_side_encryption for this backend.
+            Available values: `AES256`, `aws:kms`.
+        server_side_encryption_aws_kms_key_id : builtins.str, optional
+            server_side_encryption_aws_kms_key_id for this
+            backend - If `server_side_encryption` set to
+            `aws:kms`, and
+            `server_side_encryption_aws_kms_key_id` is not set,
+            S3 will use aws managed kms key to encrypt data.
+            - If `server_side_encryption` set to `aws:kms`, and
+            `server_side_encryption_aws_kms_key_id` is a valid
+            kms key id, S3 will use the provided kms key to
+            encrypt data.
+            - If the `server_side_encryption_aws_kms_key_id` is
+            invalid or not found, an error will be returned.
+            - If `server_side_encryption` is not `aws:kms`,
+            setting `server_side_encryption_aws_kms_key_id` is a
+            noop.
+        server_side_encryption_customer_algorithm : builtins.str, optional
+            server_side_encryption_customer_algorithm for this
+            backend.
+            Available values: `AES256`.
+        server_side_encryption_customer_key : builtins.str, optional
+            server_side_encryption_customer_key for this
+            backend.
+            Value: BASE64-encoded key that matches algorithm
+            specified in
+            `server_side_encryption_customer_algorithm`.
+        server_side_encryption_customer_key_md5 : builtins.str, optional
+            Set server_side_encryption_customer_key_md5 for this
+            backend.
+            Value: MD5 digest of key specified in
+            `server_side_encryption_customer_key`.
+        default_storage_class : builtins.str, optional
+            default storage_class for this backend.
+            Available values: - `DEEP_ARCHIVE` - `GLACIER` -
+            `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA`
+            - `EXPRESS_ONEZONE` - `OUTPOSTS` -
+            `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
+            compatible services don't support all of them
+        enable_virtual_host_style : builtins.bool, optional
+            Enable virtual host style so that opendal will send
+            API requests in virtual host style instead of path
+            style.
+            - By default, opendal will send API to
+            `https://s3.us-east-1.amazonaws.com/bucket_name` -
+            Enabled, opendal will send API to
+            `https://bucket_name.s3.us-east-1.amazonaws.com`
+        batch_max_operations : builtins.int, optional
+            Set maximum batch operations of this backend.
+            Some compatible services have a limit on the number
+            of operations in a batch request.
+            For example, R2 could return `Internal Error` while
+            batch delete 1000 files.
+            Please tune this value based on services' document.
+        delete_max_size : builtins.int, optional
+            Set the maximum delete size of this backend.
+            Some compatible services have a limit on the number
+            of operations in a batch request.
+            For example, R2 could return `Internal Error` while
+            batch delete 1000 files.
+            Please tune this value based on services' document.
+        disable_stat_with_override : builtins.bool, optional
+            Disable stat with override so that opendal will not
+            send stat request with override queries.
+            For example, R2 doesn't support stat with
+            `response_content_type` query.
+        checksum_algorithm : builtins.str, optional
+            Checksum Algorithm to use when sending checksums in
+            HTTP headers.
+            This is necessary when writing to AWS S3 Buckets
+            with Object Lock enabled for example.
+            Available options: - "crc32c"
+        disable_write_with_if_match : builtins.bool, optional
+            Disable write with if match so that opendal will not
+            send write request with if match headers.
+            For example, Ceph RADOS S3 doesn't support write
+            with if match.
+        enable_write_with_append : builtins.bool, optional
+            Enable write with append so that opendal will send
+            write request with append headers.
+        disable_list_objects_v2 : builtins.bool, optional
+            OpenDAL uses List Objects V2 by default to list
+            objects.
+            However, some legacy services do not yet support V2.
+            This option allows users to switch back to the older
+            List Objects V1.
+        enable_request_payer : builtins.bool, optional
+            Indicates whether the client agrees to pay for the
+            requests made to the S3 bucket.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -195,7 +494,38 @@ class ServiceBase:
         root: builtins.str = ...,
         default_ttl: typing.Any = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `redis` service."""
+        r"""
+        Create a new operator for `redis` service.
+
+        Parameters
+        ----------
+        db : builtins.int
+            the number of DBs redis can take is unlimited
+            default is db 0
+        endpoint : builtins.str, optional
+            network address of the Redis service.
+            Can be "tcp://127.0.0.1:6379", e.g.
+            default is "tcp://127.0.0.1:6379"
+        cluster_endpoints : builtins.str, optional
+            network address of the Redis cluster service.
+            Can be
+            "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381",
+            e.g.
+            default is None
+        username : builtins.str, optional
+            the username to connect redis service.
+            default is None
+        password : builtins.str, optional
+            the password for authentication default is None
+        root : builtins.str, optional
+            the working directory of the Redis service.
+            Can be "/path/to/dir" default is "/"
+        default_ttl : typing.Any, optional
+            The default ttl for put operations..
+            a human readable duration string see
+            https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+            for more details
+        """
     @typing.overload
     def __new__(
         cls,
@@ -206,7 +536,18 @@ class ServiceBase:
         root: builtins.str = ...,
         table: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `redb` service."""
+        r"""
+        Create a new operator for `redb` service.
+
+        Parameters
+        ----------
+        datadir : builtins.str, optional
+            path to the redb data directory.
+        root : builtins.str, optional
+            The root for redb.
+        table : builtins.str, optional
+            The table name for redb.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -219,7 +560,33 @@ class ServiceBase:
         key_field: builtins.str = ...,
         value_field: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `postgresql` service."""
+        r"""
+        Create a new operator for `postgresql` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            Root of this backend.
+            All operations will happen under this root.
+            Default to `/` if not set.
+        connection_string : builtins.str, optional
+            The URL should be with a scheme of either
+            `postgres://` or `postgresql://`.
+            - `postgresql://user@localhost` -
+            `postgresql://user:password@%2Fvar%2Flib%2Fpostgresql/mydb?connect_timeout=10`
+            -
+            `postgresql://user@host1:1234,host2,host3:5678?target_session_attrs=read-write`
+            -
+            `postgresql:///mydb?user=user&host=/var/lib/postgresql`
+            For more information, please visit
+            <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
+        table : builtins.str, optional
+            the table of postgresql
+        key_field : builtins.str, optional
+            the key field of postgresql
+        value_field : builtins.str, optional
+            the value field of postgresql
+        """
     @typing.overload
     def __new__(
         cls,
@@ -230,7 +597,19 @@ class ServiceBase:
         segment: builtins.str = ...,
         index: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `persy` service."""
+        r"""
+        Create a new operator for `persy` service.
+
+        Parameters
+        ----------
+        datafile : builtins.str, optional
+            That path to the persy data file.
+            The directory in the path must already exist.
+        segment : builtins.str, optional
+            That name of the persy segment.
+        index : builtins.str, optional
+            That name of the persy index.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -258,7 +637,68 @@ class ServiceBase:
         oidc_token_file: builtins.str = ...,
         sts_endpoint: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `oss` service."""
+        r"""
+        Create a new operator for `oss` service.
+
+        Parameters
+        ----------
+        bucket : builtins.str
+            Bucket for oss.
+        root : builtins.str, optional
+            Root for oss.
+        endpoint : builtins.str, optional
+            Endpoint for oss.
+        presign_endpoint : builtins.str, optional
+            Presign endpoint for oss.
+        addressing_style : builtins.str, optional
+            Addressing style for oss.
+        presign_addressing_style : builtins.str, optional
+            Pre sign addressing style for oss.
+        enable_versioning : builtins.bool, optional
+            is bucket versioning enabled for this bucket
+        server_side_encryption : builtins.str, optional
+            Server side encryption for oss.
+        server_side_encryption_key_id : builtins.str, optional
+            Server side encryption key id for oss.
+        allow_anonymous : builtins.bool, optional
+            Allow anonymous for oss.
+        access_key_id : builtins.str, optional
+            Access key id for oss.
+            - this field if it's `is_some` - env value:
+            [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
+        access_key_secret : builtins.str, optional
+            Access key secret for oss.
+            - this field if it's `is_some` - env value:
+            [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
+        security_token : builtins.str, optional
+            `security_token` will be loaded from - this field if
+            it's `is_some` - env value:
+            [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+        batch_max_operations : builtins.int, optional
+            The size of max batch operations.
+        delete_max_size : builtins.int, optional
+            The size of max delete operations.
+        role_arn : builtins.str, optional
+            If `role_arn` is set, we will use already known
+            config as source credential to assume role with
+            `role_arn`.
+            - this field if it's `is_some` - env value:
+            [`ALIBABA_CLOUD_ROLE_ARN`]
+        role_session_name : builtins.str, optional
+            role_session_name for this backend.
+        oidc_provider_arn : builtins.str, optional
+            `oidc_provider_arn` will be loaded from - this field
+            if it's `is_some` - env value:
+            [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+        oidc_token_file : builtins.str, optional
+            `oidc_token_file` will be loaded from - this field
+            if it's `is_some` - env value:
+            [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+        sts_endpoint : builtins.str, optional
+            `sts_endpoint` will be loaded from - this field if
+            it's `is_some` - env value:
+            [`ALIBABA_CLOUD_STS_ENDPOINT`]
+        """
     @typing.overload
     def __new__(
         cls,
@@ -272,7 +712,28 @@ class ServiceBase:
         client_secret: builtins.str = ...,
         enable_versioning: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `onedrive` service."""
+        r"""
+        Create a new operator for `onedrive` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            The root path for the OneDrive service for the file
+            access
+        access_token : builtins.str, optional
+            Microsoft Graph API (also OneDrive API) access token
+        refresh_token : builtins.str, optional
+            Microsoft Graph API (also OneDrive API) refresh
+            token
+        client_id : builtins.str, optional
+            Microsoft Graph API Application (client) ID that is
+            in the Azure's app registration portal
+        client_secret : builtins.str, optional
+            Microsoft Graph API Application client secret that
+            is in the Azure's app registration portal
+        enable_versioning : builtins.bool, optional
+            Enabling version support
+        """
     @typing.overload
     def __new__(
         cls,
@@ -286,7 +747,24 @@ class ServiceBase:
         bucket: builtins.str = ...,
         enable_versioning: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `obs` service."""
+        r"""
+        Create a new operator for `obs` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            Root for obs.
+        endpoint : builtins.str, optional
+            Endpoint for obs.
+        access_key_id : builtins.str, optional
+            Access key id for obs.
+        secret_access_key : builtins.str, optional
+            Secret access key for obs.
+        bucket : builtins.str, optional
+            Bucket for obs.
+        enable_versioning : builtins.bool, optional
+            Is bucket versioning enabled for this bucket
+        """
     @typing.overload
     def __new__(
         cls,
@@ -299,7 +777,34 @@ class ServiceBase:
         value_field: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `mysql` service."""
+        r"""
+        Create a new operator for `mysql` service.
+
+        Parameters
+        ----------
+        connection_string : builtins.str, optional
+            This connection string is used to connect to the
+            mysql service.
+            There are url based formats.
+            The format of connect string resembles the url
+            format of the mysql client.
+            The format is:
+            `[scheme://][user[:[password]]@]host[:port][/schema][?attribute1=value1&attribute2=value2...`
+            - `mysql://user@localhost` -
+            `mysql://user:password@localhost` -
+            `mysql://user:password@localhost:3306` -
+            `mysql://user:password@localhost:3306/db` For more
+            information, please refer to
+            <https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html>.
+        table : builtins.str, optional
+            The table name for mysql.
+        key_field : builtins.str, optional
+            The key field name for mysql.
+        value_field : builtins.str, optional
+            The value field name for mysql.
+        root : builtins.str, optional
+            The root for mysql.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -313,7 +818,24 @@ class ServiceBase:
         key_field: builtins.str = ...,
         value_field: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `mongodb` service."""
+        r"""
+        Create a new operator for `mongodb` service.
+
+        Parameters
+        ----------
+        connection_string : builtins.str, optional
+            connection string of this backend
+        database : builtins.str, optional
+            database of this backend
+        collection : builtins.str, optional
+            collection of this backend
+        root : builtins.str, optional
+            root of this backend
+        key_field : builtins.str, optional
+            key field of this backend
+        value_field : builtins.str, optional
+            value field of this backend
+        """
     @typing.overload
     def __new__(
         cls,
@@ -326,7 +848,28 @@ class ServiceBase:
         time_to_idle: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `moka` service."""
+        r"""
+        Create a new operator for `moka` service.
+
+        Parameters
+        ----------
+        name : builtins.str, optional
+            Name for this cache instance.
+        max_capacity : builtins.int, optional
+            Sets the max capacity of the cache.
+            Refer to
+            [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
+        time_to_live : builtins.str, optional
+            Sets the time to live of the cache.
+            Refer to
+            [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
+        time_to_idle : builtins.str, optional
+            Sets the time to idle of the cache.
+            Refer to
+            [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
+        root : builtins.str, optional
+            root path of this backend
+        """
     @typing.overload
     def __new__(
         cls,
@@ -338,12 +881,38 @@ class ServiceBase:
         time_to_idle: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `mini-moka` service."""
+        r"""
+        Create a new operator for `mini-moka` service.
+
+        Parameters
+        ----------
+        max_capacity : builtins.int, optional
+            Sets the max capacity of the cache.
+            Refer to
+            [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
+        time_to_live : builtins.str, optional
+            Sets the time to live of the cache.
+            Refer to
+            [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
+        time_to_idle : builtins.str, optional
+            Sets the time to idle of the cache.
+            Refer to
+            [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
+        root : builtins.str, optional
+            root path of this backend
+        """
     @typing.overload
     def __new__(
         cls, scheme: typing.Literal["memory"], /, *, root: builtins.str = ...
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `memory` service."""
+        r"""
+        Create a new operator for `memory` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root of the backend.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -356,7 +925,27 @@ class ServiceBase:
         password: builtins.str = ...,
         default_ttl: typing.Any = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `memcached` service."""
+        r"""
+        Create a new operator for `memcached` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            network address of the memcached service.
+            For example: "tcp://localhost:11211"
+        root : builtins.str, optional
+            the working directory of the service.
+            Can be "/path/to/dir" default is "/"
+        username : builtins.str, optional
+            Memcached username, optional.
+        password : builtins.str, optional
+            Memcached password, optional.
+        default_ttl : typing.Any, optional
+            The default ttl for put operations..
+            a human readable duration string see
+            https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+            for more details
+        """
     @typing.overload
     def __new__(
         cls,
@@ -368,7 +957,22 @@ class ServiceBase:
         root: builtins.str = ...,
         password: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `koofr` service."""
+        r"""
+        Create a new operator for `koofr` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str
+            Koofr endpoint.
+        email : builtins.str
+            Koofr email.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        password : builtins.str, optional
+            password of this backend.
+            (Must be the application password)
+        """
     @typing.overload
     def __new__(
         cls,
@@ -378,7 +982,16 @@ class ServiceBase:
         root: builtins.str = ...,
         endpoint: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `ipmfs` service."""
+        r"""
+        Create a new operator for `ipmfs` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            Root for ipfs.
+        endpoint : builtins.str, optional
+            Endpoint for ipfs.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -388,7 +1001,16 @@ class ServiceBase:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `ipfs` service."""
+        r"""
+        Create a new operator for `ipfs` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            IPFS gateway endpoint.
+        root : builtins.str, optional
+            IPFS root.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -401,7 +1023,29 @@ class ServiceBase:
         root: builtins.str = ...,
         token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `huggingface` service."""
+        r"""
+        Create a new operator for `huggingface` service.
+
+        Parameters
+        ----------
+        repo_type : builtins.str, optional
+            Repo type of this backend.
+            Default is model.
+            Available values: - model - dataset
+        repo_id : builtins.str, optional
+            Repo id of this backend.
+            This is required.
+        revision : builtins.str, optional
+            Revision of this backend.
+            Default is main.
+        root : builtins.str, optional
+            Root of this backend.
+            Can be "/path/to/dir".
+            Default is "/".
+        token : builtins.str, optional
+            Token of this backend.
+            This is optional.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -414,7 +1058,22 @@ class ServiceBase:
         token: builtins.str = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `http` service."""
+        r"""
+        Create a new operator for `http` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            endpoint of this backend
+        username : builtins.str, optional
+            username of this backend
+        password : builtins.str, optional
+            password of this backend
+        token : builtins.str, optional
+            token of this backend
+        root : builtins.str, optional
+            root of this backend
+        """
     @typing.overload
     def __new__(
         cls,
@@ -425,7 +1084,18 @@ class ServiceBase:
         name_node: builtins.str = ...,
         enable_append: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `hdfs-native` service."""
+        r"""
+        Create a new operator for `hdfs-native` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            work dir of this backend
+        name_node : builtins.str, optional
+            name_node of this backend
+        enable_append : builtins.bool, optional
+            enable the append capacity
+        """
     @typing.overload
     def __new__(
         cls,
@@ -438,7 +1108,26 @@ class ServiceBase:
         chunk_size: builtins.int = ...,
         root: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `gridfs` service."""
+        r"""
+        Create a new operator for `gridfs` service.
+
+        Parameters
+        ----------
+        connection_string : builtins.str, optional
+            The connection string of the MongoDB service.
+        database : builtins.str, optional
+            The database name of the MongoDB GridFs service to
+            read/write.
+        bucket : builtins.str, optional
+            The bucket name of the MongoDB GridFs service to
+            read/write.
+        chunk_size : builtins.int, optional
+            The chunk size of the MongoDB GridFs service used to
+            break the user file into chunks.
+        root : builtins.str, optional
+            The working directory, all operations will be
+            performed under it.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -450,7 +1139,20 @@ class ServiceBase:
         endpoint: builtins.str = ...,
         runtime_token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `ghac` service."""
+        r"""
+        Create a new operator for `ghac` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            The root path for ghac.
+        version : builtins.str, optional
+            The version that used by cache.
+        endpoint : builtins.str, optional
+            The endpoint for ghac service.
+        runtime_token : builtins.str, optional
+            The runtime token for ghac service.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -463,7 +1165,22 @@ class ServiceBase:
         client_id: builtins.str = ...,
         client_secret: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `gdrive` service."""
+        r"""
+        Create a new operator for `gdrive` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            The root for gdrive
+        access_token : builtins.str, optional
+            Access token for gdrive.
+        refresh_token : builtins.str, optional
+            Refresh token for gdrive.
+        client_id : builtins.str, optional
+            Client id for gdrive.
+        client_secret : builtins.str, optional
+            Client secret for gdrive.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -484,7 +1201,45 @@ class ServiceBase:
         disable_config_load: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `gcs` service."""
+        r"""
+        Create a new operator for `gcs` service.
+
+        Parameters
+        ----------
+        bucket : builtins.str
+            bucket name
+        root : builtins.str, optional
+            root URI, all operations happens under `root`
+        endpoint : builtins.str, optional
+            endpoint URI of GCS service, default is
+            `https://storage.googleapis.com`
+        scope : builtins.str, optional
+            Scope for gcs.
+        service_account : builtins.str, optional
+            Service Account for gcs.
+        credential : builtins.str, optional
+            Credentials string for GCS service OAuth2
+            authentication.
+        credential_path : builtins.str, optional
+            Local path to credentials file for GCS service
+            OAuth2 authentication.
+        predefined_acl : builtins.str, optional
+            The predefined acl for GCS.
+        default_storage_class : builtins.str, optional
+            The default storage class used by gcs.
+        allow_anonymous : builtins.bool, optional
+            Allow opendal to send requests without signing when
+            credentials are not loaded.
+        disable_vm_metadata : builtins.bool, optional
+            Disable attempting to load credentials from the GCE
+            metadata server when running within Google Cloud.
+        disable_config_load : builtins.bool, optional
+            Disable loading configuration from the environment.
+        token : builtins.str, optional
+            A Google Cloud OAuth2 token.
+            Takes precedence over `credential` and
+            `credential_path`.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -494,7 +1249,16 @@ class ServiceBase:
         root: builtins.str = ...,
         atomic_write_dir: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `fs` service."""
+        r"""
+        Create a new operator for `fs` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root dir for backend
+        atomic_write_dir : builtins.str, optional
+            tmp dir for atomic write
+        """
     @typing.overload
     def __new__(
         cls,
@@ -507,12 +1271,34 @@ class ServiceBase:
         client_id: builtins.str = ...,
         client_secret: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `dropbox` service."""
+        r"""
+        Create a new operator for `dropbox` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root path for dropbox.
+        access_token : builtins.str, optional
+            access token for dropbox.
+        refresh_token : builtins.str, optional
+            refresh_token for dropbox.
+        client_id : builtins.str, optional
+            client_id for dropbox.
+        client_secret : builtins.str, optional
+            client_secret for dropbox.
+        """
     @typing.overload
     def __new__(
         cls, scheme: typing.Literal["dashmap"], /, *, root: builtins.str = ...
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `dashmap` service."""
+        r"""
+        Create a new operator for `dashmap` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root path of this backend
+        """
     @typing.overload
     def __new__(
         cls,
@@ -527,12 +1313,39 @@ class ServiceBase:
         enable_versioning: builtins.bool = ...,
         disable_config_load: builtins.bool = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `cos` service."""
+        r"""
+        Create a new operator for `cos` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            Root of this backend.
+        endpoint : builtins.str, optional
+            Endpoint of this backend.
+        secret_id : builtins.str, optional
+            Secret ID of this backend.
+        secret_key : builtins.str, optional
+            Secret key of this backend.
+        bucket : builtins.str, optional
+            Bucket of this backend.
+        enable_versioning : builtins.bool, optional
+            is bucket versioning enabled for this bucket
+        disable_config_load : builtins.bool, optional
+            Disable config load so that opendal will not load
+            config from
+        """
     @typing.overload
     def __new__(
         cls, scheme: typing.Literal["cacache"], /, *, datadir: builtins.str = ...
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `cacache` service."""
+        r"""
+        Create a new operator for `cacache` service.
+
+        Parameters
+        ----------
+        datadir : builtins.str, optional
+            That path to the cacache data directory.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -545,7 +1358,31 @@ class ServiceBase:
         application_key_id: builtins.str = ...,
         application_key: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `b2` service."""
+        r"""
+        Create a new operator for `b2` service.
+
+        Parameters
+        ----------
+        bucket : builtins.str
+            bucket of this backend.
+            required.
+        bucket_id : builtins.str
+            bucket id of this backend.
+            required.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        application_key_id : builtins.str, optional
+            keyID of this backend.
+            - If application_key_id is set, we will take user's
+            input first.
+            - If not, we will try to load it from environment.
+        application_key : builtins.str, optional
+            applicationKey of this backend.
+            - If application_key is set, we will take user's
+            input first.
+            - If not, we will try to load it from environment.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -559,7 +1396,24 @@ class ServiceBase:
         account_key: builtins.str = ...,
         sas_token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `azfile` service."""
+        r"""
+        Create a new operator for `azfile` service.
+
+        Parameters
+        ----------
+        share_name : builtins.str
+            The share name for azfile.
+        root : builtins.str, optional
+            The root path for azfile.
+        endpoint : builtins.str, optional
+            The endpoint for azfile.
+        account_name : builtins.str, optional
+            The account name for azfile.
+        account_key : builtins.str, optional
+            The account key for azfile.
+        sas_token : builtins.str, optional
+            The sas token for azfile.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -577,7 +1431,41 @@ class ServiceBase:
         sas_token: builtins.str = ...,
         authority_host: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `azdls` service."""
+        r"""
+        Create a new operator for `azdls` service.
+
+        Parameters
+        ----------
+        filesystem : builtins.str
+            Filesystem name of this backend.
+        root : builtins.str, optional
+            Root of this backend.
+        endpoint : builtins.str, optional
+            Endpoint of this backend.
+        account_name : builtins.str, optional
+            Account name of this backend.
+        account_key : builtins.str, optional
+            Account key of this backend.
+            - required for shared_key authentication
+        client_secret : builtins.str, optional
+            client_secret The client secret of the service
+            principal.
+            - required for client_credentials authentication
+        tenant_id : builtins.str, optional
+            tenant_id The tenant id of the service principal.
+            - required for client_credentials authentication
+        client_id : builtins.str, optional
+            client_id The client id of the service principal.
+            - required for client_credentials authentication
+        sas_token : builtins.str, optional
+            sas_token The shared access signature token.
+            - required for sas authentication
+        authority_host : builtins.str, optional
+            authority_host The authority host of the service
+            principal.
+            - required for client_credentials authentication -
+            default value: `https://login.microsoftonline.com`
+        """
     @typing.overload
     def __new__(
         cls,
@@ -595,7 +1483,38 @@ class ServiceBase:
         sas_token: builtins.str = ...,
         batch_max_operations: builtins.int = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `azblob` service."""
+        r"""
+        Create a new operator for `azblob` service.
+
+        Parameters
+        ----------
+        container : builtins.str
+            The container name of Azblob service backend.
+        root : builtins.str, optional
+            The root of Azblob service backend.
+            All operations will happen under this root.
+        endpoint : builtins.str, optional
+            The endpoint of Azblob service backend.
+            Endpoint must be full uri, e.g.
+            - Azblob:
+            `https://accountname.blob.core.windows.net` -
+            Azurite: `http://127.0.0.1:10000/devstoreaccount1`
+        account_name : builtins.str, optional
+            The account name of Azblob service backend.
+        account_key : builtins.str, optional
+            The account key of Azblob service backend.
+        encryption_key : builtins.str, optional
+            The encryption key of Azblob service backend.
+        encryption_key_sha256 : builtins.str, optional
+            The encryption key sha256 of Azblob service backend.
+        encryption_algorithm : builtins.str, optional
+            The encryption algorithm of Azblob service backend.
+        sas_token : builtins.str, optional
+            The sas token of Azblob service backend.
+        batch_max_operations : builtins.int, optional
+            The maximum batch operations of Azblob service
+            backend.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -605,7 +1524,20 @@ class ServiceBase:
         root: builtins.str = ...,
         endpoint: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `alluxio` service."""
+        r"""
+        Create a new operator for `alluxio` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+            default to `/` if not set.
+        endpoint : builtins.str, optional
+            endpoint of this backend.
+            Endpoint must be full uri, mostly like
+            `http://127.0.0.1:39999`.
+        """
     @typing.overload
     def __new__(
         cls,
@@ -619,7 +1551,37 @@ class ServiceBase:
         client_secret: builtins.str = ...,
         refresh_token: builtins.str = ...,
     ) -> typing_extensions.Self:
-        r"""Create a new operator for `aliyun-drive` service."""
+        r"""
+        Create a new operator for `aliyun-drive` service.
+
+        Parameters
+        ----------
+        drive_type : builtins.str
+            The drive_type of this backend.
+            All operations will happen under this type of drive.
+            Available values are `default`, `backup` and
+            `resource`.
+            Fallback to default if not set or no other drives
+            can be found.
+        root : builtins.str, optional
+            The Root of this backend.
+            All operations will happen under this root.
+            Default to `/` if not set.
+        access_token : builtins.str, optional
+            The access_token of this backend.
+            Solution for client-only purpose.
+            #4733 Required if no client_id, client_secret and
+            refresh_token are provided.
+        client_id : builtins.str, optional
+            The client_id of this backend.
+            Required if no access_token is provided.
+        client_secret : builtins.str, optional
+            The client_secret of this backend.
+            Required if no access_token is provided.
+        refresh_token : builtins.str, optional
+            The refresh_token of this backend.
+            Required if no access_token is provided.
+        """
 
 @typing.final
 class Scheme(enum.Enum):

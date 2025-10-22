@@ -16,7 +16,7 @@
 // under the License.
 
 use crate::*;
-use pyo3_stub_gen::module_doc;
+use pyo3_stub_gen::{derive::*, inventory::submit, module_doc};
 
 module_doc!(
     "opendal.services",
@@ -66,6 +66,41 @@ impl PyScheme {
     }
 }
 
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.services")]
+pub struct ServiceBase {}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl ServiceBase {}
+{% for srv in srvs %}
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        class ServiceBase:
+            def __new__(cls,
+                scheme: typing.Literal["{{snake_to_kebab_case(srv)}}"],
+                /,
+            {%- if srvs[srv].config -%}
+                *,
+            {%- endif %}
+            {%- for field in srvs[srv].config -%}
+                {% if field.deprecated %}
+                # deprecated: {{field.deprecated["note"]}}
+                {%- endif %}
+                {{field.name}}: {{make_python_type(field.value)}}{% if field.optional %} = ...{% endif %},
+            {%- endfor %}
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new operator for `{{snake_to_kebab_case(srv)}}` service.
+                """
+        "#
+    }
+}
+{% endfor %}
 // --- Conversion Macro ---
 macro_rules! impl_enum_from {
     ($src:ty => $dst:ty { $(

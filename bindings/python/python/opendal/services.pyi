@@ -32,6 +32,595 @@ import builtins
 import enum
 import typing
 
+import typing_extensions
+
+@typing.final
+class ServiceBase:
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["yandex-disk"],
+        /,
+        *,
+        access_token: builtins.str,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `yandex-disk` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["webhdfs"],
+        /,
+        *,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        user_name: builtins.str = ...,
+        delegation: builtins.str = ...,
+        disable_list_batch: builtins.bool = ...,
+        atomic_write_dir: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `webhdfs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["webdav"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        username: builtins.str = ...,
+        password: builtins.str = ...,
+        token: builtins.str = ...,
+        root: builtins.str = ...,
+        disable_copy: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `webdav` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["vercel-artifacts"],
+        /,
+        *,
+        access_token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `vercel-artifacts` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["upyun"],
+        /,
+        *,
+        bucket: builtins.str,
+        root: builtins.str = ...,
+        operator: builtins.str = ...,
+        password: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `upyun` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["swift"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        container: builtins.str = ...,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `swift` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["sqlite"],
+        /,
+        *,
+        connection_string: builtins.str = ...,
+        table: builtins.str = ...,
+        key_field: builtins.str = ...,
+        value_field: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `sqlite` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["sled"],
+        /,
+        *,
+        datadir: builtins.str = ...,
+        root: builtins.str = ...,
+        tree: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `sled` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["seafile"],
+        /,
+        *,
+        repo_name: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        username: builtins.str = ...,
+        password: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `seafile` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["s3"],
+        /,
+        *,
+        bucket: builtins.str,
+        root: builtins.str = ...,
+        enable_versioning: builtins.bool = ...,
+        endpoint: builtins.str = ...,
+        region: builtins.str = ...,
+        access_key_id: builtins.str = ...,
+        secret_access_key: builtins.str = ...,
+        session_token: builtins.str = ...,
+        role_arn: builtins.str = ...,
+        external_id: builtins.str = ...,
+        role_session_name: builtins.str = ...,
+        disable_config_load: builtins.bool = ...,
+        disable_ec2_metadata: builtins.bool = ...,
+        allow_anonymous: builtins.bool = ...,
+        server_side_encryption: builtins.str = ...,
+        server_side_encryption_aws_kms_key_id: builtins.str = ...,
+        server_side_encryption_customer_algorithm: builtins.str = ...,
+        server_side_encryption_customer_key: builtins.str = ...,
+        server_side_encryption_customer_key_md5: builtins.str = ...,
+        default_storage_class: builtins.str = ...,
+        enable_virtual_host_style: builtins.bool = ...,
+        batch_max_operations: builtins.int = ...,
+        delete_max_size: builtins.int = ...,
+        disable_stat_with_override: builtins.bool = ...,
+        checksum_algorithm: builtins.str = ...,
+        disable_write_with_if_match: builtins.bool = ...,
+        enable_write_with_append: builtins.bool = ...,
+        disable_list_objects_v2: builtins.bool = ...,
+        enable_request_payer: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `s3` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["redis"],
+        /,
+        *,
+        db: builtins.int,
+        endpoint: builtins.str = ...,
+        cluster_endpoints: builtins.str = ...,
+        username: builtins.str = ...,
+        password: builtins.str = ...,
+        root: builtins.str = ...,
+        default_ttl: typing.Any = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `redis` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["redb"],
+        /,
+        *,
+        datadir: builtins.str = ...,
+        root: builtins.str = ...,
+        table: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `redb` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["postgresql"],
+        /,
+        *,
+        root: builtins.str = ...,
+        connection_string: builtins.str = ...,
+        table: builtins.str = ...,
+        key_field: builtins.str = ...,
+        value_field: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `postgresql` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["persy"],
+        /,
+        *,
+        datafile: builtins.str = ...,
+        segment: builtins.str = ...,
+        index: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `persy` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["oss"],
+        /,
+        *,
+        bucket: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        presign_endpoint: builtins.str = ...,
+        addressing_style: builtins.str = ...,
+        presign_addressing_style: builtins.str = ...,
+        enable_versioning: builtins.bool = ...,
+        server_side_encryption: builtins.str = ...,
+        server_side_encryption_key_id: builtins.str = ...,
+        allow_anonymous: builtins.bool = ...,
+        access_key_id: builtins.str = ...,
+        access_key_secret: builtins.str = ...,
+        security_token: builtins.str = ...,
+        batch_max_operations: builtins.int = ...,
+        delete_max_size: builtins.int = ...,
+        role_arn: builtins.str = ...,
+        role_session_name: builtins.str = ...,
+        oidc_provider_arn: builtins.str = ...,
+        oidc_token_file: builtins.str = ...,
+        sts_endpoint: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `oss` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["onedrive"],
+        /,
+        *,
+        root: builtins.str = ...,
+        access_token: builtins.str = ...,
+        refresh_token: builtins.str = ...,
+        client_id: builtins.str = ...,
+        client_secret: builtins.str = ...,
+        enable_versioning: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `onedrive` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["obs"],
+        /,
+        *,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        access_key_id: builtins.str = ...,
+        secret_access_key: builtins.str = ...,
+        bucket: builtins.str = ...,
+        enable_versioning: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `obs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["mysql"],
+        /,
+        *,
+        connection_string: builtins.str = ...,
+        table: builtins.str = ...,
+        key_field: builtins.str = ...,
+        value_field: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `mysql` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["mongodb"],
+        /,
+        *,
+        connection_string: builtins.str = ...,
+        database: builtins.str = ...,
+        collection: builtins.str = ...,
+        root: builtins.str = ...,
+        key_field: builtins.str = ...,
+        value_field: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `mongodb` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["moka"],
+        /,
+        *,
+        name: builtins.str = ...,
+        max_capacity: builtins.int = ...,
+        time_to_live: builtins.str = ...,
+        time_to_idle: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `moka` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["mini-moka"],
+        /,
+        *,
+        max_capacity: builtins.int = ...,
+        time_to_live: builtins.str = ...,
+        time_to_idle: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `mini-moka` service."""
+    @typing.overload
+    def __new__(
+        cls, scheme: typing.Literal["memory"], /, *, root: builtins.str = ...
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `memory` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["memcached"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        root: builtins.str = ...,
+        username: builtins.str = ...,
+        password: builtins.str = ...,
+        default_ttl: typing.Any = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `memcached` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["koofr"],
+        /,
+        *,
+        endpoint: builtins.str,
+        email: builtins.str,
+        root: builtins.str = ...,
+        password: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `koofr` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["ipmfs"],
+        /,
+        *,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `ipmfs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["ipfs"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `ipfs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["huggingface"],
+        /,
+        *,
+        repo_type: builtins.str = ...,
+        repo_id: builtins.str = ...,
+        revision: builtins.str = ...,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `huggingface` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["http"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        username: builtins.str = ...,
+        password: builtins.str = ...,
+        token: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `http` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["hdfs-native"],
+        /,
+        *,
+        root: builtins.str = ...,
+        name_node: builtins.str = ...,
+        enable_append: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `hdfs-native` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["gridfs"],
+        /,
+        *,
+        connection_string: builtins.str = ...,
+        database: builtins.str = ...,
+        bucket: builtins.str = ...,
+        chunk_size: builtins.int = ...,
+        root: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `gridfs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["ghac"],
+        /,
+        *,
+        root: builtins.str = ...,
+        version: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        runtime_token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `ghac` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["gdrive"],
+        /,
+        *,
+        root: builtins.str = ...,
+        access_token: builtins.str = ...,
+        refresh_token: builtins.str = ...,
+        client_id: builtins.str = ...,
+        client_secret: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `gdrive` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["gcs"],
+        /,
+        *,
+        bucket: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        scope: builtins.str = ...,
+        service_account: builtins.str = ...,
+        credential: builtins.str = ...,
+        credential_path: builtins.str = ...,
+        predefined_acl: builtins.str = ...,
+        default_storage_class: builtins.str = ...,
+        allow_anonymous: builtins.bool = ...,
+        disable_vm_metadata: builtins.bool = ...,
+        disable_config_load: builtins.bool = ...,
+        token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `gcs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["fs"],
+        /,
+        *,
+        root: builtins.str = ...,
+        atomic_write_dir: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `fs` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["dropbox"],
+        /,
+        *,
+        root: builtins.str = ...,
+        access_token: builtins.str = ...,
+        refresh_token: builtins.str = ...,
+        client_id: builtins.str = ...,
+        client_secret: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `dropbox` service."""
+    @typing.overload
+    def __new__(
+        cls, scheme: typing.Literal["dashmap"], /, *, root: builtins.str = ...
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `dashmap` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["cos"],
+        /,
+        *,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        secret_id: builtins.str = ...,
+        secret_key: builtins.str = ...,
+        bucket: builtins.str = ...,
+        enable_versioning: builtins.bool = ...,
+        disable_config_load: builtins.bool = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `cos` service."""
+    @typing.overload
+    def __new__(
+        cls, scheme: typing.Literal["cacache"], /, *, datadir: builtins.str = ...
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `cacache` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["b2"],
+        /,
+        *,
+        bucket: builtins.str,
+        bucket_id: builtins.str,
+        root: builtins.str = ...,
+        application_key_id: builtins.str = ...,
+        application_key: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `b2` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["azfile"],
+        /,
+        *,
+        share_name: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        account_name: builtins.str = ...,
+        account_key: builtins.str = ...,
+        sas_token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `azfile` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["azdls"],
+        /,
+        *,
+        filesystem: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        account_name: builtins.str = ...,
+        account_key: builtins.str = ...,
+        client_secret: builtins.str = ...,
+        tenant_id: builtins.str = ...,
+        client_id: builtins.str = ...,
+        sas_token: builtins.str = ...,
+        authority_host: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `azdls` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["azblob"],
+        /,
+        *,
+        container: builtins.str,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+        account_name: builtins.str = ...,
+        account_key: builtins.str = ...,
+        encryption_key: builtins.str = ...,
+        encryption_key_sha256: builtins.str = ...,
+        encryption_algorithm: builtins.str = ...,
+        sas_token: builtins.str = ...,
+        batch_max_operations: builtins.int = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `azblob` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["alluxio"],
+        /,
+        *,
+        root: builtins.str = ...,
+        endpoint: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `alluxio` service."""
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal["aliyun-drive"],
+        /,
+        *,
+        drive_type: builtins.str,
+        root: builtins.str = ...,
+        access_token: builtins.str = ...,
+        client_id: builtins.str = ...,
+        client_secret: builtins.str = ...,
+        refresh_token: builtins.str = ...,
+    ) -> typing_extensions.Self:
+        r"""Create a new operator for `aliyun-drive` service."""
+
 @typing.final
 class Scheme(enum.Enum):
     AliyunDrive = ...

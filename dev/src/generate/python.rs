@@ -25,7 +25,9 @@ use std::path::PathBuf;
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" => false,
+        "etcd" | "foundationdb" | "ftp" | "hdfs" | "rocksdb" | "tikv" | "sftp" | "github"
+        | "cloudflare_kv" | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs"
+        | "lakefs" | "pcloud" | "vercel_blob" => false,
         _ => true,
     }
 }
@@ -33,26 +35,57 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
-    env.add_template("python", include_str!("python.j2"))?;
+    env.add_template("python", include_str!("new_python.j2"))?;
+    env.add_function("snake_to_kebab_case", snake_to_kebab_case);
+    env.add_function("service_to_feature", service_to_feature);
+    env.add_function("service_to_pascal", service_to_pascal);
     env.add_function("make_python_type", make_python_type);
     let tmpl = env.get_template("python")?;
 
-    let output = workspace_dir.join("bindings/python/python/opendal/__base.pyi");
+    let output = workspace_dir.join("bindings/python/src/services.rs");
     fs::write(output, tmpl.render(context! { srvs => srvs })?)?;
     Ok(())
 }
 
+fn snake_to_kebab_case(str: &str) -> String {
+    str.replace('_', "-")
+}
+
+fn service_to_feature(service: &str) -> String {
+    format!("services-{}", snake_to_kebab_case(service))
+}
+
+fn service_to_pascal(service: &str) -> String {
+    let mut result = String::with_capacity(service.len());
+    let mut capitalize = true;
+
+    for &b in service.as_bytes() {
+        if b == b'_' || b == b'-' {
+            capitalize = true;
+        } else {
+            if capitalize {
+                result.push((b as char).to_ascii_uppercase());
+                capitalize = false;
+            } else {
+                result.push(b as char);
+            }
+        }
+    }
+
+    result
+}
+
 fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
     Ok(match ty.0 {
-        ConfigType::Bool => "_bool",
-        ConfigType::Duration => "_duration",
+        ConfigType::Bool => "builtins.bool",
+        ConfigType::Duration => "typing.Any",
         ConfigType::I64
         | ConfigType::Usize
         | ConfigType::U64
         | ConfigType::U32
-        | ConfigType::U16 => "_int",
-        ConfigType::Vec => "_strings",
-        ConfigType::String => "str",
+        | ConfigType::U16 => "builtins.int",
+        ConfigType::Vec => "typing.Any",
+        ConfigType::String => "builtins.str",
     }
     .to_string())
 }

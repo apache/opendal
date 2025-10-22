@@ -79,8 +79,8 @@ def check_capability(request, operator, async_operator) -> None:
         marker
         and marker.args
         and not all(
-            [getattr(operator.capability(), x) for x in marker.args]
-            + [getattr(async_operator.capability(), x) for x in marker.args]
+            [getattr(operator.full_capability(), x) for x in marker.args]
+            + [getattr(async_operator.full_capability(), x) for x in marker.args]
         )
     ):
         pytest.skip(f"skip because {marker.args} not supported")

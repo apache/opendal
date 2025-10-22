@@ -24,9 +24,7 @@ import typing
 @typing.final
 class ConcurrentLimitLayer(Layer):
     r"""
-    ConcurrentLimitLayer.
-
-    Create a layer that limits the number of concurrent operations.
+    A layer that limits the number of concurrent operations.
 
     Notes
     -----
@@ -51,19 +49,12 @@ class ConcurrentLimitLayer(Layer):
         """
 
 class Layer:
-    r"""
-    Layer.
-
-    Layers are used to intercept the operations on the underlying storage.
-    """
+    r"""Layers are used to intercept the operations on the underlying storage."""
 
 @typing.final
 class MimeGuessLayer(Layer):
     r"""
-    MimeGuessLayer.
-
-    Create a layer that guesses MIME types for objects based on their
-    paths or content.
+    A layer that guesses MIME types for objects based on their paths or content.
 
     This layer uses the `mime_guess` crate
     (see https://crates.io/crates/mime_guess) to infer the
@@ -91,8 +82,6 @@ class MimeGuessLayer(Layer):
 @typing.final
 class RetryLayer(Layer):
     r"""
-    RetryLayer.
-
     A layer that retries operations that fail with temporary errors.
 
     Operations are retried if they fail with an error for which

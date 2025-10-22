@@ -24,15 +24,11 @@ pub trait PythonLayer: Send + Sync {
     fn layer(&self, op: Operator) -> Operator;
 }
 
-/// Layer
-///
 /// Layers are used to intercept the operations on the underlying storage.
 #[gen_stub_pyclass]
 #[pyclass(module = "opendal.layers", subclass)]
 pub struct Layer(pub Box<dyn PythonLayer>);
 
-/// RetryLayer
-///
 /// A layer that retries operations that fail with temporary errors.
 ///
 /// Operations are retried if they fail with an error for which
@@ -117,9 +113,7 @@ impl RetryLayer {
     }
 }
 
-/// ConcurrentLimitLayer
-///
-/// Create a layer that limits the number of concurrent operations.
+/// A layer that limits the number of concurrent operations.
 ///
 /// Notes
 /// -----
@@ -163,10 +157,7 @@ impl ConcurrentLimitLayer {
     }
 }
 
-/// MimeGuessLayer
-///
-/// Create a layer that guesses MIME types for objects based on their
-/// paths or content.
+/// A layer that guesses MIME types for objects based on their paths or content.
 ///
 /// This layer uses the `mime_guess` crate
 /// (see https://crates.io/crates/mime_guess) to infer the

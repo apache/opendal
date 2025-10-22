@@ -100,7 +100,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.                               | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
 | [object_store_opendal] | an [object_store] implementation using opendal.                               | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
-| [fuse3_opendal]        | Access data via integrations to [fuse3]                                       | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
 | [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal.                      | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
 | [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities | [![parquet image]][parquet crate]           | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs]           |
 
@@ -118,12 +117,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [object_store release docs]: https://docs.rs/object_store_opendal/
 [object_store dev docs]: https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/
 
-[fuse3_opendal]: integrations/fuse3/README.md
-[fuse3]: https://docs.rs/fuse3
-[fuse3 image]: https://img.shields.io/crates/v/fuse3_opendal.svg
-[fuse3 crate]: https://crates.io/crates/fuse3_opendal
-[fuse3 release docs]: https://docs.rs/fuse3_opendal/
-[fuse3 dev docs]: https://opendal.apache.org/docs/fuse3-opendal/fuse3_opendal/
 
 [unftp-sbe-opendal]: integrations/unftp-sbe/README.md
 [unftp]: https://crates.io/crates/unftp

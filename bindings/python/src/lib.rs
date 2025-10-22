@@ -38,7 +38,9 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
+mod services;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
+pub use services::PyScheme;
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -53,6 +55,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Capability module
     add_pymodule!(py, m, "capability", [Capability])?;
+
+    // Capability module
+    add_pymodule!(py, m, "services", [PyScheme])?;
 
     // Layers module
     add_pymodule!(

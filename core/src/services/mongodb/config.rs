@@ -15,15 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
-use super::backend::MongodbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::backend::MongodbBuilder;
+
 /// Config for Mongodb service support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MongodbConfig {
@@ -41,21 +39,9 @@ pub struct MongodbConfig {
     pub value_field: Option<String>,
 }
 
-impl Debug for MongodbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MongodbConfig")
-            .field("connection_string", &self.connection_string)
-            .field("database", &self.database)
-            .field("collection", &self.collection)
-            .field("root", &self.root)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
-    }
-}
-
 impl crate::Configurator for MongodbConfig {
     type Builder = MongodbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

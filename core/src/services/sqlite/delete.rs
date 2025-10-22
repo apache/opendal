@@ -15,15 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SqliteBuilder as Sqlite;
+use crate::raw::{OpDelete, build_abs_path, oio};
+use crate::services::sqlite::core::SqliteCore;
 
-mod config;
-pub use config::SqliteConfig;
+pub struct SqliteDeleter {
+    pub core: std::sync::Arc<SqliteCore>,
+    pub root: String,
+}
 
-#[cfg(feature = "services-sqlite")]
-mod core;
-#[cfg(feature = "services-sqlite")]
-mod delete;
-#[cfg(feature = "services-sqlite")]
-mod writer;
+impl SqliteDeleter {
+    pub fn new(core: std::sync::Arc<SqliteCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for SqliteDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> crate::Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

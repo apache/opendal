@@ -15,16 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
-use super::backend::FoundationdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::backend::FoundationdbBuilder;
+
 /// [foundationdb](https://www.foundationdb.org/) service support.
 ///Config for FoundationDB.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FoundationdbConfig {
@@ -34,19 +32,9 @@ pub struct FoundationdbConfig {
     pub config_path: Option<String>,
 }
 
-impl Debug for FoundationdbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("FoundationConfig");
-
-        ds.field("root", &self.root);
-        ds.field("config_path", &self.config_path);
-
-        ds.finish()
-    }
-}
-
 impl crate::Configurator for FoundationdbConfig {
     type Builder = FoundationdbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

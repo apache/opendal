@@ -25,10 +25,12 @@ import os
 import pathlib
 import typing
 
-from opendal import capability, exceptions, file, layers, types
+import opendal.file
+import opendal.types
+from opendal.capability import Capability
+from opendal.file import File
 from opendal.layers import Layer
-
-__version__: builtins.str = "0.46.1"
+from opendal.types import Metadata
 
 @typing.final
 class AsyncOperator:
@@ -77,7 +79,7 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         mode: builtins.str,
         **kwargs: typing.Any,
-    ) -> collections.abc.Awaitable[file.AsyncFile]:
+    ) -> collections.abc.Awaitable[opendal.file.AsyncFile]:
         r"""
         Open an async file-like object for the given path.
 
@@ -226,7 +228,7 @@ class AsyncOperator:
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
-    ) -> collections.abc.Awaitable[types.Metadata]:
+    ) -> collections.abc.Awaitable[Metadata]:
         r"""
         Get the metadata of a file at the given path.
 
@@ -392,7 +394,7 @@ class AsyncOperator:
         recursive: builtins.bool | None = None,
         versions: builtins.bool | None = None,
         deleted: builtins.bool | None = None,
-    ) -> collections.abc.AsyncIterable[types.Entry]:
+    ) -> collections.abc.AsyncIterable[opendal.types.Entry]:
         r"""
         List entries in the given directory.
 
@@ -420,7 +422,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> types.PresignedRequest:
+    ) -> opendal.types.PresignedRequest:
         r"""
         Create a presigned request for a stat operation.
 
@@ -440,7 +442,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> types.PresignedRequest:
+    ) -> opendal.types.PresignedRequest:
         r"""
         Create a presigned request for a read operation.
 
@@ -460,7 +462,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> types.PresignedRequest:
+    ) -> opendal.types.PresignedRequest:
         r"""
         Create a presigned request for a write operation.
 
@@ -480,7 +482,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> types.PresignedRequest:
+    ) -> opendal.types.PresignedRequest:
         r"""
         Create a presigned request for a delete operation.
 
@@ -496,7 +498,7 @@ class AsyncOperator:
         coroutine
             An awaitable that returns a presigned request object.
         """
-    def full_capability(self) -> capability.Capability:
+    def capability(self) -> Capability:
         r"""
         Get all capabilities of this operator.
 
@@ -562,7 +564,7 @@ class Operator:
         path: builtins.str | os.PathLike | pathlib.Path,
         mode: builtins.str,
         **kwargs: typing.Any,
-    ) -> file.File:
+    ) -> File:
         r"""
         Open a file-like object for the given path.
 
@@ -706,7 +708,7 @@ class Operator:
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
-    ) -> types.Metadata:
+    ) -> Metadata:
         r"""
         Get the metadata of a file at the given path.
 
@@ -825,7 +827,7 @@ class Operator:
         recursive: builtins.bool | None = None,
         versions: builtins.bool | None = None,
         deleted: builtins.bool | None = None,
-    ) -> collections.abc.Iterable[types.Entry]:
+    ) -> collections.abc.Iterable[opendal.types.Entry]:
         r"""
         List entries in the given directory.
 
@@ -857,7 +859,7 @@ class Operator:
         start_after: builtins.str | None = None,
         versions: builtins.bool | None = None,
         deleted: builtins.bool | None = None,
-    ) -> collections.abc.Iterable[types.Entry]:
+    ) -> collections.abc.Iterable[opendal.types.Entry]:
         r"""
         Recursively list entries in the given directory.
 
@@ -883,7 +885,7 @@ class Operator:
         BlockingLister
             An iterator over the entries in the directory.
         """
-    def full_capability(self) -> capability.Capability:
+    def capability(self) -> Capability:
         r"""
         Get all capabilities of this operator.
 

@@ -45,6 +45,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add version
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
+    // Operator module
+    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
+
     // File module
     add_pymodule!(py, m, "file", [File, AsyncFile])?;
 
@@ -66,9 +69,6 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         "types",
         [Entry, EntryMode, Metadata, PresignedRequest]
     )?;
-
-    m.add_class::<Operator>()?;
-    m.add_class::<AsyncOperator>()?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;

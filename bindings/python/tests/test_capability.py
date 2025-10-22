@@ -19,13 +19,13 @@ import pytest
 
 
 def test_capability(service_name, operator):
-    cap = operator.full_capability()
+    cap = operator.capability()
     assert cap is not None
     assert cap.read is not None
 
 
 def test_capability_exception(service_name, operator):
-    cap = operator.full_capability()
+    cap = operator.capability()
     assert cap is not None
     with pytest.raises(AttributeError):
         _ = cap.read_demo

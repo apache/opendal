@@ -57,7 +57,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     add_pymodule!(py, m, "capability", [Capability])?;
 
     // Services module
-    add_pymodule!(py, m, "services", [PyScheme, ServiceBase])?;
+    add_pymodule!(py, m, "services", [PyScheme])?;
 
     // Layers module
     add_pymodule!(

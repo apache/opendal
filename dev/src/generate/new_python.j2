@@ -66,13 +66,6 @@ impl PyScheme {
     }
 }
 
-#[gen_stub_pyclass]
-#[pyclass(module = "opendal.services")]
-pub struct ServiceBase {}
-
-#[gen_stub_pymethods]
-#[pymethods]
-impl ServiceBase {}
 {% for srv in srvs %}
 submit! {
     gen_methods_from_python! {
@@ -80,7 +73,7 @@ submit! {
         import builtins
         import typing
         import typing_extensions
-        class ServiceBase:
+        class Operator:
             def __new__(cls,
                 scheme: typing.Literal["{{ snake_to_kebab_case(srv) }}"],
                 /,
@@ -92,7 +85,42 @@ submit! {
                 {%- endfor %}
             ) -> typing_extensions.Self:
                 r"""
-                Create a new operator for `{{ snake_to_kebab_case(srv) }}` service.
+                Create a new `Operator` for `{{ snake_to_kebab_case(srv) }}` service.
+                {%- if srvs[srv].config %}
+
+                Parameters
+                ----------
+                {%- for field in srvs[srv].config %}
+                {{ make_pydoc_param_header(field.name, field.value, field.optional) }}
+{{ make_pydoc_param(field.comments, field.value) }}
+                {%- endfor %}
+                {%- endif %}
+                """
+        "#
+    }
+}
+
+{% endfor %}
+{% for srv in srvs %}
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        class AsyncOperator:
+            def __new__(cls,
+                scheme: typing.Literal["{{ snake_to_kebab_case(srv) }}"],
+                /,
+                {%- if srvs[srv].config %}
+                *,
+                {%- endif %}
+                {%- for field in srvs[srv].config %}
+                {{field.name}}: {{make_python_type(field.value)}}{% if field.optional %} = ...{% endif %},
+                {%- endfor %}
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `{{ snake_to_kebab_case(srv) }}` service.
                 {%- if srvs[srv].config %}
 
                 Parameters

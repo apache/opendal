@@ -64,13 +64,11 @@ fn service_to_pascal(service: &str) -> String {
     for &b in service.as_bytes() {
         if b == b'_' || b == b'-' {
             capitalize = true;
+        } else if capitalize {
+            result.push((b as char).to_ascii_uppercase());
+            capitalize = false;
         } else {
-            if capitalize {
-                result.push((b as char).to_ascii_uppercase());
-                capitalize = false;
-            } else {
-                result.push(b as char);
-            }
+            result.push(b as char);
         }
     }
 

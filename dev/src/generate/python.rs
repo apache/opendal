@@ -35,7 +35,7 @@ fn enabled_service(srv: &str) -> bool {
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
     let srvs = sorted_services(services, enabled_service);
     let mut env = Environment::new();
-    env.add_template("python", include_str!("new_python.j2"))?;
+    env.add_template("python", include_str!("python.j2"))?;
     env.add_function("snake_to_kebab_case", snake_to_kebab_case);
     env.add_function("service_to_feature", service_to_feature);
     env.add_function("service_to_pascal", service_to_pascal);

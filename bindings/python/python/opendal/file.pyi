@@ -23,6 +23,8 @@ import collections.abc
 import types
 import typing
 
+import typing_extensions
+
 @typing.final
 class AsyncFile:
     r"""
@@ -111,7 +113,7 @@ class AsyncFile:
         -----
         A closed file cannot be used for further I/O operations.
         """
-    def __aenter__(self) -> typing.Self: ...
+    def __aenter__(self) -> typing_extensions.Self: ...
     def __aexit__(
         self,
         exc_type: type[builtins.BaseException] | None,

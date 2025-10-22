@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::MongodbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MongodbBuilder;
 
 /// Config for Mongodb service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -44,7 +45,6 @@ pub struct MongodbConfig {
 impl Debug for MongodbConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MongodbConfig")
-            .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("root", &self.root)
@@ -56,6 +56,7 @@ impl Debug for MongodbConfig {
 
 impl crate::Configurator for MongodbConfig {
     type Builder = MongodbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

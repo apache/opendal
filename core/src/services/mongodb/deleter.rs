@@ -15,12 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-mod core;
-mod deleter;
-mod writer;
+use std::sync::Arc;
 
-pub use backend::MongodbBuilder as Mongodb;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::MongodbConfig;
+pub struct MongodbDeleter {
+    core: Arc<MongodbCore>,
+    root: String,
+}
+
+impl MongodbDeleter {
+    pub fn new(core: Arc<MongodbCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MongodbDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

@@ -19,9 +19,9 @@
 import builtins
 
 from opendal._opendal import *  # noqa: F403 # pyright:ignore
-from opendal.operator import AsyncOperator, Operator
+from opendal.operator import AsyncOperator, Operator  # pyright:ignore
 
 __version__: builtins.str
 
 __all__ = _opendal.__all__  # noqa: F405 # pyright:ignore
-__all__ = ["AsyncOperator", "Operator"]
+__all__ += ["AsyncOperator", "Operator"]  # pyright:ignore

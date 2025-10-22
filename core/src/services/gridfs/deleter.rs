@@ -15,12 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-mod core;
-mod deleter;
-mod writer;
+use std::sync::Arc;
 
-pub use backend::GridfsBuilder as Gridfs;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::GridfsConfig;
+pub struct GridfsDeleter {
+    core: Arc<GridfsCore>,
+    root: String,
+}
+
+impl GridfsDeleter {
+    pub fn new(core: Arc<GridfsCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for GridfsDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
+}

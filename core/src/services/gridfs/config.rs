@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::GridfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::GridfsBuilder;
 
 /// Config for Grid file system support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -52,6 +53,7 @@ impl Debug for GridfsConfig {
 
 impl crate::Configurator for GridfsConfig {
     type Builder = GridfsBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

@@ -15,12 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-mod core;
-mod deleter;
-mod writer;
+use std::sync::Arc;
 
-pub use backend::RedbBuilder as Redb;
+use super::core::*;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
 
-mod config;
-pub use config::RedbConfig;
+pub struct SledDeleter {
+    core: Arc<SledCore>,
+    root: String,
+}
+
+impl SledDeleter {
+    pub fn new(core: Arc<SledCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for SledDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p)?;
+        Ok(())
+    }
+}

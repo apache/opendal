@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::RocksdbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::RocksdbBuilder;
 
 /// Config for Rocksdb Service.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -36,6 +37,7 @@ pub struct RocksdbConfig {
 
 impl crate::Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

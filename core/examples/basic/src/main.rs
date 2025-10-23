@@ -19,20 +19,20 @@ use opendal::Operator;
 use opendal::Result;
 
 async fn example(op: Operator) -> Result<()> {
-    // Write data to S3.
+    // Write data to fs.
     op.write("test.txt", "Hello, World!").await?;
     println!("write succeeded");
 
-    // Read data from s3.
+    // Read data from fs.
     let bs = op.read("test.txt").await?;
 
     println!("read: {}", String::from_utf8(bs.to_vec()).unwrap());
 
-    // Fetch metadata of s3.
+    // Fetch metadata of file.
     let meta = op.stat("test.txt").await?;
     println!("stat: {meta:?}");
 
-    // Delete data from s3.
+    // Delete data from fs.
     op.delete("test.txt").await?;
     println!("delete succeeded");
 

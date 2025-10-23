@@ -18,9 +18,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-use super::backend::SledBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SledBuilder;
 
 /// Config for Sled services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -29,24 +30,25 @@ use serde::Serialize;
 pub struct SledConfig {
     /// That path to the sled data directory.
     pub datadir: Option<String>,
-    /// The root for sled.
-    pub root: Option<String>,
     /// The tree for sled.
     pub tree: Option<String>,
+    /// The root for sled.
+    pub root: Option<String>,
 }
 
 impl Debug for SledConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SledConfig")
             .field("datadir", &self.datadir)
-            .field("root", &self.root)
             .field("tree", &self.tree)
+            .field("root", &self.root)
             .finish()
     }
 }
 
 impl crate::Configurator for SledConfig {
     type Builder = SledBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

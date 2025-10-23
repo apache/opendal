@@ -28,6 +28,7 @@ import typing
 import typing_extensions
 
 import opendal.file
+import opendal.services
 import opendal.types
 from opendal.capability import Capability
 from opendal.file import File
@@ -1591,6 +1592,25 @@ class AsyncOperator:
         refresh_token : builtins.str, optional
             The refresh_token of this backend.
             Required if no access_token is provided.
+        """
+    @typing.overload
+    def __new__(
+        cls, scheme: builtins.str | opendal.services.Scheme, **kwargs: typing.Any
+    ) -> AsyncOperator:
+        r"""
+        Create a new `AsyncOperator`.
+
+        Parameters
+        ----------
+        scheme : str | opendal.services.Scheme
+            The scheme of the service.
+        **kwargs : dict
+            The options for the service.
+
+        Returns
+        -------
+        AsyncOperator
+            The new async operator.
         """
     def layer(self, layer: Layer) -> AsyncOperator:
         r"""
@@ -3606,6 +3626,25 @@ class Operator:
         refresh_token : builtins.str, optional
             The refresh_token of this backend.
             Required if no access_token is provided.
+        """
+    @typing.overload
+    def __new__(
+        cls, scheme: builtins.str | opendal.services.Scheme, **kwargs: typing.Any
+    ) -> Operator:
+        r"""
+        Create a new blocking `Operator`.
+
+        Parameters
+        ----------
+        scheme : str | opendal.services.Scheme
+            The scheme of the service.
+        **kwargs : dict
+            The options for the service.
+
+        Returns
+        -------
+        Operator
+            The new operator.
         """
     def layer(self, layer: Layer) -> Operator:
         r"""

@@ -97,9 +97,9 @@ impl Operator {
         } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
             Ok(py_scheme.into())
         } else {
-            Err(Unsupported::new_err(format!(
-                "Invalid type for scheme, expected str or Scheme"
-            )))
+            Err(Unsupported::new_err(
+                "Invalid type for scheme, expected str or Scheme",
+            ))
         }?;
         let map = kwargs
             .map(|v| {
@@ -745,9 +745,9 @@ impl AsyncOperator {
         } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
             Ok(py_scheme.into())
         } else {
-            Err(Unsupported::new_err(format!(
-                "Invalid type for scheme, expected str or Scheme"
-            )))
+            Err(Unsupported::new_err(
+                "Invalid type for scheme, expected str or Scheme",
+            ))
         }?;
 
         let map = kwargs

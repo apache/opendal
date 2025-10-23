@@ -71,7 +71,7 @@ impl Operator {
     ///
     /// Parameters
     /// ----------
-    /// scheme : str
+    /// scheme : str | opendal.services.Scheme
     ///     The scheme of the service.
     /// **kwargs : dict
     ///     The options for the service.
@@ -80,16 +80,27 @@ impl Operator {
     /// -------
     /// Operator
     ///     The new operator.
-    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, *, **kwargs))]
-    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
-        let scheme = ocore::Scheme::from_str(scheme)
-            .map_err(|err| {
-                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_pyerr)?;
+    pub fn new(
+        #[gen_stub(override_type(type_repr = "builtins.str | opendal.services.Scheme", imports=("builtins", "opendal.services")))]
+        scheme: Bound<PyAny>,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Self> {
+        let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
+            ocore::Scheme::from_str(scheme_str)
+                .map_err(|err| {
+                    ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
+                        .set_source(err)
+                })
+                .map_err(format_pyerr)
+        } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
+            Ok(py_scheme.into())
+        } else {
+            Err(Unsupported::new_err(format!(
+                "Invalid type for scheme, expected str or Scheme"
+            )))
+        }?;
         let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
@@ -708,7 +719,7 @@ impl AsyncOperator {
     ///
     /// Parameters
     /// ----------
-    /// scheme : str
+    /// scheme : str | opendal.services.Scheme
     ///     The scheme of the service.
     /// **kwargs : dict
     ///     The options for the service.
@@ -717,16 +728,28 @@ impl AsyncOperator {
     /// -------
     /// AsyncOperator
     ///     The new async operator.
-    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, * ,**kwargs))]
-    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
-        let scheme = ocore::Scheme::from_str(scheme)
-            .map_err(|err| {
-                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_pyerr)?;
+    pub fn new(
+        #[gen_stub(override_type(type_repr = "builtins.str | opendal.services.Scheme", imports=("builtins", "opendal.services")))]
+        scheme: Bound<PyAny>,
+        kwargs: Option<&Bound<PyDict>>,
+    ) -> PyResult<Self> {
+        let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
+            ocore::Scheme::from_str(scheme_str)
+                .map_err(|err| {
+                    ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
+                        .set_source(err)
+                })
+                .map_err(format_pyerr)
+        } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
+            Ok(py_scheme.into())
+        } else {
+            Err(Unsupported::new_err(format!(
+                "Invalid type for scheme, expected str or Scheme"
+            )))
+        }?;
+
         let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()

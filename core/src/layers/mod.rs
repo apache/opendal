@@ -132,3 +132,5 @@ pub use capability_check::CapabilityCheckLayer;
 
 mod http_client;
 pub use http_client::HttpClientLayer;
+mod sanity_check;
+pub use sanity_check::SanityCheckLayer;

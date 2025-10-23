@@ -97,6 +97,7 @@ impl RocksdbBackend {
                 write_can_empty: true,
                 delete: true,
                 list: true,
+                list_with_recursive: true,
                 shared: false,
                 ..Default::default()
             });
@@ -154,20 +155,21 @@ impl Access for RocksdbBackend {
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), RocksdbWriter::new(self.core.clone(), p)))
+        let writer = RocksdbWriter::new(self.core.clone(), p);
+        Ok((RpWrite::new(), writer))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(RocksdbDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+        let deleter = RocksdbDeleter::new(self.core.clone(), self.root.clone());
+        Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_abs_path(&self.root, path);
         let lister = RocksdbLister::new(self.core.clone(), self.root.clone(), p)?;
-        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-        Ok((RpList::default(), lister))
+        Ok((
+            RpList::default(),
+            oio::HierarchyLister::new(lister, path, args.recursive()),
+        ))
     }
 }

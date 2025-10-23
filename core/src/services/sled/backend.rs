@@ -121,6 +121,7 @@ impl SledBackend {
                 write_can_empty: true,
                 delete: true,
                 list: true,
+                list_with_recursive: true,
                 shared: false,
                 ..Default::default()
             });
@@ -178,20 +179,21 @@ impl Access for SledBackend {
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.root, path);
-        Ok((RpWrite::new(), SledWriter::new(self.core.clone(), p)))
+        let writer = SledWriter::new(self.core.clone(), p);
+        Ok((RpWrite::new(), writer))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(SledDeleter::new(self.core.clone(), self.root.clone())),
-        ))
+        let deleter = SledDeleter::new(self.core.clone(), self.root.clone());
+        Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let p = build_abs_path(&self.root, path);
         let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
-        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
-        Ok((RpList::default(), lister))
+        Ok((
+            RpList::default(),
+            oio::HierarchyLister::new(lister, path, args.recursive()),
+        ))
     }
 }

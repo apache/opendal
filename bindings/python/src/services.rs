@@ -199,6 +199,10 @@ submit! {
                 refresh_token : builtins.str, optional
                     The refresh_token of this backend.
                     Required if no access_token is provided.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `aliyun-drive` service
                 """
         "#
     }
@@ -232,6 +236,10 @@ submit! {
                     endpoint of this backend.
                     Endpoint must be full uri, mostly like
                     `http://127.0.0.1:39999`.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `alluxio` service
                 """
         "#
     }
@@ -291,6 +299,10 @@ submit! {
                 batch_max_operations : builtins.int, optional
                     The maximum batch operations of Azblob service
                     backend.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `azblob` service
                 """
         "#
     }
@@ -353,6 +365,10 @@ submit! {
                     principal.
                     - required for client_credentials authentication -
                     default value: `https://login.microsoftonline.com`
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `azdls` service
                 """
         "#
     }
@@ -394,6 +410,10 @@ submit! {
                     The account key for azfile.
                 sas_token : builtins.str, optional
                     The sas token for azfile.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `azfile` service
                 """
         "#
     }
@@ -441,6 +461,10 @@ submit! {
                     - If application_key is set, we will take user's
                     input first.
                     - If not, we will try to load it from environment.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `b2` service
                 """
         "#
     }
@@ -467,6 +491,10 @@ submit! {
                 ----------
                 datadir : builtins.str, optional
                     That path to the cacache data directory.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `cacache` service
                 """
         "#
     }
@@ -512,6 +540,10 @@ submit! {
                 disable_config_load : builtins.bool, optional
                     Disable config load so that opendal will not load
                     config from
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `cos` service
                 """
         "#
     }
@@ -538,6 +570,10 @@ submit! {
                 ----------
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `dashmap` service
                 """
         "#
     }
@@ -576,6 +612,10 @@ submit! {
                     client_id for dropbox.
                 client_secret : builtins.str, optional
                     client_secret for dropbox.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `dropbox` service
                 """
         "#
     }
@@ -605,6 +645,10 @@ submit! {
                     root dir for backend
                 atomic_write_dir : builtins.str, optional
                     tmp dir for atomic write
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `fs` service
                 """
         "#
     }
@@ -674,6 +718,10 @@ submit! {
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
                     `credential_path`.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `gcs` service
                 """
         "#
     }
@@ -712,6 +760,10 @@ submit! {
                     Client id for gdrive.
                 client_secret : builtins.str, optional
                     Client secret for gdrive.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `gdrive` service
                 """
         "#
     }
@@ -747,6 +799,10 @@ submit! {
                     The endpoint for ghac service.
                 runtime_token : builtins.str, optional
                     The runtime token for ghac service.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `ghac` service
                 """
         "#
     }
@@ -789,6 +845,10 @@ submit! {
                 root : builtins.str, optional
                     The working directory, all operations will be
                     performed under it.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `gridfs` service
                 """
         "#
     }
@@ -821,6 +881,10 @@ submit! {
                     name_node of this backend
                 enable_append : builtins.bool, optional
                     enable the append capacity
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `hdfs-native` service
                 """
         "#
     }
@@ -859,6 +923,10 @@ submit! {
                     token of this backend
                 root : builtins.str, optional
                     root of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `http` service
                 """
         "#
     }
@@ -904,6 +972,10 @@ submit! {
                 token : builtins.str, optional
                     Token of this backend.
                     This is optional.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `huggingface` service
                 """
         "#
     }
@@ -933,6 +1005,10 @@ submit! {
                     IPFS gateway endpoint.
                 root : builtins.str, optional
                     IPFS root.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `ipfs` service
                 """
         "#
     }
@@ -962,6 +1038,10 @@ submit! {
                     Root for ipfs.
                 endpoint : builtins.str, optional
                     Endpoint for ipfs.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `ipmfs` service
                 """
         "#
     }
@@ -999,6 +1079,10 @@ submit! {
                 password : builtins.str, optional
                     password of this backend.
                     (Must be the application password)
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `koofr` service
                 """
         "#
     }
@@ -1042,6 +1126,10 @@ submit! {
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `memcached` service
                 """
         "#
     }
@@ -1068,6 +1156,10 @@ submit! {
                 ----------
                 root : builtins.str, optional
                     root of the backend.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `memory` service
                 """
         "#
     }
@@ -1109,6 +1201,10 @@ submit! {
                     [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `mini-moka` service
                 """
         "#
     }
@@ -1153,6 +1249,10 @@ submit! {
                     [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `moka` service
                 """
         "#
     }
@@ -1194,6 +1294,10 @@ submit! {
                     key field of this backend
                 value_field : builtins.str, optional
                     value field of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `mongodb` service
                 """
         "#
     }
@@ -1244,6 +1348,10 @@ submit! {
                     The value field name for mysql.
                 root : builtins.str, optional
                     The root for mysql.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `mysql` service
                 """
         "#
     }
@@ -1285,6 +1393,10 @@ submit! {
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
                     Is bucket versioning enabled for this bucket
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `obs` service
                 """
         "#
     }
@@ -1330,6 +1442,10 @@ submit! {
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
                     Enabling version support
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `onedrive` service
                 """
         "#
     }
@@ -1429,6 +1545,10 @@ submit! {
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
                     [`ALIBABA_CLOUD_STS_ENDPOINT`]
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `oss` service
                 """
         "#
     }
@@ -1462,6 +1582,10 @@ submit! {
                     That name of the persy segment.
                 index : builtins.str, optional
                     That name of the persy index.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `persy` service
                 """
         "#
     }
@@ -1511,6 +1635,10 @@ submit! {
                     the key field of postgresql
                 value_field : builtins.str, optional
                     the value field of postgresql
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `postgresql` service
                 """
         "#
     }
@@ -1543,6 +1671,10 @@ submit! {
                     The root for redb.
                 table : builtins.str, optional
                     The table name for redb.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `redb` service
                 """
         "#
     }
@@ -1599,6 +1731,10 @@ submit! {
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `redis` service
                 """
         "#
     }
@@ -1810,6 +1946,10 @@ submit! {
                 enable_request_payer : builtins.bool, optional
                     Indicates whether the client agrees to pay for the
                     requests made to the S3 bucket.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `s3` service
                 """
         "#
     }
@@ -1850,6 +1990,10 @@ submit! {
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `seafile` service
                 """
         "#
     }
@@ -1882,6 +2026,10 @@ submit! {
                     The root for sled.
                 tree : builtins.str, optional
                     The tree for sled.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `sled` service
                 """
         "#
     }
@@ -1934,6 +2082,10 @@ submit! {
                     set the working directory, all operations will be
                     performed under it.
                     default: "/"
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `sqlite` service
                 """
         "#
     }
@@ -1969,6 +2121,10 @@ submit! {
                     The root for Swift.
                 token : builtins.str, optional
                     The token for Swift.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `swift` service
                 """
         "#
     }
@@ -2005,6 +2161,10 @@ submit! {
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `upyun` service
                 """
         "#
     }
@@ -2031,6 +2191,10 @@ submit! {
                 ----------
                 access_token : builtins.str, optional
                     The access token for Vercel.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `vercel-artifacts` service
                 """
         "#
     }
@@ -2072,6 +2236,10 @@ submit! {
                     root of this backend
                 disable_copy : builtins.bool, optional
                     WebDAV Service doesn't support copy.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `webdav` service
                 """
         "#
     }
@@ -2113,6 +2281,10 @@ submit! {
                     Disable batch listing
                 atomic_write_dir : builtins.str, optional
                     atomic_write_dir of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `webhdfs` service
                 """
         "#
     }
@@ -2143,6 +2315,10 @@ submit! {
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `yandex-disk` service
                 """
         "#
     }
@@ -2197,6 +2373,10 @@ submit! {
                 refresh_token : builtins.str, optional
                     The refresh_token of this backend.
                     Required if no access_token is provided.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `aliyun-drive` service
                 """
         "#
     }
@@ -2230,6 +2410,10 @@ submit! {
                     endpoint of this backend.
                     Endpoint must be full uri, mostly like
                     `http://127.0.0.1:39999`.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `alluxio` service
                 """
         "#
     }
@@ -2289,6 +2473,10 @@ submit! {
                 batch_max_operations : builtins.int, optional
                     The maximum batch operations of Azblob service
                     backend.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `azblob` service
                 """
         "#
     }
@@ -2351,6 +2539,10 @@ submit! {
                     principal.
                     - required for client_credentials authentication -
                     default value: `https://login.microsoftonline.com`
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `azdls` service
                 """
         "#
     }
@@ -2392,6 +2584,10 @@ submit! {
                     The account key for azfile.
                 sas_token : builtins.str, optional
                     The sas token for azfile.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `azfile` service
                 """
         "#
     }
@@ -2439,6 +2635,10 @@ submit! {
                     - If application_key is set, we will take user's
                     input first.
                     - If not, we will try to load it from environment.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `b2` service
                 """
         "#
     }
@@ -2465,6 +2665,10 @@ submit! {
                 ----------
                 datadir : builtins.str, optional
                     That path to the cacache data directory.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `cacache` service
                 """
         "#
     }
@@ -2510,6 +2714,10 @@ submit! {
                 disable_config_load : builtins.bool, optional
                     Disable config load so that opendal will not load
                     config from
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `cos` service
                 """
         "#
     }
@@ -2536,6 +2744,10 @@ submit! {
                 ----------
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `dashmap` service
                 """
         "#
     }
@@ -2574,6 +2786,10 @@ submit! {
                     client_id for dropbox.
                 client_secret : builtins.str, optional
                     client_secret for dropbox.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `dropbox` service
                 """
         "#
     }
@@ -2603,6 +2819,10 @@ submit! {
                     root dir for backend
                 atomic_write_dir : builtins.str, optional
                     tmp dir for atomic write
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `fs` service
                 """
         "#
     }
@@ -2672,6 +2892,10 @@ submit! {
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
                     `credential_path`.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `gcs` service
                 """
         "#
     }
@@ -2710,6 +2934,10 @@ submit! {
                     Client id for gdrive.
                 client_secret : builtins.str, optional
                     Client secret for gdrive.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `gdrive` service
                 """
         "#
     }
@@ -2745,6 +2973,10 @@ submit! {
                     The endpoint for ghac service.
                 runtime_token : builtins.str, optional
                     The runtime token for ghac service.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `ghac` service
                 """
         "#
     }
@@ -2787,6 +3019,10 @@ submit! {
                 root : builtins.str, optional
                     The working directory, all operations will be
                     performed under it.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `gridfs` service
                 """
         "#
     }
@@ -2819,6 +3055,10 @@ submit! {
                     name_node of this backend
                 enable_append : builtins.bool, optional
                     enable the append capacity
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `hdfs-native` service
                 """
         "#
     }
@@ -2857,6 +3097,10 @@ submit! {
                     token of this backend
                 root : builtins.str, optional
                     root of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `http` service
                 """
         "#
     }
@@ -2902,6 +3146,10 @@ submit! {
                 token : builtins.str, optional
                     Token of this backend.
                     This is optional.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `huggingface` service
                 """
         "#
     }
@@ -2931,6 +3179,10 @@ submit! {
                     IPFS gateway endpoint.
                 root : builtins.str, optional
                     IPFS root.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `ipfs` service
                 """
         "#
     }
@@ -2960,6 +3212,10 @@ submit! {
                     Root for ipfs.
                 endpoint : builtins.str, optional
                     Endpoint for ipfs.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `ipmfs` service
                 """
         "#
     }
@@ -2997,6 +3253,10 @@ submit! {
                 password : builtins.str, optional
                     password of this backend.
                     (Must be the application password)
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `koofr` service
                 """
         "#
     }
@@ -3040,6 +3300,10 @@ submit! {
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `memcached` service
                 """
         "#
     }
@@ -3066,6 +3330,10 @@ submit! {
                 ----------
                 root : builtins.str, optional
                     root of the backend.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `memory` service
                 """
         "#
     }
@@ -3107,6 +3375,10 @@ submit! {
                     [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `mini-moka` service
                 """
         "#
     }
@@ -3151,6 +3423,10 @@ submit! {
                     [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
                 root : builtins.str, optional
                     root path of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `moka` service
                 """
         "#
     }
@@ -3192,6 +3468,10 @@ submit! {
                     key field of this backend
                 value_field : builtins.str, optional
                     value field of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `mongodb` service
                 """
         "#
     }
@@ -3242,6 +3522,10 @@ submit! {
                     The value field name for mysql.
                 root : builtins.str, optional
                     The root for mysql.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `mysql` service
                 """
         "#
     }
@@ -3283,6 +3567,10 @@ submit! {
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
                     Is bucket versioning enabled for this bucket
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `obs` service
                 """
         "#
     }
@@ -3328,6 +3616,10 @@ submit! {
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
                     Enabling version support
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `onedrive` service
                 """
         "#
     }
@@ -3427,6 +3719,10 @@ submit! {
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
                     [`ALIBABA_CLOUD_STS_ENDPOINT`]
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `oss` service
                 """
         "#
     }
@@ -3460,6 +3756,10 @@ submit! {
                     That name of the persy segment.
                 index : builtins.str, optional
                     That name of the persy index.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `persy` service
                 """
         "#
     }
@@ -3509,6 +3809,10 @@ submit! {
                     the key field of postgresql
                 value_field : builtins.str, optional
                     the value field of postgresql
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `postgresql` service
                 """
         "#
     }
@@ -3541,6 +3845,10 @@ submit! {
                     The root for redb.
                 table : builtins.str, optional
                     The table name for redb.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `redb` service
                 """
         "#
     }
@@ -3597,6 +3905,10 @@ submit! {
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `redis` service
                 """
         "#
     }
@@ -3808,6 +4120,10 @@ submit! {
                 enable_request_payer : builtins.bool, optional
                     Indicates whether the client agrees to pay for the
                     requests made to the S3 bucket.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `s3` service
                 """
         "#
     }
@@ -3848,6 +4164,10 @@ submit! {
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `seafile` service
                 """
         "#
     }
@@ -3880,6 +4200,10 @@ submit! {
                     The root for sled.
                 tree : builtins.str, optional
                     The tree for sled.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `sled` service
                 """
         "#
     }
@@ -3932,6 +4256,10 @@ submit! {
                     set the working directory, all operations will be
                     performed under it.
                     default: "/"
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `sqlite` service
                 """
         "#
     }
@@ -3967,6 +4295,10 @@ submit! {
                     The root for Swift.
                 token : builtins.str, optional
                     The token for Swift.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `swift` service
                 """
         "#
     }
@@ -4003,6 +4335,10 @@ submit! {
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `upyun` service
                 """
         "#
     }
@@ -4029,6 +4365,10 @@ submit! {
                 ----------
                 access_token : builtins.str, optional
                     The access token for Vercel.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `vercel-artifacts` service
                 """
         "#
     }
@@ -4070,6 +4410,10 @@ submit! {
                     root of this backend
                 disable_copy : builtins.bool, optional
                     WebDAV Service doesn't support copy.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `webdav` service
                 """
         "#
     }
@@ -4111,6 +4455,10 @@ submit! {
                     Disable batch listing
                 atomic_write_dir : builtins.str, optional
                     atomic_write_dir of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `webhdfs` service
                 """
         "#
     }
@@ -4141,6 +4489,10 @@ submit! {
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `yandex-disk` service
                 """
         "#
     }

@@ -96,6 +96,10 @@ submit! {
 {{ make_pydoc_param(field.comments, field.value) }}
                 {%- endfor %}
                 {%- endif %}
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `{{ snake_to_kebab_case(srv) }}` service
                 """
         "#
     }
@@ -132,6 +136,10 @@ submit! {
 {{ make_pydoc_param(field.comments, field.value) }}
                 {%- endfor %}
                 {%- endif %}
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `{{ snake_to_kebab_case(srv) }}` service
                 """
         "#
     }

@@ -66,6 +66,11 @@ class AsyncOperator:
         root : builtins.str, optional
             root of this backend.
             All operations will happen under this root.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `yandex-disk` service
         """
     @typing.overload
     def __new__(
@@ -97,6 +102,11 @@ class AsyncOperator:
             Disable batch listing
         atomic_write_dir : builtins.str, optional
             atomic_write_dir of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `webhdfs` service
         """
     @typing.overload
     def __new__(
@@ -128,6 +138,11 @@ class AsyncOperator:
             root of this backend
         disable_copy : builtins.bool, optional
             WebDAV Service doesn't support copy.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `webdav` service
         """
     @typing.overload
     def __new__(
@@ -145,6 +160,11 @@ class AsyncOperator:
         ----------
         access_token : builtins.str, optional
             The access token for Vercel.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `vercel-artifacts` service
         """
     @typing.overload
     def __new__(
@@ -171,6 +191,11 @@ class AsyncOperator:
             username of this backend.
         password : builtins.str, optional
             password of this backend.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `upyun` service
         """
     @typing.overload
     def __new__(
@@ -196,6 +221,11 @@ class AsyncOperator:
             The root for Swift.
         token : builtins.str, optional
             The token for Swift.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `swift` service
         """
     @typing.overload
     def __new__(
@@ -238,6 +268,11 @@ class AsyncOperator:
             set the working directory, all operations will be
             performed under it.
             default: "/"
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `sqlite` service
         """
     @typing.overload
     def __new__(
@@ -260,6 +295,11 @@ class AsyncOperator:
             The root for sled.
         tree : builtins.str, optional
             The tree for sled.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `sled` service
         """
     @typing.overload
     def __new__(
@@ -290,6 +330,11 @@ class AsyncOperator:
             username of this backend.
         password : builtins.str, optional
             password of this backend.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `seafile` service
         """
     @typing.overload
     def __new__(
@@ -491,6 +536,11 @@ class AsyncOperator:
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `s3` service
         """
     @typing.overload
     def __new__(
@@ -537,6 +587,11 @@ class AsyncOperator:
             a human readable duration string see
             https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
             for more details
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `redis` service
         """
     @typing.overload
     def __new__(
@@ -559,6 +614,11 @@ class AsyncOperator:
             The root for redb.
         table : builtins.str, optional
             The table name for redb.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `redb` service
         """
     @typing.overload
     def __new__(
@@ -598,6 +658,11 @@ class AsyncOperator:
             the key field of postgresql
         value_field : builtins.str, optional
             the value field of postgresql
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `postgresql` service
         """
     @typing.overload
     def __new__(
@@ -621,6 +686,11 @@ class AsyncOperator:
             That name of the persy segment.
         index : builtins.str, optional
             That name of the persy index.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `persy` service
         """
     @typing.overload
     def __new__(
@@ -710,6 +780,11 @@ class AsyncOperator:
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
             [`ALIBABA_CLOUD_STS_ENDPOINT`]
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `oss` service
         """
     @typing.overload
     def __new__(
@@ -745,6 +820,11 @@ class AsyncOperator:
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
             Enabling version support
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `onedrive` service
         """
     @typing.overload
     def __new__(
@@ -776,6 +856,11 @@ class AsyncOperator:
             Bucket for obs.
         enable_versioning : builtins.bool, optional
             Is bucket versioning enabled for this bucket
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `obs` service
         """
     @typing.overload
     def __new__(
@@ -816,6 +901,11 @@ class AsyncOperator:
             The value field name for mysql.
         root : builtins.str, optional
             The root for mysql.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `mysql` service
         """
     @typing.overload
     def __new__(
@@ -847,6 +937,11 @@ class AsyncOperator:
             key field of this backend
         value_field : builtins.str, optional
             value field of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `mongodb` service
         """
     @typing.overload
     def __new__(
@@ -881,6 +976,11 @@ class AsyncOperator:
             [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `moka` service
         """
     @typing.overload
     def __new__(
@@ -912,6 +1012,11 @@ class AsyncOperator:
             [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `mini-moka` service
         """
     @typing.overload
     def __new__(
@@ -928,6 +1033,11 @@ class AsyncOperator:
         ----------
         root : builtins.str, optional
             root of the backend.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `memory` service
         """
     @typing.overload
     def __new__(
@@ -961,6 +1071,11 @@ class AsyncOperator:
             a human readable duration string see
             https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
             for more details
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `memcached` service
         """
     @typing.overload
     def __new__(
@@ -988,6 +1103,11 @@ class AsyncOperator:
         password : builtins.str, optional
             password of this backend.
             (Must be the application password)
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `koofr` service
         """
     @typing.overload
     def __new__(
@@ -1007,6 +1127,11 @@ class AsyncOperator:
             Root for ipfs.
         endpoint : builtins.str, optional
             Endpoint for ipfs.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `ipmfs` service
         """
     @typing.overload
     def __new__(
@@ -1026,6 +1151,11 @@ class AsyncOperator:
             IPFS gateway endpoint.
         root : builtins.str, optional
             IPFS root.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `ipfs` service
         """
     @typing.overload
     def __new__(
@@ -1061,6 +1191,11 @@ class AsyncOperator:
         token : builtins.str, optional
             Token of this backend.
             This is optional.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `huggingface` service
         """
     @typing.overload
     def __new__(
@@ -1089,6 +1224,11 @@ class AsyncOperator:
             token of this backend
         root : builtins.str, optional
             root of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `http` service
         """
     @typing.overload
     def __new__(
@@ -1111,6 +1251,11 @@ class AsyncOperator:
             name_node of this backend
         enable_append : builtins.bool, optional
             enable the append capacity
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `hdfs-native` service
         """
     @typing.overload
     def __new__(
@@ -1143,6 +1288,11 @@ class AsyncOperator:
         root : builtins.str, optional
             The working directory, all operations will be
             performed under it.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `gridfs` service
         """
     @typing.overload
     def __new__(
@@ -1168,6 +1318,11 @@ class AsyncOperator:
             The endpoint for ghac service.
         runtime_token : builtins.str, optional
             The runtime token for ghac service.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `ghac` service
         """
     @typing.overload
     def __new__(
@@ -1196,6 +1351,11 @@ class AsyncOperator:
             Client id for gdrive.
         client_secret : builtins.str, optional
             Client secret for gdrive.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `gdrive` service
         """
     @typing.overload
     def __new__(
@@ -1255,6 +1415,11 @@ class AsyncOperator:
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
             `credential_path`.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `gcs` service
         """
     @typing.overload
     def __new__(
@@ -1274,6 +1439,11 @@ class AsyncOperator:
             root dir for backend
         atomic_write_dir : builtins.str, optional
             tmp dir for atomic write
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `fs` service
         """
     @typing.overload
     def __new__(
@@ -1302,6 +1472,11 @@ class AsyncOperator:
             client_id for dropbox.
         client_secret : builtins.str, optional
             client_secret for dropbox.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `dropbox` service
         """
     @typing.overload
     def __new__(
@@ -1318,6 +1493,11 @@ class AsyncOperator:
         ----------
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `dashmap` service
         """
     @typing.overload
     def __new__(
@@ -1353,6 +1533,11 @@ class AsyncOperator:
         disable_config_load : builtins.bool, optional
             Disable config load so that opendal will not load
             config from
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `cos` service
         """
     @typing.overload
     def __new__(
@@ -1369,6 +1554,11 @@ class AsyncOperator:
         ----------
         datadir : builtins.str, optional
             That path to the cacache data directory.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `cacache` service
         """
     @typing.overload
     def __new__(
@@ -1406,6 +1596,11 @@ class AsyncOperator:
             - If application_key is set, we will take user's
             input first.
             - If not, we will try to load it from environment.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `b2` service
         """
     @typing.overload
     def __new__(
@@ -1437,6 +1632,11 @@ class AsyncOperator:
             The account key for azfile.
         sas_token : builtins.str, optional
             The sas token for azfile.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `azfile` service
         """
     @typing.overload
     def __new__(
@@ -1489,6 +1689,11 @@ class AsyncOperator:
             principal.
             - required for client_credentials authentication -
             default value: `https://login.microsoftonline.com`
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `azdls` service
         """
     @typing.overload
     def __new__(
@@ -1538,6 +1743,11 @@ class AsyncOperator:
         batch_max_operations : builtins.int, optional
             The maximum batch operations of Azblob service
             backend.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `azblob` service
         """
     @typing.overload
     def __new__(
@@ -1561,6 +1771,11 @@ class AsyncOperator:
             endpoint of this backend.
             Endpoint must be full uri, mostly like
             `http://127.0.0.1:39999`.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `alluxio` service
         """
     @typing.overload
     def __new__(
@@ -1605,6 +1820,11 @@ class AsyncOperator:
         refresh_token : builtins.str, optional
             The refresh_token of this backend.
             Required if no access_token is provided.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `aliyun-drive` service
         """
     def layer(self, layer: Layer) -> AsyncOperator:
         r"""
@@ -2094,6 +2314,11 @@ class Operator:
         root : builtins.str, optional
             root of this backend.
             All operations will happen under this root.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `yandex-disk` service
         """
     @typing.overload
     def __new__(
@@ -2125,6 +2350,11 @@ class Operator:
             Disable batch listing
         atomic_write_dir : builtins.str, optional
             atomic_write_dir of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `webhdfs` service
         """
     @typing.overload
     def __new__(
@@ -2156,6 +2386,11 @@ class Operator:
             root of this backend
         disable_copy : builtins.bool, optional
             WebDAV Service doesn't support copy.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `webdav` service
         """
     @typing.overload
     def __new__(
@@ -2173,6 +2408,11 @@ class Operator:
         ----------
         access_token : builtins.str, optional
             The access token for Vercel.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `vercel-artifacts` service
         """
     @typing.overload
     def __new__(
@@ -2199,6 +2439,11 @@ class Operator:
             username of this backend.
         password : builtins.str, optional
             password of this backend.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `upyun` service
         """
     @typing.overload
     def __new__(
@@ -2224,6 +2469,11 @@ class Operator:
             The root for Swift.
         token : builtins.str, optional
             The token for Swift.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `swift` service
         """
     @typing.overload
     def __new__(
@@ -2266,6 +2516,11 @@ class Operator:
             set the working directory, all operations will be
             performed under it.
             default: "/"
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `sqlite` service
         """
     @typing.overload
     def __new__(
@@ -2288,6 +2543,11 @@ class Operator:
             The root for sled.
         tree : builtins.str, optional
             The tree for sled.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `sled` service
         """
     @typing.overload
     def __new__(
@@ -2318,6 +2578,11 @@ class Operator:
             username of this backend.
         password : builtins.str, optional
             password of this backend.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `seafile` service
         """
     @typing.overload
     def __new__(
@@ -2519,6 +2784,11 @@ class Operator:
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `s3` service
         """
     @typing.overload
     def __new__(
@@ -2565,6 +2835,11 @@ class Operator:
             a human readable duration string see
             https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
             for more details
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `redis` service
         """
     @typing.overload
     def __new__(
@@ -2587,6 +2862,11 @@ class Operator:
             The root for redb.
         table : builtins.str, optional
             The table name for redb.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `redb` service
         """
     @typing.overload
     def __new__(
@@ -2626,6 +2906,11 @@ class Operator:
             the key field of postgresql
         value_field : builtins.str, optional
             the value field of postgresql
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `postgresql` service
         """
     @typing.overload
     def __new__(
@@ -2649,6 +2934,11 @@ class Operator:
             That name of the persy segment.
         index : builtins.str, optional
             That name of the persy index.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `persy` service
         """
     @typing.overload
     def __new__(
@@ -2738,6 +3028,11 @@ class Operator:
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
             [`ALIBABA_CLOUD_STS_ENDPOINT`]
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `oss` service
         """
     @typing.overload
     def __new__(
@@ -2773,6 +3068,11 @@ class Operator:
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
             Enabling version support
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `onedrive` service
         """
     @typing.overload
     def __new__(
@@ -2804,6 +3104,11 @@ class Operator:
             Bucket for obs.
         enable_versioning : builtins.bool, optional
             Is bucket versioning enabled for this bucket
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `obs` service
         """
     @typing.overload
     def __new__(
@@ -2844,6 +3149,11 @@ class Operator:
             The value field name for mysql.
         root : builtins.str, optional
             The root for mysql.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `mysql` service
         """
     @typing.overload
     def __new__(
@@ -2875,6 +3185,11 @@ class Operator:
             key field of this backend
         value_field : builtins.str, optional
             value field of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `mongodb` service
         """
     @typing.overload
     def __new__(
@@ -2909,6 +3224,11 @@ class Operator:
             [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `moka` service
         """
     @typing.overload
     def __new__(
@@ -2940,6 +3260,11 @@ class Operator:
             [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `mini-moka` service
         """
     @typing.overload
     def __new__(
@@ -2956,6 +3281,11 @@ class Operator:
         ----------
         root : builtins.str, optional
             root of the backend.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `memory` service
         """
     @typing.overload
     def __new__(
@@ -2989,6 +3319,11 @@ class Operator:
             a human readable duration string see
             https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
             for more details
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `memcached` service
         """
     @typing.overload
     def __new__(
@@ -3016,6 +3351,11 @@ class Operator:
         password : builtins.str, optional
             password of this backend.
             (Must be the application password)
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `koofr` service
         """
     @typing.overload
     def __new__(
@@ -3035,6 +3375,11 @@ class Operator:
             Root for ipfs.
         endpoint : builtins.str, optional
             Endpoint for ipfs.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `ipmfs` service
         """
     @typing.overload
     def __new__(
@@ -3054,6 +3399,11 @@ class Operator:
             IPFS gateway endpoint.
         root : builtins.str, optional
             IPFS root.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `ipfs` service
         """
     @typing.overload
     def __new__(
@@ -3089,6 +3439,11 @@ class Operator:
         token : builtins.str, optional
             Token of this backend.
             This is optional.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `huggingface` service
         """
     @typing.overload
     def __new__(
@@ -3117,6 +3472,11 @@ class Operator:
             token of this backend
         root : builtins.str, optional
             root of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `http` service
         """
     @typing.overload
     def __new__(
@@ -3139,6 +3499,11 @@ class Operator:
             name_node of this backend
         enable_append : builtins.bool, optional
             enable the append capacity
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `hdfs-native` service
         """
     @typing.overload
     def __new__(
@@ -3171,6 +3536,11 @@ class Operator:
         root : builtins.str, optional
             The working directory, all operations will be
             performed under it.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `gridfs` service
         """
     @typing.overload
     def __new__(
@@ -3196,6 +3566,11 @@ class Operator:
             The endpoint for ghac service.
         runtime_token : builtins.str, optional
             The runtime token for ghac service.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `ghac` service
         """
     @typing.overload
     def __new__(
@@ -3224,6 +3599,11 @@ class Operator:
             Client id for gdrive.
         client_secret : builtins.str, optional
             Client secret for gdrive.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `gdrive` service
         """
     @typing.overload
     def __new__(
@@ -3283,6 +3663,11 @@ class Operator:
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
             `credential_path`.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `gcs` service
         """
     @typing.overload
     def __new__(
@@ -3302,6 +3687,11 @@ class Operator:
             root dir for backend
         atomic_write_dir : builtins.str, optional
             tmp dir for atomic write
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `fs` service
         """
     @typing.overload
     def __new__(
@@ -3330,6 +3720,11 @@ class Operator:
             client_id for dropbox.
         client_secret : builtins.str, optional
             client_secret for dropbox.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `dropbox` service
         """
     @typing.overload
     def __new__(
@@ -3346,6 +3741,11 @@ class Operator:
         ----------
         root : builtins.str, optional
             root path of this backend
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `dashmap` service
         """
     @typing.overload
     def __new__(
@@ -3381,6 +3781,11 @@ class Operator:
         disable_config_load : builtins.bool, optional
             Disable config load so that opendal will not load
             config from
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `cos` service
         """
     @typing.overload
     def __new__(
@@ -3397,6 +3802,11 @@ class Operator:
         ----------
         datadir : builtins.str, optional
             That path to the cacache data directory.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `cacache` service
         """
     @typing.overload
     def __new__(
@@ -3434,6 +3844,11 @@ class Operator:
             - If application_key is set, we will take user's
             input first.
             - If not, we will try to load it from environment.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `b2` service
         """
     @typing.overload
     def __new__(
@@ -3465,6 +3880,11 @@ class Operator:
             The account key for azfile.
         sas_token : builtins.str, optional
             The sas token for azfile.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `azfile` service
         """
     @typing.overload
     def __new__(
@@ -3517,6 +3937,11 @@ class Operator:
             principal.
             - required for client_credentials authentication -
             default value: `https://login.microsoftonline.com`
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `azdls` service
         """
     @typing.overload
     def __new__(
@@ -3566,6 +3991,11 @@ class Operator:
         batch_max_operations : builtins.int, optional
             The maximum batch operations of Azblob service
             backend.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `azblob` service
         """
     @typing.overload
     def __new__(
@@ -3589,6 +4019,11 @@ class Operator:
             endpoint of this backend.
             Endpoint must be full uri, mostly like
             `http://127.0.0.1:39999`.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `alluxio` service
         """
     @typing.overload
     def __new__(
@@ -3633,6 +4068,11 @@ class Operator:
         refresh_token : builtins.str, optional
             The refresh_token of this backend.
             Required if no access_token is provided.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `aliyun-drive` service
         """
     def layer(self, layer: Layer) -> Operator:
         r"""

@@ -73,9 +73,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["{{ snake_to_kebab_case(srv) }}"],
+                scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
                 /,
                 {%- if srvs[srv].config %}
                 *,
@@ -108,9 +109,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["{{ snake_to_kebab_case(srv) }}"],
+                scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
                 /,
                 {%- if srvs[srv].config %}
                 *,

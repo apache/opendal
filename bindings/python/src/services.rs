@@ -156,9 +156,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["aliyun-drive"],
+                scheme: typing.Union[opendal.services.Scheme.AliyunDrive, typing.Literal["aliyun-drive"]],
                 /,
                 *,
                 drive_type: builtins.str,
@@ -209,9 +210,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["alluxio"],
+                scheme: typing.Union[opendal.services.Scheme.Alluxio, typing.Literal["alluxio"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -241,9 +243,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["azblob"],
+                scheme: typing.Union[opendal.services.Scheme.Azblob, typing.Literal["azblob"]],
                 /,
                 *,
                 container: builtins.str,
@@ -299,9 +302,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["azdls"],
+                scheme: typing.Union[opendal.services.Scheme.Azdls, typing.Literal["azdls"]],
                 /,
                 *,
                 filesystem: builtins.str,
@@ -360,9 +364,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["azfile"],
+                scheme: typing.Union[opendal.services.Scheme.Azfile, typing.Literal["azfile"]],
                 /,
                 *,
                 share_name: builtins.str,
@@ -400,9 +405,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["b2"],
+                scheme: typing.Union[opendal.services.Scheme.B2, typing.Literal["b2"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -446,9 +452,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["cacache"],
+                scheme: typing.Union[opendal.services.Scheme.Cacache, typing.Literal["cacache"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -471,9 +478,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["cos"],
+                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -515,9 +523,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["dashmap"],
+                scheme: typing.Union[opendal.services.Scheme.Dashmap, typing.Literal["dashmap"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -540,9 +549,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["dropbox"],
+                scheme: typing.Union[opendal.services.Scheme.Dropbox, typing.Literal["dropbox"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -577,9 +587,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["fs"],
+                scheme: typing.Union[opendal.services.Scheme.Fs, typing.Literal["fs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -605,9 +616,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["gcs"],
+                scheme: typing.Union[opendal.services.Scheme.Gcs, typing.Literal["gcs"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -673,9 +685,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["gdrive"],
+                scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -710,9 +723,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["ghac"],
+                scheme: typing.Union[opendal.services.Scheme.Ghac, typing.Literal["ghac"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -744,9 +758,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["gridfs"],
+                scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -785,9 +800,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["hdfs-native"],
+                scheme: typing.Union[opendal.services.Scheme.HdfsNative, typing.Literal["hdfs-native"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -816,9 +832,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["http"],
+                scheme: typing.Union[opendal.services.Scheme.Http, typing.Literal["http"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -853,9 +870,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["huggingface"],
+                scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
                 /,
                 *,
                 repo_type: builtins.str = ...,
@@ -897,9 +915,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["ipfs"],
+                scheme: typing.Union[opendal.services.Scheme.Ipfs, typing.Literal["ipfs"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -925,9 +944,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["ipmfs"],
+                scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -953,9 +973,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["koofr"],
+                scheme: typing.Union[opendal.services.Scheme.Koofr, typing.Literal["koofr"]],
                 /,
                 *,
                 endpoint: builtins.str,
@@ -989,9 +1010,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["memcached"],
+                scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -1031,9 +1053,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["memory"],
+                scheme: typing.Union[opendal.services.Scheme.Memory, typing.Literal["memory"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -1056,9 +1079,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["mini-moka"],
+                scheme: typing.Union[opendal.services.Scheme.MiniMoka, typing.Literal["mini-moka"]],
                 /,
                 *,
                 max_capacity: builtins.int = ...,
@@ -1096,9 +1120,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["moka"],
+                scheme: typing.Union[opendal.services.Scheme.Moka, typing.Literal["moka"]],
                 /,
                 *,
                 name: builtins.str = ...,
@@ -1139,9 +1164,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["mongodb"],
+                scheme: typing.Union[opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -1179,9 +1205,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["mysql"],
+                scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -1228,9 +1255,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["obs"],
+                scheme: typing.Union[opendal.services.Scheme.Obs, typing.Literal["obs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -1268,9 +1296,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["onedrive"],
+                scheme: typing.Union[opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -1312,9 +1341,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["oss"],
+                scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -1410,9 +1440,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["persy"],
+                scheme: typing.Union[opendal.services.Scheme.Persy, typing.Literal["persy"]],
                 /,
                 *,
                 datafile: builtins.str = ...,
@@ -1442,9 +1473,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["postgresql"],
+                scheme: typing.Union[opendal.services.Scheme.Postgresql, typing.Literal["postgresql"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -1490,9 +1522,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["redb"],
+                scheme: typing.Union[opendal.services.Scheme.Redb, typing.Literal["redb"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -1521,9 +1554,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["redis"],
+                scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
                 /,
                 *,
                 db: builtins.int,
@@ -1576,9 +1610,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["s3"],
+                scheme: typing.Union[opendal.services.Scheme.S3, typing.Literal["s3"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -1786,9 +1821,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["seafile"],
+                scheme: typing.Union[opendal.services.Scheme.Seafile, typing.Literal["seafile"]],
                 /,
                 *,
                 repo_name: builtins.str,
@@ -1825,9 +1861,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["sled"],
+                scheme: typing.Union[opendal.services.Scheme.Sled, typing.Literal["sled"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -1856,9 +1893,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["sqlite"],
+                scheme: typing.Union[opendal.services.Scheme.Sqlite, typing.Literal["sqlite"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -1907,9 +1945,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["swift"],
+                scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -1941,9 +1980,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["upyun"],
+                scheme: typing.Union[opendal.services.Scheme.Upyun, typing.Literal["upyun"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -1976,9 +2016,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["vercel-artifacts"],
+                scheme: typing.Union[opendal.services.Scheme.VercelArtifacts, typing.Literal["vercel-artifacts"]],
                 /,
                 *,
                 access_token: builtins.str = ...,
@@ -2001,9 +2042,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["webdav"],
+                scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -2041,9 +2083,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["webhdfs"],
+                scheme: typing.Union[opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2081,9 +2124,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Literal["yandex-disk"],
+                scheme: typing.Union[opendal.services.Scheme.YandexDisk, typing.Literal["yandex-disk"]],
                 /,
                 *,
                 access_token: builtins.str,
@@ -2110,9 +2154,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["aliyun-drive"],
+                scheme: typing.Union[opendal.services.Scheme.AliyunDrive, typing.Literal["aliyun-drive"]],
                 /,
                 *,
                 drive_type: builtins.str,
@@ -2163,9 +2208,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["alluxio"],
+                scheme: typing.Union[opendal.services.Scheme.Alluxio, typing.Literal["alluxio"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2195,9 +2241,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["azblob"],
+                scheme: typing.Union[opendal.services.Scheme.Azblob, typing.Literal["azblob"]],
                 /,
                 *,
                 container: builtins.str,
@@ -2253,9 +2300,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["azdls"],
+                scheme: typing.Union[opendal.services.Scheme.Azdls, typing.Literal["azdls"]],
                 /,
                 *,
                 filesystem: builtins.str,
@@ -2314,9 +2362,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["azfile"],
+                scheme: typing.Union[opendal.services.Scheme.Azfile, typing.Literal["azfile"]],
                 /,
                 *,
                 share_name: builtins.str,
@@ -2354,9 +2403,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["b2"],
+                scheme: typing.Union[opendal.services.Scheme.B2, typing.Literal["b2"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -2400,9 +2450,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["cacache"],
+                scheme: typing.Union[opendal.services.Scheme.Cacache, typing.Literal["cacache"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -2425,9 +2476,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["cos"],
+                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2469,9 +2521,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["dashmap"],
+                scheme: typing.Union[opendal.services.Scheme.Dashmap, typing.Literal["dashmap"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2494,9 +2547,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["dropbox"],
+                scheme: typing.Union[opendal.services.Scheme.Dropbox, typing.Literal["dropbox"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2531,9 +2585,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["fs"],
+                scheme: typing.Union[opendal.services.Scheme.Fs, typing.Literal["fs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2559,9 +2614,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["gcs"],
+                scheme: typing.Union[opendal.services.Scheme.Gcs, typing.Literal["gcs"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -2627,9 +2683,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["gdrive"],
+                scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2664,9 +2721,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["ghac"],
+                scheme: typing.Union[opendal.services.Scheme.Ghac, typing.Literal["ghac"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2698,9 +2756,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["gridfs"],
+                scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -2739,9 +2798,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["hdfs-native"],
+                scheme: typing.Union[opendal.services.Scheme.HdfsNative, typing.Literal["hdfs-native"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2770,9 +2830,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["http"],
+                scheme: typing.Union[opendal.services.Scheme.Http, typing.Literal["http"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -2807,9 +2868,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["huggingface"],
+                scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
                 /,
                 *,
                 repo_type: builtins.str = ...,
@@ -2851,9 +2913,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["ipfs"],
+                scheme: typing.Union[opendal.services.Scheme.Ipfs, typing.Literal["ipfs"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -2879,9 +2942,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["ipmfs"],
+                scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -2907,9 +2971,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["koofr"],
+                scheme: typing.Union[opendal.services.Scheme.Koofr, typing.Literal["koofr"]],
                 /,
                 *,
                 endpoint: builtins.str,
@@ -2943,9 +3008,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["memcached"],
+                scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -2985,9 +3051,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["memory"],
+                scheme: typing.Union[opendal.services.Scheme.Memory, typing.Literal["memory"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -3010,9 +3077,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["mini-moka"],
+                scheme: typing.Union[opendal.services.Scheme.MiniMoka, typing.Literal["mini-moka"]],
                 /,
                 *,
                 max_capacity: builtins.int = ...,
@@ -3050,9 +3118,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["moka"],
+                scheme: typing.Union[opendal.services.Scheme.Moka, typing.Literal["moka"]],
                 /,
                 *,
                 name: builtins.str = ...,
@@ -3093,9 +3162,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["mongodb"],
+                scheme: typing.Union[opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -3133,9 +3203,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["mysql"],
+                scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -3182,9 +3253,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["obs"],
+                scheme: typing.Union[opendal.services.Scheme.Obs, typing.Literal["obs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -3222,9 +3294,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["onedrive"],
+                scheme: typing.Union[opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -3266,9 +3339,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["oss"],
+                scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -3364,9 +3438,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["persy"],
+                scheme: typing.Union[opendal.services.Scheme.Persy, typing.Literal["persy"]],
                 /,
                 *,
                 datafile: builtins.str = ...,
@@ -3396,9 +3471,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["postgresql"],
+                scheme: typing.Union[opendal.services.Scheme.Postgresql, typing.Literal["postgresql"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -3444,9 +3520,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["redb"],
+                scheme: typing.Union[opendal.services.Scheme.Redb, typing.Literal["redb"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -3475,9 +3552,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["redis"],
+                scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
                 /,
                 *,
                 db: builtins.int,
@@ -3530,9 +3608,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["s3"],
+                scheme: typing.Union[opendal.services.Scheme.S3, typing.Literal["s3"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -3740,9 +3819,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["seafile"],
+                scheme: typing.Union[opendal.services.Scheme.Seafile, typing.Literal["seafile"]],
                 /,
                 *,
                 repo_name: builtins.str,
@@ -3779,9 +3859,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["sled"],
+                scheme: typing.Union[opendal.services.Scheme.Sled, typing.Literal["sled"]],
                 /,
                 *,
                 datadir: builtins.str = ...,
@@ -3810,9 +3891,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["sqlite"],
+                scheme: typing.Union[opendal.services.Scheme.Sqlite, typing.Literal["sqlite"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
@@ -3861,9 +3943,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["swift"],
+                scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -3895,9 +3978,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["upyun"],
+                scheme: typing.Union[opendal.services.Scheme.Upyun, typing.Literal["upyun"]],
                 /,
                 *,
                 bucket: builtins.str,
@@ -3930,9 +4014,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["vercel-artifacts"],
+                scheme: typing.Union[opendal.services.Scheme.VercelArtifacts, typing.Literal["vercel-artifacts"]],
                 /,
                 *,
                 access_token: builtins.str = ...,
@@ -3955,9 +4040,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["webdav"],
+                scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -3995,9 +4081,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["webhdfs"],
+                scheme: typing.Union[opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
@@ -4035,9 +4122,10 @@ submit! {
         import builtins
         import typing
         import typing_extensions
+        import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Literal["yandex-disk"],
+                scheme: typing.Union[opendal.services.Scheme.YandexDisk, typing.Literal["yandex-disk"]],
                 /,
                 *,
                 access_token: builtins.str,

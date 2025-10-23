@@ -80,6 +80,7 @@ impl Operator {
     /// -------
     /// Operator
     ///     The new operator.
+    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, *, **kwargs))]
     pub fn new(
@@ -728,6 +729,7 @@ impl AsyncOperator {
     /// -------
     /// AsyncOperator
     ///     The new async operator.
+    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, * ,**kwargs))]
     pub fn new(

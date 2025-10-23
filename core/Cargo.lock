@@ -5366,7 +5366,6 @@ dependencies = [
 name = "opendal-examples-basic"
 version = "0.54.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]

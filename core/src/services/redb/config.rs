@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::RedbBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::RedbBuilder;
 
 /// Config for redb service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -28,14 +29,15 @@ use serde::Serialize;
 pub struct RedbConfig {
     /// path to the redb data directory.
     pub datadir: Option<String>,
-    /// The root for redb.
-    pub root: Option<String>,
     /// The table name for redb.
     pub table: Option<String>,
+    /// The root for redb.
+    pub root: Option<String>,
 }
 
 impl crate::Configurator for RedbConfig {
     type Builder = RedbBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

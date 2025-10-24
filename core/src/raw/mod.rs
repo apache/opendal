@@ -95,7 +95,6 @@ mod atomic_util;
 pub use atomic_util::*;
 
 // Expose as a pub mod to avoid confusing.
-pub mod adapters;
 pub mod oio;
 #[cfg(feature = "tests")]
 pub mod tests;

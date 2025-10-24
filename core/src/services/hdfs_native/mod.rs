@@ -17,6 +17,7 @@
 
 /// Default scheme for hdfs_native service.
 pub(super) const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
+mod core;
 mod delete;
 mod error;
 mod lister;

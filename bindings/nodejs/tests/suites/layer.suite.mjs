@@ -25,29 +25,28 @@ import { RetryLayer, ConcurrentLimitLayer } from '../../index.mjs'
  * @param {import("../../index").Operator} op
  */
 export function run(op) {
-    test('test operator with retry layer', async () => {
-        const retryLayer = new RetryLayer()
-        retryLayer.maxTimes = 3
-        retryLayer.jitter = true
+  test('test operator with retry layer', async () => {
+    const retryLayer = new RetryLayer()
+    retryLayer.maxTimes = 3
+    retryLayer.jitter = true
 
-        const layeredOp = op.layer(retryLayer.build())
-        await layeredOp.check()
-    })
+    const layeredOp = op.layer(retryLayer.build())
+    await layeredOp.check()
+  })
 
-    test('test operator with concurrent limit layer', async () => {
-        const concurrentLimitLayer = new ConcurrentLimitLayer(1024)
-        const layeredOp = op.layer(concurrentLimitLayer.build())
+  test('test operator with concurrent limit layer', async () => {
+    const concurrentLimitLayer = new ConcurrentLimitLayer(1024)
+    const layeredOp = op.layer(concurrentLimitLayer.build())
 
-        await layeredOp.check()
-    })
+    await layeredOp.check()
+  })
 
-    test('test operator with concurrent limit layer and http permits', async () => {
-        const concurrentLimitLayer = new ConcurrentLimitLayer(1024)
-        concurrentLimitLayer.httpPermits = 512
+  test('test operator with concurrent limit layer and http permits', async () => {
+    const concurrentLimitLayer = new ConcurrentLimitLayer(1024)
+    concurrentLimitLayer.httpPermits = 512
 
-        const layeredOp = op.layer(concurrentLimitLayer.build())
+    const layeredOp = op.layer(concurrentLimitLayer.build())
 
-        await layeredOp.check()
-    })
+    await layeredOp.check()
+  })
 }
-

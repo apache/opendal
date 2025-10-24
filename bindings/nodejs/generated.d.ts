@@ -205,6 +205,65 @@ export declare class Capability {
   get shared(): boolean
 }
 
+/**
+ * Concurrent limit layer
+ *
+ * Add concurrent request limit.
+ *
+ * # Notes
+ *
+ * Users can control how many concurrent connections could be established
+ * between OpenDAL and underlying storage services.
+ *
+ * All operators wrapped by this layer will share a common semaphore.
+ *
+ * # Examples
+ *
+ * ```javascript
+ * const op = new Operator("fs", { root: "/tmp" })
+ *
+ * // Create a concurrent limit layer with 1024 permits
+ * const limit = new ConcurrentLimitLayer(1024);
+ * op.layer(limit.build());
+ * ```
+ *
+ * With HTTP concurrent limit:
+ *
+ * ```javascript
+ * const limit = new ConcurrentLimitLayer(1024);
+ * limit.httpPermits = 512;
+ * op.layer(limit.build());
+ * ```
+ */
+export declare class ConcurrentLimitLayer {
+  /**
+   * Create a new ConcurrentLimitLayer with specified permits.
+   *
+   * This permits will be applied to all operations.
+   *
+   * # Arguments
+   *
+   * * `permits` - The maximum number of concurrent operations allowed.
+   */
+  constructor(permits: number)
+  /**
+   * Set a concurrent limit for HTTP requests.
+   *
+   * This will limit the number of concurrent HTTP requests made by the operator.
+   *
+   * # Arguments
+   *
+   * * `v` - The maximum number of concurrent HTTP requests allowed.
+   */
+  set httpPermits(v: number)
+  /**
+   * Build the layer.
+   *
+   * Returns an `External<Layer>` that can be used with `Operator.layer()`.
+   */
+  build(): ExternalObject<Layer>
+}
+
 /** Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata. */
 export declare class Entry {
   /** Return the path of this entry. */
@@ -702,7 +761,7 @@ export declare class Reader {
  * # Examples
  *
  * ```javascript
- * const op = new Operator("file", { root: "/tmp" })
+ * const op = new Operator("fs", { root: "/tmp" })
  *
  * const retry = new RetryLayer();
  * retry.max_times = 3;

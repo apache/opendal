@@ -17,31 +17,23 @@
 
 use std::sync::Arc;
 
-use super::backend::HdfsNativeBackend;
-use super::error::parse_hdfs_error;
+use super::core::HdfsNativeCore;
 use crate::raw::*;
 use crate::*;
 
 pub struct HdfsNativeDeleter {
-    core: Arc<HdfsNativeBackend>,
+    core: Arc<HdfsNativeCore>,
 }
 
 impl HdfsNativeDeleter {
-    pub fn new(core: Arc<HdfsNativeBackend>) -> Self {
+    pub fn new(core: Arc<HdfsNativeCore>) -> Self {
         Self { core }
     }
 }
 
 impl oio::OneShotDelete for HdfsNativeDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_rooted_abs_path(&self.core.root, &path);
-
-        self.core
-            .client
-            .delete(&p, true)
-            .await
-            .map_err(parse_hdfs_error)?;
-
+        self.core.hdfs_delete(&path).await?;
         Ok(())
     }
 }

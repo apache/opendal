@@ -22,8 +22,11 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use rand::Rng;
+use rand::rngs::StdRng;
 use serde::Deserialize;
 use serde_json::json;
+use std::borrow::BorrowMut;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -36,6 +39,7 @@ use crate::*;
 
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,
+    pub rng: Arc<Mutex<StdRng>>,
 
     pub root: String,
 
@@ -54,6 +58,12 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
+    pub async fn sleep_random(&self) {
+        let mut added = Arc::clone(&self.rng);
+        let mut rng = added.borrow_mut().lock().await;
+        let range = rng.gen_range(200..1500);
+        tokio::time::sleep(Duration::from_millis(range)).await;
+    }
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
@@ -248,8 +258,13 @@ impl GdriveCore {
     }
 
     pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let mut signer = self.signer.lock().await;
-        signer.sign(req).await
+        let signed = {
+            let mut signer = self.signer.lock().await;
+            signer.sign(req).await
+        };
+        self.sleep_random().await;
+
+        signed
     }
 
     pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {

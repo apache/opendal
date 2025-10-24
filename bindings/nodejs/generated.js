@@ -531,6 +531,7 @@ module.exports.BlockingLister = nativeBinding.BlockingLister
 module.exports.BlockingReader = nativeBinding.BlockingReader
 module.exports.BlockingWriter = nativeBinding.BlockingWriter
 module.exports.Capability = nativeBinding.Capability
+module.exports.ConcurrentLimitLayer = nativeBinding.ConcurrentLimitLayer
 module.exports.Entry = nativeBinding.Entry
 module.exports.Layer = nativeBinding.Layer
 module.exports.Lister = nativeBinding.Lister

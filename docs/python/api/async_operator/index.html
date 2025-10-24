@@ -1,0 +1,2712 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../async_file/">
+      
+      
+        <link rel="next" href="../capability/">
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>AsyncOperator - Apache OpenDAL™</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.84d31ad4.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#opendal.AsyncOperator" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Apache OpenDAL™" class="md-header__button md-logo" aria-label="Apache OpenDAL™" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache OpenDAL™
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              AsyncOperator
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/opendal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Apache OpenDAL™" class="md-nav__button md-logo" aria-label="Apache OpenDAL™" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache OpenDAL™
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/opendal" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Examples
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Examples
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/basic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Basic
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/pandas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Pandas
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/polars/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Polars
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            API Reference
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../async_file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    AsyncFile
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    AsyncOperator
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    AsyncOperator
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator" class="md-nav__link">
+    <span class="md-ellipsis">
+      AsyncOperator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AsyncOperator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator--see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__" class="md-nav__link">
+    <span class="md-ellipsis">
+      __new__
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__new__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      capability
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="capability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.capability--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check" class="md-nav__link">
+    <span class="md-ellipsis">
+      check
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check--raises" class="md-nav__link">
+    <span class="md-ellipsis">
+      Raises
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      copy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="copy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_dir
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_dir">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="exists">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      layer
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="layer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list" class="md-nav__link">
+    <span class="md-ellipsis">
+      list
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open" class="md-nav__link">
+    <span class="md-ellipsis">
+      open
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="open">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_delete
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_delete">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_read
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_read">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_stat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_stat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_write
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read" class="md-nav__link">
+    <span class="md-ellipsis">
+      read
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="read">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      remove_all
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remove_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      rename
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat" class="md-nav__link">
+    <span class="md-ellipsis">
+      stat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="stat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.to_operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_operator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="to_operator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.to_operator--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write" class="md-nav__link">
+    <span class="md-ellipsis">
+      write
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../capability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Capability
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../exceptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Exceptions
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    File
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../layers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Layers
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../operator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Operator
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Types
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator" class="md-nav__link">
+    <span class="md-ellipsis">
+      AsyncOperator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="AsyncOperator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator--see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      See Also
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__" class="md-nav__link">
+    <span class="md-ellipsis">
+      __new__
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__new__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.__new__--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.capability" class="md-nav__link">
+    <span class="md-ellipsis">
+      capability
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="capability">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.capability--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check" class="md-nav__link">
+    <span class="md-ellipsis">
+      check
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="check">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.check--raises" class="md-nav__link">
+    <span class="md-ellipsis">
+      Raises
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy" class="md-nav__link">
+    <span class="md-ellipsis">
+      copy
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="copy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.copy--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir" class="md-nav__link">
+    <span class="md-ellipsis">
+      create_dir
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="create_dir">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.create_dir--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      delete
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="delete">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Notes
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.delete--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      exists
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="exists">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.exists--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      layer
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="layer">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.layer--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list" class="md-nav__link">
+    <span class="md-ellipsis">
+      list
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="list">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.list--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open" class="md-nav__link">
+    <span class="md-ellipsis">
+      open
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="open">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.open--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_delete
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_delete">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_delete--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_read
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_read">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_read--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_stat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_stat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_stat--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write" class="md-nav__link">
+    <span class="md-ellipsis">
+      presign_write
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="presign_write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.presign_write--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read" class="md-nav__link">
+    <span class="md-ellipsis">
+      read
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="read">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.read--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all" class="md-nav__link">
+    <span class="md-ellipsis">
+      remove_all
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="remove_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.remove_all--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename" class="md-nav__link">
+    <span class="md-ellipsis">
+      rename
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="rename">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.rename--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat" class="md-nav__link">
+    <span class="md-ellipsis">
+      stat
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="stat">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.stat--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.to_operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      to_operator
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="to_operator">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.to_operator--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write" class="md-nav__link">
+    <span class="md-ellipsis">
+      write
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="write">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write--parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      Parameters
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendal.AsyncOperator.write--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>AsyncOperator</h1>
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="opendal.AsyncOperator"></a>
+    <div class="doc doc-contents first">
+
+
+        <p>The async equivalent of <code>Operator</code>.</p>
+<p><code>AsyncOperator</code> is the entry point for all async APIs.</p>
+<h3 id="opendal.AsyncOperator--see-also">See Also<a class="headerlink" href="#opendal.AsyncOperator--see-also" title="Permanent link">#</a></h3>
+<p>Operator</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.__new__" class="doc doc-heading">
+            <code class="highlight language-python"><span class="fm">__new__</span><span class="p">(</span><span class="n">scheme</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.__new__" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a new <code>AsyncOperator</code>.</p>
+<h4 id="opendal.AsyncOperator.__new__--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.__new__--parameters" title="Permanent link">#</a></h4>
+<p>scheme : str
+    The scheme of the service.
+**kwargs : dict
+    The options for the service.</p>
+<h4 id="opendal.AsyncOperator.__new__--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.__new__--returns" title="Permanent link">#</a></h4>
+<p>AsyncOperator
+    The new async operator.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.capability" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">capability</span><span class="p">()</span></code>
+
+<a href="#opendal.AsyncOperator.capability" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get all capabilities of this operator.</p>
+<h4 id="opendal.AsyncOperator.capability--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.capability--returns" title="Permanent link">#</a></h4>
+<p>Capability
+    The capability of the operator.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.check" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">check</span><span class="p">()</span></code>
+
+<a href="#opendal.AsyncOperator.check" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Check if the operator is able to work correctly.</p>
+<h4 id="opendal.AsyncOperator.check--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.check--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the check is finished.</p>
+<h4 id="opendal.AsyncOperator.check--raises">Raises<a class="headerlink" href="#opendal.AsyncOperator.check--raises" title="Permanent link">#</a></h4>
+<p>Exception
+    If the operator is not able to work correctly.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.copy" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">copy</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.copy" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Copy a file from one path to another.</p>
+<h4 id="opendal.AsyncOperator.copy--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.copy--parameters" title="Permanent link">#</a></h4>
+<p>source : str
+    The path to the source file.
+target : str
+    The path to the target file.</p>
+<h4 id="opendal.AsyncOperator.copy--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.copy--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the copy is finished.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.create_dir" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">create_dir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.create_dir" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a directory at the given path.</p>
+<h4 id="opendal.AsyncOperator.create_dir--notes">Notes<a class="headerlink" href="#opendal.AsyncOperator.create_dir--notes" title="Permanent link">#</a></h4>
+<p>To indicate that a path is a directory, it must end with a <code>/</code>.
+This operation is always recursive, like <code>mkdir -p</code>.</p>
+<h4 id="opendal.AsyncOperator.create_dir--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.create_dir--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the directory.</p>
+<h4 id="opendal.AsyncOperator.create_dir--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.create_dir--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the directory is created.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.delete" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">delete</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.delete" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Delete a file at the given path.</p>
+<h4 id="opendal.AsyncOperator.delete--notes">Notes<a class="headerlink" href="#opendal.AsyncOperator.delete--notes" title="Permanent link">#</a></h4>
+<p>This operation will not return an error if the path does not exist.</p>
+<h4 id="opendal.AsyncOperator.delete--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.delete--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the file.</p>
+<h4 id="opendal.AsyncOperator.delete--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.delete--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the file is deleted.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.exists" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.exists" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Check if a path exists.</p>
+<h4 id="opendal.AsyncOperator.exists--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.exists--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to check.</p>
+<h4 id="opendal.AsyncOperator.exists--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.exists--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns True if the path exists, False otherwise.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.layer" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">layer</span><span class="p">(</span><span class="n">layer</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.layer" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Add a new layer to the operator.</p>
+<h4 id="opendal.AsyncOperator.layer--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.layer--parameters" title="Permanent link">#</a></h4>
+<p>layer : Layer
+    The layer to add.</p>
+<h4 id="opendal.AsyncOperator.layer--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.layer--returns" title="Permanent link">#</a></h4>
+<p>AsyncOperator
+    A new operator with the layer added.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.list" class="doc doc-heading">
+            <code class="highlight language-python"><span class="nb">list</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">limit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">start_after</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">versions</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">deleted</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.list" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>List entries in the given directory.</p>
+<h4 id="opendal.AsyncOperator.list--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.list--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the directory.
+limit : int, optional
+    The maximum number of entries to return.
+start_after : str, optional
+    The entry to start after.
+recursive : bool, optional
+    Whether to list recursively.
+versions : bool, optional
+    Whether to list versions.
+deleted : bool, optional
+    Whether to list deleted entries.</p>
+<h4 id="opendal.AsyncOperator.list--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.list--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns an async iterator over the entries.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.open" class="doc doc-heading">
+            <code class="highlight language-python"><span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.open" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Open an async file-like object for the given path.</p>
+<p>The returning async file-like object is a context manager.</p>
+<h4 id="opendal.AsyncOperator.open--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.open--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the file.
+mode : str
+    The mode to open the file in. Only "rb" and "wb" are supported.
+**kwargs : dict
+    Additional options for the underlying reader or writer.</p>
+<h4 id="opendal.AsyncOperator.open--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.open--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns a file-like object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.presign_delete" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">presign_delete</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">expire_second</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.presign_delete" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a presigned request for a delete operation.</p>
+<h4 id="opendal.AsyncOperator.presign_delete--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.presign_delete--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path of the object to delete.
+expire_second : int
+    The number of seconds until the presigned URL expires.</p>
+<h4 id="opendal.AsyncOperator.presign_delete--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.presign_delete--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns a presigned request object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.presign_read" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">presign_read</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">expire_second</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.presign_read" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a presigned request for a read operation.</p>
+<h4 id="opendal.AsyncOperator.presign_read--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.presign_read--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path of the object to read.
+expire_second : int
+    The number of seconds until the presigned URL expires.</p>
+<h4 id="opendal.AsyncOperator.presign_read--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.presign_read--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns a presigned request object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.presign_stat" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">presign_stat</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">expire_second</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.presign_stat" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a presigned request for a stat operation.</p>
+<h4 id="opendal.AsyncOperator.presign_stat--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.presign_stat--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path of the object to stat.
+expire_second : int
+    The number of seconds until the presigned URL expires.</p>
+<h4 id="opendal.AsyncOperator.presign_stat--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.presign_stat--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns a presigned request object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.presign_write" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">presign_write</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">expire_second</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.presign_write" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a presigned request for a write operation.</p>
+<h4 id="opendal.AsyncOperator.presign_write--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.presign_write--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path of the object to write to.
+expire_second : int
+    The number of seconds until the presigned URL expires.</p>
+<h4 id="opendal.AsyncOperator.presign_write--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.presign_write--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns a presigned request object.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.read" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">read</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">concurrent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prefetch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_none_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_modified_since</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_unmodified_since</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cache_control</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_disposition</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.read" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Read the entire contents of a file at the given path.</p>
+<h4 id="opendal.AsyncOperator.read--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.read--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the file.
+version : str, optional
+    The version of the file.
+concurrent : int, optional
+    The number of concurrent readers.
+chunk : int, optional
+    The size of each chunk.
+gap : int, optional
+    The gap between each chunk.
+offset : int, optional
+    The offset of the file.
+prefetch : int, optional
+    The number of bytes to prefetch.
+size : int, optional
+    The size of the file.
+if_match : str, optional
+    The ETag of the file.
+if_none_match : str, optional
+    The ETag of the file.
+if_modified_since : str, optional
+    The last modified time of the file.
+if_unmodified_since : str, optional
+    The last modified time of the file.
+content_type : str, optional
+    The content type of the file.
+cache_control : str, optional
+    The cache control of the file.
+content_disposition : str, optional
+    The content disposition of the file.</p>
+<h4 id="opendal.AsyncOperator.read--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.read--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns the contents of the file as bytes.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.remove_all" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">remove_all</span><span class="p">(</span><span class="n">path</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.remove_all" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Recursively remove all files and directories at the given path.</p>
+<h4 id="opendal.AsyncOperator.remove_all--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.remove_all--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to remove.</p>
+<h4 id="opendal.AsyncOperator.remove_all--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.remove_all--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the removal is finished.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.rename" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">rename</span><span class="p">(</span><span class="n">source</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.rename" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Rename (move) a file from one path to another.</p>
+<h4 id="opendal.AsyncOperator.rename--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.rename--parameters" title="Permanent link">#</a></h4>
+<p>source : str
+    The path to the source file.
+target : str
+    The path to the target file.</p>
+<h4 id="opendal.AsyncOperator.rename--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.rename--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the rename is finished.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.stat" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">stat</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_none_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_modified_since</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_unmodified_since</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cache_control</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_disposition</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.stat" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the metadata of a file at the given path.</p>
+<h4 id="opendal.AsyncOperator.stat--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.stat--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the file.
+version : str, optional
+    The version of the file.
+if_match : str, optional
+    The ETag of the file.
+if_none_match : str, optional
+    The ETag of the file.
+if_modified_since : datetime, optional
+    The last modified time of the file.
+if_unmodified_since : datetime, optional
+    The last modified time of the file.
+content_type : str, optional
+    The content type of the file.
+cache_control : str, optional
+    The cache control of the file.
+content_disposition : str, optional
+    The content disposition of the file.</p>
+<h4 id="opendal.AsyncOperator.stat--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.stat--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that returns the metadata of the file.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.to_operator" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">to_operator</span><span class="p">()</span></code>
+
+<a href="#opendal.AsyncOperator.to_operator" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Create a new blocking <code>Operator</code> from this async operator.</p>
+<h4 id="opendal.AsyncOperator.to_operator--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.to_operator--returns" title="Permanent link">#</a></h4>
+<p>Operator
+    The blocking operator.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="opendal.AsyncOperator.write" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">write</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">bs</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">append</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">chunk</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">concurrent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cache_control</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_disposition</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">content_encoding</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_none_match</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">if_not_exists</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">user_metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#opendal.AsyncOperator.write" class="headerlink" title="Permanent link">#</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Write bytes to a file at the given path.</p>
+<p>This function will create a file if it does not exist, and will
+overwrite its contents if it does.</p>
+<h4 id="opendal.AsyncOperator.write--parameters">Parameters<a class="headerlink" href="#opendal.AsyncOperator.write--parameters" title="Permanent link">#</a></h4>
+<p>path : str
+    The path to the file.
+bs : bytes
+    The contents to write to the file.
+append : bool, optional
+    Whether to append to the file instead of overwriting it.
+chunk : int, optional
+    The chunk size to use when writing the file.
+concurrent : int, optional
+    The number of concurrent requests to make when writing the file.
+cache_control : str, optional
+    The cache control header to set on the file.
+content_type : str, optional
+    The content type header to set on the file.
+content_disposition : str, optional
+    The content disposition header to set on the file.
+content_encoding : str, optional
+    The content encoding header to set on the file.
+if_match : str, optional
+    The ETag to match when writing the file.
+if_none_match : str, optional
+    The ETag to not match when writing the file.
+if_not_exists : bool, optional
+    Whether to fail if the file already exists.
+user_metadata : dict, optional
+    The user metadata to set on the file.</p>
+<h4 id="opendal.AsyncOperator.write--returns">Returns<a class="headerlink" href="#opendal.AsyncOperator.write--returns" title="Permanent link">#</a></h4>
+<p>coroutine
+    An awaitable that completes when the write is finished.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Licensed under the <a href="http://www.apache.org/licenses/LICENSE-2.0" target="_blank">Apache License, Version 2.0</a>.<br>Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "../..", "features": ["content.code.copy"], "search": "../../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

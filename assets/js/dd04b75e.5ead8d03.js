@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkopendal_website=globalThis.webpackChunkopendal_website||[]).push([[1672],{3024:e=>{e.exports=JSON.parse('{"authors":[{"name":"Xuanwo","url":"https://github.com/Xuanwo","key":"xuanwo","page":null,"count":9},{"name":"PsiACE","url":"https://github.com/PsiACE","key":"psiace","page":null,"count":2}]}')}}]);

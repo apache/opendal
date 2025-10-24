@@ -82,15 +82,15 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* methods
 
-|| Name  | Description                                                        | Release                   |
-|| ----- | ------------------------------------------------------------------ | ------------------------- |
-|| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
-|| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
+| Name  | Description                                                        | Release                   |
+| ----- | ------------------------------------------------------------------ | ------------------------- |
+| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
+| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
 
-[oli]: https://opendal.apache.org/docs/40-apps/oli
+[oli]: https://github.com/apache/opendal-oli
 [oli image]: https://img.shields.io/crates/v/oli.svg
 [oli crate]: https://crates.io/crates/oli
-[ofs]: https://opendal.apache.org/docs/40-apps/ofs
+[ofs]: https://github.com/apache/opendal-ofs
 [ofs image]: https://img.shields.io/crates/v/ofs.svg
 [ofs crate]: https://crates.io/crates/ofs
 

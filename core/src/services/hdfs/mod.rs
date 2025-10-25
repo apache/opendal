@@ -17,6 +17,7 @@
 
 /// Default scheme for hdfs service.
 pub(super) const HDFS_SCHEME: &str = "hdfs";
+mod core;
 mod delete;
 mod lister;
 mod reader;

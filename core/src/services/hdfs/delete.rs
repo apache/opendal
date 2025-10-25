@@ -18,16 +18,16 @@
 use std::io;
 use std::sync::Arc;
 
-use super::backend::HdfsBackend;
+use super::core::HdfsCore;
 use crate::raw::*;
 use crate::*;
 
 pub struct HdfsDeleter {
-    core: Arc<HdfsBackend>,
+    core: Arc<HdfsCore>,
 }
 
 impl HdfsDeleter {
-    pub fn new(core: Arc<HdfsBackend>) -> Self {
+    pub fn new(core: Arc<HdfsCore>) -> Self {
         Self { core }
     }
 }

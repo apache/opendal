@@ -694,7 +694,7 @@ impl AsyncFile {
         })
     }
 
-    #[gen_stub(override_return_type(type_repr="typing.Self", imports=("typing")))]
+    #[gen_stub(override_return_type(type_repr="typing_extensions.Self", imports=("typing_extensions")))]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })

@@ -18,10 +18,25 @@
 # ruff: noqa: D104
 import builtins
 
-from opendal._opendal import *  # noqa: F403 # pyright:ignore
+from opendal._opendal import (  # noqa: F403
+    capability,
+    exceptions,
+    file,
+    layers,
+    services,
+    types,
+)
 from opendal.operator import AsyncOperator, Operator  # pyright:ignore
 
 __version__: builtins.str
 
-__all__ = _opendal.__all__  # noqa: F405 # pyright:ignore
-__all__ += ["AsyncOperator", "Operator"]  # pyright:ignore
+__all__ = [
+    "capability",
+    "exceptions",
+    "file",
+    "layers",
+    "services",
+    "types",
+    "AsyncOperator",
+    "Operator",
+]

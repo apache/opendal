@@ -37,7 +37,7 @@ impl GdriveDeleter {
 impl oio::OneShotDelete for GdriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let path = build_abs_path(&self.core.root, &path);
-        let file_id = self.core.path_cache.get(&path).await?;
+        let file_id = self.core.get_file_id_by_path(&path).await?;
         let file_id = if let Some(id) = file_id {
             id
         } else {
@@ -49,8 +49,6 @@ impl oio::OneShotDelete for GdriveDeleter {
         if status != StatusCode::OK {
             return Err(parse_error(resp));
         }
-
-        self.core.path_cache.remove(&path).await;
 
         Ok(())
     }

@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::core::GdriveCore;
-use super::core::GdriveFile;
+use super::gdrive_model::GdriveFile;
 use super::delete::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
@@ -47,7 +47,7 @@ impl Access for GdriveBackend {
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.root, path);
-        let _ = self.core.path_cache.ensure_dir(&path).await?;
+        let _ = self.core.ensure_dir(&path).await?;
 
         Ok(RpCreateDir::default())
     }
@@ -101,7 +101,7 @@ impl Access for GdriveBackend {
 
         // As Google Drive allows files have the same name, we need to check if the file exists.
         // If the file exists, we will keep its ID and update it.
-        let file_id = self.core.path_cache.get(&path).await?;
+        let file_id = self.core.get_file_id_by_path(&path).await?;
 
         Ok((
             RpWrite::default(),
@@ -136,14 +136,12 @@ impl Access for GdriveBackend {
         let target = build_abs_path(&self.core.root, to);
 
         // rename will overwrite `to`, delete it if exist
-        if let Some(id) = self.core.path_cache.get(&target).await? {
+        if let Some(id) = self.core.get_file_id_by_path(&target).await? {
             let resp = self.core.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
                 return Err(parse_error(resp));
             }
-
-            self.core.path_cache.remove(&target).await;
         }
 
         let resp = self
@@ -154,20 +152,7 @@ impl Access for GdriveBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let body = resp.into_body();
-                let meta: GdriveFile =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-
-                let cache = &self.core.path_cache;
-
-                cache.remove(&build_abs_path(&self.core.root, from)).await;
-                cache
-                    .insert(&build_abs_path(&self.core.root, to), &meta.id)
-                    .await;
-
-                Ok(RpRename::default())
-            }
+            StatusCode::OK => Ok(RpRename::default()),
             _ => Err(parse_error(resp)),
         }
     }

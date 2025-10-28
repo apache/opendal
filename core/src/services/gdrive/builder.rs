@@ -24,13 +24,11 @@ use tokio::sync::Mutex;
 use super::GDRIVE_SCHEME;
 use super::backend::GdriveBackend;
 use super::core::GdriveCore;
-use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
 use crate::Scheme;
 use crate::raw::Access;
 use crate::raw::AccessorInfo;
 use crate::raw::HttpClient;
-use crate::raw::PathCacher;
 use crate::raw::Timestamp;
 use crate::raw::normalize_root;
 use crate::services::GdriveConfig;
@@ -204,11 +202,9 @@ impl Builder for GdriveBuilder {
 
         Ok(GdriveBackend {
             core: Arc::new(GdriveCore {
-                info: accessor_info.clone(),
+                info: accessor_info,
                 root,
-                signer: signer.clone(),
-                path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
-                    .with_lock(),
+                signer,
             }),
         })
     }

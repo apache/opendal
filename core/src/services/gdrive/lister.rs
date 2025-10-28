@@ -20,7 +20,7 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::GdriveCore;
-use super::core::GdriveFileList;
+use super::gdrive_model::GdriveFileList;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -38,7 +38,7 @@ impl GdriveLister {
 
 impl oio::PageList for GdriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let file_id = self.core.path_cache.get(&self.path).await?;
+        let file_id = self.core.get_file_id_by_path(&self.path).await?;
 
         let file_id = match file_id {
             Some(file_id) => file_id,
@@ -93,13 +93,6 @@ impl oio::PageList for GdriveLister {
             let root = &self.core.root;
             let path = format!("{}{}", &self.path, file.name);
             let normalized_path = build_rel_path(root, &path);
-
-            // Update path cache when path doesn't exist.
-            // When Google Drive converts a format, for example, Microsoft PowerPoint,
-            // Google Drive keeps two entries with the same ID.
-            if let Ok(None) = self.core.path_cache.get(&path).await {
-                self.core.path_cache.insert(&path, &file.id).await;
-            }
 
             let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
             ctx.entries.push_back(entry);

@@ -22,7 +22,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use serde::Deserialize;
 use serde_json::json;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -41,9 +40,6 @@ pub struct GdriveCore {
     pub root: String,
 
     pub signer: Arc<Mutex<GdriveSigner>>,
-
-    /// Cache the mapping from path to file id
-    pub path_cache: PathCacher<GdrivePathQuery>,
 }
 
 impl Debug for GdriveCore {
@@ -55,9 +51,120 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
+    async fn query_file_id(&self, parent_id: &str, name: &str, is_dir: bool) -> Result<Option<String>> {
+        let mut queries = vec![
+            format!(
+                "name = '{}'",
+                name.replace('\'', "\\'").trim_end_matches('/')
+            ),
+            format!("'{}' in parents", parent_id),
+            "trashed = false".to_string(),
+        ];
+        if is_dir {
+            queries.push("mimeType = 'application/vnd.google-apps.folder'".to_string());
+        }
+        let query = queries.join(" and ");
+
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files?q={}",
+            percent_encode_path(query.as_str())
+        );
+
+        let mut req = Request::get(&url)
+            .extension(Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        let resp = self.info.http_client().send(req).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let body = resp.into_body();
+                let meta: GdriveFileList =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+
+                if let Some(f) = meta.files.first() {
+                    Ok(Some(f.id.clone()))
+                } else {
+                    Ok(None)
+                }
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
+        let url = "https://www.googleapis.com/drive/v3/files";
+
+        let content = serde_json::to_vec(&json!({
+            "name": name.trim_end_matches('/'),
+            "mimeType": "application/vnd.google-apps.folder",
+            "parents": [parent_id],
+        }))
+        .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(url)
+            .extension(Operation::CreateDir)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+
+        let resp = self.info.http_client().send(req).await?;
+        if !resp.status().is_success() {
+            return Err(parse_error(resp));
+        }
+
+        let body = resp.into_body();
+        let file: GdriveFile =
+            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        Ok(file.id)
+    }
+
+    pub async fn get_file_id_by_path(&self, path: &str) -> Result<Option<String>> {
+        if path == "/" || path.is_empty() {
+            return Ok(Some("root".to_string()));
+        }
+
+        let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+        let mut current_id = "root".to_string();
+
+        for (i, part) in parts.iter().enumerate() {
+            let is_dir = i < parts.len() - 1 || path.ends_with('/');
+            match self.query_file_id(&current_id, part, is_dir).await? {
+                Some(id) => current_id = id,
+                None => return Ok(None),
+            }
+        }
+
+        Ok(Some(current_id))
+    }
+
+    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
+        if path == "/" || path.is_empty() {
+            return Ok("root".to_string());
+        }
+
+        let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+        let mut current_id = "root".to_string();
+
+        for part in parts.iter() {
+            current_id = match self.query_file_id(&current_id, part, true).await? {
+                Some(id) => id,
+                None => self.create_dir(&current_id, part).await?,
+            };
+        }
+
+        Ok(current_id)
+    }
+
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
-        let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
+        let file_id = self.get_file_id_by_path(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {path}"),
         ))?;
@@ -77,7 +184,7 @@ impl GdriveCore {
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
-        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
+        let path_id = self.get_file_id_by_path(&path).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("path not found: {path}"),
         ))?;
@@ -124,18 +231,17 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<Buffer>> {
-        let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
+        let source_file_id = self.get_file_id_by_path(source).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             format!("source path not found: {source}"),
         ))?;
         let source_parent = get_parent(source);
         let source_parent_id = self
-            .path_cache
-            .get(source_parent)
+            .get_file_id_by_path(source_parent)
             .await?
             .expect("old parent must exist");
 
-        let target_parent_id = self.path_cache.ensure_dir(get_parent(target)).await?;
+        let target_parent_id = self.ensure_dir(get_parent(target)).await?;
         let target_file_name = get_basename(target);
 
         let metadata = &json!({
@@ -180,7 +286,7 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
+        let parent = self.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -256,24 +362,22 @@ impl GdriveCore {
     pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let from_file_id = self.path_cache.get(&from).await?.ok_or(Error::new(
+        let from_file_id = self.get_file_id_by_path(&from).await?.ok_or(Error::new(
             ErrorKind::NotFound,
             "the file to copy does not exist",
         ))?;
 
         let to_name = get_basename(to);
         let to_path = build_abs_path(&self.root, to);
-        let to_parent_id = self.path_cache.ensure_dir(get_parent(&to_path)).await?;
+        let to_parent_id = self.ensure_dir(get_parent(&to_path)).await?;
 
         // copy will overwrite `to`, delete it if exist
-        if let Some(id) = self.path_cache.get(&to_path).await? {
+        if let Some(id) = self.get_file_id_by_path(&to_path).await? {
             let resp = self.gdrive_trash(&id).await?;
             let status = resp.status();
             if status != StatusCode::OK {
                 return Err(parse_error(resp));
             }
-
-            self.path_cache.remove(&to_path).await;
         }
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
@@ -365,100 +469,5 @@ impl GdriveSigner {
             .insert(header::AUTHORIZATION, auth_header_content.parse().unwrap());
 
         Ok(())
-    }
-}
-
-pub struct GdrivePathQuery {
-    pub info: Arc<AccessorInfo>,
-    pub signer: Arc<Mutex<GdriveSigner>>,
-}
-
-impl GdrivePathQuery {
-    pub fn new(info: Arc<AccessorInfo>, signer: Arc<Mutex<GdriveSigner>>) -> Self {
-        GdrivePathQuery { info, signer }
-    }
-}
-
-impl PathQuery for GdrivePathQuery {
-    async fn root(&self) -> Result<String> {
-        Ok("root".to_string())
-    }
-
-    async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
-        let mut queries = vec![
-            // Make sure name has been replaced with escaped name.
-            //
-            // ref: <https://developers.google.com/drive/api/guides/ref-search-terms>
-            format!(
-                "name = '{}'",
-                name.replace('\'', "\\'").trim_end_matches('/')
-            ),
-            format!("'{}' in parents", parent_id),
-            "trashed = false".to_string(),
-        ];
-        if name.ends_with('/') {
-            queries.push("mimeType = 'application/vnd.google-apps.folder'".to_string());
-        }
-        let query = queries.join(" and ");
-
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files?q={}",
-            percent_encode_path(query.as_str())
-        );
-
-        let mut req = Request::get(&url)
-            .extension(Operation::Stat)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        self.signer.lock().await.sign(&mut req).await?;
-
-        let resp = self.info.http_client().send(req).await?;
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let body = resp.into_body();
-                let meta: GdriveFileList =
-                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-
-                if let Some(f) = meta.files.first() {
-                    Ok(Some(f.id.clone()))
-                } else {
-                    Ok(None)
-                }
-            }
-            _ => Err(parse_error(resp)),
-        }
-    }
-
-    async fn create_dir(&self, parent_id: &str, name: &str) -> Result<String> {
-        let url = "https://www.googleapis.com/drive/v3/files";
-
-        let content = serde_json::to_vec(&json!({
-            "name": name.trim_end_matches('/'),
-            "mimeType": "application/vnd.google-apps.folder",
-            // If the parent is not provided, the folder will be created in the root folder.
-            "parents": [parent_id],
-        }))
-        .map_err(new_json_serialize_error)?;
-
-        let mut req = Request::post(url)
-            .extension(Operation::CreateDir)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(Bytes::from(content)))
-            .map_err(new_request_build_error)?;
-
-        self.signer.lock().await.sign(&mut req).await?;
-
-        let resp = self.info.http_client().send(req).await?;
-        if !resp.status().is_success() {
-            return Err(parse_error(resp));
-        }
-
-        let body = resp.into_body();
-        let file: GdriveFile =
-            serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-        Ok(file.id)
     }
 }

@@ -16,12 +16,11 @@
 // under the License.
 
 use serde::Deserialize;
-use serde::Serialize;
 
 #[derive(Deserialize)]
 pub(crate) struct GdriveTokenResponse {
-    access_token: String,
-    expires_in: u64,
+    pub(crate) access_token: String,
+    pub(crate) expires_in: u64,
 }
 
 /// This is the file struct returned by the Google Drive API.

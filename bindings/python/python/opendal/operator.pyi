@@ -2160,7 +2160,7 @@ class AsyncOperator:
         recursive: builtins.bool | None = None,
         versions: builtins.bool | None = None,
         deleted: builtins.bool | None = None,
-    ) -> collections.abc.AsyncIterable[opendal.types.Entry]:
+    ) -> collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]:
         r"""
         List entries in the given directory.
 
@@ -2188,7 +2188,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> opendal.types.PresignedRequest:
+    ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a stat operation.
 
@@ -2208,7 +2208,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> opendal.types.PresignedRequest:
+    ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a read operation.
 
@@ -2228,7 +2228,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> opendal.types.PresignedRequest:
+    ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a write operation.
 
@@ -2248,7 +2248,7 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
-    ) -> opendal.types.PresignedRequest:
+    ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a delete operation.
 

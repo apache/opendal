@@ -59,20 +59,32 @@ pub enum PyScheme {
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
+    #[cfg(feature = "services-cloudflare-kv")]
+    CloudflareKv,
+    #[cfg(feature = "services-compfs")]
+    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
+    #[cfg(feature = "services-d1")]
+    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
+    #[cfg(feature = "services-dbfs")]
+    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
     Fs,
+    #[cfg(feature = "services-ftp")]
+    Ftp,
     #[cfg(feature = "services-gcs")]
     Gcs,
     #[cfg(feature = "services-gdrive")]
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
+    #[cfg(feature = "services-github")]
+    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -87,6 +99,8 @@ pub enum PyScheme {
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
+    #[cfg(feature = "services-lakefs")]
+    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -97,14 +111,20 @@ pub enum PyScheme {
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
+    #[cfg(feature = "services-monoiofs")]
+    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
+    #[cfg(feature = "services-opfs")]
+    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
+    #[cfg(feature = "services-pcloud")]
+    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -117,16 +137,22 @@ pub enum PyScheme {
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-sftp")]
+    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
+    #[cfg(feature = "services-surrealdb")]
+    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
+    #[cfg(feature = "services-vercel-blob")]
+    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -162,29 +188,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.AliyunDrive, typing.Literal["aliyun-drive"]],
                 /,
                 *,
-                drive_type: builtins.str,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                drive_type: builtins.str,
                 refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `aliyun-drive` service.
 
                 Parameters
                 ----------
-                drive_type : builtins.str
-                    The drive_type of this backend.
-                    All operations will happen under this type of drive.
-                    Available values are `default`, `backup` and
-                    `resource`.
-                    Fallback to default if not set or no other drives
-                    can be found.
-                root : builtins.str, optional
-                    The Root of this backend.
-                    All operations will happen under this root.
-                    Default to `/` if not set.
                 access_token : builtins.str, optional
                     The access_token of this backend.
                     Solution for client-only purpose.
@@ -196,9 +211,20 @@ submit! {
                 client_secret : builtins.str, optional
                     The client_secret of this backend.
                     Required if no access_token is provided.
+                drive_type : builtins.str
+                    The drive_type of this backend.
+                    All operations will happen under this type of drive.
+                    Available values are `default`, `backup` and
+                    `resource`.
+                    Fallback to default if not set or no other drives
+                    can be found.
                 refresh_token : builtins.str, optional
                     The refresh_token of this backend.
                     Required if no access_token is provided.
+                root : builtins.str, optional
+                    The Root of this backend.
+                    All operations will happen under this root.
+                    Default to `/` if not set.
                 Returns
                 -------
                 Operator
@@ -220,22 +246,22 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Alluxio, typing.Literal["alluxio"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `alluxio` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                    default to `/` if not set.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, mostly like
                     `http://127.0.0.1:39999`.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                    default to `/` if not set.
                 Returns
                 -------
                 Operator
@@ -257,48 +283,48 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azblob, typing.Literal["azblob"]],
                 /,
                 *,
-                container: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
                 account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                batch_max_operations: builtins.int = ...,
+                container: builtins.str,
+                encryption_algorithm: builtins.str = ...,
                 encryption_key: builtins.str = ...,
                 encryption_key_sha256: builtins.str = ...,
-                encryption_algorithm: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 sas_token: builtins.str = ...,
-                batch_max_operations: builtins.int = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `azblob` service.
 
                 Parameters
                 ----------
+                account_key : builtins.str, optional
+                    The account key of Azblob service backend.
+                account_name : builtins.str, optional
+                    The account name of Azblob service backend.
+                batch_max_operations : builtins.int, optional
+                    The maximum batch operations of Azblob service
+                    backend.
                 container : builtins.str
                     The container name of Azblob service backend.
-                root : builtins.str, optional
-                    The root of Azblob service backend.
-                    All operations will happen under this root.
+                encryption_algorithm : builtins.str, optional
+                    The encryption algorithm of Azblob service backend.
+                encryption_key : builtins.str, optional
+                    The encryption key of Azblob service backend.
+                encryption_key_sha256 : builtins.str, optional
+                    The encryption key sha256 of Azblob service backend.
                 endpoint : builtins.str, optional
                     The endpoint of Azblob service backend.
                     Endpoint must be full uri, e.g.
                     - Azblob:
                     `https://accountname.blob.core.windows.net` -
                     Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-                account_name : builtins.str, optional
-                    The account name of Azblob service backend.
-                account_key : builtins.str, optional
-                    The account key of Azblob service backend.
-                encryption_key : builtins.str, optional
-                    The encryption key of Azblob service backend.
-                encryption_key_sha256 : builtins.str, optional
-                    The encryption key sha256 of Azblob service backend.
-                encryption_algorithm : builtins.str, optional
-                    The encryption algorithm of Azblob service backend.
+                root : builtins.str, optional
+                    The root of Azblob service backend.
+                    All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
-                batch_max_operations : builtins.int, optional
-                    The maximum batch operations of Azblob service
-                    backend.
                 Returns
                 -------
                 Operator
@@ -320,51 +346,51 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azdls, typing.Literal["azdls"]],
                 /,
                 *,
+                account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                authority_host: builtins.str = ...,
+                client_id: builtins.str = ...,
+                client_secret: builtins.str = ...,
+                endpoint: builtins.str = ...,
                 filesystem: builtins.str,
                 root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
-                account_key: builtins.str = ...,
-                client_secret: builtins.str = ...,
-                tenant_id: builtins.str = ...,
-                client_id: builtins.str = ...,
                 sas_token: builtins.str = ...,
-                authority_host: builtins.str = ...,
+                tenant_id: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `azdls` service.
 
                 Parameters
                 ----------
-                filesystem : builtins.str
-                    Filesystem name of this backend.
-                root : builtins.str, optional
-                    Root of this backend.
-                endpoint : builtins.str, optional
-                    Endpoint of this backend.
-                account_name : builtins.str, optional
-                    Account name of this backend.
                 account_key : builtins.str, optional
                     Account key of this backend.
                     - required for shared_key authentication
-                client_secret : builtins.str, optional
-                    client_secret The client secret of the service
-                    principal.
-                    - required for client_credentials authentication
-                tenant_id : builtins.str, optional
-                    tenant_id The tenant id of the service principal.
-                    - required for client_credentials authentication
-                client_id : builtins.str, optional
-                    client_id The client id of the service principal.
-                    - required for client_credentials authentication
-                sas_token : builtins.str, optional
-                    sas_token The shared access signature token.
-                    - required for sas authentication
+                account_name : builtins.str, optional
+                    Account name of this backend.
                 authority_host : builtins.str, optional
                     authority_host The authority host of the service
                     principal.
                     - required for client_credentials authentication -
                     default value: `https://login.microsoftonline.com`
+                client_id : builtins.str, optional
+                    client_id The client id of the service principal.
+                    - required for client_credentials authentication
+                client_secret : builtins.str, optional
+                    client_secret The client secret of the service
+                    principal.
+                    - required for client_credentials authentication
+                endpoint : builtins.str, optional
+                    Endpoint of this backend.
+                filesystem : builtins.str
+                    Filesystem name of this backend.
+                root : builtins.str, optional
+                    Root of this backend.
+                sas_token : builtins.str, optional
+                    sas_token The shared access signature token.
+                    - required for sas authentication
+                tenant_id : builtins.str, optional
+                    tenant_id The tenant id of the service principal.
+                    - required for client_credentials authentication
                 Returns
                 -------
                 Operator
@@ -386,30 +412,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azfile, typing.Literal["azfile"]],
                 /,
                 *,
-                share_name: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
                 account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                share_name: builtins.str,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `azfile` service.
 
                 Parameters
                 ----------
-                share_name : builtins.str
-                    The share name for azfile.
-                root : builtins.str, optional
-                    The root path for azfile.
-                endpoint : builtins.str, optional
-                    The endpoint for azfile.
-                account_name : builtins.str, optional
-                    The account name for azfile.
                 account_key : builtins.str, optional
                     The account key for azfile.
+                account_name : builtins.str, optional
+                    The account name for azfile.
+                endpoint : builtins.str, optional
+                    The endpoint for azfile.
+                root : builtins.str, optional
+                    The root path for azfile.
                 sas_token : builtins.str, optional
                     The sas token for azfile.
+                share_name : builtins.str
+                    The share name for azfile.
                 Returns
                 -------
                 Operator
@@ -431,17 +457,27 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.B2, typing.Literal["b2"]],
                 /,
                 *,
+                application_key: builtins.str = ...,
+                application_key_id: builtins.str = ...,
                 bucket: builtins.str,
                 bucket_id: builtins.str,
                 root: builtins.str = ...,
-                application_key_id: builtins.str = ...,
-                application_key: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `b2` service.
 
                 Parameters
                 ----------
+                application_key : builtins.str, optional
+                    applicationKey of this backend.
+                    - If application_key is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
+                application_key_id : builtins.str, optional
+                    keyID of this backend.
+                    - If application_key_id is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
                 bucket : builtins.str
                     bucket of this backend.
                     required.
@@ -451,16 +487,6 @@ submit! {
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
-                application_key_id : builtins.str, optional
-                    keyID of this backend.
-                    - If application_key_id is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
-                application_key : builtins.str, optional
-                    applicationKey of this backend.
-                    - If application_key is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
                 Returns
                 -------
                 Operator
@@ -509,41 +535,167 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
+                scheme: typing.Union[opendal.services.Scheme.CloudflareKv, typing.Literal["cloudflare-kv"]],
+                /,
+                *,
+                account_id: builtins.str = ...,
+                api_token: builtins.str = ...,
+                default_ttl: typing.Any = ...,
+                namespace_id: builtins.str = ...,
+                root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `cloudflare-kv` service.
+
+                Parameters
+                ----------
+                account_id : builtins.str, optional
+                    The account ID used to authenticate with CloudFlare.
+                    Used as URI path parameter.
+                api_token : builtins.str, optional
+                    The token used to authenticate with CloudFlare.
+                default_ttl : typing.Any, optional
+                    The default ttl for write operations..
+                    a human readable duration string see
+                    https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+                    for more details
+                namespace_id : builtins.str, optional
+                    The namespace ID.
+                    Used as URI path parameter.
+                root : builtins.str, optional
+                    Root within this backend.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `cloudflare-kv` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Compfs, typing.Literal["compfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `compfs` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `compfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
+                /,
+                *,
+                bucket: builtins.str = ...,
+                disable_config_load: builtins.bool = ...,
+                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 secret_id: builtins.str = ...,
                 secret_key: builtins.str = ...,
-                bucket: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                disable_config_load: builtins.bool = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `cos` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root of this backend.
+                bucket : builtins.str, optional
+                    Bucket of this backend.
+                disable_config_load : builtins.bool, optional
+                    Disable config load so that opendal will not load
+                    config from
+                enable_versioning : builtins.bool, optional
+                    is bucket versioning enabled for this bucket
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
+                root : builtins.str, optional
+                    Root of this backend.
                 secret_id : builtins.str, optional
                     Secret ID of this backend.
                 secret_key : builtins.str, optional
                     Secret key of this backend.
-                bucket : builtins.str, optional
-                    Bucket of this backend.
-                enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
-                disable_config_load : builtins.bool, optional
-                    Disable config load so that opendal will not load
-                    config from
                 Returns
                 -------
                 Operator
                     The new `Operator` for `cos` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.D1, typing.Literal["d1"]],
+                /,
+                *,
+                account_id: builtins.str = ...,
+                database_id: builtins.str = ...,
+                key_field: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
+                token: builtins.str = ...,
+                value_field: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `d1` service.
+
+                Parameters
+                ----------
+                account_id : builtins.str, optional
+                    Set the account id of cloudflare api.
+                database_id : builtins.str, optional
+                    Set the database id of cloudflare api.
+                key_field : builtins.str, optional
+                    Set the key field of D1 Database.
+                root : builtins.str, optional
+                    Set the working directory of OpenDAL.
+                table : builtins.str, optional
+                    Set the table of D1 Database.
+                token : builtins.str, optional
+                    Set the token of cloudflare api.
+                value_field : builtins.str, optional
+                    Set the value field of D1 Database.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `d1` service
                 """
         "#
     }
@@ -588,30 +740,66 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Dbfs, typing.Literal["dbfs"]],
+                /,
+                *,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `dbfs` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str, optional
+                    The endpoint for dbfs.
+                root : builtins.str, optional
+                    The root for dbfs.
+                token : builtins.str, optional
+                    The token for dbfs.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `dbfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Dropbox, typing.Literal["dropbox"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `dropbox` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root path for dropbox.
                 access_token : builtins.str, optional
                     access token for dropbox.
-                refresh_token : builtins.str, optional
-                    refresh_token for dropbox.
                 client_id : builtins.str, optional
                     client_id for dropbox.
                 client_secret : builtins.str, optional
                     client_secret for dropbox.
+                refresh_token : builtins.str, optional
+                    refresh_token for dropbox.
+                root : builtins.str, optional
+                    root path for dropbox.
                 Returns
                 -------
                 Operator
@@ -633,18 +821,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Fs, typing.Literal["fs"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 atomic_write_dir: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `fs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root dir for backend
                 atomic_write_dir : builtins.str, optional
                     tmp dir for atomic write
+                root : builtins.str, optional
+                    root dir for backend
                 Returns
                 -------
                 Operator
@@ -663,21 +851,60 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Ftp, typing.Literal["ftp"]],
+                /,
+                *,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                user: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `ftp` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                password : builtins.str, optional
+                    password of this backend
+                root : builtins.str, optional
+                    root of this backend
+                user : builtins.str, optional
+                    user of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `ftp` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Gcs, typing.Literal["gcs"]],
                 /,
                 *,
+                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                scope: builtins.str = ...,
-                service_account: builtins.str = ...,
                 credential: builtins.str = ...,
                 credential_path: builtins.str = ...,
-                predefined_acl: builtins.str = ...,
                 default_storage_class: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
-                disable_vm_metadata: builtins.bool = ...,
                 disable_config_load: builtins.bool = ...,
+                disable_vm_metadata: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                predefined_acl: builtins.str = ...,
+                root: builtins.str = ...,
+                scope: builtins.str = ...,
+                service_account: builtins.str = ...,
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -685,35 +912,35 @@ submit! {
 
                 Parameters
                 ----------
+                allow_anonymous : builtins.bool, optional
+                    Allow opendal to send requests without signing when
+                    credentials are not loaded.
                 bucket : builtins.str
                     bucket name
-                root : builtins.str, optional
-                    root URI, all operations happens under `root`
-                endpoint : builtins.str, optional
-                    endpoint URI of GCS service, default is
-                    `https://storage.googleapis.com`
-                scope : builtins.str, optional
-                    Scope for gcs.
-                service_account : builtins.str, optional
-                    Service Account for gcs.
                 credential : builtins.str, optional
                     Credentials string for GCS service OAuth2
                     authentication.
                 credential_path : builtins.str, optional
                     Local path to credentials file for GCS service
                     OAuth2 authentication.
-                predefined_acl : builtins.str, optional
-                    The predefined acl for GCS.
                 default_storage_class : builtins.str, optional
                     The default storage class used by gcs.
-                allow_anonymous : builtins.bool, optional
-                    Allow opendal to send requests without signing when
-                    credentials are not loaded.
+                disable_config_load : builtins.bool, optional
+                    Disable loading configuration from the environment.
                 disable_vm_metadata : builtins.bool, optional
                     Disable attempting to load credentials from the GCE
                     metadata server when running within Google Cloud.
-                disable_config_load : builtins.bool, optional
-                    Disable loading configuration from the environment.
+                endpoint : builtins.str, optional
+                    endpoint URI of GCS service, default is
+                    `https://storage.googleapis.com`
+                predefined_acl : builtins.str, optional
+                    The predefined acl for GCS.
+                root : builtins.str, optional
+                    root URI, all operations happens under `root`
+                scope : builtins.str, optional
+                    Scope for gcs.
+                service_account : builtins.str, optional
+                    Service Account for gcs.
                 token : builtins.str, optional
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
@@ -739,27 +966,27 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `gdrive` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root for gdrive
                 access_token : builtins.str, optional
                     Access token for gdrive.
-                refresh_token : builtins.str, optional
-                    Refresh token for gdrive.
                 client_id : builtins.str, optional
                     Client id for gdrive.
                 client_secret : builtins.str, optional
                     Client secret for gdrive.
+                refresh_token : builtins.str, optional
+                    Refresh token for gdrive.
+                root : builtins.str, optional
+                    The root for gdrive
                 Returns
                 -------
                 Operator
@@ -781,24 +1008,24 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Ghac, typing.Literal["ghac"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                version: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 runtime_token: builtins.str = ...,
+                version: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `ghac` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root path for ghac.
-                version : builtins.str, optional
-                    The version that used by cache.
                 endpoint : builtins.str, optional
                     The endpoint for ghac service.
+                root : builtins.str, optional
+                    The root path for ghac.
                 runtime_token : builtins.str, optional
                     The runtime token for ghac service.
+                version : builtins.str, optional
+                    The version that used by cache.
                 Returns
                 -------
                 Operator
@@ -817,13 +1044,60 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Github, typing.Literal["github"]],
+                /,
+                *,
+                owner: builtins.str,
+                repo: builtins.str,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `github` service.
+
+                Parameters
+                ----------
+                owner : builtins.str
+                    GitHub repo owner.
+                    required.
+                repo : builtins.str
+                    GitHub repo name.
+                    required.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                token : builtins.str, optional
+                    GitHub access_token.
+                    optional.
+                    If not provided, the backend will only support read
+                    operations for public repositories.
+                    And rate limit will be limited to 60 requests per
+                    hour.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `github` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
                 /,
                 *,
-                connection_string: builtins.str = ...,
-                database: builtins.str = ...,
                 bucket: builtins.str = ...,
                 chunk_size: builtins.int = ...,
+                connection_string: builtins.str = ...,
+                database: builtins.str = ...,
                 root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -831,17 +1105,17 @@ submit! {
 
                 Parameters
                 ----------
-                connection_string : builtins.str, optional
-                    The connection string of the MongoDB service.
-                database : builtins.str, optional
-                    The database name of the MongoDB GridFs service to
-                    read/write.
                 bucket : builtins.str, optional
                     The bucket name of the MongoDB GridFs service to
                     read/write.
                 chunk_size : builtins.int, optional
                     The chunk size of the MongoDB GridFs service used to
                     break the user file into chunks.
+                connection_string : builtins.str, optional
+                    The connection string of the MongoDB service.
+                database : builtins.str, optional
+                    The database name of the MongoDB GridFs service to
+                    read/write.
                 root : builtins.str, optional
                     The working directory, all operations will be
                     performed under it.
@@ -866,21 +1140,21 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.HdfsNative, typing.Literal["hdfs-native"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                name_node: builtins.str = ...,
                 enable_append: builtins.bool = ...,
+                name_node: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `hdfs-native` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    work dir of this backend
-                name_node : builtins.str, optional
-                    name_node of this backend
                 enable_append : builtins.bool, optional
                     enable the append capacity
+                name_node : builtins.str, optional
+                    name_node of this backend
+                root : builtins.str, optional
+                    work dir of this backend
                 Returns
                 -------
                 Operator
@@ -903,10 +1177,10 @@ submit! {
                 /,
                 *,
                 endpoint: builtins.str = ...,
-                username: builtins.str = ...,
                 password: builtins.str = ...,
-                token: builtins.str = ...,
                 root: builtins.str = ...,
+                token: builtins.str = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `http` service.
@@ -915,14 +1189,14 @@ submit! {
                 ----------
                 endpoint : builtins.str, optional
                     endpoint of this backend
-                username : builtins.str, optional
-                    username of this backend
                 password : builtins.str, optional
                     password of this backend
-                token : builtins.str, optional
-                    token of this backend
                 root : builtins.str, optional
                     root of this backend
+                token : builtins.str, optional
+                    token of this backend
+                username : builtins.str, optional
+                    username of this backend
                 Returns
                 -------
                 Operator
@@ -944,8 +1218,8 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
                 /,
                 *,
-                repo_type: builtins.str = ...,
                 repo_id: builtins.str = ...,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -955,13 +1229,13 @@ submit! {
 
                 Parameters
                 ----------
+                repo_id : builtins.str, optional
+                    Repo id of this backend.
+                    This is required.
                 repo_type : builtins.str, optional
                     Repo type of this backend.
                     Default is model.
                     Available values: - model - dataset
-                repo_id : builtins.str, optional
-                    Repo id of this backend.
-                    This is required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.
@@ -1026,18 +1300,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `ipmfs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for ipfs.
                 endpoint : builtins.str, optional
                     Endpoint for ipfs.
+                root : builtins.str, optional
+                    Root for ipfs.
                 Returns
                 -------
                 Operator
@@ -1059,26 +1333,26 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Koofr, typing.Literal["koofr"]],
                 /,
                 *,
-                endpoint: builtins.str,
                 email: builtins.str,
-                root: builtins.str = ...,
+                endpoint: builtins.str,
                 password: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `koofr` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str
-                    Koofr endpoint.
                 email : builtins.str
                     Koofr email.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
+                endpoint : builtins.str
+                    Koofr endpoint.
                 password : builtins.str, optional
                     password of this backend.
                     (Must be the application password)
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
                 Returns
                 -------
                 Operator
@@ -1097,35 +1371,87 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Lakefs, typing.Literal["lakefs"]],
+                /,
+                *,
+                branch: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                repository: builtins.str = ...,
+                root: builtins.str = ...,
+                username: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `lakefs` service.
+
+                Parameters
+                ----------
+                branch : builtins.str, optional
+                    Name of the branch or a commit ID.
+                    Default is main.
+                    This is optional.
+                endpoint : builtins.str, optional
+                    Base url.
+                    This is required.
+                password : builtins.str, optional
+                    Password for Lakefs basic authentication.
+                    This is required.
+                repository : builtins.str, optional
+                    The repository name This is required.
+                root : builtins.str, optional
+                    Root of this backend.
+                    Can be "/path/to/dir".
+                    Default is "/".
+                username : builtins.str, optional
+                    Username for Lakefs basic authentication.
+                    This is required.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `lakefs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
+                default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
+                password: builtins.str = ...,
                 root: builtins.str = ...,
                 username: builtins.str = ...,
-                password: builtins.str = ...,
-                default_ttl: typing.Any = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `memcached` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    network address of the memcached service.
-                    For example: "tcp://localhost:11211"
-                root : builtins.str, optional
-                    the working directory of the service.
-                    Can be "/path/to/dir" default is "/"
-                username : builtins.str, optional
-                    Memcached username, optional.
-                password : builtins.str, optional
-                    Memcached password, optional.
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                endpoint : builtins.str, optional
+                    network address of the memcached service.
+                    For example: "tcp://localhost:11211"
+                password : builtins.str, optional
+                    Memcached password, optional.
+                root : builtins.str, optional
+                    the working directory of the service.
+                    Can be "/path/to/dir" default is "/"
+                username : builtins.str, optional
+                    Memcached username, optional.
                 Returns
                 -------
                 Operator
@@ -1178,9 +1504,9 @@ submit! {
                 /,
                 *,
                 max_capacity: builtins.int = ...,
-                time_to_live: builtins.str = ...,
-                time_to_idle: builtins.str = ...,
                 root: builtins.str = ...,
+                time_to_idle: builtins.str = ...,
+                time_to_live: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `mini-moka` service.
@@ -1191,16 +1517,16 @@ submit! {
                     Sets the max capacity of the cache.
                     Refer to
                     [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-                time_to_live : builtins.str, optional
-                    Sets the time to live of the cache.
-                    Refer to
-                    [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
+                root : builtins.str, optional
+                    root path of this backend
                 time_to_idle : builtins.str, optional
                     Sets the time to idle of the cache.
                     Refer to
                     [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-                root : builtins.str, optional
-                    root path of this backend
+                time_to_live : builtins.str, optional
+                    Sets the time to live of the cache.
+                    Refer to
+                    [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
                 Returns
                 -------
                 Operator
@@ -1222,33 +1548,33 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Moka, typing.Literal["moka"]],
                 /,
                 *,
-                name: builtins.str = ...,
                 max_capacity: builtins.int = ...,
-                time_to_live: builtins.str = ...,
-                time_to_idle: builtins.str = ...,
+                name: builtins.str = ...,
                 root: builtins.str = ...,
+                time_to_idle: builtins.str = ...,
+                time_to_live: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `moka` service.
 
                 Parameters
                 ----------
-                name : builtins.str, optional
-                    Name for this cache instance.
                 max_capacity : builtins.int, optional
                     Sets the max capacity of the cache.
                     Refer to
                     [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
-                time_to_live : builtins.str, optional
-                    Sets the time to live of the cache.
-                    Refer to
-                    [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
+                name : builtins.str, optional
+                    Name for this cache instance.
+                root : builtins.str, optional
+                    root path of this backend
                 time_to_idle : builtins.str, optional
                     Sets the time to idle of the cache.
                     Refer to
                     [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
-                root : builtins.str, optional
-                    root path of this backend
+                time_to_live : builtins.str, optional
+                    Sets the time to live of the cache.
+                    Refer to
+                    [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
                 Returns
                 -------
                 Operator
@@ -1270,11 +1596,11 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]],
                 /,
                 *,
+                collection: builtins.str = ...,
                 connection_string: builtins.str = ...,
                 database: builtins.str = ...,
-                collection: builtins.str = ...,
-                root: builtins.str = ...,
                 key_field: builtins.str = ...,
+                root: builtins.str = ...,
                 value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -1282,16 +1608,16 @@ submit! {
 
                 Parameters
                 ----------
+                collection : builtins.str, optional
+                    collection of this backend
                 connection_string : builtins.str, optional
                     connection string of this backend
                 database : builtins.str, optional
                     database of this backend
-                collection : builtins.str, optional
-                    collection of this backend
-                root : builtins.str, optional
-                    root of this backend
                 key_field : builtins.str, optional
                     key field of this backend
+                root : builtins.str, optional
+                    root of this backend
                 value_field : builtins.str, optional
                     value field of this backend
                 Returns
@@ -1312,14 +1638,46 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Monoiofs, typing.Literal["monoiofs"]],
+                /,
+                *,
+                root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `monoiofs` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    The Root of this backend.
+                    All operations will happen under this root.
+                    Builder::build will return error if not set.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `monoiofs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
-                value_field: builtins.str = ...,
                 root: builtins.str = ...,
+                table: builtins.str = ...,
+                value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `mysql` service.
@@ -1340,14 +1698,14 @@ submit! {
                     `mysql://user:password@localhost:3306/db` For more
                     information, please refer to
                     <https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html>.
-                table : builtins.str, optional
-                    The table name for mysql.
                 key_field : builtins.str, optional
                     The key field name for mysql.
-                value_field : builtins.str, optional
-                    The value field name for mysql.
                 root : builtins.str, optional
                     The root for mysql.
+                table : builtins.str, optional
+                    The table name for mysql.
+                value_field : builtins.str, optional
+                    The value field name for mysql.
                 Returns
                 -------
                 Operator
@@ -1369,30 +1727,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Obs, typing.Literal["obs"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
                 access_key_id: builtins.str = ...,
-                secret_access_key: builtins.str = ...,
                 bucket: builtins.str = ...,
                 enable_versioning: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                secret_access_key: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `obs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for obs.
-                endpoint : builtins.str, optional
-                    Endpoint for obs.
                 access_key_id : builtins.str, optional
                     Access key id for obs.
-                secret_access_key : builtins.str, optional
-                    Secret access key for obs.
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
                     Is bucket versioning enabled for this bucket
+                endpoint : builtins.str, optional
+                    Endpoint for obs.
+                root : builtins.str, optional
+                    Root for obs.
+                secret_access_key : builtins.str, optional
+                    Secret access key for obs.
                 Returns
                 -------
                 Operator
@@ -1414,26 +1772,20 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
                 enable_versioning: builtins.bool = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `onedrive` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root path for the OneDrive service for the file
-                    access
                 access_token : builtins.str, optional
                     Microsoft Graph API (also OneDrive API) access token
-                refresh_token : builtins.str, optional
-                    Microsoft Graph API (also OneDrive API) refresh
-                    token
                 client_id : builtins.str, optional
                     Microsoft Graph API Application (client) ID that is
                     in the Azure's app registration portal
@@ -1442,6 +1794,12 @@ submit! {
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
                     Enabling version support
+                refresh_token : builtins.str, optional
+                    Microsoft Graph API (also OneDrive API) refresh
+                    token
+                root : builtins.str, optional
+                    The root path for the OneDrive service for the file
+                    access
                 Returns
                 -------
                 Operator
@@ -1460,28 +1818,51 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Opfs, typing.Literal["opfs"]],
+                /,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `opfs` service.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `opfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
-                bucket: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                presign_endpoint: builtins.str = ...,
-                addressing_style: builtins.str = ...,
-                presign_addressing_style: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                server_side_encryption: builtins.str = ...,
-                server_side_encryption_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 access_key_id: builtins.str = ...,
                 access_key_secret: builtins.str = ...,
-                security_token: builtins.str = ...,
+                addressing_style: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
                 batch_max_operations: builtins.int = ...,
+                bucket: builtins.str,
                 delete_max_size: builtins.int = ...,
-                role_arn: builtins.str = ...,
-                role_session_name: builtins.str = ...,
+                enable_versioning: builtins.bool = ...,
+                endpoint: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
+                presign_addressing_style: builtins.str = ...,
+                presign_endpoint: builtins.str = ...,
+                role_arn: builtins.str = ...,
+                role_session_name: builtins.str = ...,
+                root: builtins.str = ...,
+                security_token: builtins.str = ...,
+                server_side_encryption: builtins.str = ...,
+                server_side_encryption_key_id: builtins.str = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -1489,26 +1870,6 @@ submit! {
 
                 Parameters
                 ----------
-                bucket : builtins.str
-                    Bucket for oss.
-                root : builtins.str, optional
-                    Root for oss.
-                endpoint : builtins.str, optional
-                    Endpoint for oss.
-                presign_endpoint : builtins.str, optional
-                    Presign endpoint for oss.
-                addressing_style : builtins.str, optional
-                    Addressing style for oss.
-                presign_addressing_style : builtins.str, optional
-                    Pre sign addressing style for oss.
-                enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
-                server_side_encryption : builtins.str, optional
-                    Server side encryption for oss.
-                server_side_encryption_key_id : builtins.str, optional
-                    Server side encryption key id for oss.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous for oss.
                 access_key_id : builtins.str, optional
                     Access key id for oss.
                     - this field if it's `is_some` - env value:
@@ -1517,22 +1878,20 @@ submit! {
                     Access key secret for oss.
                     - this field if it's `is_some` - env value:
                     [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
-                security_token : builtins.str, optional
-                    `security_token` will be loaded from - this field if
-                    it's `is_some` - env value:
-                    [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+                addressing_style : builtins.str, optional
+                    Addressing style for oss.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
                     The size of max batch operations.
+                bucket : builtins.str
+                    Bucket for oss.
                 delete_max_size : builtins.int, optional
                     The size of max delete operations.
-                role_arn : builtins.str, optional
-                    If `role_arn` is set, we will use already known
-                    config as source credential to assume role with
-                    `role_arn`.
-                    - this field if it's `is_some` - env value:
-                    [`ALIBABA_CLOUD_ROLE_ARN`]
-                role_session_name : builtins.str, optional
-                    role_session_name for this backend.
+                enable_versioning : builtins.bool, optional
+                    is bucket versioning enabled for this bucket
+                endpoint : builtins.str, optional
+                    Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:
@@ -1541,6 +1900,28 @@ submit! {
                     `oidc_token_file` will be loaded from - this field
                     if it's `is_some` - env value:
                     [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+                presign_addressing_style : builtins.str, optional
+                    Pre sign addressing style for oss.
+                presign_endpoint : builtins.str, optional
+                    Presign endpoint for oss.
+                role_arn : builtins.str, optional
+                    If `role_arn` is set, we will use already known
+                    config as source credential to assume role with
+                    `role_arn`.
+                    - this field if it's `is_some` - env value:
+                    [`ALIBABA_CLOUD_ROLE_ARN`]
+                role_session_name : builtins.str, optional
+                    role_session_name for this backend.
+                root : builtins.str, optional
+                    Root for oss.
+                security_token : builtins.str, optional
+                    `security_token` will be loaded from - this field if
+                    it's `is_some` - env value:
+                    [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+                server_side_encryption : builtins.str, optional
+                    Server side encryption for oss.
+                server_side_encryption_key_id : builtins.str, optional
+                    Server side encryption key id for oss.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
@@ -1563,12 +1944,52 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Pcloud, typing.Literal["pcloud"]],
+                /,
+                *,
+                endpoint: builtins.str,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                username: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `pcloud` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str
+                    pCloud endpoint address.
+                password : builtins.str, optional
+                    pCloud password.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                username : builtins.str, optional
+                    pCloud username.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `pcloud` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Persy, typing.Literal["persy"]],
                 /,
                 *,
                 datafile: builtins.str = ...,
-                segment: builtins.str = ...,
                 index: builtins.str = ...,
+                segment: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `persy` service.
@@ -1578,10 +1999,10 @@ submit! {
                 datafile : builtins.str, optional
                     That path to the persy data file.
                     The directory in the path must already exist.
-                segment : builtins.str, optional
-                    That name of the persy segment.
                 index : builtins.str, optional
                     That name of the persy index.
+                segment : builtins.str, optional
+                    That name of the persy segment.
                 Returns
                 -------
                 Operator
@@ -1603,10 +2024,10 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Postgresql, typing.Literal["postgresql"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
                 value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -1614,10 +2035,6 @@ submit! {
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root of this backend.
-                    All operations will happen under this root.
-                    Default to `/` if not set.
                 connection_string : builtins.str, optional
                     The URL should be with a scheme of either
                     `postgres://` or `postgresql://`.
@@ -1629,10 +2046,14 @@ submit! {
                     `postgresql:///mydb?user=user&host=/var/lib/postgresql`
                     For more information, please visit
                     <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
-                table : builtins.str, optional
-                    the table of postgresql
                 key_field : builtins.str, optional
                     the key field of postgresql
+                root : builtins.str, optional
+                    Root of this backend.
+                    All operations will happen under this root.
+                    Default to `/` if not set.
+                table : builtins.str, optional
+                    the table of postgresql
                 value_field : builtins.str, optional
                     the value field of postgresql
                 Returns
@@ -1692,45 +2113,45 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
                 /,
                 *,
-                db: builtins.int,
-                endpoint: builtins.str = ...,
                 cluster_endpoints: builtins.str = ...,
-                username: builtins.str = ...,
+                db: builtins.int,
+                default_ttl: typing.Any = ...,
+                endpoint: builtins.str = ...,
                 password: builtins.str = ...,
                 root: builtins.str = ...,
-                default_ttl: typing.Any = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `redis` service.
 
                 Parameters
                 ----------
-                db : builtins.int
-                    the number of DBs redis can take is unlimited
-                    default is db 0
-                endpoint : builtins.str, optional
-                    network address of the Redis service.
-                    Can be "tcp://127.0.0.1:6379", e.g.
-                    default is "tcp://127.0.0.1:6379"
                 cluster_endpoints : builtins.str, optional
                     network address of the Redis cluster service.
                     Can be
                     "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381",
                     e.g.
                     default is None
-                username : builtins.str, optional
-                    the username to connect redis service.
-                    default is None
-                password : builtins.str, optional
-                    the password for authentication default is None
-                root : builtins.str, optional
-                    the working directory of the Redis service.
-                    Can be "/path/to/dir" default is "/"
+                db : builtins.int
+                    the number of DBs redis can take is unlimited
+                    default is db 0
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                endpoint : builtins.str, optional
+                    network address of the Redis service.
+                    Can be "tcp://127.0.0.1:6379", e.g.
+                    default is "tcp://127.0.0.1:6379"
+                password : builtins.str, optional
+                    the password for authentication default is None
+                root : builtins.str, optional
+                    the working directory of the Redis service.
+                    Can be "/path/to/dir" default is "/"
+                username : builtins.str, optional
+                    the username to connect redis service.
+                    default is None
                 Returns
                 -------
                 Operator
@@ -1752,50 +2173,121 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.S3, typing.Literal["s3"]],
                 /,
                 *,
-                bucket: builtins.str,
-                root: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                endpoint: builtins.str = ...,
-                region: builtins.str = ...,
                 access_key_id: builtins.str = ...,
-                secret_access_key: builtins.str = ...,
-                session_token: builtins.str = ...,
-                role_arn: builtins.str = ...,
-                external_id: builtins.str = ...,
-                role_session_name: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
+                batch_max_operations: builtins.int = ...,
+                bucket: builtins.str,
+                checksum_algorithm: builtins.str = ...,
+                default_storage_class: builtins.str = ...,
+                delete_max_size: builtins.int = ...,
                 disable_config_load: builtins.bool = ...,
                 disable_ec2_metadata: builtins.bool = ...,
-                allow_anonymous: builtins.bool = ...,
+                disable_list_objects_v2: builtins.bool = ...,
+                disable_stat_with_override: builtins.bool = ...,
+                disable_write_with_if_match: builtins.bool = ...,
+                enable_request_payer: builtins.bool = ...,
+                enable_versioning: builtins.bool = ...,
+                enable_virtual_host_style: builtins.bool = ...,
+                enable_write_with_append: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
+                region: builtins.str = ...,
+                role_arn: builtins.str = ...,
+                role_session_name: builtins.str = ...,
+                root: builtins.str = ...,
+                secret_access_key: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_aws_kms_key_id: builtins.str = ...,
                 server_side_encryption_customer_algorithm: builtins.str = ...,
                 server_side_encryption_customer_key: builtins.str = ...,
                 server_side_encryption_customer_key_md5: builtins.str = ...,
-                default_storage_class: builtins.str = ...,
-                enable_virtual_host_style: builtins.bool = ...,
-                batch_max_operations: builtins.int = ...,
-                delete_max_size: builtins.int = ...,
-                disable_stat_with_override: builtins.bool = ...,
-                checksum_algorithm: builtins.str = ...,
-                disable_write_with_if_match: builtins.bool = ...,
-                enable_write_with_append: builtins.bool = ...,
-                disable_list_objects_v2: builtins.bool = ...,
-                enable_request_payer: builtins.bool = ...,
+                session_token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `s3` service.
 
                 Parameters
                 ----------
+                access_key_id : builtins.str, optional
+                    access_key_id of this backend.
+                    - If access_key_id is set, we will take user's input
+                    first.
+                    - If not, we will try to load it from environment.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous will allow opendal to send request
+                    without signing when credential is not loaded.
+                batch_max_operations : builtins.int, optional
+                    Set maximum batch operations of this backend.
+                    Some compatible services have a limit on the number
+                    of operations in a batch request.
+                    For example, R2 could return `Internal Error` while
+                    batch delete 1000 files.
+                    Please tune this value based on services' document.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                    default to `/` if not set.
+                checksum_algorithm : builtins.str, optional
+                    Checksum Algorithm to use when sending checksums in
+                    HTTP headers.
+                    This is necessary when writing to AWS S3 Buckets
+                    with Object Lock enabled for example.
+                    Available options: - "crc32c"
+                default_storage_class : builtins.str, optional
+                    default storage_class for this backend.
+                    Available values: - `DEEP_ARCHIVE` - `GLACIER` -
+                    `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA`
+                    - `EXPRESS_ONEZONE` - `OUTPOSTS` -
+                    `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
+                    compatible services don't support all of them
+                delete_max_size : builtins.int, optional
+                    Set the maximum delete size of this backend.
+                    Some compatible services have a limit on the number
+                    of operations in a batch request.
+                    For example, R2 could return `Internal Error` while
+                    batch delete 1000 files.
+                    Please tune this value based on services' document.
+                disable_config_load : builtins.bool, optional
+                    Disable config load so that opendal will not load
+                    config from environment.
+                    For examples: - envs like `AWS_ACCESS_KEY_ID` -
+                    files like `~/.aws/config`
+                disable_ec2_metadata : builtins.bool, optional
+                    Disable load credential from ec2 metadata.
+                    This option is used to disable the default behavior
+                    of opendal to load credential from ec2 metadata,
+                    a.k.a, IMDSv2
+                disable_list_objects_v2 : builtins.bool, optional
+                    OpenDAL uses List Objects V2 by default to list
+                    objects.
+                    However, some legacy services do not yet support V2.
+                    This option allows users to switch back to the older
+                    List Objects V1.
+                disable_stat_with_override : builtins.bool, optional
+                    Disable stat with override so that opendal will not
+                    send stat request with override queries.
+                    For example, R2 doesn't support stat with
+                    `response_content_type` query.
+                disable_write_with_if_match : builtins.bool, optional
+                    Disable write with if match so that opendal will not
+                    send write request with if match headers.
+                    For example, Ceph RADOS S3 doesn't support write
+                    with if match.
+                enable_request_payer : builtins.bool, optional
+                    Indicates whether the client agrees to pay for the
+                    requests made to the S3 bucket.
                 enable_versioning : builtins.bool, optional
                     is bucket versioning enabled for this bucket
+                enable_virtual_host_style : builtins.bool, optional
+                    Enable virtual host style so that opendal will send
+                    API requests in virtual host style instead of path
+                    style.
+                    - By default, opendal will send API to
+                    `https://s3.us-east-1.amazonaws.com/bucket_name` -
+                    Enabled, opendal will send API to
+                    `https://bucket_name.s3.us-east-1.amazonaws.com`
+                enable_write_with_append : builtins.bool, optional
+                    Enable write with append so that opendal will send
+                    write request with append headers.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -1812,6 +2304,8 @@ submit! {
                     - If not, we will try to load it from environment.
                     - If still not set, default to
                     `https://s3.amazonaws.com`.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 region : builtins.str, optional
                     Region represent the signing region of this
                     endpoint.
@@ -1820,42 +2314,22 @@ submit! {
                     If using a custom endpoint, - If region is set, we
                     will take user's input first.
                     - If not, we will try to load it from environment.
-                access_key_id : builtins.str, optional
-                    access_key_id of this backend.
-                    - If access_key_id is set, we will take user's input
-                    first.
-                    - If not, we will try to load it from environment.
-                secret_access_key : builtins.str, optional
-                    secret_access_key of this backend.
-                    - If secret_access_key is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
-                session_token : builtins.str, optional
-                    session_token (aka, security token) of this backend.
-                    This token will expire after sometime, it's
-                    recommended to set session_token by hand.
                 role_arn : builtins.str, optional
                     role_arn for this backend.
                     If `role_arn` is set, we will use already known
                     config as source credential to assume role with
                     `role_arn`.
-                external_id : builtins.str, optional
-                    external_id for this backend.
                 role_session_name : builtins.str, optional
                     role_session_name for this backend.
-                disable_config_load : builtins.bool, optional
-                    Disable config load so that opendal will not load
-                    config from environment.
-                    For examples: - envs like `AWS_ACCESS_KEY_ID` -
-                    files like `~/.aws/config`
-                disable_ec2_metadata : builtins.bool, optional
-                    Disable load credential from ec2 metadata.
-                    This option is used to disable the default behavior
-                    of opendal to load credential from ec2 metadata,
-                    a.k.a, IMDSv2
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                    default to `/` if not set.
+                secret_access_key : builtins.str, optional
+                    secret_access_key of this backend.
+                    - If secret_access_key is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
                 server_side_encryption : builtins.str, optional
                     server_side_encryption for this backend.
                     Available values: `AES256`, `aws:kms`.
@@ -1889,63 +2363,10 @@ submit! {
                     backend.
                     Value: MD5 digest of key specified in
                     `server_side_encryption_customer_key`.
-                default_storage_class : builtins.str, optional
-                    default storage_class for this backend.
-                    Available values: - `DEEP_ARCHIVE` - `GLACIER` -
-                    `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA`
-                    - `EXPRESS_ONEZONE` - `OUTPOSTS` -
-                    `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
-                    compatible services don't support all of them
-                enable_virtual_host_style : builtins.bool, optional
-                    Enable virtual host style so that opendal will send
-                    API requests in virtual host style instead of path
-                    style.
-                    - By default, opendal will send API to
-                    `https://s3.us-east-1.amazonaws.com/bucket_name` -
-                    Enabled, opendal will send API to
-                    `https://bucket_name.s3.us-east-1.amazonaws.com`
-                batch_max_operations : builtins.int, optional
-                    Set maximum batch operations of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
-                delete_max_size : builtins.int, optional
-                    Set the maximum delete size of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
-                disable_stat_with_override : builtins.bool, optional
-                    Disable stat with override so that opendal will not
-                    send stat request with override queries.
-                    For example, R2 doesn't support stat with
-                    `response_content_type` query.
-                checksum_algorithm : builtins.str, optional
-                    Checksum Algorithm to use when sending checksums in
-                    HTTP headers.
-                    This is necessary when writing to AWS S3 Buckets
-                    with Object Lock enabled for example.
-                    Available options: - "crc32c"
-                disable_write_with_if_match : builtins.bool, optional
-                    Disable write with if match so that opendal will not
-                    send write request with if match headers.
-                    For example, Ceph RADOS S3 doesn't support write
-                    with if match.
-                enable_write_with_append : builtins.bool, optional
-                    Enable write with append so that opendal will send
-                    write request with append headers.
-                disable_list_objects_v2 : builtins.bool, optional
-                    OpenDAL uses List Objects V2 by default to list
-                    objects.
-                    However, some legacy services do not yet support V2.
-                    This option allows users to switch back to the older
-                    List Objects V1.
-                enable_request_payer : builtins.bool, optional
-                    Indicates whether the client agrees to pay for the
-                    requests made to the S3 bucket.
+                session_token : builtins.str, optional
+                    session_token (aka, security token) of this backend.
+                    This token will expire after sometime, it's
+                    recommended to set session_token by hand.
                 Returns
                 -------
                 Operator
@@ -1967,33 +2388,78 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Seafile, typing.Literal["seafile"]],
                 /,
                 *,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
                 repo_name: builtins.str,
                 root: builtins.str = ...,
-                endpoint: builtins.str = ...,
                 username: builtins.str = ...,
-                password: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `seafile` service.
 
                 Parameters
                 ----------
+                endpoint : builtins.str, optional
+                    endpoint address of this backend.
+                password : builtins.str, optional
+                    password of this backend.
                 repo_name : builtins.str
                     repo_name of this backend.
                     required.
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
-                endpoint : builtins.str, optional
-                    endpoint address of this backend.
                 username : builtins.str, optional
                     username of this backend.
-                password : builtins.str, optional
-                    password of this backend.
                 Returns
                 -------
                 Operator
                     The new `Operator` for `seafile` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Sftp, typing.Literal["sftp"]],
+                /,
+                *,
+                enable_copy: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                key: builtins.str = ...,
+                known_hosts_strategy: builtins.str = ...,
+                root: builtins.str = ...,
+                user: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `sftp` service.
+
+                Parameters
+                ----------
+                enable_copy : builtins.bool, optional
+                    enable_copy of this backend
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                key : builtins.str, optional
+                    key of this backend
+                known_hosts_strategy : builtins.str, optional
+                    known_hosts_strategy of this backend
+                root : builtins.str, optional
+                    root of this backend
+                user : builtins.str, optional
+                    user of this backend
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `sftp` service
                 """
         "#
     }
@@ -2048,10 +2514,10 @@ submit! {
                 /,
                 *,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
-                value_field: builtins.str = ...,
                 root: builtins.str = ...,
+                table: builtins.str = ...,
+                value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `sqlite` service.
@@ -2067,21 +2533,21 @@ submit! {
                     `sqlite:data.db` - `sqlite://data.db` For more
                     information, please visit
                     <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
-                table : builtins.str, optional
-                    Set the table name of the sqlite service to
-                    read/write.
                 key_field : builtins.str, optional
                     Set the key field name of the sqlite service to
                     read/write.
                     Default to `key` if not specified.
-                value_field : builtins.str, optional
-                    Set the value field name of the sqlite service to
-                    read/write.
-                    Default to `value` if not specified.
                 root : builtins.str, optional
                     set the working directory, all operations will be
                     performed under it.
                     default: "/"
+                table : builtins.str, optional
+                    Set the table name of the sqlite service to
+                    read/write.
+                value_field : builtins.str, optional
+                    Set the value field name of the sqlite service to
+                    read/write.
+                    Default to `value` if not specified.
                 Returns
                 -------
                 Operator
@@ -2100,11 +2566,65 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Surrealdb, typing.Literal["surrealdb"]],
+                /,
+                *,
+                connection_string: builtins.str = ...,
+                database: builtins.str = ...,
+                key_field: builtins.str = ...,
+                namespace: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
+                username: builtins.str = ...,
+                value_field: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `surrealdb` service.
+
+                Parameters
+                ----------
+                connection_string : builtins.str, optional
+                    The connection string for surrealdb.
+                database : builtins.str, optional
+                    The database for surrealdb.
+                key_field : builtins.str, optional
+                    The key field for surrealdb.
+                namespace : builtins.str, optional
+                    The namespace for surrealdb.
+                password : builtins.str, optional
+                    The password for surrealdb.
+                root : builtins.str, optional
+                    The root for surrealdb.
+                table : builtins.str, optional
+                    The table for surrealdb.
+                username : builtins.str, optional
+                    The username for surrealdb.
+                value_field : builtins.str, optional
+                    The value field for surrealdb.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `surrealdb` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
-                endpoint: builtins.str = ...,
                 container: builtins.str = ...,
+                endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
@@ -2113,10 +2633,10 @@ submit! {
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    The endpoint for Swift.
                 container : builtins.str, optional
                     The container for Swift.
+                endpoint : builtins.str, optional
+                    The endpoint for Swift.
                 root : builtins.str, optional
                     The root for Swift.
                 token : builtins.str, optional
@@ -2143,9 +2663,9 @@ submit! {
                 /,
                 *,
                 bucket: builtins.str,
-                root: builtins.str = ...,
                 operator: builtins.str = ...,
                 password: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `upyun` service.
@@ -2154,13 +2674,13 @@ submit! {
                 ----------
                 bucket : builtins.str
                     bucket address of this backend.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
                 operator : builtins.str, optional
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
                 Returns
                 -------
                 Operator
@@ -2209,33 +2729,67 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.VercelBlob, typing.Literal["vercel-blob"]],
+                /,
+                *,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `Operator` for `vercel-blob` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                token : builtins.str, optional
+                    vercel blob token.
+                Returns
+                -------
+                Operator
+                    The new `Operator` for `vercel-blob` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class Operator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
                 /,
                 *,
-                endpoint: builtins.str = ...,
-                username: builtins.str = ...,
-                password: builtins.str = ...,
-                token: builtins.str = ...,
-                root: builtins.str = ...,
                 disable_copy: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `webdav` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    endpoint of this backend
-                username : builtins.str, optional
-                    username of this backend
-                password : builtins.str, optional
-                    password of this backend
-                token : builtins.str, optional
-                    token of this backend
-                root : builtins.str, optional
-                    root of this backend
                 disable_copy : builtins.bool, optional
                     WebDAV Service doesn't support copy.
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                password : builtins.str, optional
+                    password of this backend
+                root : builtins.str, optional
+                    root of this backend
+                token : builtins.str, optional
+                    token of this backend
+                username : builtins.str, optional
+                    username of this backend
                 Returns
                 -------
                 Operator
@@ -2257,30 +2811,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                user_name: builtins.str = ...,
+                atomic_write_dir: builtins.str = ...,
                 delegation: builtins.str = ...,
                 disable_list_batch: builtins.bool = ...,
-                atomic_write_dir: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                user_name: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `webhdfs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for webhdfs.
-                endpoint : builtins.str, optional
-                    Endpoint for webhdfs.
-                user_name : builtins.str, optional
-                    Name of the user for webhdfs.
+                atomic_write_dir : builtins.str, optional
+                    atomic_write_dir of this backend
                 delegation : builtins.str, optional
                     Delegation token for webhdfs.
                 disable_list_batch : builtins.bool, optional
                     Disable batch listing
-                atomic_write_dir : builtins.str, optional
-                    atomic_write_dir of this backend
+                endpoint : builtins.str, optional
+                    Endpoint for webhdfs.
+                root : builtins.str, optional
+                    Root for webhdfs.
+                user_name : builtins.str, optional
+                    Name of the user for webhdfs.
                 Returns
                 -------
                 Operator
@@ -2336,29 +2890,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.AliyunDrive, typing.Literal["aliyun-drive"]],
                 /,
                 *,
-                drive_type: builtins.str,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                drive_type: builtins.str,
                 refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `aliyun-drive` service.
 
                 Parameters
                 ----------
-                drive_type : builtins.str
-                    The drive_type of this backend.
-                    All operations will happen under this type of drive.
-                    Available values are `default`, `backup` and
-                    `resource`.
-                    Fallback to default if not set or no other drives
-                    can be found.
-                root : builtins.str, optional
-                    The Root of this backend.
-                    All operations will happen under this root.
-                    Default to `/` if not set.
                 access_token : builtins.str, optional
                     The access_token of this backend.
                     Solution for client-only purpose.
@@ -2370,9 +2913,20 @@ submit! {
                 client_secret : builtins.str, optional
                     The client_secret of this backend.
                     Required if no access_token is provided.
+                drive_type : builtins.str
+                    The drive_type of this backend.
+                    All operations will happen under this type of drive.
+                    Available values are `default`, `backup` and
+                    `resource`.
+                    Fallback to default if not set or no other drives
+                    can be found.
                 refresh_token : builtins.str, optional
                     The refresh_token of this backend.
                     Required if no access_token is provided.
+                root : builtins.str, optional
+                    The Root of this backend.
+                    All operations will happen under this root.
+                    Default to `/` if not set.
                 Returns
                 -------
                 AsyncOperator
@@ -2394,22 +2948,22 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Alluxio, typing.Literal["alluxio"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `alluxio` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                    default to `/` if not set.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, mostly like
                     `http://127.0.0.1:39999`.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                    default to `/` if not set.
                 Returns
                 -------
                 AsyncOperator
@@ -2431,48 +2985,48 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azblob, typing.Literal["azblob"]],
                 /,
                 *,
-                container: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
                 account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                batch_max_operations: builtins.int = ...,
+                container: builtins.str,
+                encryption_algorithm: builtins.str = ...,
                 encryption_key: builtins.str = ...,
                 encryption_key_sha256: builtins.str = ...,
-                encryption_algorithm: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 sas_token: builtins.str = ...,
-                batch_max_operations: builtins.int = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `azblob` service.
 
                 Parameters
                 ----------
+                account_key : builtins.str, optional
+                    The account key of Azblob service backend.
+                account_name : builtins.str, optional
+                    The account name of Azblob service backend.
+                batch_max_operations : builtins.int, optional
+                    The maximum batch operations of Azblob service
+                    backend.
                 container : builtins.str
                     The container name of Azblob service backend.
-                root : builtins.str, optional
-                    The root of Azblob service backend.
-                    All operations will happen under this root.
+                encryption_algorithm : builtins.str, optional
+                    The encryption algorithm of Azblob service backend.
+                encryption_key : builtins.str, optional
+                    The encryption key of Azblob service backend.
+                encryption_key_sha256 : builtins.str, optional
+                    The encryption key sha256 of Azblob service backend.
                 endpoint : builtins.str, optional
                     The endpoint of Azblob service backend.
                     Endpoint must be full uri, e.g.
                     - Azblob:
                     `https://accountname.blob.core.windows.net` -
                     Azurite: `http://127.0.0.1:10000/devstoreaccount1`
-                account_name : builtins.str, optional
-                    The account name of Azblob service backend.
-                account_key : builtins.str, optional
-                    The account key of Azblob service backend.
-                encryption_key : builtins.str, optional
-                    The encryption key of Azblob service backend.
-                encryption_key_sha256 : builtins.str, optional
-                    The encryption key sha256 of Azblob service backend.
-                encryption_algorithm : builtins.str, optional
-                    The encryption algorithm of Azblob service backend.
+                root : builtins.str, optional
+                    The root of Azblob service backend.
+                    All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
-                batch_max_operations : builtins.int, optional
-                    The maximum batch operations of Azblob service
-                    backend.
                 Returns
                 -------
                 AsyncOperator
@@ -2494,51 +3048,51 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azdls, typing.Literal["azdls"]],
                 /,
                 *,
+                account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                authority_host: builtins.str = ...,
+                client_id: builtins.str = ...,
+                client_secret: builtins.str = ...,
+                endpoint: builtins.str = ...,
                 filesystem: builtins.str,
                 root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
-                account_key: builtins.str = ...,
-                client_secret: builtins.str = ...,
-                tenant_id: builtins.str = ...,
-                client_id: builtins.str = ...,
                 sas_token: builtins.str = ...,
-                authority_host: builtins.str = ...,
+                tenant_id: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `azdls` service.
 
                 Parameters
                 ----------
-                filesystem : builtins.str
-                    Filesystem name of this backend.
-                root : builtins.str, optional
-                    Root of this backend.
-                endpoint : builtins.str, optional
-                    Endpoint of this backend.
-                account_name : builtins.str, optional
-                    Account name of this backend.
                 account_key : builtins.str, optional
                     Account key of this backend.
                     - required for shared_key authentication
-                client_secret : builtins.str, optional
-                    client_secret The client secret of the service
-                    principal.
-                    - required for client_credentials authentication
-                tenant_id : builtins.str, optional
-                    tenant_id The tenant id of the service principal.
-                    - required for client_credentials authentication
-                client_id : builtins.str, optional
-                    client_id The client id of the service principal.
-                    - required for client_credentials authentication
-                sas_token : builtins.str, optional
-                    sas_token The shared access signature token.
-                    - required for sas authentication
+                account_name : builtins.str, optional
+                    Account name of this backend.
                 authority_host : builtins.str, optional
                     authority_host The authority host of the service
                     principal.
                     - required for client_credentials authentication -
                     default value: `https://login.microsoftonline.com`
+                client_id : builtins.str, optional
+                    client_id The client id of the service principal.
+                    - required for client_credentials authentication
+                client_secret : builtins.str, optional
+                    client_secret The client secret of the service
+                    principal.
+                    - required for client_credentials authentication
+                endpoint : builtins.str, optional
+                    Endpoint of this backend.
+                filesystem : builtins.str
+                    Filesystem name of this backend.
+                root : builtins.str, optional
+                    Root of this backend.
+                sas_token : builtins.str, optional
+                    sas_token The shared access signature token.
+                    - required for sas authentication
+                tenant_id : builtins.str, optional
+                    tenant_id The tenant id of the service principal.
+                    - required for client_credentials authentication
                 Returns
                 -------
                 AsyncOperator
@@ -2560,30 +3114,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Azfile, typing.Literal["azfile"]],
                 /,
                 *,
-                share_name: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                account_name: builtins.str = ...,
                 account_key: builtins.str = ...,
+                account_name: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                share_name: builtins.str,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `azfile` service.
 
                 Parameters
                 ----------
-                share_name : builtins.str
-                    The share name for azfile.
-                root : builtins.str, optional
-                    The root path for azfile.
-                endpoint : builtins.str, optional
-                    The endpoint for azfile.
-                account_name : builtins.str, optional
-                    The account name for azfile.
                 account_key : builtins.str, optional
                     The account key for azfile.
+                account_name : builtins.str, optional
+                    The account name for azfile.
+                endpoint : builtins.str, optional
+                    The endpoint for azfile.
+                root : builtins.str, optional
+                    The root path for azfile.
                 sas_token : builtins.str, optional
                     The sas token for azfile.
+                share_name : builtins.str
+                    The share name for azfile.
                 Returns
                 -------
                 AsyncOperator
@@ -2605,17 +3159,27 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.B2, typing.Literal["b2"]],
                 /,
                 *,
+                application_key: builtins.str = ...,
+                application_key_id: builtins.str = ...,
                 bucket: builtins.str,
                 bucket_id: builtins.str,
                 root: builtins.str = ...,
-                application_key_id: builtins.str = ...,
-                application_key: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `b2` service.
 
                 Parameters
                 ----------
+                application_key : builtins.str, optional
+                    applicationKey of this backend.
+                    - If application_key is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
+                application_key_id : builtins.str, optional
+                    keyID of this backend.
+                    - If application_key_id is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
                 bucket : builtins.str
                     bucket of this backend.
                     required.
@@ -2625,16 +3189,6 @@ submit! {
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
-                application_key_id : builtins.str, optional
-                    keyID of this backend.
-                    - If application_key_id is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
-                application_key : builtins.str, optional
-                    applicationKey of this backend.
-                    - If application_key is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
                 Returns
                 -------
                 AsyncOperator
@@ -2683,41 +3237,167 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
+                scheme: typing.Union[opendal.services.Scheme.CloudflareKv, typing.Literal["cloudflare-kv"]],
+                /,
+                *,
+                account_id: builtins.str = ...,
+                api_token: builtins.str = ...,
+                default_ttl: typing.Any = ...,
+                namespace_id: builtins.str = ...,
+                root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `cloudflare-kv` service.
+
+                Parameters
+                ----------
+                account_id : builtins.str, optional
+                    The account ID used to authenticate with CloudFlare.
+                    Used as URI path parameter.
+                api_token : builtins.str, optional
+                    The token used to authenticate with CloudFlare.
+                default_ttl : typing.Any, optional
+                    The default ttl for write operations..
+                    a human readable duration string see
+                    https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+                    for more details
+                namespace_id : builtins.str, optional
+                    The namespace ID.
+                    Used as URI path parameter.
+                root : builtins.str, optional
+                    Root within this backend.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `cloudflare-kv` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Compfs, typing.Literal["compfs"]],
                 /,
                 *,
                 root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `compfs` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `compfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
+                /,
+                *,
+                bucket: builtins.str = ...,
+                disable_config_load: builtins.bool = ...,
+                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 secret_id: builtins.str = ...,
                 secret_key: builtins.str = ...,
-                bucket: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                disable_config_load: builtins.bool = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `cos` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root of this backend.
+                bucket : builtins.str, optional
+                    Bucket of this backend.
+                disable_config_load : builtins.bool, optional
+                    Disable config load so that opendal will not load
+                    config from
+                enable_versioning : builtins.bool, optional
+                    is bucket versioning enabled for this bucket
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
+                root : builtins.str, optional
+                    Root of this backend.
                 secret_id : builtins.str, optional
                     Secret ID of this backend.
                 secret_key : builtins.str, optional
                     Secret key of this backend.
-                bucket : builtins.str, optional
-                    Bucket of this backend.
-                enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
-                disable_config_load : builtins.bool, optional
-                    Disable config load so that opendal will not load
-                    config from
                 Returns
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `cos` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.D1, typing.Literal["d1"]],
+                /,
+                *,
+                account_id: builtins.str = ...,
+                database_id: builtins.str = ...,
+                key_field: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
+                token: builtins.str = ...,
+                value_field: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `d1` service.
+
+                Parameters
+                ----------
+                account_id : builtins.str, optional
+                    Set the account id of cloudflare api.
+                database_id : builtins.str, optional
+                    Set the database id of cloudflare api.
+                key_field : builtins.str, optional
+                    Set the key field of D1 Database.
+                root : builtins.str, optional
+                    Set the working directory of OpenDAL.
+                table : builtins.str, optional
+                    Set the table of D1 Database.
+                token : builtins.str, optional
+                    Set the token of cloudflare api.
+                value_field : builtins.str, optional
+                    Set the value field of D1 Database.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `d1` service
                 """
         "#
     }
@@ -2762,30 +3442,66 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Dbfs, typing.Literal["dbfs"]],
+                /,
+                *,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `dbfs` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str, optional
+                    The endpoint for dbfs.
+                root : builtins.str, optional
+                    The root for dbfs.
+                token : builtins.str, optional
+                    The token for dbfs.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `dbfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Dropbox, typing.Literal["dropbox"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `dropbox` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root path for dropbox.
                 access_token : builtins.str, optional
                     access token for dropbox.
-                refresh_token : builtins.str, optional
-                    refresh_token for dropbox.
                 client_id : builtins.str, optional
                     client_id for dropbox.
                 client_secret : builtins.str, optional
                     client_secret for dropbox.
+                refresh_token : builtins.str, optional
+                    refresh_token for dropbox.
+                root : builtins.str, optional
+                    root path for dropbox.
                 Returns
                 -------
                 AsyncOperator
@@ -2807,18 +3523,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Fs, typing.Literal["fs"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 atomic_write_dir: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `fs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    root dir for backend
                 atomic_write_dir : builtins.str, optional
                     tmp dir for atomic write
+                root : builtins.str, optional
+                    root dir for backend
                 Returns
                 -------
                 AsyncOperator
@@ -2837,21 +3553,60 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Ftp, typing.Literal["ftp"]],
+                /,
+                *,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                user: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `ftp` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                password : builtins.str, optional
+                    password of this backend
+                root : builtins.str, optional
+                    root of this backend
+                user : builtins.str, optional
+                    user of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `ftp` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Gcs, typing.Literal["gcs"]],
                 /,
                 *,
+                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                scope: builtins.str = ...,
-                service_account: builtins.str = ...,
                 credential: builtins.str = ...,
                 credential_path: builtins.str = ...,
-                predefined_acl: builtins.str = ...,
                 default_storage_class: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
-                disable_vm_metadata: builtins.bool = ...,
                 disable_config_load: builtins.bool = ...,
+                disable_vm_metadata: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                predefined_acl: builtins.str = ...,
+                root: builtins.str = ...,
+                scope: builtins.str = ...,
+                service_account: builtins.str = ...,
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -2859,35 +3614,35 @@ submit! {
 
                 Parameters
                 ----------
+                allow_anonymous : builtins.bool, optional
+                    Allow opendal to send requests without signing when
+                    credentials are not loaded.
                 bucket : builtins.str
                     bucket name
-                root : builtins.str, optional
-                    root URI, all operations happens under `root`
-                endpoint : builtins.str, optional
-                    endpoint URI of GCS service, default is
-                    `https://storage.googleapis.com`
-                scope : builtins.str, optional
-                    Scope for gcs.
-                service_account : builtins.str, optional
-                    Service Account for gcs.
                 credential : builtins.str, optional
                     Credentials string for GCS service OAuth2
                     authentication.
                 credential_path : builtins.str, optional
                     Local path to credentials file for GCS service
                     OAuth2 authentication.
-                predefined_acl : builtins.str, optional
-                    The predefined acl for GCS.
                 default_storage_class : builtins.str, optional
                     The default storage class used by gcs.
-                allow_anonymous : builtins.bool, optional
-                    Allow opendal to send requests without signing when
-                    credentials are not loaded.
+                disable_config_load : builtins.bool, optional
+                    Disable loading configuration from the environment.
                 disable_vm_metadata : builtins.bool, optional
                     Disable attempting to load credentials from the GCE
                     metadata server when running within Google Cloud.
-                disable_config_load : builtins.bool, optional
-                    Disable loading configuration from the environment.
+                endpoint : builtins.str, optional
+                    endpoint URI of GCS service, default is
+                    `https://storage.googleapis.com`
+                predefined_acl : builtins.str, optional
+                    The predefined acl for GCS.
+                root : builtins.str, optional
+                    root URI, all operations happens under `root`
+                scope : builtins.str, optional
+                    Scope for gcs.
+                service_account : builtins.str, optional
+                    Service Account for gcs.
                 token : builtins.str, optional
                     A Google Cloud OAuth2 token.
                     Takes precedence over `credential` and
@@ -2913,27 +3668,27 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `gdrive` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root for gdrive
                 access_token : builtins.str, optional
                     Access token for gdrive.
-                refresh_token : builtins.str, optional
-                    Refresh token for gdrive.
                 client_id : builtins.str, optional
                     Client id for gdrive.
                 client_secret : builtins.str, optional
                     Client secret for gdrive.
+                refresh_token : builtins.str, optional
+                    Refresh token for gdrive.
+                root : builtins.str, optional
+                    The root for gdrive
                 Returns
                 -------
                 AsyncOperator
@@ -2955,24 +3710,24 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Ghac, typing.Literal["ghac"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                version: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
                 runtime_token: builtins.str = ...,
+                version: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `ghac` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root path for ghac.
-                version : builtins.str, optional
-                    The version that used by cache.
                 endpoint : builtins.str, optional
                     The endpoint for ghac service.
+                root : builtins.str, optional
+                    The root path for ghac.
                 runtime_token : builtins.str, optional
                     The runtime token for ghac service.
+                version : builtins.str, optional
+                    The version that used by cache.
                 Returns
                 -------
                 AsyncOperator
@@ -2991,13 +3746,60 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Github, typing.Literal["github"]],
+                /,
+                *,
+                owner: builtins.str,
+                repo: builtins.str,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `github` service.
+
+                Parameters
+                ----------
+                owner : builtins.str
+                    GitHub repo owner.
+                    required.
+                repo : builtins.str
+                    GitHub repo name.
+                    required.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                token : builtins.str, optional
+                    GitHub access_token.
+                    optional.
+                    If not provided, the backend will only support read
+                    operations for public repositories.
+                    And rate limit will be limited to 60 requests per
+                    hour.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `github` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
                 /,
                 *,
-                connection_string: builtins.str = ...,
-                database: builtins.str = ...,
                 bucket: builtins.str = ...,
                 chunk_size: builtins.int = ...,
+                connection_string: builtins.str = ...,
+                database: builtins.str = ...,
                 root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -3005,17 +3807,17 @@ submit! {
 
                 Parameters
                 ----------
-                connection_string : builtins.str, optional
-                    The connection string of the MongoDB service.
-                database : builtins.str, optional
-                    The database name of the MongoDB GridFs service to
-                    read/write.
                 bucket : builtins.str, optional
                     The bucket name of the MongoDB GridFs service to
                     read/write.
                 chunk_size : builtins.int, optional
                     The chunk size of the MongoDB GridFs service used to
                     break the user file into chunks.
+                connection_string : builtins.str, optional
+                    The connection string of the MongoDB service.
+                database : builtins.str, optional
+                    The database name of the MongoDB GridFs service to
+                    read/write.
                 root : builtins.str, optional
                     The working directory, all operations will be
                     performed under it.
@@ -3040,21 +3842,21 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.HdfsNative, typing.Literal["hdfs-native"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                name_node: builtins.str = ...,
                 enable_append: builtins.bool = ...,
+                name_node: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `hdfs-native` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    work dir of this backend
-                name_node : builtins.str, optional
-                    name_node of this backend
                 enable_append : builtins.bool, optional
                     enable the append capacity
+                name_node : builtins.str, optional
+                    name_node of this backend
+                root : builtins.str, optional
+                    work dir of this backend
                 Returns
                 -------
                 AsyncOperator
@@ -3077,10 +3879,10 @@ submit! {
                 /,
                 *,
                 endpoint: builtins.str = ...,
-                username: builtins.str = ...,
                 password: builtins.str = ...,
-                token: builtins.str = ...,
                 root: builtins.str = ...,
+                token: builtins.str = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `http` service.
@@ -3089,14 +3891,14 @@ submit! {
                 ----------
                 endpoint : builtins.str, optional
                     endpoint of this backend
-                username : builtins.str, optional
-                    username of this backend
                 password : builtins.str, optional
                     password of this backend
-                token : builtins.str, optional
-                    token of this backend
                 root : builtins.str, optional
                     root of this backend
+                token : builtins.str, optional
+                    token of this backend
+                username : builtins.str, optional
+                    username of this backend
                 Returns
                 -------
                 AsyncOperator
@@ -3118,8 +3920,8 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
                 /,
                 *,
-                repo_type: builtins.str = ...,
                 repo_id: builtins.str = ...,
+                repo_type: builtins.str = ...,
                 revision: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
@@ -3129,13 +3931,13 @@ submit! {
 
                 Parameters
                 ----------
+                repo_id : builtins.str, optional
+                    Repo id of this backend.
+                    This is required.
                 repo_type : builtins.str, optional
                     Repo type of this backend.
                     Default is model.
                     Available values: - model - dataset
-                repo_id : builtins.str, optional
-                    Repo id of this backend.
-                    This is required.
                 revision : builtins.str, optional
                     Revision of this backend.
                     Default is main.
@@ -3200,18 +4002,18 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 endpoint: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `ipmfs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for ipfs.
                 endpoint : builtins.str, optional
                     Endpoint for ipfs.
+                root : builtins.str, optional
+                    Root for ipfs.
                 Returns
                 -------
                 AsyncOperator
@@ -3233,26 +4035,26 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Koofr, typing.Literal["koofr"]],
                 /,
                 *,
-                endpoint: builtins.str,
                 email: builtins.str,
-                root: builtins.str = ...,
+                endpoint: builtins.str,
                 password: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `koofr` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str
-                    Koofr endpoint.
                 email : builtins.str
                     Koofr email.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
+                endpoint : builtins.str
+                    Koofr endpoint.
                 password : builtins.str, optional
                     password of this backend.
                     (Must be the application password)
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
                 Returns
                 -------
                 AsyncOperator
@@ -3271,35 +4073,87 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Lakefs, typing.Literal["lakefs"]],
+                /,
+                *,
+                branch: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                repository: builtins.str = ...,
+                root: builtins.str = ...,
+                username: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `lakefs` service.
+
+                Parameters
+                ----------
+                branch : builtins.str, optional
+                    Name of the branch or a commit ID.
+                    Default is main.
+                    This is optional.
+                endpoint : builtins.str, optional
+                    Base url.
+                    This is required.
+                password : builtins.str, optional
+                    Password for Lakefs basic authentication.
+                    This is required.
+                repository : builtins.str, optional
+                    The repository name This is required.
+                root : builtins.str, optional
+                    Root of this backend.
+                    Can be "/path/to/dir".
+                    Default is "/".
+                username : builtins.str, optional
+                    Username for Lakefs basic authentication.
+                    This is required.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `lakefs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
+                default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
+                password: builtins.str = ...,
                 root: builtins.str = ...,
                 username: builtins.str = ...,
-                password: builtins.str = ...,
-                default_ttl: typing.Any = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `memcached` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    network address of the memcached service.
-                    For example: "tcp://localhost:11211"
-                root : builtins.str, optional
-                    the working directory of the service.
-                    Can be "/path/to/dir" default is "/"
-                username : builtins.str, optional
-                    Memcached username, optional.
-                password : builtins.str, optional
-                    Memcached password, optional.
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                endpoint : builtins.str, optional
+                    network address of the memcached service.
+                    For example: "tcp://localhost:11211"
+                password : builtins.str, optional
+                    Memcached password, optional.
+                root : builtins.str, optional
+                    the working directory of the service.
+                    Can be "/path/to/dir" default is "/"
+                username : builtins.str, optional
+                    Memcached username, optional.
                 Returns
                 -------
                 AsyncOperator
@@ -3352,9 +4206,9 @@ submit! {
                 /,
                 *,
                 max_capacity: builtins.int = ...,
-                time_to_live: builtins.str = ...,
-                time_to_idle: builtins.str = ...,
                 root: builtins.str = ...,
+                time_to_idle: builtins.str = ...,
+                time_to_live: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `mini-moka` service.
@@ -3365,16 +4219,16 @@ submit! {
                     Sets the max capacity of the cache.
                     Refer to
                     [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)
-                time_to_live : builtins.str, optional
-                    Sets the time to live of the cache.
-                    Refer to
-                    [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
+                root : builtins.str, optional
+                    root path of this backend
                 time_to_idle : builtins.str, optional
                     Sets the time to idle of the cache.
                     Refer to
                     [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
-                root : builtins.str, optional
-                    root path of this backend
+                time_to_live : builtins.str, optional
+                    Sets the time to live of the cache.
+                    Refer to
+                    [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
                 Returns
                 -------
                 AsyncOperator
@@ -3396,33 +4250,33 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Moka, typing.Literal["moka"]],
                 /,
                 *,
-                name: builtins.str = ...,
                 max_capacity: builtins.int = ...,
-                time_to_live: builtins.str = ...,
-                time_to_idle: builtins.str = ...,
+                name: builtins.str = ...,
                 root: builtins.str = ...,
+                time_to_idle: builtins.str = ...,
+                time_to_live: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `moka` service.
 
                 Parameters
                 ----------
-                name : builtins.str, optional
-                    Name for this cache instance.
                 max_capacity : builtins.int, optional
                     Sets the max capacity of the cache.
                     Refer to
                     [`moka::future::CacheBuilder::max_capacity`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.max_capacity)
-                time_to_live : builtins.str, optional
-                    Sets the time to live of the cache.
-                    Refer to
-                    [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
+                name : builtins.str, optional
+                    Name for this cache instance.
+                root : builtins.str, optional
+                    root path of this backend
                 time_to_idle : builtins.str, optional
                     Sets the time to idle of the cache.
                     Refer to
                     [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
-                root : builtins.str, optional
-                    root path of this backend
+                time_to_live : builtins.str, optional
+                    Sets the time to live of the cache.
+                    Refer to
+                    [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
                 Returns
                 -------
                 AsyncOperator
@@ -3444,11 +4298,11 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]],
                 /,
                 *,
+                collection: builtins.str = ...,
                 connection_string: builtins.str = ...,
                 database: builtins.str = ...,
-                collection: builtins.str = ...,
-                root: builtins.str = ...,
                 key_field: builtins.str = ...,
+                root: builtins.str = ...,
                 value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -3456,16 +4310,16 @@ submit! {
 
                 Parameters
                 ----------
+                collection : builtins.str, optional
+                    collection of this backend
                 connection_string : builtins.str, optional
                     connection string of this backend
                 database : builtins.str, optional
                     database of this backend
-                collection : builtins.str, optional
-                    collection of this backend
-                root : builtins.str, optional
-                    root of this backend
                 key_field : builtins.str, optional
                     key field of this backend
+                root : builtins.str, optional
+                    root of this backend
                 value_field : builtins.str, optional
                     value field of this backend
                 Returns
@@ -3486,14 +4340,46 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Monoiofs, typing.Literal["monoiofs"]],
+                /,
+                *,
+                root: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `monoiofs` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    The Root of this backend.
+                    All operations will happen under this root.
+                    Builder::build will return error if not set.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `monoiofs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
-                value_field: builtins.str = ...,
                 root: builtins.str = ...,
+                table: builtins.str = ...,
+                value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `mysql` service.
@@ -3514,14 +4400,14 @@ submit! {
                     `mysql://user:password@localhost:3306/db` For more
                     information, please refer to
                     <https://docs.rs/sqlx/latest/sqlx/mysql/struct.MySqlConnectOptions.html>.
-                table : builtins.str, optional
-                    The table name for mysql.
                 key_field : builtins.str, optional
                     The key field name for mysql.
-                value_field : builtins.str, optional
-                    The value field name for mysql.
                 root : builtins.str, optional
                     The root for mysql.
+                table : builtins.str, optional
+                    The table name for mysql.
+                value_field : builtins.str, optional
+                    The value field name for mysql.
                 Returns
                 -------
                 AsyncOperator
@@ -3543,30 +4429,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Obs, typing.Literal["obs"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
                 access_key_id: builtins.str = ...,
-                secret_access_key: builtins.str = ...,
                 bucket: builtins.str = ...,
                 enable_versioning: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                secret_access_key: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `obs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for obs.
-                endpoint : builtins.str, optional
-                    Endpoint for obs.
                 access_key_id : builtins.str, optional
                     Access key id for obs.
-                secret_access_key : builtins.str, optional
-                    Secret access key for obs.
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
                     Is bucket versioning enabled for this bucket
+                endpoint : builtins.str, optional
+                    Endpoint for obs.
+                root : builtins.str, optional
+                    Root for obs.
+                secret_access_key : builtins.str, optional
+                    Secret access key for obs.
                 Returns
                 -------
                 AsyncOperator
@@ -3588,26 +4474,20 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 access_token: builtins.str = ...,
-                refresh_token: builtins.str = ...,
                 client_id: builtins.str = ...,
                 client_secret: builtins.str = ...,
                 enable_versioning: builtins.bool = ...,
+                refresh_token: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `onedrive` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    The root path for the OneDrive service for the file
-                    access
                 access_token : builtins.str, optional
                     Microsoft Graph API (also OneDrive API) access token
-                refresh_token : builtins.str, optional
-                    Microsoft Graph API (also OneDrive API) refresh
-                    token
                 client_id : builtins.str, optional
                     Microsoft Graph API Application (client) ID that is
                     in the Azure's app registration portal
@@ -3616,6 +4496,12 @@ submit! {
                     is in the Azure's app registration portal
                 enable_versioning : builtins.bool, optional
                     Enabling version support
+                refresh_token : builtins.str, optional
+                    Microsoft Graph API (also OneDrive API) refresh
+                    token
+                root : builtins.str, optional
+                    The root path for the OneDrive service for the file
+                    access
                 Returns
                 -------
                 AsyncOperator
@@ -3634,28 +4520,51 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Opfs, typing.Literal["opfs"]],
+                /,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `opfs` service.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `opfs` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
-                bucket: builtins.str,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                presign_endpoint: builtins.str = ...,
-                addressing_style: builtins.str = ...,
-                presign_addressing_style: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                server_side_encryption: builtins.str = ...,
-                server_side_encryption_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 access_key_id: builtins.str = ...,
                 access_key_secret: builtins.str = ...,
-                security_token: builtins.str = ...,
+                addressing_style: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
                 batch_max_operations: builtins.int = ...,
+                bucket: builtins.str,
                 delete_max_size: builtins.int = ...,
-                role_arn: builtins.str = ...,
-                role_session_name: builtins.str = ...,
+                enable_versioning: builtins.bool = ...,
+                endpoint: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
+                presign_addressing_style: builtins.str = ...,
+                presign_endpoint: builtins.str = ...,
+                role_arn: builtins.str = ...,
+                role_session_name: builtins.str = ...,
+                root: builtins.str = ...,
+                security_token: builtins.str = ...,
+                server_side_encryption: builtins.str = ...,
+                server_side_encryption_key_id: builtins.str = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -3663,26 +4572,6 @@ submit! {
 
                 Parameters
                 ----------
-                bucket : builtins.str
-                    Bucket for oss.
-                root : builtins.str, optional
-                    Root for oss.
-                endpoint : builtins.str, optional
-                    Endpoint for oss.
-                presign_endpoint : builtins.str, optional
-                    Presign endpoint for oss.
-                addressing_style : builtins.str, optional
-                    Addressing style for oss.
-                presign_addressing_style : builtins.str, optional
-                    Pre sign addressing style for oss.
-                enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
-                server_side_encryption : builtins.str, optional
-                    Server side encryption for oss.
-                server_side_encryption_key_id : builtins.str, optional
-                    Server side encryption key id for oss.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous for oss.
                 access_key_id : builtins.str, optional
                     Access key id for oss.
                     - this field if it's `is_some` - env value:
@@ -3691,22 +4580,20 @@ submit! {
                     Access key secret for oss.
                     - this field if it's `is_some` - env value:
                     [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
-                security_token : builtins.str, optional
-                    `security_token` will be loaded from - this field if
-                    it's `is_some` - env value:
-                    [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+                addressing_style : builtins.str, optional
+                    Addressing style for oss.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
                     The size of max batch operations.
+                bucket : builtins.str
+                    Bucket for oss.
                 delete_max_size : builtins.int, optional
                     The size of max delete operations.
-                role_arn : builtins.str, optional
-                    If `role_arn` is set, we will use already known
-                    config as source credential to assume role with
-                    `role_arn`.
-                    - this field if it's `is_some` - env value:
-                    [`ALIBABA_CLOUD_ROLE_ARN`]
-                role_session_name : builtins.str, optional
-                    role_session_name for this backend.
+                enable_versioning : builtins.bool, optional
+                    is bucket versioning enabled for this bucket
+                endpoint : builtins.str, optional
+                    Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:
@@ -3715,6 +4602,28 @@ submit! {
                     `oidc_token_file` will be loaded from - this field
                     if it's `is_some` - env value:
                     [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+                presign_addressing_style : builtins.str, optional
+                    Pre sign addressing style for oss.
+                presign_endpoint : builtins.str, optional
+                    Presign endpoint for oss.
+                role_arn : builtins.str, optional
+                    If `role_arn` is set, we will use already known
+                    config as source credential to assume role with
+                    `role_arn`.
+                    - this field if it's `is_some` - env value:
+                    [`ALIBABA_CLOUD_ROLE_ARN`]
+                role_session_name : builtins.str, optional
+                    role_session_name for this backend.
+                root : builtins.str, optional
+                    Root for oss.
+                security_token : builtins.str, optional
+                    `security_token` will be loaded from - this field if
+                    it's `is_some` - env value:
+                    [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+                server_side_encryption : builtins.str, optional
+                    Server side encryption for oss.
+                server_side_encryption_key_id : builtins.str, optional
+                    Server side encryption key id for oss.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
@@ -3737,12 +4646,52 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Pcloud, typing.Literal["pcloud"]],
+                /,
+                *,
+                endpoint: builtins.str,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                username: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `pcloud` service.
+
+                Parameters
+                ----------
+                endpoint : builtins.str
+                    pCloud endpoint address.
+                password : builtins.str, optional
+                    pCloud password.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                username : builtins.str, optional
+                    pCloud username.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `pcloud` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Persy, typing.Literal["persy"]],
                 /,
                 *,
                 datafile: builtins.str = ...,
-                segment: builtins.str = ...,
                 index: builtins.str = ...,
+                segment: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `persy` service.
@@ -3752,10 +4701,10 @@ submit! {
                 datafile : builtins.str, optional
                     That path to the persy data file.
                     The directory in the path must already exist.
-                segment : builtins.str, optional
-                    That name of the persy segment.
                 index : builtins.str, optional
                     That name of the persy index.
+                segment : builtins.str, optional
+                    That name of the persy segment.
                 Returns
                 -------
                 AsyncOperator
@@ -3777,10 +4726,10 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Postgresql, typing.Literal["postgresql"]],
                 /,
                 *,
-                root: builtins.str = ...,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
                 value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
@@ -3788,10 +4737,6 @@ submit! {
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root of this backend.
-                    All operations will happen under this root.
-                    Default to `/` if not set.
                 connection_string : builtins.str, optional
                     The URL should be with a scheme of either
                     `postgres://` or `postgresql://`.
@@ -3803,10 +4748,14 @@ submit! {
                     `postgresql:///mydb?user=user&host=/var/lib/postgresql`
                     For more information, please visit
                     <https://docs.rs/sqlx/latest/sqlx/postgres/struct.PgConnectOptions.html>.
-                table : builtins.str, optional
-                    the table of postgresql
                 key_field : builtins.str, optional
                     the key field of postgresql
+                root : builtins.str, optional
+                    Root of this backend.
+                    All operations will happen under this root.
+                    Default to `/` if not set.
+                table : builtins.str, optional
+                    the table of postgresql
                 value_field : builtins.str, optional
                     the value field of postgresql
                 Returns
@@ -3866,45 +4815,45 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
                 /,
                 *,
-                db: builtins.int,
-                endpoint: builtins.str = ...,
                 cluster_endpoints: builtins.str = ...,
-                username: builtins.str = ...,
+                db: builtins.int,
+                default_ttl: typing.Any = ...,
+                endpoint: builtins.str = ...,
                 password: builtins.str = ...,
                 root: builtins.str = ...,
-                default_ttl: typing.Any = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `redis` service.
 
                 Parameters
                 ----------
-                db : builtins.int
-                    the number of DBs redis can take is unlimited
-                    default is db 0
-                endpoint : builtins.str, optional
-                    network address of the Redis service.
-                    Can be "tcp://127.0.0.1:6379", e.g.
-                    default is "tcp://127.0.0.1:6379"
                 cluster_endpoints : builtins.str, optional
                     network address of the Redis cluster service.
                     Can be
                     "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381",
                     e.g.
                     default is None
-                username : builtins.str, optional
-                    the username to connect redis service.
-                    default is None
-                password : builtins.str, optional
-                    the password for authentication default is None
-                root : builtins.str, optional
-                    the working directory of the Redis service.
-                    Can be "/path/to/dir" default is "/"
+                db : builtins.int
+                    the number of DBs redis can take is unlimited
+                    default is db 0
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
                     https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
                     for more details
+                endpoint : builtins.str, optional
+                    network address of the Redis service.
+                    Can be "tcp://127.0.0.1:6379", e.g.
+                    default is "tcp://127.0.0.1:6379"
+                password : builtins.str, optional
+                    the password for authentication default is None
+                root : builtins.str, optional
+                    the working directory of the Redis service.
+                    Can be "/path/to/dir" default is "/"
+                username : builtins.str, optional
+                    the username to connect redis service.
+                    default is None
                 Returns
                 -------
                 AsyncOperator
@@ -3926,50 +4875,121 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.S3, typing.Literal["s3"]],
                 /,
                 *,
-                bucket: builtins.str,
-                root: builtins.str = ...,
-                enable_versioning: builtins.bool = ...,
-                endpoint: builtins.str = ...,
-                region: builtins.str = ...,
                 access_key_id: builtins.str = ...,
-                secret_access_key: builtins.str = ...,
-                session_token: builtins.str = ...,
-                role_arn: builtins.str = ...,
-                external_id: builtins.str = ...,
-                role_session_name: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
+                batch_max_operations: builtins.int = ...,
+                bucket: builtins.str,
+                checksum_algorithm: builtins.str = ...,
+                default_storage_class: builtins.str = ...,
+                delete_max_size: builtins.int = ...,
                 disable_config_load: builtins.bool = ...,
                 disable_ec2_metadata: builtins.bool = ...,
-                allow_anonymous: builtins.bool = ...,
+                disable_list_objects_v2: builtins.bool = ...,
+                disable_stat_with_override: builtins.bool = ...,
+                disable_write_with_if_match: builtins.bool = ...,
+                enable_request_payer: builtins.bool = ...,
+                enable_versioning: builtins.bool = ...,
+                enable_virtual_host_style: builtins.bool = ...,
+                enable_write_with_append: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
+                region: builtins.str = ...,
+                role_arn: builtins.str = ...,
+                role_session_name: builtins.str = ...,
+                root: builtins.str = ...,
+                secret_access_key: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_aws_kms_key_id: builtins.str = ...,
                 server_side_encryption_customer_algorithm: builtins.str = ...,
                 server_side_encryption_customer_key: builtins.str = ...,
                 server_side_encryption_customer_key_md5: builtins.str = ...,
-                default_storage_class: builtins.str = ...,
-                enable_virtual_host_style: builtins.bool = ...,
-                batch_max_operations: builtins.int = ...,
-                delete_max_size: builtins.int = ...,
-                disable_stat_with_override: builtins.bool = ...,
-                checksum_algorithm: builtins.str = ...,
-                disable_write_with_if_match: builtins.bool = ...,
-                enable_write_with_append: builtins.bool = ...,
-                disable_list_objects_v2: builtins.bool = ...,
-                enable_request_payer: builtins.bool = ...,
+                session_token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `s3` service.
 
                 Parameters
                 ----------
+                access_key_id : builtins.str, optional
+                    access_key_id of this backend.
+                    - If access_key_id is set, we will take user's input
+                    first.
+                    - If not, we will try to load it from environment.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous will allow opendal to send request
+                    without signing when credential is not loaded.
+                batch_max_operations : builtins.int, optional
+                    Set maximum batch operations of this backend.
+                    Some compatible services have a limit on the number
+                    of operations in a batch request.
+                    For example, R2 could return `Internal Error` while
+                    batch delete 1000 files.
+                    Please tune this value based on services' document.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                    default to `/` if not set.
+                checksum_algorithm : builtins.str, optional
+                    Checksum Algorithm to use when sending checksums in
+                    HTTP headers.
+                    This is necessary when writing to AWS S3 Buckets
+                    with Object Lock enabled for example.
+                    Available options: - "crc32c"
+                default_storage_class : builtins.str, optional
+                    default storage_class for this backend.
+                    Available values: - `DEEP_ARCHIVE` - `GLACIER` -
+                    `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA`
+                    - `EXPRESS_ONEZONE` - `OUTPOSTS` -
+                    `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
+                    compatible services don't support all of them
+                delete_max_size : builtins.int, optional
+                    Set the maximum delete size of this backend.
+                    Some compatible services have a limit on the number
+                    of operations in a batch request.
+                    For example, R2 could return `Internal Error` while
+                    batch delete 1000 files.
+                    Please tune this value based on services' document.
+                disable_config_load : builtins.bool, optional
+                    Disable config load so that opendal will not load
+                    config from environment.
+                    For examples: - envs like `AWS_ACCESS_KEY_ID` -
+                    files like `~/.aws/config`
+                disable_ec2_metadata : builtins.bool, optional
+                    Disable load credential from ec2 metadata.
+                    This option is used to disable the default behavior
+                    of opendal to load credential from ec2 metadata,
+                    a.k.a, IMDSv2
+                disable_list_objects_v2 : builtins.bool, optional
+                    OpenDAL uses List Objects V2 by default to list
+                    objects.
+                    However, some legacy services do not yet support V2.
+                    This option allows users to switch back to the older
+                    List Objects V1.
+                disable_stat_with_override : builtins.bool, optional
+                    Disable stat with override so that opendal will not
+                    send stat request with override queries.
+                    For example, R2 doesn't support stat with
+                    `response_content_type` query.
+                disable_write_with_if_match : builtins.bool, optional
+                    Disable write with if match so that opendal will not
+                    send write request with if match headers.
+                    For example, Ceph RADOS S3 doesn't support write
+                    with if match.
+                enable_request_payer : builtins.bool, optional
+                    Indicates whether the client agrees to pay for the
+                    requests made to the S3 bucket.
                 enable_versioning : builtins.bool, optional
                     is bucket versioning enabled for this bucket
+                enable_virtual_host_style : builtins.bool, optional
+                    Enable virtual host style so that opendal will send
+                    API requests in virtual host style instead of path
+                    style.
+                    - By default, opendal will send API to
+                    `https://s3.us-east-1.amazonaws.com/bucket_name` -
+                    Enabled, opendal will send API to
+                    `https://bucket_name.s3.us-east-1.amazonaws.com`
+                enable_write_with_append : builtins.bool, optional
+                    Enable write with append so that opendal will send
+                    write request with append headers.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -3986,6 +5006,8 @@ submit! {
                     - If not, we will try to load it from environment.
                     - If still not set, default to
                     `https://s3.amazonaws.com`.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 region : builtins.str, optional
                     Region represent the signing region of this
                     endpoint.
@@ -3994,42 +5016,22 @@ submit! {
                     If using a custom endpoint, - If region is set, we
                     will take user's input first.
                     - If not, we will try to load it from environment.
-                access_key_id : builtins.str, optional
-                    access_key_id of this backend.
-                    - If access_key_id is set, we will take user's input
-                    first.
-                    - If not, we will try to load it from environment.
-                secret_access_key : builtins.str, optional
-                    secret_access_key of this backend.
-                    - If secret_access_key is set, we will take user's
-                    input first.
-                    - If not, we will try to load it from environment.
-                session_token : builtins.str, optional
-                    session_token (aka, security token) of this backend.
-                    This token will expire after sometime, it's
-                    recommended to set session_token by hand.
                 role_arn : builtins.str, optional
                     role_arn for this backend.
                     If `role_arn` is set, we will use already known
                     config as source credential to assume role with
                     `role_arn`.
-                external_id : builtins.str, optional
-                    external_id for this backend.
                 role_session_name : builtins.str, optional
                     role_session_name for this backend.
-                disable_config_load : builtins.bool, optional
-                    Disable config load so that opendal will not load
-                    config from environment.
-                    For examples: - envs like `AWS_ACCESS_KEY_ID` -
-                    files like `~/.aws/config`
-                disable_ec2_metadata : builtins.bool, optional
-                    Disable load credential from ec2 metadata.
-                    This option is used to disable the default behavior
-                    of opendal to load credential from ec2 metadata,
-                    a.k.a, IMDSv2
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                    default to `/` if not set.
+                secret_access_key : builtins.str, optional
+                    secret_access_key of this backend.
+                    - If secret_access_key is set, we will take user's
+                    input first.
+                    - If not, we will try to load it from environment.
                 server_side_encryption : builtins.str, optional
                     server_side_encryption for this backend.
                     Available values: `AES256`, `aws:kms`.
@@ -4063,63 +5065,10 @@ submit! {
                     backend.
                     Value: MD5 digest of key specified in
                     `server_side_encryption_customer_key`.
-                default_storage_class : builtins.str, optional
-                    default storage_class for this backend.
-                    Available values: - `DEEP_ARCHIVE` - `GLACIER` -
-                    `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA`
-                    - `EXPRESS_ONEZONE` - `OUTPOSTS` -
-                    `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
-                    compatible services don't support all of them
-                enable_virtual_host_style : builtins.bool, optional
-                    Enable virtual host style so that opendal will send
-                    API requests in virtual host style instead of path
-                    style.
-                    - By default, opendal will send API to
-                    `https://s3.us-east-1.amazonaws.com/bucket_name` -
-                    Enabled, opendal will send API to
-                    `https://bucket_name.s3.us-east-1.amazonaws.com`
-                batch_max_operations : builtins.int, optional
-                    Set maximum batch operations of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
-                delete_max_size : builtins.int, optional
-                    Set the maximum delete size of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
-                disable_stat_with_override : builtins.bool, optional
-                    Disable stat with override so that opendal will not
-                    send stat request with override queries.
-                    For example, R2 doesn't support stat with
-                    `response_content_type` query.
-                checksum_algorithm : builtins.str, optional
-                    Checksum Algorithm to use when sending checksums in
-                    HTTP headers.
-                    This is necessary when writing to AWS S3 Buckets
-                    with Object Lock enabled for example.
-                    Available options: - "crc32c"
-                disable_write_with_if_match : builtins.bool, optional
-                    Disable write with if match so that opendal will not
-                    send write request with if match headers.
-                    For example, Ceph RADOS S3 doesn't support write
-                    with if match.
-                enable_write_with_append : builtins.bool, optional
-                    Enable write with append so that opendal will send
-                    write request with append headers.
-                disable_list_objects_v2 : builtins.bool, optional
-                    OpenDAL uses List Objects V2 by default to list
-                    objects.
-                    However, some legacy services do not yet support V2.
-                    This option allows users to switch back to the older
-                    List Objects V1.
-                enable_request_payer : builtins.bool, optional
-                    Indicates whether the client agrees to pay for the
-                    requests made to the S3 bucket.
+                session_token : builtins.str, optional
+                    session_token (aka, security token) of this backend.
+                    This token will expire after sometime, it's
+                    recommended to set session_token by hand.
                 Returns
                 -------
                 AsyncOperator
@@ -4141,33 +5090,78 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Seafile, typing.Literal["seafile"]],
                 /,
                 *,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
                 repo_name: builtins.str,
                 root: builtins.str = ...,
-                endpoint: builtins.str = ...,
                 username: builtins.str = ...,
-                password: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `seafile` service.
 
                 Parameters
                 ----------
+                endpoint : builtins.str, optional
+                    endpoint address of this backend.
+                password : builtins.str, optional
+                    password of this backend.
                 repo_name : builtins.str
                     repo_name of this backend.
                     required.
                 root : builtins.str, optional
                     root of this backend.
                     All operations will happen under this root.
-                endpoint : builtins.str, optional
-                    endpoint address of this backend.
                 username : builtins.str, optional
                     username of this backend.
-                password : builtins.str, optional
-                    password of this backend.
                 Returns
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `seafile` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Sftp, typing.Literal["sftp"]],
+                /,
+                *,
+                enable_copy: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                key: builtins.str = ...,
+                known_hosts_strategy: builtins.str = ...,
+                root: builtins.str = ...,
+                user: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `sftp` service.
+
+                Parameters
+                ----------
+                enable_copy : builtins.bool, optional
+                    enable_copy of this backend
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                key : builtins.str, optional
+                    key of this backend
+                known_hosts_strategy : builtins.str, optional
+                    known_hosts_strategy of this backend
+                root : builtins.str, optional
+                    root of this backend
+                user : builtins.str, optional
+                    user of this backend
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `sftp` service
                 """
         "#
     }
@@ -4222,10 +5216,10 @@ submit! {
                 /,
                 *,
                 connection_string: builtins.str = ...,
-                table: builtins.str = ...,
                 key_field: builtins.str = ...,
-                value_field: builtins.str = ...,
                 root: builtins.str = ...,
+                table: builtins.str = ...,
+                value_field: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `sqlite` service.
@@ -4241,21 +5235,21 @@ submit! {
                     `sqlite:data.db` - `sqlite://data.db` For more
                     information, please visit
                     <https://docs.rs/sqlx/latest/sqlx/sqlite/struct.SqliteConnectOptions.html>.
-                table : builtins.str, optional
-                    Set the table name of the sqlite service to
-                    read/write.
                 key_field : builtins.str, optional
                     Set the key field name of the sqlite service to
                     read/write.
                     Default to `key` if not specified.
-                value_field : builtins.str, optional
-                    Set the value field name of the sqlite service to
-                    read/write.
-                    Default to `value` if not specified.
                 root : builtins.str, optional
                     set the working directory, all operations will be
                     performed under it.
                     default: "/"
+                table : builtins.str, optional
+                    Set the table name of the sqlite service to
+                    read/write.
+                value_field : builtins.str, optional
+                    Set the value field name of the sqlite service to
+                    read/write.
+                    Default to `value` if not specified.
                 Returns
                 -------
                 AsyncOperator
@@ -4274,11 +5268,65 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.Surrealdb, typing.Literal["surrealdb"]],
+                /,
+                *,
+                connection_string: builtins.str = ...,
+                database: builtins.str = ...,
+                key_field: builtins.str = ...,
+                namespace: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                table: builtins.str = ...,
+                username: builtins.str = ...,
+                value_field: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `surrealdb` service.
+
+                Parameters
+                ----------
+                connection_string : builtins.str, optional
+                    The connection string for surrealdb.
+                database : builtins.str, optional
+                    The database for surrealdb.
+                key_field : builtins.str, optional
+                    The key field for surrealdb.
+                namespace : builtins.str, optional
+                    The namespace for surrealdb.
+                password : builtins.str, optional
+                    The password for surrealdb.
+                root : builtins.str, optional
+                    The root for surrealdb.
+                table : builtins.str, optional
+                    The table for surrealdb.
+                username : builtins.str, optional
+                    The username for surrealdb.
+                value_field : builtins.str, optional
+                    The value field for surrealdb.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `surrealdb` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
-                endpoint: builtins.str = ...,
                 container: builtins.str = ...,
+                endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
@@ -4287,10 +5335,10 @@ submit! {
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    The endpoint for Swift.
                 container : builtins.str, optional
                     The container for Swift.
+                endpoint : builtins.str, optional
+                    The endpoint for Swift.
                 root : builtins.str, optional
                     The root for Swift.
                 token : builtins.str, optional
@@ -4317,9 +5365,9 @@ submit! {
                 /,
                 *,
                 bucket: builtins.str,
-                root: builtins.str = ...,
                 operator: builtins.str = ...,
                 password: builtins.str = ...,
+                root: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `upyun` service.
@@ -4328,13 +5376,13 @@ submit! {
                 ----------
                 bucket : builtins.str
                     bucket address of this backend.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
                 operator : builtins.str, optional
                     username of this backend.
                 password : builtins.str, optional
                     password of this backend.
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
                 Returns
                 -------
                 AsyncOperator
@@ -4383,33 +5431,67 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
+                scheme: typing.Union[opendal.services.Scheme.VercelBlob, typing.Literal["vercel-blob"]],
+                /,
+                *,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+            ) -> typing_extensions.Self:
+                r"""
+                Create a new `AsyncOperator` for `vercel-blob` service.
+
+                Parameters
+                ----------
+                root : builtins.str, optional
+                    root of this backend.
+                    All operations will happen under this root.
+                token : builtins.str, optional
+                    vercel blob token.
+                Returns
+                -------
+                AsyncOperator
+                    The new `AsyncOperator` for `vercel-blob` service
+                """
+        "#
+    }
+}
+
+submit! {
+    gen_methods_from_python! {
+        r#"
+        import builtins
+        import typing
+        import typing_extensions
+        import opendal.services
+        class AsyncOperator:
+            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
                 /,
                 *,
-                endpoint: builtins.str = ...,
-                username: builtins.str = ...,
-                password: builtins.str = ...,
-                token: builtins.str = ...,
-                root: builtins.str = ...,
                 disable_copy: builtins.bool = ...,
+                endpoint: builtins.str = ...,
+                password: builtins.str = ...,
+                root: builtins.str = ...,
+                token: builtins.str = ...,
+                username: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `webdav` service.
 
                 Parameters
                 ----------
-                endpoint : builtins.str, optional
-                    endpoint of this backend
-                username : builtins.str, optional
-                    username of this backend
-                password : builtins.str, optional
-                    password of this backend
-                token : builtins.str, optional
-                    token of this backend
-                root : builtins.str, optional
-                    root of this backend
                 disable_copy : builtins.bool, optional
                     WebDAV Service doesn't support copy.
+                endpoint : builtins.str, optional
+                    endpoint of this backend
+                password : builtins.str, optional
+                    password of this backend
+                root : builtins.str, optional
+                    root of this backend
+                token : builtins.str, optional
+                    token of this backend
+                username : builtins.str, optional
+                    username of this backend
                 Returns
                 -------
                 AsyncOperator
@@ -4431,30 +5513,30 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]],
                 /,
                 *,
-                root: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                user_name: builtins.str = ...,
+                atomic_write_dir: builtins.str = ...,
                 delegation: builtins.str = ...,
                 disable_list_batch: builtins.bool = ...,
-                atomic_write_dir: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                root: builtins.str = ...,
+                user_name: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `webhdfs` service.
 
                 Parameters
                 ----------
-                root : builtins.str, optional
-                    Root for webhdfs.
-                endpoint : builtins.str, optional
-                    Endpoint for webhdfs.
-                user_name : builtins.str, optional
-                    Name of the user for webhdfs.
+                atomic_write_dir : builtins.str, optional
+                    atomic_write_dir of this backend
                 delegation : builtins.str, optional
                     Delegation token for webhdfs.
                 disable_list_batch : builtins.bool, optional
                     Disable batch listing
-                atomic_write_dir : builtins.str, optional
-                    atomic_write_dir of this backend
+                endpoint : builtins.str, optional
+                    Endpoint for webhdfs.
+                root : builtins.str, optional
+                    Root for webhdfs.
+                user_name : builtins.str, optional
+                    Name of the user for webhdfs.
                 Returns
                 -------
                 AsyncOperator
@@ -4542,20 +5624,32 @@ impl_enum_from!(
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
+    #[cfg(feature = "services-cloudflare-kv")]
+    CloudflareKv,
+    #[cfg(feature = "services-compfs")]
+    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
+    #[cfg(feature = "services-d1")]
+    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
+    #[cfg(feature = "services-dbfs")]
+    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
     Fs,
+    #[cfg(feature = "services-ftp")]
+    Ftp,
     #[cfg(feature = "services-gcs")]
     Gcs,
     #[cfg(feature = "services-gdrive")]
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
+    #[cfg(feature = "services-github")]
+    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -4570,6 +5664,8 @@ impl_enum_from!(
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
+    #[cfg(feature = "services-lakefs")]
+    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -4580,14 +5676,20 @@ impl_enum_from!(
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
+    #[cfg(feature = "services-monoiofs")]
+    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
+    #[cfg(feature = "services-opfs")]
+    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
+    #[cfg(feature = "services-pcloud")]
+    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -4600,16 +5702,22 @@ impl_enum_from!(
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-sftp")]
+    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
+    #[cfg(feature = "services-surrealdb")]
+    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
+    #[cfg(feature = "services-vercel-blob")]
+    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -4636,20 +5744,32 @@ impl_enum_from!(
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
+    #[cfg(feature = "services-cloudflare-kv")]
+    CloudflareKv,
+    #[cfg(feature = "services-compfs")]
+    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
+    #[cfg(feature = "services-d1")]
+    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
+    #[cfg(feature = "services-dbfs")]
+    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
     Fs,
+    #[cfg(feature = "services-ftp")]
+    Ftp,
     #[cfg(feature = "services-gcs")]
     Gcs,
     #[cfg(feature = "services-gdrive")]
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
+    #[cfg(feature = "services-github")]
+    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -4664,6 +5784,8 @@ impl_enum_from!(
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
+    #[cfg(feature = "services-lakefs")]
+    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -4674,14 +5796,20 @@ impl_enum_from!(
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
+    #[cfg(feature = "services-monoiofs")]
+    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
+    #[cfg(feature = "services-opfs")]
+    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
+    #[cfg(feature = "services-pcloud")]
+    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -4694,16 +5822,22 @@ impl_enum_from!(
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-sftp")]
+    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
+    #[cfg(feature = "services-surrealdb")]
+    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
+    #[cfg(feature = "services-vercel-blob")]
+    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]

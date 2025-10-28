@@ -21,6 +21,7 @@ mod backend;
 mod core;
 mod delete;
 mod error;
+mod gdrive_model;
 mod lister;
 mod writer;
 

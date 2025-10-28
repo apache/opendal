@@ -31,6 +31,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
+use super::gdrive_model::*;
 use crate::raw::*;
 use crate::*;
 
@@ -460,36 +461,4 @@ impl PathQuery for GdrivePathQuery {
             serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
         Ok(file.id)
     }
-}
-
-#[derive(Deserialize)]
-pub struct GdriveTokenResponse {
-    access_token: String,
-    expires_in: u64,
-}
-
-/// This is the file struct returned by the Google Drive API.
-/// This is a complex struct, but we only add the fields we need.
-/// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GdriveFile {
-    pub mime_type: String,
-    pub id: String,
-    pub name: String,
-    pub size: Option<String>,
-    // The modified time is not returned unless the `fields`
-    // query parameter contains `modifiedTime`.
-    // As we only need the modified time when we do `stat` operation,
-    // if other operations(such as search) do not specify the `fields` query parameter,
-    // try to access this field, it will be `None`.
-    pub modified_time: Option<String>,
-}
-
-/// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct GdriveFileList {
-    pub(crate) files: Vec<GdriveFile>,
-    pub(crate) next_page_token: Option<String>,
 }

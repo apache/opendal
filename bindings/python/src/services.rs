@@ -59,18 +59,10 @@ pub enum PyScheme {
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
-    #[cfg(feature = "services-cloudflare-kv")]
-    CloudflareKv,
-    #[cfg(feature = "services-compfs")]
-    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
-    #[cfg(feature = "services-d1")]
-    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
-    #[cfg(feature = "services-dbfs")]
-    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
@@ -83,8 +75,6 @@ pub enum PyScheme {
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
-    #[cfg(feature = "services-github")]
-    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -99,8 +89,6 @@ pub enum PyScheme {
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
-    #[cfg(feature = "services-lakefs")]
-    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -111,20 +99,14 @@ pub enum PyScheme {
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
-    #[cfg(feature = "services-monoiofs")]
-    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
-    #[cfg(feature = "services-opfs")]
-    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
-    #[cfg(feature = "services-pcloud")]
-    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -143,16 +125,12 @@ pub enum PyScheme {
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
-    #[cfg(feature = "services-surrealdb")]
-    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
-    #[cfg(feature = "services-vercel-blob")]
-    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -535,84 +513,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.CloudflareKv, typing.Literal["cloudflare-kv"]],
-                /,
-                *,
-                account_id: builtins.str = ...,
-                api_token: builtins.str = ...,
-                default_ttl: typing.Any = ...,
-                namespace_id: builtins.str = ...,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `cloudflare-kv` service.
-
-                Parameters
-                ----------
-                account_id : builtins.str, optional
-                    The account ID used to authenticate with CloudFlare.
-                    Used as URI path parameter.
-                api_token : builtins.str, optional
-                    The token used to authenticate with CloudFlare.
-                default_ttl : typing.Any, optional
-                    The default ttl for write operations..
-                    a human readable duration string see
-                    https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
-                    for more details
-                namespace_id : builtins.str, optional
-                    The namespace ID.
-                    Used as URI path parameter.
-                root : builtins.str, optional
-                    Root within this backend.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `cloudflare-kv` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Compfs, typing.Literal["compfs"]],
-                /,
-                *,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `compfs` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `compfs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
                 /,
                 *,
@@ -662,54 +562,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.D1, typing.Literal["d1"]],
-                /,
-                *,
-                account_id: builtins.str = ...,
-                database_id: builtins.str = ...,
-                key_field: builtins.str = ...,
-                root: builtins.str = ...,
-                table: builtins.str = ...,
-                token: builtins.str = ...,
-                value_field: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `d1` service.
-
-                Parameters
-                ----------
-                account_id : builtins.str, optional
-                    Set the account id of cloudflare api.
-                database_id : builtins.str, optional
-                    Set the database id of cloudflare api.
-                key_field : builtins.str, optional
-                    Set the key field of D1 Database.
-                root : builtins.str, optional
-                    Set the working directory of OpenDAL.
-                table : builtins.str, optional
-                    Set the table of D1 Database.
-                token : builtins.str, optional
-                    Set the token of cloudflare api.
-                value_field : builtins.str, optional
-                    Set the value field of D1 Database.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `d1` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Dashmap, typing.Literal["dashmap"]],
                 /,
                 *,
@@ -726,42 +578,6 @@ submit! {
                 -------
                 Operator
                     The new `Operator` for `dashmap` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Dbfs, typing.Literal["dbfs"]],
-                /,
-                *,
-                endpoint: builtins.str = ...,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `dbfs` service.
-
-                Parameters
-                ----------
-                endpoint : builtins.str, optional
-                    The endpoint for dbfs.
-                root : builtins.str, optional
-                    The root for dbfs.
-                token : builtins.str, optional
-                    The token for dbfs.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `dbfs` service
                 """
         "#
     }
@@ -1030,53 +846,6 @@ submit! {
                 -------
                 Operator
                     The new `Operator` for `ghac` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Github, typing.Literal["github"]],
-                /,
-                *,
-                owner: builtins.str,
-                repo: builtins.str,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `github` service.
-
-                Parameters
-                ----------
-                owner : builtins.str
-                    GitHub repo owner.
-                    required.
-                repo : builtins.str
-                    GitHub repo name.
-                    required.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                token : builtins.str, optional
-                    GitHub access_token.
-                    optional.
-                    If not provided, the backend will only support read
-                    operations for public repositories.
-                    And rate limit will be limited to 60 requests per
-                    hour.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `github` service
                 """
         "#
     }
@@ -1371,58 +1140,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Lakefs, typing.Literal["lakefs"]],
-                /,
-                *,
-                branch: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                password: builtins.str = ...,
-                repository: builtins.str = ...,
-                root: builtins.str = ...,
-                username: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `lakefs` service.
-
-                Parameters
-                ----------
-                branch : builtins.str, optional
-                    Name of the branch or a commit ID.
-                    Default is main.
-                    This is optional.
-                endpoint : builtins.str, optional
-                    Base url.
-                    This is required.
-                password : builtins.str, optional
-                    Password for Lakefs basic authentication.
-                    This is required.
-                repository : builtins.str, optional
-                    The repository name This is required.
-                root : builtins.str, optional
-                    Root of this backend.
-                    Can be "/path/to/dir".
-                    Default is "/".
-                username : builtins.str, optional
-                    Username for Lakefs basic authentication.
-                    This is required.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `lakefs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
@@ -1638,38 +1355,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Monoiofs, typing.Literal["monoiofs"]],
-                /,
-                *,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `monoiofs` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    The Root of this backend.
-                    All operations will happen under this root.
-                    Builder::build will return error if not set.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `monoiofs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
@@ -1818,29 +1503,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Opfs, typing.Literal["opfs"]],
-                /,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `opfs` service.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `opfs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
@@ -1930,46 +1592,6 @@ submit! {
                 -------
                 Operator
                     The new `Operator` for `oss` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Pcloud, typing.Literal["pcloud"]],
-                /,
-                *,
-                endpoint: builtins.str,
-                password: builtins.str = ...,
-                root: builtins.str = ...,
-                username: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `pcloud` service.
-
-                Parameters
-                ----------
-                endpoint : builtins.str
-                    pCloud endpoint address.
-                password : builtins.str, optional
-                    pCloud password.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                username : builtins.str, optional
-                    pCloud username.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `pcloud` service
                 """
         "#
     }
@@ -2566,60 +2188,6 @@ submit! {
         import opendal.services
         class Operator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Surrealdb, typing.Literal["surrealdb"]],
-                /,
-                *,
-                connection_string: builtins.str = ...,
-                database: builtins.str = ...,
-                key_field: builtins.str = ...,
-                namespace: builtins.str = ...,
-                password: builtins.str = ...,
-                root: builtins.str = ...,
-                table: builtins.str = ...,
-                username: builtins.str = ...,
-                value_field: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `surrealdb` service.
-
-                Parameters
-                ----------
-                connection_string : builtins.str, optional
-                    The connection string for surrealdb.
-                database : builtins.str, optional
-                    The database for surrealdb.
-                key_field : builtins.str, optional
-                    The key field for surrealdb.
-                namespace : builtins.str, optional
-                    The namespace for surrealdb.
-                password : builtins.str, optional
-                    The password for surrealdb.
-                root : builtins.str, optional
-                    The root for surrealdb.
-                table : builtins.str, optional
-                    The table for surrealdb.
-                username : builtins.str, optional
-                    The username for surrealdb.
-                value_field : builtins.str, optional
-                    The value field for surrealdb.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `surrealdb` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
@@ -2715,40 +2283,6 @@ submit! {
                 -------
                 Operator
                     The new `Operator` for `vercel-artifacts` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class Operator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.VercelBlob, typing.Literal["vercel-blob"]],
-                /,
-                *,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `Operator` for `vercel-blob` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                token : builtins.str, optional
-                    vercel blob token.
-                Returns
-                -------
-                Operator
-                    The new `Operator` for `vercel-blob` service
                 """
         "#
     }
@@ -3237,84 +2771,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.CloudflareKv, typing.Literal["cloudflare-kv"]],
-                /,
-                *,
-                account_id: builtins.str = ...,
-                api_token: builtins.str = ...,
-                default_ttl: typing.Any = ...,
-                namespace_id: builtins.str = ...,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `cloudflare-kv` service.
-
-                Parameters
-                ----------
-                account_id : builtins.str, optional
-                    The account ID used to authenticate with CloudFlare.
-                    Used as URI path parameter.
-                api_token : builtins.str, optional
-                    The token used to authenticate with CloudFlare.
-                default_ttl : typing.Any, optional
-                    The default ttl for write operations..
-                    a human readable duration string see
-                    https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
-                    for more details
-                namespace_id : builtins.str, optional
-                    The namespace ID.
-                    Used as URI path parameter.
-                root : builtins.str, optional
-                    Root within this backend.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `cloudflare-kv` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Compfs, typing.Literal["compfs"]],
-                /,
-                *,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `compfs` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `compfs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Cos, typing.Literal["cos"]],
                 /,
                 *,
@@ -3364,54 +2820,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.D1, typing.Literal["d1"]],
-                /,
-                *,
-                account_id: builtins.str = ...,
-                database_id: builtins.str = ...,
-                key_field: builtins.str = ...,
-                root: builtins.str = ...,
-                table: builtins.str = ...,
-                token: builtins.str = ...,
-                value_field: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `d1` service.
-
-                Parameters
-                ----------
-                account_id : builtins.str, optional
-                    Set the account id of cloudflare api.
-                database_id : builtins.str, optional
-                    Set the database id of cloudflare api.
-                key_field : builtins.str, optional
-                    Set the key field of D1 Database.
-                root : builtins.str, optional
-                    Set the working directory of OpenDAL.
-                table : builtins.str, optional
-                    Set the table of D1 Database.
-                token : builtins.str, optional
-                    Set the token of cloudflare api.
-                value_field : builtins.str, optional
-                    Set the value field of D1 Database.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `d1` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Dashmap, typing.Literal["dashmap"]],
                 /,
                 *,
@@ -3428,42 +2836,6 @@ submit! {
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `dashmap` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Dbfs, typing.Literal["dbfs"]],
-                /,
-                *,
-                endpoint: builtins.str = ...,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `dbfs` service.
-
-                Parameters
-                ----------
-                endpoint : builtins.str, optional
-                    The endpoint for dbfs.
-                root : builtins.str, optional
-                    The root for dbfs.
-                token : builtins.str, optional
-                    The token for dbfs.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `dbfs` service
                 """
         "#
     }
@@ -3732,53 +3104,6 @@ submit! {
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `ghac` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Github, typing.Literal["github"]],
-                /,
-                *,
-                owner: builtins.str,
-                repo: builtins.str,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `github` service.
-
-                Parameters
-                ----------
-                owner : builtins.str
-                    GitHub repo owner.
-                    required.
-                repo : builtins.str
-                    GitHub repo name.
-                    required.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                token : builtins.str, optional
-                    GitHub access_token.
-                    optional.
-                    If not provided, the backend will only support read
-                    operations for public repositories.
-                    And rate limit will be limited to 60 requests per
-                    hour.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `github` service
                 """
         "#
     }
@@ -4073,58 +3398,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Lakefs, typing.Literal["lakefs"]],
-                /,
-                *,
-                branch: builtins.str = ...,
-                endpoint: builtins.str = ...,
-                password: builtins.str = ...,
-                repository: builtins.str = ...,
-                root: builtins.str = ...,
-                username: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `lakefs` service.
-
-                Parameters
-                ----------
-                branch : builtins.str, optional
-                    Name of the branch or a commit ID.
-                    Default is main.
-                    This is optional.
-                endpoint : builtins.str, optional
-                    Base url.
-                    This is required.
-                password : builtins.str, optional
-                    Password for Lakefs basic authentication.
-                    This is required.
-                repository : builtins.str, optional
-                    The repository name This is required.
-                root : builtins.str, optional
-                    Root of this backend.
-                    Can be "/path/to/dir".
-                    Default is "/".
-                username : builtins.str, optional
-                    Username for Lakefs basic authentication.
-                    This is required.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `lakefs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
@@ -4340,38 +3613,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Monoiofs, typing.Literal["monoiofs"]],
-                /,
-                *,
-                root: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `monoiofs` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    The Root of this backend.
-                    All operations will happen under this root.
-                    Builder::build will return error if not set.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `monoiofs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Mysql, typing.Literal["mysql"]],
                 /,
                 *,
@@ -4520,29 +3761,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Opfs, typing.Literal["opfs"]],
-                /,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `opfs` service.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `opfs` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Oss, typing.Literal["oss"]],
                 /,
                 *,
@@ -4632,46 +3850,6 @@ submit! {
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `oss` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Pcloud, typing.Literal["pcloud"]],
-                /,
-                *,
-                endpoint: builtins.str,
-                password: builtins.str = ...,
-                root: builtins.str = ...,
-                username: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `pcloud` service.
-
-                Parameters
-                ----------
-                endpoint : builtins.str
-                    pCloud endpoint address.
-                password : builtins.str, optional
-                    pCloud password.
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                username : builtins.str, optional
-                    pCloud username.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `pcloud` service
                 """
         "#
     }
@@ -5268,60 +4446,6 @@ submit! {
         import opendal.services
         class AsyncOperator:
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Surrealdb, typing.Literal["surrealdb"]],
-                /,
-                *,
-                connection_string: builtins.str = ...,
-                database: builtins.str = ...,
-                key_field: builtins.str = ...,
-                namespace: builtins.str = ...,
-                password: builtins.str = ...,
-                root: builtins.str = ...,
-                table: builtins.str = ...,
-                username: builtins.str = ...,
-                value_field: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `surrealdb` service.
-
-                Parameters
-                ----------
-                connection_string : builtins.str, optional
-                    The connection string for surrealdb.
-                database : builtins.str, optional
-                    The database for surrealdb.
-                key_field : builtins.str, optional
-                    The key field for surrealdb.
-                namespace : builtins.str, optional
-                    The namespace for surrealdb.
-                password : builtins.str, optional
-                    The password for surrealdb.
-                root : builtins.str, optional
-                    The root for surrealdb.
-                table : builtins.str, optional
-                    The table for surrealdb.
-                username : builtins.str, optional
-                    The username for surrealdb.
-                value_field : builtins.str, optional
-                    The value field for surrealdb.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `surrealdb` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
                 /,
                 *,
@@ -5417,40 +4541,6 @@ submit! {
                 -------
                 AsyncOperator
                     The new `AsyncOperator` for `vercel-artifacts` service
-                """
-        "#
-    }
-}
-
-submit! {
-    gen_methods_from_python! {
-        r#"
-        import builtins
-        import typing
-        import typing_extensions
-        import opendal.services
-        class AsyncOperator:
-            def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.VercelBlob, typing.Literal["vercel-blob"]],
-                /,
-                *,
-                root: builtins.str = ...,
-                token: builtins.str = ...,
-            ) -> typing_extensions.Self:
-                r"""
-                Create a new `AsyncOperator` for `vercel-blob` service.
-
-                Parameters
-                ----------
-                root : builtins.str, optional
-                    root of this backend.
-                    All operations will happen under this root.
-                token : builtins.str, optional
-                    vercel blob token.
-                Returns
-                -------
-                AsyncOperator
-                    The new `AsyncOperator` for `vercel-blob` service
                 """
         "#
     }
@@ -5624,18 +4714,10 @@ impl_enum_from!(
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
-    #[cfg(feature = "services-cloudflare-kv")]
-    CloudflareKv,
-    #[cfg(feature = "services-compfs")]
-    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
-    #[cfg(feature = "services-d1")]
-    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
-    #[cfg(feature = "services-dbfs")]
-    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
@@ -5648,8 +4730,6 @@ impl_enum_from!(
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
-    #[cfg(feature = "services-github")]
-    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -5664,8 +4744,6 @@ impl_enum_from!(
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
-    #[cfg(feature = "services-lakefs")]
-    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -5676,20 +4754,14 @@ impl_enum_from!(
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
-    #[cfg(feature = "services-monoiofs")]
-    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
-    #[cfg(feature = "services-opfs")]
-    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
-    #[cfg(feature = "services-pcloud")]
-    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -5708,16 +4780,12 @@ impl_enum_from!(
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
-    #[cfg(feature = "services-surrealdb")]
-    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
-    #[cfg(feature = "services-vercel-blob")]
-    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -5744,18 +4812,10 @@ impl_enum_from!(
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
-    #[cfg(feature = "services-cloudflare-kv")]
-    CloudflareKv,
-    #[cfg(feature = "services-compfs")]
-    Compfs,
     #[cfg(feature = "services-cos")]
     Cos,
-    #[cfg(feature = "services-d1")]
-    D1,
     #[cfg(feature = "services-dashmap")]
     Dashmap,
-    #[cfg(feature = "services-dbfs")]
-    Dbfs,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
     #[cfg(feature = "services-fs")]
@@ -5768,8 +4828,6 @@ impl_enum_from!(
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
-    #[cfg(feature = "services-github")]
-    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -5784,8 +4842,6 @@ impl_enum_from!(
     Ipmfs,
     #[cfg(feature = "services-koofr")]
     Koofr,
-    #[cfg(feature = "services-lakefs")]
-    Lakefs,
     #[cfg(feature = "services-memcached")]
     Memcached,
     #[cfg(feature = "services-memory")]
@@ -5796,20 +4852,14 @@ impl_enum_from!(
     Moka,
     #[cfg(feature = "services-mongodb")]
     Mongodb,
-    #[cfg(feature = "services-monoiofs")]
-    Monoiofs,
     #[cfg(feature = "services-mysql")]
     Mysql,
     #[cfg(feature = "services-obs")]
     Obs,
     #[cfg(feature = "services-onedrive")]
     Onedrive,
-    #[cfg(feature = "services-opfs")]
-    Opfs,
     #[cfg(feature = "services-oss")]
     Oss,
-    #[cfg(feature = "services-pcloud")]
-    Pcloud,
     #[cfg(feature = "services-persy")]
     Persy,
     #[cfg(feature = "services-postgresql")]
@@ -5828,16 +4878,12 @@ impl_enum_from!(
     Sled,
     #[cfg(feature = "services-sqlite")]
     Sqlite,
-    #[cfg(feature = "services-surrealdb")]
-    Surrealdb,
     #[cfg(feature = "services-swift")]
     Swift,
     #[cfg(feature = "services-upyun")]
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
-    #[cfg(feature = "services-vercel-blob")]
-    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]

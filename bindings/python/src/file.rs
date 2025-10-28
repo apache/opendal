@@ -71,6 +71,11 @@ impl File {
     /// size : int, optional
     ///     The maximum number of bytes to read.
     ///
+    /// Notes
+    /// -----
+    /// Fewer bytes may be returned than requested, read in a loop
+    /// to ensure all bytes are read.
+    ///
     /// Returns
     /// -------
     /// bytes
@@ -469,6 +474,11 @@ impl AsyncFile {
     /// ----------
     /// size : int, optional
     ///     The maximum number of bytes to read.
+    ///
+    /// Notes
+    /// -----
+    /// Fewer bytes may be returned than requested, read in a loop
+    /// to ensure all bytes are read.
     ///
     /// Returns
     /// -------

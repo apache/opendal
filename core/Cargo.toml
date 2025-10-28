@@ -72,9 +72,6 @@ tests = [
   "services-s3",
 ]
 
-# Enable path cache.
-# This is an internal feature, and should not be used by users.
-internal-path-cache = ["dep:moka"]
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
 
@@ -155,7 +152,7 @@ services-gcs = [
   "reqsign?/services-google",
   "reqsign?/reqwest_request",
 ]
-services-gdrive = ["internal-path-cache"]
+services-gdrive = []
 services-ghac = ["dep:ghac", "dep:prost", "services-azblob"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]

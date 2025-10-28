@@ -1354,7 +1354,7 @@ impl AsyncOperator {
     ///     An awaitable that returns an async iterator over the entries.
     #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
-        type_repr="collections.abc.AsyncIterable[opendal.types.Entry]",
+        type_repr="collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]",
         imports=("collections.abc", "opendal.types")
     ))]
     #[pyo3(signature = (path, *,
@@ -1418,7 +1418,7 @@ impl AsyncOperator {
     /// coroutine
     ///     An awaitable that returns an async iterator over the entries.
     #[gen_stub(override_return_type(
-        type_repr="collections.abc.AsyncIterable[opendal.types.Entry]",
+        type_repr="collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]",
         imports=("collections.abc", "opendal.types")
     ))]
     #[gen_stub(skip)]
@@ -1452,7 +1452,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
-    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
+        imports=("collections.abc", "opendal.types")
+    ))]
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
@@ -1485,7 +1488,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
-    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
+        imports=("collections.abc", "opendal.types")
+    ))]
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
@@ -1518,7 +1524,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
-    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
+        imports=("collections.abc", "opendal.types")
+    ))]
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
@@ -1551,7 +1560,10 @@ impl AsyncOperator {
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
-    #[gen_stub(override_return_type(type_repr = "opendal.types.PresignedRequest", imports=("opendal.types")))]
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
+        imports=("collections.abc", "opendal.types")
+    ))]
     pub fn presign_delete<'p>(
         &'p self,
         py: Python<'p>,

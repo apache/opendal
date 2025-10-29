@@ -107,6 +107,11 @@ impl GdriveBuilder {
         self
     }
 
+    /// Include shared files when fetching and listing files
+    pub fn include_shared(mut self, include_files: bool) -> Self {
+        self.config.shared_files = Some(include_files);
+        self
+    }
     /// Specify the http client that used by this service.
     ///
     /// # Notes
@@ -206,6 +211,7 @@ impl Builder for GdriveBuilder {
             core: Arc::new(GdriveCore {
                 info: accessor_info.clone(),
                 root,
+                include_shared_files: self.config.shared_files.unwrap_or_default(),
                 signer: signer.clone(),
                 path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
                     .with_lock(),

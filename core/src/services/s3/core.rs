@@ -275,7 +275,7 @@ impl S3Core {
                     .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
                 Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
             }
-            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5(body.to_bytes().as_ref())),
+            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }
     pub fn insert_checksum_header(

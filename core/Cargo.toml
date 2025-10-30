@@ -109,6 +109,8 @@ layers-await-tree = ["dep:await-tree"]
 layers-async-backtrace = ["dep:async-backtrace"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
+# Enable foyer support.
+layers-foyer = ["dep:foyer"]
 
 services-aliyun-drive = []
 services-alluxio = []
@@ -404,6 +406,8 @@ fastmetrics = { version = "0.4.1", optional = true }
 tracing = { version = "0.1", optional = true }
 # for layers-dtrace
 probe = { version = "0.5.1", optional = true }
+# for layers-foyer
+foyer = { version = "0.18", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }
@@ -426,6 +430,7 @@ opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
+tempfile = "3"
 size = "0.5"
 tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"

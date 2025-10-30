@@ -275,6 +275,7 @@ impl S3Core {
                     .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
                 Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
             }
+            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }
     pub fn insert_checksum_header(
@@ -587,6 +588,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Calculate Checksum.
+        if let Some(checksum) = self.calculate_checksum(&body) {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
 
         // Inject operation to the request.
         req = req.extension(Operation::Write);
@@ -1251,11 +1258,14 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 pub enum ChecksumAlgorithm {
     Crc32c,
+    /// Mapping to the `Content-MD5` header from S3.
+    Md5,
 }
 impl ChecksumAlgorithm {
     pub fn to_header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Md5 => HeaderName::from_static("content-md5"),
         }
     }
 }
@@ -1266,6 +1276,7 @@ impl Display for ChecksumAlgorithm {
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Md5 => "MD5",
             }
         )
     }

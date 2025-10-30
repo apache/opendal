@@ -785,6 +785,7 @@ impl Builder for S3Builder {
 
         let checksum_algorithm = match self.config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
+            Some("md5") => Some(ChecksumAlgorithm::Md5),
             None => None,
             v => {
                 return Err(Error::new(
@@ -1002,7 +1003,6 @@ impl Builder for S3Builder {
                 allow_anonymous: self.config.allow_anonymous,
                 disable_list_objects_v2: self.config.disable_list_objects_v2,
                 enable_request_payer: self.config.enable_request_payer,
-                enable_content_md5: self.config.enable_content_md5,
                 signer,
                 loader,
                 credential_loaded: AtomicBool::new(false),

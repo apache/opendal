@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::YandexDiskBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -41,5 +42,49 @@ impl Debug for YandexDiskConfig {
         ds.field("root", &self.root);
 
         ds.finish()
+    }
+}
+
+impl crate::Configurator for YandexDiskConfig {
+    type Builder = YandexDiskBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        YandexDiskBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_root_and_preserves_token() {
+        let uri = OperatorUri::new(
+            "yandex-disk://disk/root/path",
+            vec![("access_token".to_string(), "secret".to_string())],
+        )
+        .unwrap();
+
+        let cfg = YandexDiskConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("root/path"));
+        assert_eq!(cfg.access_token, "secret".to_string());
     }
 }

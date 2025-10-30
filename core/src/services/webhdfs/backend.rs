@@ -25,6 +25,7 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
+use super::WEBHDFS_SCHEME;
 use super::core::WebhdfsCore;
 use super::delete::WebhdfsDeleter;
 use super::error::parse_error;
@@ -37,21 +38,13 @@ use super::writer::WebhdfsWriters;
 use crate::raw::*;
 use crate::services::WebhdfsConfig;
 use crate::*;
-
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
-
-impl Configurator for WebhdfsConfig {
-    type Builder = WebhdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        WebhdfsBuilder { config: self }
-    }
-}
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct WebhdfsBuilder {
-    config: WebhdfsConfig,
+    pub(super) config: WebhdfsConfig,
 }
 
 impl Debug for WebhdfsBuilder {
@@ -147,7 +140,6 @@ impl WebhdfsBuilder {
 }
 
 impl Builder for WebhdfsBuilder {
-    const SCHEME: Scheme = Scheme::Webhdfs;
     type Config = WebhdfsConfig;
 
     /// build the backend
@@ -181,7 +173,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Webhdfs)
+        info.set_scheme(WEBHDFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -311,7 +303,7 @@ impl Access for WebhdfsBackend {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                     FileStatusType::File => Metadata::new(EntryMode::FILE)
                         .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        .with_last_modified(Timestamp::from_millisecond(
                             file_status.modification_time,
                         )?),
                 };

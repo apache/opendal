@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::raw::*;
@@ -31,7 +32,8 @@ impl OperatorInfo {
 
     /// [`Scheme`] of operator.
     pub fn scheme(&self) -> Scheme {
-        self.0.scheme()
+        let scheme_str = self.0.scheme();
+        Scheme::from_str(scheme_str).unwrap_or(Scheme::Custom(scheme_str))
     }
 
     /// Root of operator, will be in format like `/path/to/dir/`

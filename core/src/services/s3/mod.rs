@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-s3")]
+/// Default scheme for s3 service.
+pub const S3_SCHEME: &str = "s3";
 mod core;
-#[cfg(feature = "services-s3")]
 mod delete;
-#[cfg(feature = "services-s3")]
 mod error;
-#[cfg(feature = "services-s3")]
 mod lister;
-#[cfg(feature = "services-s3")]
 mod writer;
 
-#[cfg(feature = "services-s3")]
 mod backend;
-#[cfg(feature = "services-s3")]
 pub use backend::S3Builder as S3;
 
 mod config;

@@ -17,12 +17,8 @@
 
 //! Options module provides options definitions for operations.
 
+use crate::raw::{BytesRange, Timestamp};
 use std::collections::HashMap;
-
-use chrono::DateTime;
-use chrono::Utc;
-
-use crate::raw::BytesRange;
 
 /// Options for delete operations.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -108,14 +104,14 @@ pub struct ReadOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -192,14 +188,14 @@ pub struct ReaderOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -231,6 +227,20 @@ pub struct ReaderOptions {
     ///
     /// Refer to [`crate::docs::performance`] for more details.
     pub gap: Option<usize>,
+    /// Controls the number of prefetched bytes ranges that can be buffered in memory
+    /// during concurrent reading.
+    ///
+    /// When performing concurrent reads with `Reader`, this option limits how many
+    /// completed-but-not-yet-read chunks can be buffered. Once the number of buffered
+    /// chunks reaches this limit, no new read tasks will be spawned until some of the
+    /// buffered chunks are consumed.
+    ///
+    /// - Default value: 0 (no prefetching, strict back-pressure control)
+    /// - Set to a higher value to allow more aggressive prefetching at the cost of memory
+    ///
+    /// This option helps prevent memory exhaustion when reading large files with high
+    /// concurrency settings.
+    pub prefetch: usize,
 }
 
 /// Options for stat operations.
@@ -263,14 +273,14 @@ pub struct StatOptions {
     ///
     /// If file exists and it hasn't been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_modified_since: Option<DateTime<Utc>>,
+    pub if_modified_since: Option<Timestamp>,
     /// Set `if_unmodified_since` for this operation.
     ///
     /// This feature can be used to check if the file hasn't been modified since the given timestamp.
     ///
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
-    pub if_unmodified_since: Option<DateTime<Utc>>,
+    pub if_unmodified_since: Option<Timestamp>,
 
     /// Specify the content-type header that should be sent back by the operation.
     ///
@@ -511,4 +521,24 @@ pub struct WriteOptions {
     /// - Lower operation costs
     /// - Better utilize network bandwidth
     pub chunk: Option<usize>,
+}
+
+/// Options for copy operations.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct CopyOptions {
+    /// Sets the condition that copy operation will succeed only if target does not exist.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_with_if_not_exists`] before using this feature.
+    ///
+    /// ### Behavior
+    ///
+    /// - If supported, the copy operation will only succeed if the target path does not exist
+    /// - Will return error if target already exists
+    /// - If not supported, the value will be ignored
+    ///
+    /// This operation provides a way to ensure copy operations only create new resources
+    /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
+    pub if_not_exists: bool,
 }

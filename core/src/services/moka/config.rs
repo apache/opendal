@@ -17,8 +17,8 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::time::Duration;
 
+use super::backend::MokaBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -36,11 +36,11 @@ pub struct MokaConfig {
     /// Sets the time to live of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
-    pub time_to_live: Option<Duration>,
+    pub time_to_live: Option<String>,
     /// Sets the time to idle of the cache.
     ///
     /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)
-    pub time_to_idle: Option<Duration>,
+    pub time_to_idle: Option<String>,
 
     /// root path of this backend
     pub root: Option<String>,
@@ -55,5 +55,49 @@ impl Debug for MokaConfig {
             .field("time_to_idle", &self.time_to_idle)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for MokaConfig {
+    type Builder = MokaBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.option("name") {
+            map.insert("name".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        MokaBuilder {
+            config: self,
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_name_and_root() {
+        let uri =
+            OperatorUri::new("moka:///cache?name=session", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = MokaConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name.as_deref(), Some("session"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

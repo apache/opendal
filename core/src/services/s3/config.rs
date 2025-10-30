@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::S3Builder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,6 +36,7 @@ pub struct S3Config {
     /// bucket name of this backend.
     ///
     /// required.
+    #[serde(alias = "aws_bucket", alias = "aws_bucket_name", alias = "bucket_name")]
     pub bucket: String,
     /// is bucket versioning enabled for this bucket
     pub enable_versioning: bool,
@@ -54,6 +56,11 @@ pub struct S3Config {
     /// - If endpoint is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
     /// - If still not set, default to `https://s3.amazonaws.com`.
+    #[serde(
+        alias = "aws_endpoint",
+        alias = "aws_endpoint_url",
+        alias = "endpoint_url"
+    )]
     pub endpoint: Option<String>,
     /// Region represent the signing region of this endpoint. This is required
     /// if you are using the default AWS S3 endpoint.
@@ -61,22 +68,26 @@ pub struct S3Config {
     /// If using a custom endpoint,
     /// - If region is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
+    #[serde(alias = "aws_region")]
     pub region: Option<String>,
 
     /// access_key_id of this backend.
     ///
     /// - If access_key_id is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
+    #[serde(alias = "aws_access_key_id")]
     pub access_key_id: Option<String>,
     /// secret_access_key of this backend.
     ///
     /// - If secret_access_key is set, we will take user's input first.
     /// - If not, we will try to load it from environment.
+    #[serde(alias = "aws_secret_access_key")]
     pub secret_access_key: Option<String>,
     /// session_token (aka, security token) of this backend.
     ///
     /// This token will expire after sometime, it's recommended to set session_token
     /// by hand.
+    #[serde(alias = "aws_session_token", alias = "aws_token", alias = "token")]
     pub session_token: Option<String>,
     /// role_arn for this backend.
     ///
@@ -106,6 +117,7 @@ pub struct S3Config {
     /// server_side_encryption for this backend.
     ///
     /// Available values: `AES256`, `aws:kms`.
+    #[serde(alias = "aws_server_side_encryption")]
     pub server_side_encryption: Option<String>,
     /// server_side_encryption_aws_kms_key_id for this backend
     ///
@@ -117,6 +129,7 @@ pub struct S3Config {
     ///   returned.
     /// - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id`
     ///   is a noop.
+    #[serde(alias = "aws_sse_kms_key_id")]
     pub server_side_encryption_aws_kms_key_id: Option<String>,
     /// server_side_encryption_customer_algorithm for this backend.
     ///
@@ -126,6 +139,7 @@ pub struct S3Config {
     ///
     /// Value: BASE64-encoded key that matches algorithm specified in
     /// `server_side_encryption_customer_algorithm`.
+    #[serde(alias = "aws_sse_customer_key_base64")]
     pub server_side_encryption_customer_key: Option<String>,
     /// Set server_side_encryption_customer_key_md5 for this backend.
     ///
@@ -152,6 +166,10 @@ pub struct S3Config {
     ///
     /// - By default, opendal will send API to `https://s3.us-east-1.amazonaws.com/bucket_name`
     /// - Enabled, opendal will send API to `https://bucket_name.s3.us-east-1.amazonaws.com`
+    #[serde(
+        alias = "aws_virtual_hosted_style_request",
+        alias = "virtual_hosted_style_request"
+    )]
     pub enable_virtual_host_style: bool,
     /// Set maximum batch operations of this backend.
     ///
@@ -180,6 +198,7 @@ pub struct S3Config {
     ///
     /// Available options:
     /// - "crc32c"
+    #[serde(alias = "aws_checksum_algorithm")]
     pub checksum_algorithm: Option<String>,
     /// Disable write with if match so that opendal will not send write request with if match headers.
     ///
@@ -195,6 +214,7 @@ pub struct S3Config {
     pub disable_list_objects_v2: bool,
 
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
+    #[serde(alias = "aws_request_payer", alias = "request_payer")]
     pub enable_request_payer: bool,
 }
 
@@ -208,5 +228,143 @@ impl Debug for S3Config {
             .field("region", &self.region);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for S3Config {
+    type Builder = S3Builder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        S3Builder {
+            config: self,
+            customized_credential_load: None,
+
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn test_s3_config_original_field_names() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "access_key_id": "test-key",
+            "secret_access_key": "test-secret",
+            "region": "us-west-2",
+            "endpoint": "https://s3.amazonaws.com",
+            "session_token": "test-token"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.access_key_id, Some("test-key".to_string()));
+        assert_eq!(config.secret_access_key, Some("test-secret".to_string()));
+        assert_eq!(config.region, Some("us-west-2".to_string()));
+        assert_eq!(
+            config.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
+        assert_eq!(config.session_token, Some("test-token".to_string()));
+    }
+
+    #[test]
+    fn test_s3_config_aws_prefixed_aliases() {
+        let json = r#"{
+            "aws_bucket": "test-bucket",
+            "aws_access_key_id": "test-key",
+            "aws_secret_access_key": "test-secret",
+            "aws_region": "us-west-2",
+            "aws_endpoint": "https://s3.amazonaws.com",
+            "aws_session_token": "test-token"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.access_key_id, Some("test-key".to_string()));
+        assert_eq!(config.secret_access_key, Some("test-secret".to_string()));
+        assert_eq!(config.region, Some("us-west-2".to_string()));
+        assert_eq!(
+            config.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
+        assert_eq!(config.session_token, Some("test-token".to_string()));
+    }
+
+    #[test]
+    fn test_s3_config_additional_aliases() {
+        let json = r#"{
+            "bucket_name": "test-bucket",
+            "token": "test-token",
+            "endpoint_url": "https://s3.amazonaws.com",
+            "virtual_hosted_style_request": true,
+            "aws_checksum_algorithm": "crc32c",
+            "request_payer": true
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.session_token, Some("test-token".to_string()));
+        assert_eq!(
+            config.endpoint,
+            Some("https://s3.amazonaws.com".to_string())
+        );
+        assert!(config.enable_virtual_host_style);
+        assert_eq!(config.checksum_algorithm, Some("crc32c".to_string()));
+        assert!(config.enable_request_payer);
+    }
+
+    #[test]
+    fn test_s3_config_encryption_aliases() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "aws_server_side_encryption": "aws:kms",
+            "aws_sse_kms_key_id": "test-kms-key",
+            "aws_sse_customer_key_base64": "dGVzdC1jdXN0b21lci1rZXk="
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.server_side_encryption, Some("aws:kms".to_string()));
+        assert_eq!(
+            config.server_side_encryption_aws_kms_key_id,
+            Some("test-kms-key".to_string())
+        );
+        assert_eq!(
+            config.server_side_encryption_customer_key,
+            Some("dGVzdC1jdXN0b21lci1rZXk=".to_string())
+        );
+    }
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "s3://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = S3Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

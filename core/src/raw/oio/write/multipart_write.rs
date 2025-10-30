@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use futures::select;
 use futures::Future;
 use futures::FutureExt;
+use futures::select;
 
 use crate::raw::*;
 use crate::*;
@@ -158,7 +158,7 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             cache: None,
             next_part_number: 0,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
                 Box::pin({
                     async move {
                         let fut = input.w.write_part(
@@ -310,9 +310,9 @@ mod tests {
     use std::time::Duration;
 
     use pretty_assertions::assert_eq;
-    use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::thread_rng;
     use tokio::sync::Mutex;
     use tokio::time::sleep;
     use tokio::time::timeout;

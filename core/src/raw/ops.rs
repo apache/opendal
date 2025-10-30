@@ -19,14 +19,10 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::collections::HashMap;
-use std::time::Duration;
-
-use chrono::DateTime;
-use chrono::Utc;
-
 use crate::options;
 use crate::raw::*;
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -312,8 +308,8 @@ pub struct OpRead {
     range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -399,24 +395,24 @@ impl OpRead {
     }
 
     /// Set the If-Modified-Since of the option
-    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_modified_since(mut self, v: Timestamp) -> Self {
         self.if_modified_since = Some(v);
         self
     }
 
     /// Get If-Modified-Since from option
-    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_modified_since(&self) -> Option<Timestamp> {
         self.if_modified_since
     }
 
     /// Set the If-Unmodified-Since of the option
-    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_unmodified_since(mut self, v: Timestamp) -> Self {
         self.if_unmodified_since = Some(v);
         self
     }
 
     /// Get If-Unmodified-Since from option
-    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_unmodified_since(&self) -> Option<Timestamp> {
         self.if_unmodified_since
     }
 
@@ -441,6 +437,8 @@ pub struct OpReader {
     chunk: Option<usize>,
     /// The gap size of each request.
     gap: Option<usize>,
+    /// The maximum number of buffers that can be prefetched.
+    prefetch: usize,
 }
 
 impl Default for OpReader {
@@ -449,6 +447,7 @@ impl Default for OpReader {
             concurrent: 1,
             chunk: None,
             gap: None,
+            prefetch: 0,
         }
     }
 }
@@ -491,6 +490,17 @@ impl OpReader {
     pub fn gap(&self) -> Option<usize> {
         self.gap
     }
+
+    /// Set the prefetch of the option
+    pub fn with_prefetch(mut self, prefetch: usize) -> Self {
+        self.prefetch = prefetch;
+        self
+    }
+
+    /// Get prefetch from option
+    pub fn prefetch(&self) -> usize {
+        self.prefetch
+    }
 }
 
 impl From<options::ReadOptions> for (OpRead, OpReader) {
@@ -512,6 +522,7 @@ impl From<options::ReadOptions> for (OpRead, OpReader) {
                 concurrent: value.concurrent.max(1),
                 chunk: value.chunk,
                 gap: value.gap,
+                prefetch: 0,
             },
         )
     }
@@ -536,6 +547,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 concurrent: value.concurrent.max(1),
                 chunk: value.chunk,
                 gap: value.gap,
+                prefetch: value.prefetch,
             },
         )
     }
@@ -546,8 +558,8 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -583,24 +595,24 @@ impl OpStat {
     }
 
     /// Set the If-Modified-Since of the option
-    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_modified_since(mut self, v: Timestamp) -> Self {
         self.if_modified_since = Some(v);
         self
     }
 
     /// Get If-Modified-Since from option
-    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_modified_since(&self) -> Option<Timestamp> {
         self.if_modified_since
     }
 
     /// Set the If-Unmodified-Since of the option
-    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_unmodified_since(mut self, v: Timestamp) -> Self {
         self.if_unmodified_since = Some(v);
         self
     }
 
     /// Get If-Unmodified-Since from option
-    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_unmodified_since(&self) -> Option<Timestamp> {
         self.if_unmodified_since
     }
 
@@ -864,12 +876,28 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 
 /// Args for `copy` operation.
 #[derive(Debug, Clone, Default)]
-pub struct OpCopy {}
+pub struct OpCopy {
+    if_not_exists: bool,
+}
 
 impl OpCopy {
     /// Create a new `OpCopy`.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Set the if_not_exists flag for the operation.
+    ///
+    /// When set to true, the copy operation will only proceed if the destination
+    /// doesn't already exist.
+    pub fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    /// Get if_not_exists flag.
+    pub fn if_not_exists(&self) -> bool {
+        self.if_not_exists
     }
 }
 

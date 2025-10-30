@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use compio::buf::buf_try;
 use compio::buf::IntoInner;
 use compio::buf::IoBuf;
+use compio::buf::buf_try;
 use compio::io::AsyncReadAt;
 
 use super::core::CompfsCore;

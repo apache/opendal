@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-koofr")]
+/// Default scheme for koofr service.
+pub(super) const KOOFR_SCHEME: &str = "koofr";
 mod core;
-#[cfg(feature = "services-koofr")]
 mod delete;
-#[cfg(feature = "services-koofr")]
 mod error;
-#[cfg(feature = "services-koofr")]
 mod lister;
-#[cfg(feature = "services-koofr")]
 mod writer;
 
-#[cfg(feature = "services-koofr")]
 mod backend;
-#[cfg(feature = "services-koofr")]
 pub use backend::KoofrBuilder as Koofr;
 
 mod config;

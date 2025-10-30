@@ -24,7 +24,7 @@ class OpenDalTest < ActiveSupport::TestCase
   setup do
     @root = Dir.mktmpdir
     File.write("#{@root}/sample", "Sample data for testing")
-    @op = OpenDAL::Operator.new("fs", {"root" => @root})
+    @op = OpenDal::Operator.new("fs", {"root" => @root})
   end
 
   teardown do
@@ -53,7 +53,7 @@ class OpenDalTest < ActiveSupport::TestCase
   test "stat returns file metadata" do
     stat = @op.stat("sample")
 
-    assert stat.is_a?(OpenDAL::Metadata)
+    assert stat.is_a?(OpenDal::Metadata)
     assert_equal 23, stat.content_length
     assert stat.file?
   end
@@ -105,8 +105,8 @@ class OpenDalTest < ActiveSupport::TestCase
   end
 
   test "middleware applies a middleware" do
-    @op.middleware(OpenDAL::RetryMiddleware.new)
+    @op.middleware(OpenDal::Middleware::Retry.new)
 
-    assert @op.is_a?(OpenDAL::Operator)
+    assert @op.is_a?(OpenDal::Operator)
   end
 end

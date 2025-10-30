@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-upyun")]
+/// Default scheme for upyun service.
+pub const UPYUN_SCHEME: &str = "upyun";
 mod core;
-#[cfg(feature = "services-upyun")]
 mod delete;
-#[cfg(feature = "services-upyun")]
 mod error;
-#[cfg(feature = "services-upyun")]
 mod lister;
-#[cfg(feature = "services-upyun")]
 mod writer;
 
-#[cfg(feature = "services-upyun")]
 mod backend;
-#[cfg(feature = "services-upyun")]
 pub use backend::UpyunBuilder as Upyun;
 
 mod config;

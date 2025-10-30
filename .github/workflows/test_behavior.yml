@@ -36,7 +36,7 @@ jobs:
       plan: ${{ steps.plan.outputs.plan }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # fetch depth set to 0 to make sure we have correct diff result.
           fetch-depth: 0
@@ -58,7 +58,8 @@ jobs:
             fi
           elif [ "$event_name" == "pull_request" ]; then
             pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
-            if [ "$pr_head_repo_fork" != "true" ]; then
+            # Only expose secrets for main repo and non-dependabot runs to mitigate security risks
+            if [ "$pr_head_repo_fork" != "true" ] && [ "${{ github.actor }}" != "dependabot[bot]" ]; then
               has_secrets="true"
             fi
 
@@ -161,18 +162,20 @@ jobs:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
 
-  test_bin_ofs:
-    name: bin_ofs / ${{ matrix.os }}
-    needs: [plan]
-    if: fromJson(needs.plan.outputs.plan).components.bin_ofs
+  test_binding_cpp:
+    name: binding_cpp / ${{ matrix.os }}
+    needs: [ plan ]
+    if: fromJson(needs.plan.outputs.plan).components.binding_cpp
     secrets: inherit
     strategy:
+      fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.plan.outputs.plan).bin_ofs }}
-    uses: ./.github/workflows/test_behavior_bin_ofs.yml
+        include: ${{ fromJson(needs.plan.outputs.plan).binding_cpp }}
+    uses: ./.github/workflows/test_behavior_binding_cpp.yml
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
 
   test_integration_object_store:
     name: integration_object_store / ${{ matrix.os }}

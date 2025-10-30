@@ -24,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::WEBDAV_SCHEME;
 use super::core::*;
 use super::delete::WebdavDeleter;
 use super::error::parse_error;
@@ -33,26 +34,14 @@ use crate::raw::*;
 use crate::services::WebdavConfig;
 use crate::*;
 
-impl Configurator for WebdavConfig {
-    type Builder = WebdavBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        WebdavBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct WebdavBuilder {
-    config: WebdavConfig,
+    pub(super) config: WebdavConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for WebdavBuilder {
@@ -135,7 +124,6 @@ impl WebdavBuilder {
 }
 
 impl Builder for WebdavBuilder {
-    const SCHEME: Scheme = Scheme::Webdav;
     type Config = WebdavConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -176,7 +164,7 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Webdav)
+                am.set_scheme(WEBDAV_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,

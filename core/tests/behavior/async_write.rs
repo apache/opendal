@@ -19,12 +19,12 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use bytes::Bytes;
-use futures::io::BufReader;
-use futures::io::Cursor;
-use futures::stream;
 use futures::AsyncWriteExt;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::io::BufReader;
+use futures::io::Cursor;
+use futures::stream;
 use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
@@ -116,7 +116,9 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
     if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
+        warn!(
+            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
+        );
         return Ok(());
     }
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.

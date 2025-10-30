@@ -23,14 +23,14 @@ use http::StatusCode;
 use log::debug;
 use sha2::Digest;
 
+use super::GHAC_SCHEME;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
-use crate::services::ghac::core::GhacCore;
 use crate::services::GhacConfig;
+use crate::services::ghac::core::GhacCore;
 use crate::*;
-
 fn value_or_env(
     explicit_value: Option<String>,
     env_var_name: &str,
@@ -48,26 +48,14 @@ fn value_or_env(
     })
 }
 
-impl Configurator for GhacConfig {
-    type Builder = GhacBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GhacBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// GitHub Action Cache Services support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct GhacBuilder {
-    config: GhacConfig,
+    pub(super) config: GhacConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl GhacBuilder {
@@ -136,7 +124,6 @@ impl GhacBuilder {
 }
 
 impl Builder for GhacBuilder {
-    const SCHEME: Scheme = Scheme::Ghac;
     type Config = GhacConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -174,7 +161,7 @@ impl Builder for GhacBuilder {
         let core = GhacCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(Scheme::Ghac)
+                am.set_scheme(GHAC_SCHEME)
                     .set_root(&root)
                     .set_name(&version)
                     .set_native_capability(Capability {

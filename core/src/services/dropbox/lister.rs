@@ -95,7 +95,7 @@ impl oio::PageList for DropboxLister {
 
             // The behavior here aligns with Dropbox's stat function.
             if entry_mode == EntryMode::FILE {
-                let date_utc_last_modified = parse_datetime_from_rfc3339(&entry.client_modified)?;
+                let date_utc_last_modified = entry.client_modified.parse::<Timestamp>()?;
                 meta.set_last_modified(date_utc_last_modified);
 
                 if let Some(size) = entry.size {

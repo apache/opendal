@@ -22,6 +22,7 @@ use std::sync::Arc;
 use http::Response;
 use log::debug;
 
+use super::ALLUXIO_SCHEME;
 use super::core::AlluxioCore;
 use super::delete::AlluxioDeleter;
 use super::error::parse_error;
@@ -32,26 +33,14 @@ use crate::raw::*;
 use crate::services::AlluxioConfig;
 use crate::*;
 
-impl Configurator for AlluxioConfig {
-    type Builder = AlluxioBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AlluxioBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// [Alluxio](https://www.alluxio.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AlluxioBuilder {
-    config: AlluxioConfig,
+    pub(super) config: AlluxioConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AlluxioBuilder {
@@ -104,7 +93,6 @@ impl AlluxioBuilder {
 }
 
 impl Builder for AlluxioBuilder {
-    const SCHEME: Scheme = Scheme::Alluxio;
     type Config = AlluxioConfig;
 
     /// Builds the backend and returns the result of AlluxioBackend.
@@ -126,7 +114,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Alluxio)
+                    am.set_scheme(ALLUXIO_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

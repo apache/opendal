@@ -15,14 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-http")]
+/// Default scheme for http service.
+pub(super) const HTTP_SCHEME: &str = "http";
 mod error;
 
-#[cfg(feature = "services-http")]
 mod backend;
-#[cfg(feature = "services-http")]
 mod core;
-#[cfg(feature = "services-http")]
 pub use backend::HttpBuilder as Http;
 
 mod config;

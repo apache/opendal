@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-sqlite")]
 mod backend;
-#[cfg(feature = "services-sqlite")]
 pub use backend::SqliteBuilder as Sqlite;
 
 mod config;
 pub use config::SqliteConfig;
+
+#[cfg(feature = "services-sqlite")]
+mod core;
+#[cfg(feature = "services-sqlite")]
+mod delete;
+#[cfg(feature = "services-sqlite")]
+mod writer;

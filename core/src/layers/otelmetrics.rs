@@ -17,11 +17,11 @@
 
 use std::time::Duration;
 
+use opentelemetry::KeyValue;
 use opentelemetry::metrics::Counter;
 use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
-use opentelemetry::KeyValue;
 
 use crate::layers::observe;
 use crate::raw::*;
@@ -432,7 +432,7 @@ impl OtelMetricsInterceptor {
         let mut attributes = Vec::with_capacity(6);
 
         attributes.extend([
-            KeyValue::new(observe::LABEL_SCHEME, attrs.scheme.into_static()),
+            KeyValue::new(observe::LABEL_SCHEME, attrs.scheme),
             KeyValue::new(observe::LABEL_NAMESPACE, attrs.namespace),
             KeyValue::new(observe::LABEL_ROOT, attrs.root),
             KeyValue::new(observe::LABEL_OPERATION, attrs.operation),

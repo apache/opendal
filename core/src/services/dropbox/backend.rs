@@ -87,7 +87,7 @@ impl Access for DropboxBackend {
                 // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
                 if entry_mode == EntryMode::FILE {
                     let date_utc_last_modified =
-                        parse_datetime_from_rfc3339(&decoded_response.client_modified)?;
+                        decoded_response.client_modified.parse::<Timestamp>()?;
                     metadata.set_last_modified(date_utc_last_modified);
 
                     if let Some(size) = decoded_response.size {

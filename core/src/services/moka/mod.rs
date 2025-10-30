@@ -15,23 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-moka")]
+/// Default scheme for moka service.
+pub(super) const MOKA_SCHEME: &str = "moka";
 mod backend;
-#[cfg(feature = "services-moka")]
 mod core;
-#[cfg(feature = "services-moka")]
 mod delete;
-#[cfg(feature = "services-moka")]
 mod lister;
-#[cfg(feature = "services-moka")]
 mod writer;
 
-#[cfg(feature = "services-moka")]
 pub use backend::MokaBuilder as Moka;
-#[cfg(feature = "services-moka")]
 pub use backend::MokaCacheBuilder;
 
-#[cfg(feature = "services-moka")]
 pub use core::MokaValue;
 
 mod config;

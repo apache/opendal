@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-lakefs")]
+/// Default scheme for lakefs service.
+pub(super) const LAKEFS_SCHEME: &str = "lakefs";
 mod core;
-#[cfg(feature = "services-lakefs")]
 mod delete;
-#[cfg(feature = "services-lakefs")]
 mod error;
-#[cfg(feature = "services-lakefs")]
 mod lister;
-#[cfg(feature = "services-lakefs")]
 mod writer;
 
-#[cfg(feature = "services-lakefs")]
 mod backend;
-#[cfg(feature = "services-lakefs")]
 pub use backend::LakefsBuilder as Lakefs;
 
 mod config;

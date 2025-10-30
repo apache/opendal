@@ -24,6 +24,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::YANDEX_DISK_SCHEME;
 use super::core::*;
 use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
@@ -34,26 +35,14 @@ use crate::raw::*;
 use crate::services::YandexDiskConfig;
 use crate::*;
 
-impl Configurator for YandexDiskConfig {
-    type Builder = YandexDiskBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        YandexDiskBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct YandexDiskBuilder {
-    config: YandexDiskConfig,
+    pub(super) config: YandexDiskConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for YandexDiskBuilder {
@@ -104,7 +93,6 @@ impl YandexDiskBuilder {
 }
 
 impl Builder for YandexDiskBuilder {
-    const SCHEME: Scheme = Scheme::YandexDisk;
     type Config = YandexDiskConfig;
 
     /// Builds the backend and returns the result of YandexDiskBackend.
@@ -127,7 +115,7 @@ impl Builder for YandexDiskBuilder {
             core: Arc::new(YandexDiskCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::YandexDisk)
+                    am.set_scheme(YANDEX_DISK_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

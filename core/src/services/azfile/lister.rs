@@ -77,7 +77,7 @@ impl oio::PageList for AzfileLister {
             let meta = Metadata::new(EntryMode::FILE)
                 .with_etag(file.properties.etag)
                 .with_content_length(file.properties.content_length.unwrap_or(0))
-                .with_last_modified(parse_datetime_from_rfc2822(&file.properties.last_modified)?);
+                .with_last_modified(Timestamp::parse_rfc2822(&file.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &file.name;
             ctx.entries.push_back(oio::Entry::new(&path, meta));
         }
@@ -85,7 +85,7 @@ impl oio::PageList for AzfileLister {
         for dir in results.entries.directory {
             let meta = Metadata::new(EntryMode::DIR)
                 .with_etag(dir.properties.etag)
-                .with_last_modified(parse_datetime_from_rfc2822(&dir.properties.last_modified)?);
+                .with_last_modified(Timestamp::parse_rfc2822(&dir.properties.last_modified)?);
             let path = self.path.clone().trim_start_matches('/').to_string() + &dir.name + "/";
             ctx.entries.push_back(oio::Entry::new(&path, meta));
         }

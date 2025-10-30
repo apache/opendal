@@ -15,20 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-hdfs-native")]
+/// Default scheme for hdfs_native service.
+pub(super) const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
+mod core;
 mod delete;
-#[cfg(feature = "services-hdfs-native")]
 mod error;
-#[cfg(feature = "services-hdfs-native")]
 mod lister;
-#[cfg(feature = "services-hdfs-native")]
 mod reader;
-#[cfg(feature = "services-hdfs-native")]
 mod writer;
 
-#[cfg(feature = "services-hdfs-native")]
 mod backend;
-#[cfg(feature = "services-hdfs-native")]
 pub use backend::HdfsNativeBuilder as HdfsNative;
 
 mod config;

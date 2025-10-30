@@ -252,11 +252,11 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::raw::oio;
     use crate::Capability;
     use crate::EntryMode;
     use crate::Metadata;
     use crate::Operator;
+    use crate::raw::oio;
 
     #[derive(Debug)]
     struct MockService {
@@ -271,6 +271,7 @@ mod tests {
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();
+            info.set_scheme("memory");
             info.set_native_capability(self.capability);
 
             info.into()
@@ -398,7 +399,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-             "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
+            "Unsupported (permanent) at write, context: { hint: use if_not_exists instead } => The service memory does not support the operation write with the arguments if_none_match. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
         );
 
         let res = op

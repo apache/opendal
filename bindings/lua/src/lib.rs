@@ -20,8 +20,8 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use ::opendal as od;
-use mlua::prelude::*;
 use mlua::UserData;
+use mlua::prelude::*;
 
 static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -233,7 +233,7 @@ fn operator_stat<'a>(
 }
 
 #[mlua::lua_module]
-fn opendal(lua: &Lua) -> LuaResult<LuaTable> {
+fn opendal(lua: &Lua) -> LuaResult<LuaTable<'_>> {
     let exports = lua.create_table()?;
     let operator = lua.create_table()?;
     operator.set("new", lua.create_function(operator_new)?)?;

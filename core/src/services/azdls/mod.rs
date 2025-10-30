@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-azdls")]
+/// Default scheme for azdls service.
+pub(super) const AZDLS_SCHEME: &str = "azdls";
 mod backend;
-#[cfg(feature = "services-azdls")]
 mod core;
-#[cfg(feature = "services-azdls")]
 mod delete;
-#[cfg(feature = "services-azdls")]
 mod error;
-#[cfg(feature = "services-azdls")]
 mod lister;
-#[cfg(feature = "services-azdls")]
 mod writer;
 
-#[cfg(feature = "services-azdls")]
 pub use backend::AzdlsBuilder as Azdls;
 
 mod config;

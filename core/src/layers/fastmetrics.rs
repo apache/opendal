@@ -25,10 +25,10 @@ use fastmetrics::metrics::family::Family;
 use fastmetrics::metrics::family::MetricFactory;
 use fastmetrics::metrics::gauge::Gauge;
 use fastmetrics::metrics::histogram::Histogram;
-use fastmetrics::registry::with_global_registry_mut;
 use fastmetrics::registry::Register;
 use fastmetrics::registry::Registry;
 use fastmetrics::registry::RegistryError;
+use fastmetrics::registry::with_global_registry_mut;
 
 use crate::layers::observe;
 use crate::raw::*;
@@ -508,7 +508,7 @@ struct OperationLabels {
 
 impl EncodeLabelSet for OperationLabels {
     fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> fmt::Result {
-        encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme.into_static()))?;
+        encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme))?;
         encoder.encode(&(observe::LABEL_NAMESPACE, self.labels.namespace.as_ref()))?;
         if !self.disable_label_root {
             encoder.encode(&(observe::LABEL_ROOT, self.labels.root.as_ref()))?;

@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-gcs")]
+/// Default scheme for gcs service.
+pub const GCS_SCHEME: &str = "gcs";
 mod core;
-#[cfg(feature = "services-gcs")]
 mod delete;
-#[cfg(feature = "services-gcs")]
 mod error;
-#[cfg(feature = "services-gcs")]
 mod lister;
-#[cfg(feature = "services-gcs")]
 mod uri;
-#[cfg(feature = "services-gcs")]
 mod writer;
 
-#[cfg(feature = "services-gcs")]
 mod backend;
-#[cfg(feature = "services-gcs")]
 pub use backend::GcsBuilder as Gcs;
 
 mod config;

@@ -23,6 +23,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::SWIFT_SCHEME;
 use super::core::*;
 use super::delete::SwfitDeleter;
 use super::error::parse_error;
@@ -32,20 +33,13 @@ use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
 
-impl Configurator for SwiftConfig {
-    type Builder = SwiftBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SwiftBuilder { config: self }
-    }
-}
-
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default, Clone)]
 pub struct SwiftBuilder {
-    config: SwiftConfig,
+    pub(super) config: SwiftConfig,
 }
 
 impl Debug for SwiftBuilder {
@@ -113,7 +107,6 @@ impl SwiftBuilder {
 }
 
 impl Builder for SwiftBuilder {
-    const SCHEME: Scheme = Scheme::Swift;
     type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
@@ -156,7 +149,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Swift)
+                    am.set_scheme(SWIFT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

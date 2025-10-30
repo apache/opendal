@@ -20,8 +20,7 @@ use http::Response;
 use http::StatusCode;
 use serde_json::de;
 
-use super::model::D1Error;
-use super::model::D1Response;
+use super::model::*;
 use crate::raw::*;
 use crate::*;
 

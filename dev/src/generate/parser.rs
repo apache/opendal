@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use anyhow::{anyhow, Context};
-use anyhow::{bail, Result};
+use anyhow::{Context, anyhow};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -35,10 +35,11 @@ pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
             continue;
         }
 
-        let mut sorted = srv.config.into_iter().enumerate().collect::<Vec<_>>();
-        sorted.sort_by_key(|(i, v)| (v.optional, *i));
-        let config = sorted.into_iter().map(|(_, v)| v).collect();
-        srvs.insert(k, Service { config });
+        // Sort configs by name (lexicographically)
+        let mut sorted = srv.config;
+        sorted.sort_by(|a, b| a.name.cmp(&b.name));
+
+        srvs.insert(k, Service { config: sorted });
     }
     srvs
 }

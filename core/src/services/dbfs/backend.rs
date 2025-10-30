@@ -24,6 +24,7 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
+use super::DBFS_SCHEME;
 use super::core::DbfsCore;
 use super::delete::DbfsDeleter;
 use super::error::parse_error;
@@ -33,18 +34,11 @@ use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
 
-impl Configurator for DbfsConfig {
-    type Builder = DbfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DbfsBuilder { config: self }
-    }
-}
-
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct DbfsBuilder {
-    config: DbfsConfig,
+    pub(super) config: DbfsConfig,
 }
 
 impl Debug for DbfsBuilder {
@@ -96,7 +90,6 @@ impl DbfsBuilder {
 }
 
 impl Builder for DbfsBuilder {
-    const SCHEME: Scheme = Scheme::Dbfs;
     type Config = DbfsConfig;
 
     /// Build a DbfsBackend.
@@ -150,7 +143,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(Scheme::Dbfs)
+        am.set_scheme(DBFS_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -196,7 +189,7 @@ impl Access for DbfsBackend {
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(parse_datetime_from_from_timestamp_millis(
+                meta.set_last_modified(Timestamp::from_millisecond(
                     decoded_response.modification_time,
                 )?);
                 match decoded_response.is_dir {

@@ -15,9 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-etcd")]
+pub(super) const ETCD_SCHEME: &str = "etcd";
 mod backend;
-#[cfg(feature = "services-etcd")]
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 pub use backend::EtcdBuilder as Etcd;
 
 mod config;

@@ -16,8 +16,8 @@
 // under the License.
 
 use bytes::Buf;
-use http::response::Parts;
 use http::Response;
+use http::response::Parts;
 use quick_xml::de;
 use serde::Deserialize;
 
@@ -43,10 +43,14 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        // 409 Conflict can be returned e.g. when PutObject with conditions.
+        // In this case the AWS docs say to retry.
+        409 => (ErrorKind::ConditionNotMatch, true),
         // Service like R2 could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+        429 => (ErrorKind::RateLimited, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
@@ -114,6 +118,19 @@ pub fn parse_s3_error_code(code: &str) -> Option<(ErrorKind, bool)> {
         // indicates a temporary issue with the service or server, such as high load,
         // maintenance, or an internal problem.
         "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+        // > Too Many Requests - rate limit exceeded.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+        // > Compatibility with Volcengine TOS
+        //
+        // TOS returns following error codes along with 429 status code, while both
+        // of them indicate rate limit exceeded.
+        // See https://www.volcengine.com/docs/6349/74874 for more details.
+        "ExceedAccountQPSLimit"
+        | "ExceedAccountRateLimit"
+        | "ExceedBucketQPSLimit"
+        | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
         _ => None,
     }
 }

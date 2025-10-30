@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::GithubBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -55,5 +56,88 @@ impl Debug for GithubConfig {
             .field("repo", &self.repo);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for GithubConfig {
+    type Builder = GithubBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let owner = uri.name().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri host must contain owner",
+            )
+            .with_context("service", crate::Scheme::Github)
+        })?;
+
+        let raw_path = uri.root().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri path must contain repository",
+            )
+            .with_context("service", crate::Scheme::Github)
+        })?;
+
+        let (repo, remainder) = match raw_path.split_once('/') {
+            Some((repo, rest)) => (repo, Some(rest)),
+            None => (raw_path, None),
+        };
+
+        if repo.is_empty() {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "repository name is required",
+            )
+            .with_context("service", crate::Scheme::Github));
+        }
+
+        let mut map = uri.options().clone();
+        map.insert("owner".to_string(), owner.to_string());
+        map.insert("repo".to_string(), repo.to_string());
+
+        if let Some(rest) = remainder {
+            if !rest.is_empty() {
+                map.insert("root".to_string(), rest.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GithubBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_owner_repo_and_root() {
+        let uri = OperatorUri::new(
+            "github://apache/opendal/src/services",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = GithubConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.owner, "apache".to_string());
+        assert_eq!(cfg.repo, "opendal".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("src/services"));
+    }
+
+    #[test]
+    fn from_uri_requires_repository() {
+        let uri = OperatorUri::new("github://apache", Vec::<(String, String)>::new()).unwrap();
+
+        assert!(GithubConfig::from_uri(&uri).is_err());
     }
 }

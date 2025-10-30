@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-ftp")]
+/// Default scheme for ftp service.
+pub(super) const FTP_SCHEME: &str = "ftp";
 mod delete;
-#[cfg(feature = "services-ftp")]
 mod err;
-#[cfg(feature = "services-ftp")]
 mod lister;
-#[cfg(feature = "services-ftp")]
 mod reader;
-#[cfg(feature = "services-ftp")]
 mod writer;
 
-#[cfg(feature = "services-ftp")]
 mod backend;
-#[cfg(feature = "services-ftp")]
 pub use backend::FtpBuilder as Ftp;
-#[cfg(feature = "services-ftp")]
 mod core;
 
 mod config;

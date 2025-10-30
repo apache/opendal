@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-webdav")]
+/// Default scheme for webdav service.
+pub(super) const WEBDAV_SCHEME: &str = "webdav";
 mod core;
-#[cfg(feature = "services-webdav")]
 mod delete;
-#[cfg(feature = "services-webdav")]
 mod error;
-#[cfg(feature = "services-webdav")]
 mod lister;
-#[cfg(feature = "services-webdav")]
 mod writer;
 
-#[cfg(feature = "services-webdav")]
 mod backend;
-#[cfg(feature = "services-webdav")]
 pub use backend::WebdavBuilder as Webdav;
 
 mod config;

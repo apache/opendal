@@ -15,16 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-huggingface")]
+/// Default scheme for huggingface service.
+pub(super) const HUGGINGFACE_SCHEME: &str = "huggingface";
 mod core;
-#[cfg(feature = "services-huggingface")]
 mod error;
-#[cfg(feature = "services-huggingface")]
 mod lister;
 
-#[cfg(feature = "services-huggingface")]
 mod backend;
-#[cfg(feature = "services-huggingface")]
 pub use backend::HuggingfaceBuilder as Huggingface;
 
 mod config;

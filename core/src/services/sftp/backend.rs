@@ -27,6 +27,7 @@ use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
+use super::SFTP_SCHEME;
 use super::core::SftpCore;
 use super::delete::SftpDeleter;
 use super::error::is_not_found;
@@ -38,13 +39,6 @@ use super::writer::SftpWriter;
 use crate::raw::*;
 use crate::services::SftpConfig;
 use crate::*;
-
-impl Configurator for SftpConfig {
-    type Builder = SftpBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SftpBuilder { config: self }
-    }
-}
 
 /// SFTP services support. (only works on unix)
 ///
@@ -58,7 +52,7 @@ impl Configurator for SftpConfig {
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct SftpBuilder {
-    config: SftpConfig,
+    pub(super) config: SftpConfig,
 }
 
 impl Debug for SftpBuilder {
@@ -141,7 +135,6 @@ impl SftpBuilder {
 }
 
 impl Builder for SftpBuilder {
-    const SCHEME: Scheme = Scheme::Sftp;
     type Config = SftpConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -181,7 +174,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(Scheme::Sftp)
+            .set_scheme(SFTP_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

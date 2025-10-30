@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-ipmfs")]
+/// Default scheme for ipmfs service.
+pub(super) const IPMFS_SCHEME: &str = "ipmfs";
 mod backend;
-#[cfg(feature = "services-ipmfs")]
 mod core;
-#[cfg(feature = "services-ipmfs")]
 mod delete;
-#[cfg(feature = "services-ipmfs")]
 mod error;
-#[cfg(feature = "services-ipmfs")]
 mod lister;
-#[cfg(feature = "services-ipmfs")]
 mod writer;
 
-#[cfg(feature = "services-ipmfs")]
 mod builder;
-#[cfg(feature = "services-ipmfs")]
 pub use builder::IpmfsBuilder as Ipmfs;
 
 mod config;

@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-dropbox")]
+/// Default scheme for dropbox service.
+pub(super) const DROPBOX_SCHEME: &str = "dropbox";
 mod backend;
-#[cfg(feature = "services-dropbox")]
 mod core;
-#[cfg(feature = "services-dropbox")]
 mod delete;
-#[cfg(feature = "services-dropbox")]
 mod error;
-#[cfg(feature = "services-dropbox")]
 mod lister;
-#[cfg(feature = "services-dropbox")]
 mod writer;
 
-#[cfg(feature = "services-dropbox")]
 mod builder;
-#[cfg(feature = "services-dropbox")]
 pub use builder::DropboxBuilder as Dropbox;
 
 mod config;

@@ -15,18 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-dashmap")]
+/// Default scheme for dashmap service.
+pub(super) const DASHMAP_SCHEME: &str = "dashmap";
 mod backend;
-#[cfg(feature = "services-dashmap")]
 mod core;
-#[cfg(feature = "services-dashmap")]
 mod delete;
-#[cfg(feature = "services-dashmap")]
 mod lister;
-#[cfg(feature = "services-dashmap")]
 mod writer;
 
-#[cfg(feature = "services-dashmap")]
 pub use backend::DashmapBuilder as Dashmap;
 
 mod config;

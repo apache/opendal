@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-cos")]
+/// Default scheme for cos service.
+pub const COS_SCHEME: &str = "cos";
 mod core;
-#[cfg(feature = "services-cos")]
 mod delete;
-#[cfg(feature = "services-cos")]
 mod error;
-#[cfg(feature = "services-cos")]
 mod lister;
-#[cfg(feature = "services-cos")]
 mod writer;
 
-#[cfg(feature = "services-cos")]
 mod backend;
-#[cfg(feature = "services-cos")]
 pub use backend::CosBuilder as Cos;
 
 mod config;

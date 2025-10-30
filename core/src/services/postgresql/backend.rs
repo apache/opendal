@@ -17,29 +17,23 @@
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::str::FromStr;
+use std::sync::Arc;
 
 use sqlx::postgres::PgConnectOptions;
-use sqlx::PgPool;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
+use super::config::PostgresqlConfig;
+use super::core::*;
+use super::deleter::PostgresqlDeleter;
+use super::writer::PostgresqlWriter;
 use crate::raw::*;
-use crate::services::PostgresqlConfig;
 use crate::*;
-
-impl Configurator for PostgresqlConfig {
-    type Builder = PostgresqlBuilder;
-    fn into_builder(self) -> Self::Builder {
-        PostgresqlBuilder { config: self }
-    }
-}
 
 /// [PostgreSQL](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PostgresqlBuilder {
-    config: PostgresqlConfig,
+    pub(super) config: PostgresqlConfig,
 }
 
 impl Debug for PostgresqlBuilder {
@@ -112,7 +106,6 @@ impl PostgresqlBuilder {
 }
 
 impl Builder for PostgresqlBuilder {
-    const SCHEME: Scheme = Scheme::Postgresql;
     type Config = PostgresqlConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -122,11 +115,11 @@ impl Builder for PostgresqlBuilder {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
                         .with_context("service", Scheme::Postgresql),
-                )
+                );
             }
         };
 
-        let config = PgConnectOptions::from_str(&conn).map_err(|err| {
+        let config = conn.parse::<PgConnectOptions>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
                 .with_context("service", Scheme::Postgresql)
                 .set_source(err)
@@ -136,7 +129,7 @@ impl Builder for PostgresqlBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Postgresql))
+                    .with_context("service", Scheme::Postgresql));
             }
         };
 
@@ -149,7 +142,7 @@ impl Builder for PostgresqlBuilder {
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        Ok(PostgresqlBackend::new(Adapter {
+        Ok(PostgresqlBackend::new(PostgresqlCore {
             pool: OnceCell::new(),
             config,
             table,
@@ -161,99 +154,100 @@ impl Builder for PostgresqlBuilder {
 }
 
 /// Backend for Postgresql service
-pub type PostgresqlBackend = kv::Backend<Adapter>;
-
-#[derive(Debug, Clone)]
-pub struct Adapter {
-    pool: OnceCell<PgPool>,
-    config: PgConnectOptions,
-
-    table: String,
-    key_field: String,
-    value_field: String,
+#[derive(Clone, Debug)]
+pub struct PostgresqlBackend {
+    core: Arc<PostgresqlCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Adapter {
-    async fn get_client(&self) -> Result<&PgPool> {
-        self.pool
-            .get_or_try_init(|| async {
-                let pool = PgPool::connect_with(self.config.clone())
-                    .await
-                    .map_err(parse_postgres_error)?;
-                Ok(pool)
-            })
-            .await
-    }
-}
+impl PostgresqlBackend {
+    pub fn new(core: PostgresqlCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Postgresql.into_static());
+        info.set_name(&core.table);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: true,
+            ..Default::default()
+        });
 
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Postgresql,
-            &self.table,
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-                ..Default::default()
-            },
-        )
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let pool = self.get_client().await?;
-
-        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
-            self.value_field, self.table, self.key_field
-        ))
-        .bind(path)
-        .fetch_optional(pool)
-        .await
-        .map_err(parse_postgres_error)?;
-
-        Ok(value.map(Buffer::from))
-    }
-
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let pool = self.get_client().await?;
-
-        let table = &self.table;
-        let key_field = &self.key_field;
-        let value_field = &self.value_field;
-        sqlx::query(&format!(
-            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
-                VALUES ($1, $2)
-                ON CONFLICT ("{key_field}")
-                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
-        ))
-        .bind(path)
-        .bind(value.to_vec())
-        .execute(pool)
-        .await
-        .map_err(parse_postgres_error)?;
-
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        let pool = self.get_client().await?;
-
-        sqlx::query(&format!(
-            "DELETE FROM {} WHERE {} = $1",
-            self.table, self.key_field
-        ))
-        .bind(path)
-        .execute(pool)
-        .await
-        .map_err(parse_postgres_error)?;
-
-        Ok(())
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
     }
 }
 
-fn parse_postgres_error(err: sqlx::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from postgresql").set_source(err)
+impl Access for PostgresqlBackend {
+    type Reader = Buffer;
+    type Writer = PostgresqlWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "kv not found in postgresql",
+                )),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "kv not found in postgresql",
+                ));
+            }
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), PostgresqlWriter::new(self.core.clone(), p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(PostgresqlDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
+    }
 }

@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
-use http::request;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::request;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -249,6 +249,42 @@ impl VercelBlobCore {
         Ok(resp)
     }
 
+    pub async fn vercel_delete_blob(&self, path: &str) -> Result<()> {
+        let p = build_abs_path(&self.root, path);
+
+        let resp = self.list(&p, Some(1)).await?;
+
+        let url = resolve_blob(resp.blobs, p);
+
+        if url.is_empty() {
+            return Ok(());
+        }
+
+        let req = Request::post("https://blob.vercel-storage.com/delete");
+
+        let req = self.sign(req);
+
+        let req_body = &json!({
+            "urls": vec![url]
+        });
+
+        // Set body
+        let req = req
+            .extension(Operation::Delete)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Buffer::from(Bytes::from(req_body.to_string())))
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     pub async fn initiate_multipart_upload(
         &self,
         path: &str,
@@ -359,7 +395,7 @@ pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
         md.set_content_type(&content_type);
     }
     md.set_content_length(blob.size);
-    md.set_last_modified(parse_datetime_from_rfc3339(&blob.uploaded_at)?);
+    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
     md.set_content_disposition(&blob.content_disposition);
     Ok(md)
 }

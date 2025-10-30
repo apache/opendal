@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use super::backend::CacacheBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -25,4 +26,51 @@ use serde::Serialize;
 pub struct CacacheConfig {
     /// That path to the cacache data directory.
     pub datadir: Option<String>,
+}
+
+impl crate::Configurator for CacacheConfig {
+    type Builder = CacacheBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.entry("datadir".to_string())
+                    .or_insert_with(|| format!("/{root}"));
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        CacacheBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_datadir_from_authority() {
+        let uri = OperatorUri::new(
+            "cacache:///var/cache/opendal",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = CacacheConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datadir.as_deref(), Some("/var/cache/opendal"));
+    }
+
+    #[test]
+    fn from_uri_falls_back_to_path() {
+        let uri = OperatorUri::new("cacache:///tmp/cache", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = CacacheConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datadir.as_deref(), Some("/tmp/cache"));
+    }
 }

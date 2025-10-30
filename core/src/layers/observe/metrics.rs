@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -151,7 +151,7 @@ pub static LABEL_STATUS_CODE: &str = "status_code";
 pub struct MetricLabels {
     /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
     /// Used to differentiate between different storage backends.
-    pub scheme: Scheme,
+    pub scheme: &'static str,
     /// The storage namespace (e.g., bucket name, container name).
     /// Identifies the specific storage container being accessed.
     pub namespace: Arc<str>,
@@ -320,24 +320,48 @@ impl MetricValue {
     /// Returns the help text for this metric value.
     pub fn help(&self) -> &'static str {
         match self {
-            MetricValue::OperationBytes(_) => "Current operation size in bytes, represents the size of data being processed in the current operation",
-            MetricValue::OperationBytesRate(_) => "Histogram of data processing rates in bytes per second within individual operations",
-            MetricValue::OperationEntries(_) => "Current operation size in entries, represents the entries being processed in the current operation",
-            MetricValue::OperationEntriesRate(_) => "Histogram of entries processing rates in entries per second within individual operations",
-            MetricValue::OperationDurationSeconds(_) => "Duration of operations in seconds, measured from start to completion",
+            MetricValue::OperationBytes(_) => {
+                "Current operation size in bytes, represents the size of data being processed in the current operation"
+            }
+            MetricValue::OperationBytesRate(_) => {
+                "Histogram of data processing rates in bytes per second within individual operations"
+            }
+            MetricValue::OperationEntries(_) => {
+                "Current operation size in entries, represents the entries being processed in the current operation"
+            }
+            MetricValue::OperationEntriesRate(_) => {
+                "Histogram of entries processing rates in entries per second within individual operations"
+            }
+            MetricValue::OperationDurationSeconds(_) => {
+                "Duration of operations in seconds, measured from start to completion"
+            }
             MetricValue::OperationErrorsTotal => "Total number of failed operations",
             MetricValue::OperationExecuting(_) => "Number of operations currently being executed",
             MetricValue::OperationTtfbSeconds(_) => "Time to first byte in seconds for operations",
 
-            MetricValue::HttpConnectionErrorsTotal => "Total number of HTTP requests that failed before receiving a response (DNS failures, connection refused, timeouts, TLS errors)",
-            MetricValue::HttpStatusErrorsTotal => "Total number of HTTP requests that received error status codes (non-2xx responses)",
-            MetricValue::HttpExecuting(_) => "Number of HTTP requests currently in flight from this client",
+            MetricValue::HttpConnectionErrorsTotal => {
+                "Total number of HTTP requests that failed before receiving a response (DNS failures, connection refused, timeouts, TLS errors)"
+            }
+            MetricValue::HttpStatusErrorsTotal => {
+                "Total number of HTTP requests that received error status codes (non-2xx responses)"
+            }
+            MetricValue::HttpExecuting(_) => {
+                "Number of HTTP requests currently in flight from this client"
+            }
             MetricValue::HttpRequestBytes(_) => "Histogram of HTTP request body sizes in bytes",
-            MetricValue::HttpRequestBytesRate(_) => "Histogram of HTTP request bytes per second rates",
-            MetricValue::HttpRequestDurationSeconds(_) => "Histogram of time durations in seconds spent sending HTTP requests, from first byte sent to receiving the first byte",
+            MetricValue::HttpRequestBytesRate(_) => {
+                "Histogram of HTTP request bytes per second rates"
+            }
+            MetricValue::HttpRequestDurationSeconds(_) => {
+                "Histogram of time durations in seconds spent sending HTTP requests, from first byte sent to receiving the first byte"
+            }
             MetricValue::HttpResponseBytes(_) => "Histogram of HTTP response body sizes in bytes",
-            MetricValue::HttpResponseBytesRate(_) => "Histogram of HTTP response bytes per second rates",
-            MetricValue::HttpResponseDurationSeconds(_) => "Histogram of time durations in seconds spent receiving HTTP responses, from first byte received to last byte received",
+            MetricValue::HttpResponseBytesRate(_) => {
+                "Histogram of HTTP response bytes per second rates"
+            }
+            MetricValue::HttpResponseDurationSeconds(_) => {
+                "Histogram of time durations in seconds spent receiving HTTP responses, from first byte received to last byte received"
+            }
         }
     }
 }

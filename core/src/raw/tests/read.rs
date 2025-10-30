@@ -16,8 +16,8 @@
 // under the License.
 
 use bytes::Bytes;
-use rand::thread_rng;
 use rand::RngCore;
+use rand::thread_rng;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -84,7 +84,10 @@ impl ReadChecker {
 
         assert!(
             offset + output.len() <= self.raw_data.len(),
-            "check read failed: cur + output length must be less than ranged_data length, offset: {}, output: {}, ranged_data: {}",  offset, output.len(), self.raw_data.len(),
+            "check read failed: cur + output length must be less than ranged_data length, offset: {}, output: {}, ranged_data: {}",
+            offset,
+            output.len(),
+            self.raw_data.len(),
         );
 
         let expected = &self.raw_data[offset..offset + output.len()];

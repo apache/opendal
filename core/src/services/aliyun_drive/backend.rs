@@ -20,12 +20,12 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 use tokio::sync::Mutex;
 
+use super::ALIYUN_DRIVE_SCHEME;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
@@ -36,25 +36,13 @@ use crate::raw::*;
 use crate::services::AliyunDriveConfig;
 use crate::*;
 
-impl Configurator for AliyunDriveConfig {
-    type Builder = AliyunDriveBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AliyunDriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AliyunDriveBuilder {
-    config: AliyunDriveConfig,
+    pub(super) config: AliyunDriveConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AliyunDriveBuilder {
@@ -130,7 +118,6 @@ impl AliyunDriveBuilder {
 }
 
 impl Builder for AliyunDriveBuilder {
-    const SCHEME: Scheme = Scheme::AliyunDrive;
     type Config = AliyunDriveConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -168,7 +155,7 @@ impl Builder for AliyunDriveBuilder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "drive_type is invalid.",
-                ))
+                ));
             }
         };
         debug!("backend use drive_type {drive_type:?}");
@@ -177,7 +164,7 @@ impl Builder for AliyunDriveBuilder {
             core: Arc::new(AliyunDriveCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::AliyunDrive)
+                    am.set_scheme(ALIYUN_DRIVE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -326,22 +313,18 @@ impl Access for AliyunDriveBackend {
 
         if file.path_type == "folder" {
             let meta = Metadata::new(EntryMode::DIR).with_last_modified(
-                file.updated_at
-                    .parse::<chrono::DateTime<Utc>>()
-                    .map_err(|e| {
-                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                    })?,
+                file.updated_at.parse::<Timestamp>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                })?,
             );
 
             return Ok(RpStat::new(meta));
         }
 
         let mut meta = Metadata::new(EntryMode::FILE).with_last_modified(
-            file.updated_at
-                .parse::<chrono::DateTime<Utc>>()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-                })?,
+            file.updated_at.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?,
         );
         if let Some(v) = file.size {
             meta = meta.with_content_length(v);

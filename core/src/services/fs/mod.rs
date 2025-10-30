@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-fs")]
+/// Default scheme for fs service.
+pub const FS_SCHEME: &str = "fs";
 mod core;
-#[cfg(feature = "services-fs")]
 mod delete;
-#[cfg(feature = "services-fs")]
 mod error;
-#[cfg(feature = "services-fs")]
 mod lister;
-#[cfg(feature = "services-fs")]
 mod reader;
-#[cfg(feature = "services-fs")]
 mod writer;
 
-#[cfg(feature = "services-fs")]
 mod backend;
-#[cfg(feature = "services-fs")]
 pub use backend::FsBuilder as Fs;
 
 mod config;

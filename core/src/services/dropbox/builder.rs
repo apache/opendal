@@ -18,11 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-
-use chrono::DateTime;
-use chrono::Utc;
 use tokio::sync::Mutex;
 
+use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
@@ -30,26 +28,14 @@ use crate::raw::*;
 use crate::services::DropboxConfig;
 use crate::*;
 
-impl Configurator for DropboxConfig {
-    type Builder = DropboxBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        DropboxBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// [Dropbox](https://www.dropbox.com/) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DropboxBuilder {
-    config: DropboxConfig,
+    pub(super) config: DropboxConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for DropboxBuilder {
@@ -126,7 +112,6 @@ impl DropboxBuilder {
 }
 
 impl Builder for DropboxBuilder {
-    const SCHEME: Scheme = Scheme::Dropbox;
     type Config = DropboxConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -136,7 +121,7 @@ impl Builder for DropboxBuilder {
             (Some(access_token), None) => DropboxSigner {
                 access_token,
                 // We will never expire user specified token.
-                expires_in: DateTime::<Utc>::MAX_UTC,
+                expires_in: Timestamp::MAX,
                 ..Default::default()
             },
             (None, Some(refresh_token)) => {
@@ -167,14 +152,14 @@ impl Builder for DropboxBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token can not be set at the same time",
                 )
-                .with_context("service", Scheme::Dropbox))
+                .with_context("service", Scheme::Dropbox));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Dropbox))
+                .with_context("service", Scheme::Dropbox));
             }
         };
 
@@ -182,7 +167,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Dropbox)
+                    am.set_scheme(DROPBOX_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-swift")]
+/// Default scheme for swift service.
+pub(super) const SWIFT_SCHEME: &str = "swift";
 mod core;
-#[cfg(feature = "services-swift")]
 mod delete;
-#[cfg(feature = "services-swift")]
 mod error;
-#[cfg(feature = "services-swift")]
 mod lister;
-#[cfg(feature = "services-swift")]
 mod writer;
 
-#[cfg(feature = "services-swift")]
 mod backend;
-#[cfg(feature = "services-swift")]
 pub use backend::SwiftBuilder as Swift;
 
 mod config;

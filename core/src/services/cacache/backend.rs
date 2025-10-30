@@ -15,31 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::sync::Arc;
-
-use chrono::DateTime;
-
 use crate::raw::*;
 use crate::services::CacacheConfig;
 use crate::*;
+use std::fmt::Debug;
+use std::sync::Arc;
 
+use super::CACACHE_SCHEME;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
-
-impl Configurator for CacacheConfig {
-    type Builder = CacacheBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CacacheBuilder { config: self }
-    }
-}
 
 /// cacache service support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CacacheBuilder {
-    config: CacacheConfig,
+    pub(super) config: CacacheConfig,
 }
 
 impl CacacheBuilder {
@@ -51,7 +42,6 @@ impl CacacheBuilder {
 }
 
 impl Builder for CacacheBuilder {
-    const SCHEME: Scheme = Scheme::Cacache;
     type Config = CacacheConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -65,7 +55,7 @@ impl Builder for CacacheBuilder {
         };
 
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Cacache);
+        info.set_scheme(CACACHE_SCHEME);
         info.set_name(&datadir_path);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -110,11 +100,9 @@ impl Access for CacacheAccessor {
             Some(meta) => {
                 let mut md = Metadata::new(EntryMode::FILE);
                 md.set_content_length(meta.size as u64);
-                // Convert u128 milliseconds to DateTime<Utc>
-                let millis = meta.time;
-                let secs = (millis / 1000) as i64;
-                let nanos = ((millis % 1000) * 1_000_000) as u32;
-                if let Some(dt) = DateTime::from_timestamp(secs, nanos) {
+                // Convert u128 milliseconds to Timestamp
+                let millis = meta.time as i64;
+                if let Ok(dt) = Timestamp::from_millisecond(millis) {
                     md.set_last_modified(dt);
                 }
                 Ok(RpStat::new(md))

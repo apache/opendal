@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -30,9 +30,10 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::AZBLOB_SCHEME;
+use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
-use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
 use super::lister::AzblobLister;
@@ -41,7 +42,6 @@ use super::writer::AzblobWriters;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
-
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {
@@ -56,26 +56,13 @@ impl From<AzureStorageConfig> for AzblobConfig {
     }
 }
 
-impl Configurator for AzblobConfig {
-    type Builder = AzblobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzblobBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
-    config: AzblobConfig,
+    pub(super) config: AzblobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzblobBuilder {
@@ -301,7 +288,6 @@ impl AzblobBuilder {
 }
 
 impl Builder for AzblobBuilder {
-    const SCHEME: Scheme = Scheme::Azblob;
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -327,6 +313,9 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
+        #[cfg(target_arch = "wasm32")]
+        let mut config_loader = AzureStorageConfig::default();
+        #[cfg(not(target_arch = "wasm32"))]
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self
@@ -339,6 +328,16 @@ impl Builder for AzblobBuilder {
         }
 
         if let Some(v) = self.config.account_key.clone() {
+            // Validate that account_key can be decoded as base64
+            if let Err(e) = BASE64_STANDARD.decode(&v) {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    format!("invalid account_key: cannot decode as base64: {e}"),
+                )
+                .with_operation("Builder::build")
+                .with_context("service", Scheme::Azblob)
+                .with_context("key", "account_key"));
+            }
             config_loader.account_key = Some(v);
         }
 
@@ -385,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Azblob)
+                    am.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {
@@ -415,6 +414,7 @@ impl Builder for AzblobBuilder {
                             delete_max_size: Some(AZBLOB_BATCH_LIMIT),
 
                             copy: true,
+                            copy_with_if_not_exists: true,
 
                             list: true,
                             list_with_recursive: true,
@@ -538,8 +538,8 @@ impl Access for AzblobBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.azblob_copy_blob(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.azblob_copy_blob(from, to, args).await?;
 
         let status = resp.status();
 

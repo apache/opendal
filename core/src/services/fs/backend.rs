@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use log::debug;
 
+use super::FS_SCHEME;
 use super::core::*;
 use super::delete::FsDeleter;
 use super::lister::FsLister;
@@ -30,18 +31,11 @@ use crate::raw::*;
 use crate::services::FsConfig;
 use crate::*;
 
-impl Configurator for FsConfig {
-    type Builder = FsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        FsBuilder { config: self }
-    }
-}
-
 /// POSIX file system support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Debug)]
 pub struct FsBuilder {
-    config: FsConfig,
+    pub(super) config: FsConfig,
 }
 
 impl FsBuilder {
@@ -72,7 +66,6 @@ impl FsBuilder {
 }
 
 impl Builder for FsBuilder {
-    const SCHEME: Scheme = Scheme::Fs;
     type Config = FsConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -145,7 +138,7 @@ impl Builder for FsBuilder {
             core: Arc::new(FsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::Fs)
+                    am.set_scheme(FS_SCHEME)
                         .set_root(&root.to_string_lossy())
                         .set_native_capability(Capability {
                             stat: true,

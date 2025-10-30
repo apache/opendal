@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-seafile")]
+/// Default scheme for seafile service.
+pub(super) const SEAFILE_SCHEME: &str = "seafile";
 mod core;
-#[cfg(feature = "services-seafile")]
 mod delete;
-#[cfg(feature = "services-seafile")]
 mod error;
-#[cfg(feature = "services-seafile")]
 mod lister;
-#[cfg(feature = "services-seafile")]
 mod writer;
 
-#[cfg(feature = "services-seafile")]
 mod backend;
-#[cfg(feature = "services-seafile")]
 pub use backend::SeafileBuilder as Seafile;
 
 mod config;

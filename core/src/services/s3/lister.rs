@@ -22,12 +22,12 @@ use quick_xml::de;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::PageContext;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Error;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::oio::PageContext;
+use crate::raw::*;
 
 pub type S3Listers = ThreeWays<
     oio::PageLister<S3ListerV1>,
@@ -148,7 +148,7 @@ impl oio::PageList for S3ListerV1 {
 
             // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
-            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
+            meta.set_last_modified(object.last_modified.parse::<Timestamp>()?);
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
@@ -258,7 +258,7 @@ impl oio::PageList for S3ListerV2 {
 
             // object.last_modified provides more precise time that contains
             // nanosecond, let's trim them.
-            meta.set_last_modified(parse_datetime_from_rfc3339(object.last_modified.as_str())?);
+            meta.set_last_modified(object.last_modified.parse::<Timestamp>()?);
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
@@ -368,9 +368,8 @@ impl oio::PageList for S3ObjectVersionsLister {
             meta.set_version(&version_object.version_id);
             meta.set_is_current(version_object.is_latest);
             meta.set_content_length(version_object.size);
-            meta.set_last_modified(parse_datetime_from_rfc3339(
-                version_object.last_modified.as_str(),
-            )?);
+            meta.set_last_modified(version_object.last_modified.parse::<Timestamp>()?);
+
             if let Some(etag) = version_object.etag {
                 meta.set_etag(&etag);
                 meta.set_content_md5(etag.trim_matches('"'));
@@ -391,9 +390,7 @@ impl oio::PageList for S3ObjectVersionsLister {
                 meta.set_version(&delete_marker.version_id);
                 meta.set_is_deleted(true);
                 meta.set_is_current(delete_marker.is_latest);
-                meta.set_last_modified(parse_datetime_from_rfc3339(
-                    delete_marker.last_modified.as_str(),
-                )?);
+                meta.set_last_modified(delete_marker.last_modified.parse::<Timestamp>()?);
 
                 let entry = oio::Entry::new(&path, meta);
                 ctx.entries.push_back(entry);

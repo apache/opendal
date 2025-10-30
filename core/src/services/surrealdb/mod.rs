@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-surrealdb")]
 mod backend;
-#[cfg(feature = "services-surrealdb")]
+mod core;
+mod deleter;
+mod writer;
+
 pub use backend::SurrealdbBuilder as Surrealdb;
 
 mod config;

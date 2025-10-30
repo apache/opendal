@@ -15,24 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-onedrive")]
+/// Default scheme for onedrive service.
+pub(super) const ONEDRIVE_SCHEME: &str = "onedrive";
 mod backend;
-#[cfg(feature = "services-onedrive")]
 mod core;
-#[cfg(feature = "services-onedrive")]
 mod delete;
-#[cfg(feature = "services-onedrive")]
 mod error;
-#[cfg(feature = "services-onedrive")]
 mod graph_model;
-#[cfg(feature = "services-onedrive")]
 mod lister;
-#[cfg(feature = "services-onedrive")]
 mod writer;
 
-#[cfg(feature = "services-onedrive")]
 mod builder;
-#[cfg(feature = "services-onedrive")]
 pub use builder::OnedriveBuilder as Onedrive;
 
 mod config;

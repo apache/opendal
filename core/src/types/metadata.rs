@@ -15,12 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
-use chrono::prelude::*;
-
 use crate::raw::*;
 use crate::*;
+use std::collections::HashMap;
 
 /// Metadata contains all the information related to a specific path.
 ///
@@ -62,7 +59,7 @@ pub struct Metadata {
     content_type: Option<String>,
     content_encoding: Option<String>,
     etag: Option<String>,
-    last_modified: Option<DateTime<Utc>>,
+    last_modified: Option<Timestamp>,
     version: Option<String>,
 
     user_metadata: Option<HashMap<String, String>>,
@@ -321,18 +318,18 @@ impl Metadata {
     /// `Last-Modified` is defined by [RFC 7232](https://httpwg.org/specs/rfc7232.html#header.last-modified)
     ///
     /// Refer to [MDN Last-Modified](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Last-Modified) for more information.
-    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+    pub fn last_modified(&self) -> Option<Timestamp> {
         self.last_modified
     }
 
     /// Set Last modified of this entry.
-    pub fn set_last_modified(&mut self, v: DateTime<Utc>) -> &mut Self {
+    pub fn set_last_modified(&mut self, v: Timestamp) -> &mut Self {
         self.last_modified = Some(v);
         self
     }
 
     /// Set Last modified of this entry.
-    pub fn with_last_modified(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_last_modified(mut self, v: Timestamp) -> Self {
         self.last_modified = Some(v);
         self
     }

@@ -17,6 +17,7 @@
 
 mod api;
 pub use api::List;
+pub use api::ListDyn;
 pub use api::Lister;
 
 mod page_list;

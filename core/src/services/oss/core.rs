@@ -22,6 +22,11 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use constants::X_OSS_META_PREFIX;
+use http::HeaderMap;
+use http::HeaderName;
+use http::HeaderValue;
+use http::Request;
+use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
@@ -31,11 +36,6 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::header::RANGE;
-use http::HeaderMap;
-use http::HeaderName;
-use http::HeaderValue;
-use http::Request;
-use http::Response;
 use reqsign::AliyunCredential;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -335,7 +335,6 @@ impl OssCore {
         }
 
         let mut req = Request::get(&url);
-        req = req.header(CONTENT_TYPE, "application/octet-stream");
 
         if !range.is_full() {
             req = req.header(RANGE, range.to_header());
@@ -352,17 +351,11 @@ impl OssCore {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req.extension(Operation::Read);
@@ -776,14 +769,6 @@ pub struct DeleteObjectsResult {
 pub struct DeleteObjectsResultDeleted {
     pub key: String,
     pub version_id: Option<String>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(default, rename_all = "PascalCase")]
-pub struct DeleteObjectsResultError {
-    pub code: String,
-    pub key: String,
-    pub message: String,
 }
 
 #[derive(Default, Debug, Deserialize)]

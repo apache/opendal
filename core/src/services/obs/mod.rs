@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-obs")]
+/// Default scheme for obs service.
+pub const OBS_SCHEME: &str = "obs";
 mod core;
-#[cfg(feature = "services-obs")]
 mod delete;
-#[cfg(feature = "services-obs")]
 mod error;
-#[cfg(feature = "services-obs")]
 mod lister;
-#[cfg(feature = "services-obs")]
 mod writer;
 
-#[cfg(feature = "services-obs")]
 mod backend;
-#[cfg(feature = "services-obs")]
 pub use backend::ObsBuilder as Obs;
 
 mod config;

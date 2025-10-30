@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-azfile")]
+/// Default scheme for azfile service.
+pub(super) const AZFILE_SCHEME: &str = "azfile";
 mod core;
-#[cfg(feature = "services-azfile")]
 mod delete;
-#[cfg(feature = "services-azfile")]
 mod error;
-#[cfg(feature = "services-azfile")]
 mod lister;
-#[cfg(feature = "services-azfile")]
 mod writer;
 
-#[cfg(feature = "services-azfile")]
 mod backend;
-#[cfg(feature = "services-azfile")]
 pub use backend::AzfileBuilder as Azfile;
 
 mod config;

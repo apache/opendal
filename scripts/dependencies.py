@@ -19,30 +19,39 @@
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from pathlib import Path
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from constants import PACKAGES
+
+
+def check_single_package(root):
+    print(f"Checking dependencies of {root}")
+    subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
 
 
 def check_deps():
     cargo_dirs = PACKAGES
-    for root in cargo_dirs:
-        print(f"Checking dependencies of {root}")
-        subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(check_single_package, cargo_dirs)
+
+
+def generate_single_package(root):
+    if (Path(root) / "Cargo.toml").exists():
+        print(f"Generating dependencies {root}")
+        result = subprocess.check_output(
+            ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
+            cwd=root,
+            text=True,
+        )
+        with open(f"{root}/DEPENDENCIES.rust.tsv", "w") as f:
+            f.write(result)
+    else:
+        print(f"Skipping {root} as Cargo.toml does not exist")
 
 
 def generate_deps():
     cargo_dirs = PACKAGES
-    for root in cargo_dirs:
-        if (Path(root) / "Cargo.toml").exists():
-            print(f"Generating dependencies {root}")
-            result = subprocess.check_output(
-                ["cargo", "deny", "list", "-f", "tsv", "-t", "0.6"],
-                cwd=root,
-                text=True,
-            )
-            with open(f"{root}/DEPENDENCIES.rust.tsv", "w") as f:
-                f.write(result)
-        else:
-            print(f"Skipping {root} as Cargo.toml does not exist")
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(generate_single_package, cargo_dirs)
 
 
 if __name__ == "__main__":

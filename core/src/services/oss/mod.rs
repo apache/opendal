@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-oss")]
+/// Default scheme for oss service.
+pub const OSS_SCHEME: &str = "oss";
 mod core;
-#[cfg(feature = "services-oss")]
 mod delete;
-#[cfg(feature = "services-oss")]
 mod error;
-#[cfg(feature = "services-oss")]
 mod lister;
-#[cfg(feature = "services-oss")]
 mod writer;
 
-#[cfg(feature = "services-oss")]
 mod backend;
-#[cfg(feature = "services-oss")]
 pub use backend::OssBuilder as Oss;
 
 mod config;

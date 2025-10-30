@@ -25,10 +25,11 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
-use super::core::constants;
-use super::core::parse_file_info;
+use super::B2_SCHEME;
 use super::core::B2Core;
 use super::core::B2Signer;
+use super::core::constants;
+use super::core::parse_file_info;
 use super::delete::B2Deleter;
 use super::error::parse_error;
 use super::lister::B2Lister;
@@ -38,26 +39,14 @@ use crate::raw::*;
 use crate::services::B2Config;
 use crate::*;
 
-impl Configurator for B2Config {
-    type Builder = B2Builder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        B2Builder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct B2Builder {
-    config: B2Config,
+    pub(super) config: B2Config,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for B2Builder {
@@ -136,7 +125,6 @@ impl B2Builder {
 }
 
 impl Builder for B2Builder {
-    const SCHEME: Scheme = Scheme::B2;
     type Config = B2Config;
 
     /// Builds the backend and returns the result of B2Backend.
@@ -192,7 +180,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(Scheme::B2)
+                    am.set_scheme(B2_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

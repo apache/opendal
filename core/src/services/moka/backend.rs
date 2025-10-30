@@ -22,24 +22,16 @@ use std::time::Duration;
 
 use log::debug;
 
+use super::MOKA_SCHEME;
 use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
 use crate::raw::oio;
+use crate::raw::signed_to_duration;
 use crate::raw::*;
 use crate::services::MokaConfig;
 use crate::*;
-
-impl Configurator for MokaConfig {
-    type Builder = MokaBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MokaBuilder {
-            config: self,
-            ..Default::default()
-        }
-    }
-}
 
 /// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
 pub type MokaCache<K, V> = moka::future::Cache<K, V>;
@@ -50,8 +42,8 @@ pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct MokaBuilder {
-    config: MokaConfig,
-    builder: MokaCacheBuilder<String, MokaValue>,
+    pub(super) config: MokaConfig,
+    pub(super) builder: MokaCacheBuilder<String, MokaValue>,
 }
 
 impl Debug for MokaBuilder {
@@ -124,7 +116,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_live = Some(v);
+            self.config.time_to_live = Some(format!("{}s", v.as_secs()));
         }
         self
     }
@@ -134,7 +126,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_idle = Some(v);
+            self.config.time_to_idle = Some(format!("{}s", v.as_secs()));
         }
         self
     }
@@ -151,7 +143,6 @@ impl MokaBuilder {
 }
 
 impl Builder for MokaBuilder {
-    const SCHEME: Scheme = Scheme::Moka;
     type Config = MokaConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -167,19 +158,19 @@ impl Builder for MokaBuilder {
 
         let mut builder = self.builder;
 
-        // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
         if let Some(v) = &self.config.name {
             builder = builder.name(v);
         }
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
-        if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v);
+        if let Some(value) = self.config.time_to_live.as_deref() {
+            let duration = signed_to_duration(value)?;
+            builder = builder.time_to_live(duration);
         }
-        if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v);
+        if let Some(value) = self.config.time_to_idle.as_deref() {
+            let duration = signed_to_duration(value)?;
+            builder = builder.time_to_idle(duration);
         }
 
         debug!("backend build finished: {:?}", self.config);
@@ -203,7 +194,7 @@ pub struct MokaAccessor {
 impl MokaAccessor {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Moka);
+        info.set_scheme(MOKA_SCHEME);
         info.set_name(core.cache.name().unwrap_or("moka"));
         info.set_root("/");
         info.set_native_capability(Capability {

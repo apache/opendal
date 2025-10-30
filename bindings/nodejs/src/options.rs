@@ -16,7 +16,8 @@
 // under the License.
 
 use napi::bindgen_prelude::BigInt;
-use opendal::raw::{parse_datetime_from_rfc3339, BytesRange};
+use opendal::raw::{BytesRange, Timestamp};
+use std::collections::HashMap;
 
 #[napi(object)]
 #[derive(Debug)]
@@ -78,10 +79,10 @@ impl From<StatOptions> for opendal::options::StatOptions {
     fn from(value: StatOptions) -> Self {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             if_modified_since,
@@ -214,10 +215,10 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
         let range = value.make_range();
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             version: value.version,
@@ -264,6 +265,22 @@ pub struct ReaderOptions {
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
      */
     pub chunk: Option<u32>,
+
+    /** Controls the number of prefetched bytes ranges that can be buffered in memory
+     * during concurrent reading.
+     *
+     * When performing concurrent reads with `Reader`, this option limits how many
+     * completed-but-not-yet-read chunks can be buffered. Once the number of buffered
+     * chunks reaches this limit, no new read tasks will be spawned until some of the
+     * buffered chunks are consumed.
+     *
+     * - Default value: 0 (no prefetching, strict back-pressure control)
+     * - Set to a higher value to allow more aggressive prefetching at the cost of memory
+     *
+     * This option helps prevent memory exhaustion when reading large files with high
+     * concurrency settings.
+     */
+    pub prefetch: Option<u32>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -312,16 +329,17 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
     fn from(value: ReaderOptions) -> Self {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             version: value.version,
             concurrent: value.concurrent.unwrap_or_default() as usize,
             chunk: value.chunk.map(|chunk| chunk as usize),
             gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            prefetch: value.prefetch.unwrap_or_default() as usize,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,
@@ -388,6 +406,114 @@ impl From<ListOptions> for opendal::options::ListOptions {
             recursive: value.recursive.unwrap_or_default(),
             versions: value.versions.unwrap_or_default(),
             deleted: value.deleted.unwrap_or_default(),
+        }
+    }
+}
+
+#[napi(object)]
+#[derive(Default, Debug)]
+pub struct WriteOptions {
+    /// Append bytes into a path.
+    ///
+    /// ### Notes
+    ///
+    /// - It always appends content to the end of the file.
+    /// - It will create file if the path does not exist.
+    pub append: Option<bool>,
+
+    /// Set the chunk of op.
+    ///
+    /// If chunk is set, the data will be chunked by the underlying writer.
+    ///
+    /// ## NOTE
+    ///
+    /// A service could have their own minimum chunk size while perform write
+    /// operations like multipart uploads. So the chunk size may be larger than
+    /// the given buffer size.
+    pub chunk: Option<BigInt>,
+
+    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
+    pub content_type: Option<String>,
+
+    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
+    pub content_disposition: Option<String>,
+
+    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
+    pub cache_control: Option<String>,
+
+    /// Set the [Content-Encoding] https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding of op.
+    pub content_encoding: Option<String>,
+
+    /// Sets user metadata of op.
+    ///
+    /// If chunk is set, the user metadata will be attached to the object during write.
+    ///
+    /// ## NOTE
+    ///
+    /// - Services may have limitations for user metadata, for example:
+    ///   - Key length is typically limited (e.g., 1024 bytes)
+    ///   - Value length is typically limited (e.g., 4096 bytes)
+    ///   - Total metadata size might be limited
+    ///   - Some characters might be forbidden in keys
+    pub user_metadata: Option<HashMap<String, String>>,
+
+    /// Sets if-match condition of op.
+    ///
+    /// This operation provides conditional write functionality based on ETag matching,
+    /// helping prevent unintended overwrites in concurrent scenarios.
+    pub if_match: Option<String>,
+
+    /// Sets if-none-match condition of op.
+    ///
+    /// This operation provides conditional write functionality based on ETag non-matching,
+    /// useful for preventing overwriting existing resources or ensuring unique writes.
+    pub if_none_match: Option<String>,
+
+    /// Sets if_not_exists condition of op.
+    ///
+    /// This operation provides a way to ensure write operations only create new resources
+    /// without overwriting existing ones, useful for implementing "create if not exists" logic.
+    pub if_not_exists: Option<bool>,
+
+    /// Sets concurrent of op.
+    ///
+    /// - By default, OpenDAL writes files sequentially
+    /// - When concurrent is set:
+    ///   - Multiple write operations can execute in parallel
+    ///   - Write operations return immediately without waiting if tasks space are available
+    ///   - Close operation ensures all writes complete in order
+    ///   - Memory usage increases with concurrency level
+    pub concurrent: Option<u32>,
+}
+
+impl From<WriteOptions> for opendal::options::WriteOptions {
+    fn from(value: WriteOptions) -> Self {
+        Self {
+            append: value.append.unwrap_or_default(),
+            chunk: value.chunk.map(|v| v.get_u64().1 as usize),
+            content_type: value.content_type,
+            content_disposition: value.content_disposition,
+            cache_control: value.cache_control,
+            content_encoding: value.content_encoding,
+            user_metadata: value.user_metadata,
+            if_match: value.if_match,
+            if_none_match: value.if_none_match,
+            if_not_exists: value.if_not_exists.unwrap_or_default(),
+            concurrent: value.concurrent.unwrap_or_default() as usize,
+        }
+    }
+}
+
+#[napi(object)]
+#[derive(Default)]
+pub struct DeleteOptions {
+    pub version: Option<String>,
+}
+
+impl From<DeleteOptions> for opendal::options::DeleteOptions {
+    fn from(value: DeleteOptions) -> Self {
+        Self {
+            version: value.version,
         }
     }
 }

@@ -98,9 +98,12 @@ mod tests {
         let out: OssError = de::from_reader(bs.reader()).expect("must success");
         println!("{out:?}");
 
-        assert_eq!(out.code, "AccessDenied");
-        assert_eq!(out.message, "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters");
-        assert_eq!(out.request_id, "1D842BC54255****");
-        assert_eq!(out.host_id, "oss-cn-hangzhou.aliyuncs.com");
+        assert_eq!(out.code.trim(), "AccessDenied");
+        assert_eq!(
+            out.message.trim(),
+            "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters"
+        );
+        assert_eq!(out.request_id.trim(), "1D842BC54255****");
+        assert_eq!(out.host_id.trim(), "oss-cn-hangzhou.aliyuncs.com");
     }
 }

@@ -17,15 +17,12 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use chrono::TimeZone;
-use chrono::Utc;
-
 use super::core::LakefsCore;
 use super::core::LakefsListResponse;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
+use bytes::Buf;
 
 pub struct LakefsLister {
     core: Arc<LakefsCore>,
@@ -94,7 +91,7 @@ impl oio::PageList for LakefsLister {
             let mut meta = Metadata::new(entry_type);
 
             if status.mtime != 0 {
-                meta.set_last_modified(Utc.timestamp_opt(status.mtime, 0).unwrap());
+                meta.set_last_modified(Timestamp::from_second(status.mtime).unwrap());
             }
 
             if entry_type == EntryMode::FILE {

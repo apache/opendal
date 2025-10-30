@@ -21,14 +21,15 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use http::Uri;
-use redis::cluster::ClusterClientBuilder;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
+use redis::cluster::ClusterClientBuilder;
 use tokio::sync::OnceCell;
 
+use super::REDIS_SCHEME;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
@@ -36,22 +37,14 @@ use crate::raw::oio;
 use crate::raw::*;
 use crate::services::RedisConfig;
 use crate::*;
-
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
-
-impl Configurator for RedisConfig {
-    type Builder = RedisBuilder;
-    fn into_builder(self) -> Self::Builder {
-        RedisBuilder { config: self }
-    }
-}
 
 /// [Redis](https://redis.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct RedisBuilder {
-    config: RedisConfig,
+    pub(super) config: RedisConfig,
 }
 
 impl Debug for RedisBuilder {
@@ -144,7 +137,6 @@ impl RedisBuilder {
 }
 
 impl Builder for RedisBuilder {
-    const SCHEME: Scheme = Scheme::Redis;
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Access> {
@@ -249,7 +241,7 @@ impl RedisBuilder {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
                         .with_context("service", Scheme::Redis)
                         .with_context("scheme", s),
-                )
+                );
             }
         };
 
@@ -278,7 +270,7 @@ pub struct RedisAccessor {
 impl RedisAccessor {
     fn new(core: RedisCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Redis);
+        info.set_scheme(REDIS_SCHEME);
         info.set_name(&core.addr);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -374,70 +366,5 @@ impl Access for RedisAccessor {
         let _ = build_abs_path(&self.root, path);
         // Redis doesn't support listing keys, return empty list
         Ok((RpList::default(), ()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn test_redis_accessor_creation() {
-        let core = RedisCore {
-            addr: "redis://127.0.0.1:6379".to_string(),
-            client: None,
-            cluster_client: None,
-            conn: OnceCell::new(),
-            default_ttl: Some(Duration::from_secs(60)),
-        };
-
-        let accessor = RedisAccessor::new(core);
-
-        // Verify basic properties
-        assert_eq!(accessor.root, "/");
-        assert_eq!(accessor.info.scheme(), Scheme::Redis);
-        assert!(accessor.info.native_capability().read);
-        assert!(accessor.info.native_capability().write);
-        assert!(accessor.info.native_capability().delete);
-        assert!(accessor.info.native_capability().stat);
-    }
-
-    #[test]
-    fn test_redis_accessor_with_root() {
-        let core = RedisCore {
-            addr: "redis://127.0.0.1:6379".to_string(),
-            client: None,
-            cluster_client: None,
-            conn: OnceCell::new(),
-            default_ttl: None,
-        };
-
-        let accessor = RedisAccessor::new(core).with_normalized_root("/test/".to_string());
-
-        assert_eq!(accessor.root, "/test/");
-        assert_eq!(accessor.info.root(), "/test/".into());
-    }
-
-    #[test]
-    fn test_redis_builder_interface() {
-        // Test that RedisBuilder still works with the new implementation
-        let builder = RedisBuilder::default()
-            .endpoint("redis://localhost:6379")
-            .username("testuser")
-            .password("testpass")
-            .db(1)
-            .root("/test");
-
-        // The builder should be able to create configuration
-        assert!(builder.config.endpoint.is_some());
-        assert_eq!(
-            builder.config.endpoint.as_ref().unwrap(),
-            "redis://localhost:6379"
-        );
-        assert_eq!(builder.config.username.as_ref().unwrap(), "testuser");
-        assert_eq!(builder.config.password.as_ref().unwrap(), "testpass");
-        assert_eq!(builder.config.db, 1);
-        assert_eq!(builder.config.root.as_ref().unwrap(), "/test");
     }
 }

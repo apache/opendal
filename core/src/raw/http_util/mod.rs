@@ -23,12 +23,12 @@
 //! it easier to develop services and layers outside opendal.
 
 mod client;
-pub use client::HttpClient;
-pub use client::HttpFetch;
-pub use client::HttpFetcher;
 /// temporary client used by several features
 #[allow(unused_imports)]
 pub(crate) use client::GLOBAL_REQWEST_CLIENT;
+pub use client::HttpClient;
+pub use client::HttpFetch;
+pub use client::HttpFetcher;
 
 mod body;
 pub use body::HttpBody;
@@ -38,6 +38,7 @@ pub use header::build_header_value;
 pub use header::format_authorization_by_basic;
 pub use header::format_authorization_by_bearer;
 pub use header::format_content_md5;
+pub use header::format_content_md5_iter;
 pub use header::parse_content_disposition;
 pub use header::parse_content_encoding;
 pub use header::parse_content_length;
@@ -53,10 +54,10 @@ pub use header::parse_multipart_boundary;
 pub use header::parse_prefixed_headers;
 
 mod uri;
+pub use uri::QueryPairsWriter;
 pub use uri::new_http_uri_invalid_error;
 pub use uri::percent_decode_path;
 pub use uri::percent_encode_path;
-pub use uri::QueryPairsWriter;
 
 mod error;
 pub use error::new_request_build_error;

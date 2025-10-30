@@ -15,20 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-pcloud")]
+/// Default scheme for pcloud service.
+pub(super) const PCLOUD_SCHEME: &str = "pcloud";
 mod core;
-#[cfg(feature = "services-pcloud")]
 mod delete;
-#[cfg(feature = "services-pcloud")]
 mod error;
-#[cfg(feature = "services-pcloud")]
 mod lister;
-#[cfg(feature = "services-pcloud")]
 mod writer;
 
-#[cfg(feature = "services-pcloud")]
 mod backend;
-#[cfg(feature = "services-pcloud")]
 pub use backend::PcloudBuilder as Pcloud;
 
 mod config;

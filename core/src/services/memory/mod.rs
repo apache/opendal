@@ -15,19 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-memory")]
+/// Default scheme for memory service.
+pub const MEMORY_SCHEME: &str = "memory";
 mod backend;
-#[cfg(feature = "services-memory")]
 pub use backend::MemoryBuilder as Memory;
 
 mod config;
 pub use config::MemoryConfig;
 
-#[cfg(feature = "services-memory")]
 mod core;
-#[cfg(feature = "services-memory")]
 mod delete;
-#[cfg(feature = "services-memory")]
 mod lister;
-#[cfg(feature = "services-memory")]
 mod writer;

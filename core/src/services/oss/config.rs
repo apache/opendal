@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
+use super::backend::OssBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -35,6 +36,10 @@ pub struct OssConfig {
     pub presign_endpoint: Option<String>,
     /// Bucket for oss.
     pub bucket: String,
+    /// Addressing style for oss.
+    pub addressing_style: Option<String>,
+    /// Pre sign addressing style for oss.
+    pub presign_addressing_style: Option<String>,
 
     /// is bucket versioning enabled for this bucket
     pub enable_versioning: bool,
@@ -49,9 +54,20 @@ pub struct OssConfig {
 
     // authenticate options
     /// Access key id for oss.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
     pub access_key_id: Option<String>,
     /// Access key secret for oss.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
     pub access_key_secret: Option<String>,
+    /// `security_token` will be loaded from
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+    pub security_token: Option<String>,
     /// The size of max batch operations.
     #[deprecated(
         since = "0.52.0",
@@ -62,6 +78,9 @@ pub struct OssConfig {
     pub delete_max_size: Option<usize>,
     /// If `role_arn` is set, we will use already known config as source
     /// credential to assume role with `role_arn`.
+    ///
+    /// - this field if it's `is_some`
+    /// - env value: [`ALIBABA_CLOUD_ROLE_ARN`]
     pub role_arn: Option<String>,
     /// role_session_name for this backend.
     pub role_session_name: Option<String>,
@@ -91,5 +110,51 @@ impl Debug for OssConfig {
             .field("allow_anonymous", &self.allow_anonymous);
 
         d.finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for OssConfig {
+    type Builder = OssBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        OssBuilder {
+            config: self,
+
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "oss://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = OssConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

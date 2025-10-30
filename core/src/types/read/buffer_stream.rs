@@ -21,8 +21,8 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::ready;
 use futures::Stream;
+use futures::ready;
 
 use crate::raw::oio::Read as _;
 use crate::raw::*;
@@ -90,6 +90,7 @@ impl ChunkedReader {
         let tasks = ConcurrentTasks::new(
             ctx.accessor().info().executor(),
             ctx.options().concurrent(),
+            ctx.options().prefetch(),
             |mut r: oio::Reader| {
                 Box::pin(async {
                     match r.read_all().await {

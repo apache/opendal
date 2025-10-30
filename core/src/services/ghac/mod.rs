@@ -15,17 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-ghac")]
+/// Default scheme for ghac service.
+pub(super) const GHAC_SCHEME: &str = "ghac";
 mod error;
-#[cfg(feature = "services-ghac")]
 mod writer;
 
-#[cfg(feature = "services-ghac")]
 mod backend;
-#[cfg(feature = "services-ghac")]
 pub use backend::GhacBuilder as Ghac;
 
-#[cfg(feature = "services-ghac")]
 mod core;
 
 mod config;

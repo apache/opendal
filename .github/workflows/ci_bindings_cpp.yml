@@ -44,7 +44,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -63,7 +63,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake -GNinja -DOPENDAL_DEV=ON ..
+          cmake -GNinja -DOPENDAL_DEV=ON -DFEATURES=opendal/services-memory ..
           ninja
           ./opendal_cpp_test
 
@@ -72,7 +72,7 @@ jobs:
         run: |
           mkdir build-valgrind
           cd build-valgrind
-          cmake -GNinja -DOPENDAL_ENABLE_TESTING=ON ..
+          cmake -GNinja -DOPENDAL_ENABLE_TESTING=ON -DFEATURES=opendal/services-memory ..
           ninja
           valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test
 
@@ -81,7 +81,7 @@ jobs:
         run: |
           mkdir build-async
           cd build-async
-          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
+          cmake -GNinja -DOPENDAL_DEV=ON -DOPENDAL_ENABLE_ASYNC=ON -DFEATURES=opendal/services-memory -DCMAKE_CXX_COMPILER=clang++-18 ..
           ninja
           ./opendal_cpp_test
 
@@ -90,7 +90,7 @@ jobs:
         run: |
           mkdir build-valgrind-async
           cd build-valgrind-async
-          cmake -GNinja -DOPENDAL_ENABLE_ASYNC=ON -DOPENDAL_ENABLE_TESTING=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
+          cmake -GNinja -DOPENDAL_ENABLE_ASYNC=ON -DFEATURES=opendal/services-memory -DOPENDAL_ENABLE_TESTING=ON -DCMAKE_CXX_COMPILER=clang++-18 ..
           ninja
           valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose ./opendal_cpp_test
 

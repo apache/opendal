@@ -15,9 +15,7 @@ impl<A: Access> Layer<A> for SanityCheckLayer {
     type LayeredAccess = SanityCheckAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        SanityCheckAccessor {
-            inner,
-        }
+        SanityCheckAccessor { inner }
     }
 }
 

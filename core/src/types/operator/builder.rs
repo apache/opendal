@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use crate::layers::*;
 use crate::raw::*;
+use crate::types::IntoOperatorUri;
 use crate::*;
 
 /// # Operator build API
@@ -132,6 +133,24 @@ impl Operator {
         Ok(OperatorBuilder::new(acc))
     }
 
+    /// Create a new operator by parsing configuration from a URI.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// use opendal::Operator;
+    ///
+    /// # fn example() -> Result<()> {
+    /// let op = Operator::from_uri("memory://localhost/")?;
+    /// # let _ = op;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Operator> {
+        crate::DEFAULT_OPERATOR_REGISTRY.load(uri)
+    }
+
     /// Create a new operator via given scheme and iterator of config value in dynamic dispatch.
     ///
     /// # Notes
@@ -170,6 +189,8 @@ impl Operator {
             Scheme::AliyunDrive => Self::from_iter::<services::AliyunDrive>(iter)?.finish(),
             #[cfg(feature = "services-alluxio")]
             Scheme::Alluxio => Self::from_iter::<services::Alluxio>(iter)?.finish(),
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv => Self::from_iter::<services::CloudflareKv>(iter)?.finish(),
             #[cfg(feature = "services-compfs")]
             Scheme::Compfs => Self::from_iter::<services::Compfs>(iter)?.finish(),
             #[cfg(feature = "services-upyun")]
@@ -287,7 +308,7 @@ impl Operator {
                     ErrorKind::Unsupported,
                     "scheme is not enabled or supported",
                 )
-                .with_context("scheme", v))
+                .with_context("scheme", v));
             }
         };
 
@@ -309,18 +330,13 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     /// async fn test() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
+    ///     let map = HashMap::new();
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::from_map::<Fs>(map)?.finish();
+    ///     let op: Operator = Operator::from_map::<Memory>(map)?.finish();
     ///
     ///     Ok(())
     /// }
@@ -350,15 +366,10 @@ impl Operator {
     /// use opendal::Operator;
     /// use opendal::Scheme;
     /// async fn test() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
+    ///     let map = HashMap::new();
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_map(Scheme::Fs, map)?;
+    ///     let op: Operator = Operator::via_map(Scheme::Memory, map)?;
     ///
     ///     Ok(())
     /// }
@@ -390,11 +401,11 @@ impl Operator {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     ///
     /// # async fn test() -> Result<()> {
-    /// let op = Operator::new(Fs::default())?.finish();
+    /// let op = Operator::new(Memory::default())?.finish();
     /// let op = op.layer(LoggingLayer::default());
     /// // All operations will go through the new_layer
     /// let _ = op.read("test_file").await?;
@@ -445,8 +456,7 @@ impl Operator {
 ///
 /// async fn init(scheme: Scheme, cfg: HashMap<String, String>) -> Result<()> {
 ///     let _ = match scheme {
-///         Scheme::S3 => init_service::<services::S3>(cfg)?,
-///         Scheme::Fs => init_service::<services::Fs>(cfg)?,
+///         Scheme::Memory => init_service::<services::Memory>(cfg)?,
 ///         _ => todo!(),
 ///     };
 ///
@@ -485,11 +495,11 @@ impl<A: Access> OperatorBuilder<A> {
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
     /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Fs;
+    /// use opendal::services::Memory;
     /// use opendal::Operator;
     ///
     /// # async fn test() -> Result<()> {
-    /// let op = Operator::new(Fs::default())?
+    /// let op = Operator::new(Memory::default())?
     ///     .layer(LoggingLayer::default())
     ///     .finish();
     /// // All operations will go through the new_layer

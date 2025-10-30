@@ -17,11 +17,11 @@
 
 use std::sync::Arc;
 
-use super::core::parse_blob;
 use super::core::VercelBlobCore;
+use super::core::parse_blob;
+use crate::Result;
 use crate::raw::oio::Entry;
 use crate::raw::*;
-use crate::Result;
 
 pub struct VercelBlobLister {
     core: Arc<VercelBlobCore>,

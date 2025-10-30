@@ -18,6 +18,7 @@
 use tokio::runtime::Handle;
 
 use crate::Operator as AsyncOperator;
+use crate::types::IntoOperatorUri;
 use crate::*;
 
 /// Use OpenDAL in blocking context.
@@ -133,6 +134,12 @@ impl Operator {
                 .map_err(|_| Error::new(ErrorKind::Unexpected, "failed to get current handle"))?,
             op,
         })
+    }
+
+    /// Create a blocking operator from URI based configuration.
+    pub fn from_uri(uri: impl IntoOperatorUri) -> Result<Self> {
+        let op = AsyncOperator::from_uri(uri)?;
+        Self::new(op)
     }
 
     /// Get information of underlying accessor.

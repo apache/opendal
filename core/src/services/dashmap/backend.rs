@@ -22,27 +22,21 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use log::debug;
 
+use super::DASHMAP_SCHEME;
 use super::core::DashmapCore;
 use super::delete::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::services::DashmapConfig;
 use crate::*;
-impl Configurator for DashmapConfig {
-    type Builder = DashmapBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DashmapBuilder { config: self }
-    }
-}
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DashmapBuilder {
-    config: DashmapConfig,
+    pub(super) config: DashmapConfig,
 }
 
 impl Debug for DashmapBuilder {
@@ -100,7 +94,7 @@ pub struct DashmapAccessor {
 impl DashmapAccessor {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(DASHMAP_SCHEME);
         info.set_name("dashmap");
         info.set_root(&root);
         info.set_native_capability(Capability {

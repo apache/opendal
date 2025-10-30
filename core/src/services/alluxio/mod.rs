@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for alluxio service.
-#[cfg(feature = "services-alluxio")]
-pub(super) const DEFAULT_SCHEME: &str = "alluxio";
-#[cfg(feature = "services-alluxio")]
+pub(super) const ALLUXIO_SCHEME: &str = "alluxio";
 mod core;
-#[cfg(feature = "services-alluxio")]
 mod delete;
-#[cfg(feature = "services-alluxio")]
 mod error;
-#[cfg(feature = "services-alluxio")]
 mod lister;
-#[cfg(feature = "services-alluxio")]
 mod writer;
 
-#[cfg(feature = "services-alluxio")]
 mod backend;
-#[cfg(feature = "services-alluxio")]
 pub use backend::AlluxioBuilder as Alluxio;
 
 mod config;

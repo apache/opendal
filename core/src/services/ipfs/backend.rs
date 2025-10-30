@@ -24,33 +24,22 @@ use http::StatusCode;
 use log::debug;
 use prost::Message;
 
+use super::IPFS_SCHEME;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::IpfsConfig;
 use crate::*;
-impl Configurator for IpfsConfig {
-    type Builder = IpfsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        IpfsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone, Debug)]
 pub struct IpfsBuilder {
-    config: IpfsConfig,
+    pub(super) config: IpfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl IpfsBuilder {
@@ -131,7 +120,7 @@ impl Builder for IpfsBuilder {
         debug!("backend use endpoint {}", &endpoint);
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(IPFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

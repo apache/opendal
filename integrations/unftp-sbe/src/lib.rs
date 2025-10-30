@@ -62,9 +62,10 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
 use libunftp::auth::UserDetail;
-use libunftp::storage::{self, StorageBackend};
+use libunftp::storage::{self, Error, StorageBackend};
 use opendal::Operator;
 
+use tokio::io::AsyncWriteExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 #[derive(Debug, Clone)]
@@ -78,7 +79,7 @@ impl OpendalStorage {
     }
 }
 
-/// A wrapper around [`opendal::Metadata`] to implement [`libunftp::storage::Metadata`].
+/// A wrapper around [`opendal::Metadata`] to implement [`storage::Metadata`].
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OpendalMetadata(opendal::Metadata);
 
@@ -100,9 +101,13 @@ impl storage::Metadata for OpendalMetadata {
     }
 
     fn modified(&self) -> storage::Result<std::time::SystemTime> {
-        self.0.last_modified().map(Into::into).ok_or_else(|| {
-            storage::Error::new(storage::ErrorKind::LocalError, "no last modified time")
-        })
+        match self.0.last_modified() {
+            Some(ts) => Ok(ts.into()),
+            None => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                "no last modified time",
+            )),
+        }
     }
 
     fn gid(&self) -> u32 {
@@ -114,19 +119,19 @@ impl storage::Metadata for OpendalMetadata {
     }
 }
 
-fn convert_err(err: opendal::Error) -> storage::Error {
+fn convert_err(err: opendal::Error) -> Error {
     let kind = match err.kind() {
         opendal::ErrorKind::NotFound => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::AlreadyExists => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::PermissionDenied => storage::ErrorKind::PermissionDenied,
         _ => storage::ErrorKind::LocalError,
     };
-    storage::Error::new(kind, err)
+    Error::new(kind, err)
 }
 
 fn convert_path(path: &Path) -> storage::Result<&str> {
     path.to_str().ok_or_else(|| {
-        storage::Error::new(
+        Error::new(
             storage::ErrorKind::LocalError,
             "Path is not a valid UTF-8 string",
         )
@@ -210,8 +215,26 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             .map_err(convert_err)?
             .into_futures_async_write()
             .compat_write();
-        let len = tokio::io::copy(&mut input, &mut w).await?;
-        Ok(len)
+        let copy_result = tokio::io::copy(&mut input, &mut w).await;
+        let shutdown_result = w.shutdown().await;
+        match (copy_result, shutdown_result) {
+            (Ok(len), Ok(())) => Ok(len),
+            (Err(copy_err), Ok(())) => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                format!("Failed to copy data: {}", copy_err),
+            )),
+            (Ok(_), Err(shutdown_err)) => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                format!("Failed to shutdown writer: {}", shutdown_err),
+            )),
+            (Err(copy_err), Err(shutdown_err)) => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                format!(
+                    "Failed to copy data: {} AND failed to shutdown writer: {}",
+                    copy_err, shutdown_err
+                ),
+            )),
+        }
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
@@ -251,7 +274,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
         match self.op.stat(convert_path(path.as_ref())?).await {
             Ok(_) => Ok(()),
-            Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(storage::Error::new(
+            Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
                 e,
             )),

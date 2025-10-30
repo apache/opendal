@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for pcloud service.
-#[cfg(feature = "services-pcloud")]
-pub(super) const DEFAULT_SCHEME: &str = "pcloud";
-#[cfg(feature = "services-pcloud")]
+pub(super) const PCLOUD_SCHEME: &str = "pcloud";
 mod core;
-#[cfg(feature = "services-pcloud")]
 mod delete;
-#[cfg(feature = "services-pcloud")]
 mod error;
-#[cfg(feature = "services-pcloud")]
 mod lister;
-#[cfg(feature = "services-pcloud")]
 mod writer;
 
-#[cfg(feature = "services-pcloud")]
 mod backend;
-#[cfg(feature = "services-pcloud")]
 pub use backend::PcloudBuilder as Pcloud;
 
 mod config;

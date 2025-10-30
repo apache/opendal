@@ -25,28 +25,21 @@ use etcd_client::Identity;
 use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
-use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
+use super::ETCD_SCHEME;
 use super::core::EtcdCore;
+use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
 use super::lister::EtcdLister;
 use super::writer::EtcdWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::EtcdConfig;
 use crate::*;
-
-impl Configurator for EtcdConfig {
-    type Builder = EtcdBuilder;
-    fn into_builder(self) -> Self::Builder {
-        EtcdBuilder { config: self }
-    }
-}
 
 /// [Etcd](https://etcd.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Default)]
 pub struct EtcdBuilder {
-    config: EtcdConfig,
+    pub(super) config: EtcdConfig,
 }
 
 impl Debug for EtcdBuilder {
@@ -204,7 +197,7 @@ pub struct EtcdAccessor {
 impl EtcdAccessor {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME);
+        info.set_scheme(ETCD_SCHEME);
         info.set_name("etcd");
         info.set_root(root);
         info.set_native_capability(Capability {

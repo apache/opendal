@@ -23,36 +23,25 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::UPYUN_SCHEME;
 use super::core::*;
 use super::delete::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::UpyunConfig;
 use crate::*;
-impl Configurator for UpyunConfig {
-    type Builder = UpyunBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        UpyunBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [upyun](https://www.upyun.com/products/file-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct UpyunBuilder {
-    config: UpyunConfig,
+    pub(super) config: UpyunConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for UpyunBuilder {
@@ -169,7 +158,7 @@ impl Builder for UpyunBuilder {
             core: Arc::new(UpyunCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(UPYUN_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

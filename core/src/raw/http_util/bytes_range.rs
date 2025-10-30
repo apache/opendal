@@ -53,10 +53,10 @@ impl BytesRange {
     ///
     /// # Note
     ///
-    /// The behavior for `None` and `Some(0)` is different.
+    /// The behavior for `None` and `Some` of `size` is different.
     ///
-    /// - offset=None => `bytes=-<size>`, read `<size>` bytes from end.
-    /// - offset=Some(0) => `bytes=0-<size>`, read `<size>` bytes from start.
+    /// - size=None => `bytes=<offset>-`, read from `<offset>` until the end
+    /// - size=Some(1024) => `bytes=<offset>-<offset + 1024>`, read 1024 bytes starting from the `<offset>`
     pub fn new(offset: u64, size: Option<u64>) -> Self {
         BytesRange(offset, size)
     }

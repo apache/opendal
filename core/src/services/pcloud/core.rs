@@ -20,14 +20,14 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use super::error::PcloudError;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
@@ -404,7 +404,7 @@ pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
         md.set_content_length(size);
     }
 
-    md.set_last_modified(parse_datetime_from_rfc2822(&content.modified)?);
+    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
     Ok(md)
 }
@@ -420,7 +420,7 @@ pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
         md.set_content_length(size);
     }
 
-    md.set_last_modified(parse_datetime_from_rfc2822(&content.modified)?);
+    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
     Ok(md)
 }

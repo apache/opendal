@@ -18,13 +18,12 @@
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use governor::clock::Clock;
+use governor::Quota;
+use governor::RateLimiter;
 use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
-use governor::Quota;
-use governor::RateLimiter;
 
 use crate::raw::*;
 use crate::*;
@@ -170,28 +169,29 @@ impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let buf_length = NonZeroU32::new(bs.len() as u32).unwrap();
-
-        loop {
-            match self.limiter.check_n(buf_length) {
-                Ok(res) => match res {
-                    Ok(_) => return self.inner.write(bs).await,
-                    // the query is valid but the Decider can not accommodate them.
-                    Err(not_until) => {
-                        let _ = not_until.wait_time_from(DefaultClock::default().now());
-                        // TODO: Should lock the limiter and wait for the wait_time, or should let other small requests go first?
-
-                        // FIXME: we should sleep here.
-                        // tokio::time::sleep(wait_time).await;
-                    }
-                },
-                // the query was invalid as the rate limit parameters can "never" accommodate the number of cells queried for.
-                Err(_) => return Err(Error::new(
-                    ErrorKind::RateLimited,
-                    "InsufficientCapacity due to burst size being smaller than the request size",
-                )),
-            }
+        let len = bs.len();
+        if len == 0 {
+            return self.inner.write(bs).await;
         }
+
+        if len > u32::MAX as usize {
+            return Err(Error::new(
+                ErrorKind::RateLimited,
+                "request size exceeds throttle quota capacity",
+            ));
+        }
+
+        let buf_length =
+            NonZeroU32::new(len as u32).expect("len is non-zero so NonZeroU32 must exist");
+
+        self.limiter.until_n_ready(buf_length).await.map_err(|_| {
+            Error::new(
+                ErrorKind::RateLimited,
+                "burst size is smaller than the request size",
+            )
+        })?;
+
+        self.inner.write(bs).await
     }
 
     async fn abort(&mut self) -> Result<()> {

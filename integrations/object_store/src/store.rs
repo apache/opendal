@@ -21,12 +21,12 @@ use std::io;
 use std::sync::Arc;
 
 use crate::utils::*;
+use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
-use futures::stream::BoxStream;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
-use object_store::path::Path;
+use futures::stream::BoxStream;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -35,13 +35,14 @@ use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
+use object_store::path::Path;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
-use opendal::options::CopyOptions;
-use opendal::raw::percent_decode_path;
 use opendal::Buffer;
 use opendal::Writer;
+use opendal::options::CopyOptions;
+use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 use tokio::sync::{Mutex, Notify};
@@ -186,10 +187,10 @@ impl ObjectStore for OpendalStore {
         bytes: PutPayload,
         opts: PutOptions,
     ) -> object_store::Result<PutResult> {
-        let mut future_write = self.inner.write_with(
-            &percent_decode_path(location.as_ref()),
-            Buffer::from_iter(bytes.into_iter()),
-        );
+        let decoded_location = percent_decode_path(location.as_ref());
+        let mut future_write = self
+            .inner
+            .write_with(&decoded_location, Buffer::from_iter(bytes));
         let opts_mode = opts.mode.clone();
         match opts.mode {
             PutMode::Overwrite => {}
@@ -229,9 +230,10 @@ impl ObjectStore for OpendalStore {
         &self,
         location: &Path,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
+        let decoded_location = percent_decode_path(location.as_ref());
         let writer = self
             .inner
-            .writer_with(&percent_decode_path(location.as_ref()))
+            .writer_with(&decoded_location)
             .concurrent(8)
             .into_send()
             .await
@@ -287,9 +289,10 @@ impl ObjectStore for OpendalStore {
             options.user_metadata = Some(user_metadata);
         }
 
+        let decoded_location = percent_decode_path(location.as_ref());
         let writer = self
             .inner
-            .writer_options(&percent_decode_path(location.as_ref()), options)
+            .writer_options(&decoded_location, options)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
@@ -315,10 +318,14 @@ impl ObjectStore for OpendalStore {
             if let Some(if_none_match) = &options.if_none_match {
                 s = s.if_none_match(if_none_match.as_str());
             }
-            if let Some(if_modified_since) = options.if_modified_since {
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
                 s = s.if_modified_since(if_modified_since);
             }
-            if let Some(if_unmodified_since) = options.if_unmodified_since {
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
                 s = s.if_unmodified_since(if_unmodified_since);
             }
             s.into_send()
@@ -339,7 +346,10 @@ impl ObjectStore for OpendalStore {
 
         let meta = ObjectMeta {
             location: location.clone(),
-            last_modified: meta.last_modified().unwrap_or_default(),
+            last_modified: meta
+                .last_modified()
+                .and_then(timestamp_to_datetime)
+                .unwrap_or_default(),
             size: meta.content_length(),
             e_tag: meta.etag().map(|x| x.to_string()),
             version: meta.version().map(|x| x.to_string()),
@@ -365,10 +375,14 @@ impl ObjectStore for OpendalStore {
             if let Some(if_none_match) = options.if_none_match {
                 r = r.if_none_match(if_none_match.as_str());
             }
-            if let Some(if_modified_since) = options.if_modified_since {
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
                 r = r.if_modified_since(if_modified_since);
             }
-            if let Some(if_unmodified_since) = options.if_unmodified_since {
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
                 r = r.if_unmodified_since(if_unmodified_since);
             }
             r.into_send()
@@ -416,8 +430,9 @@ impl ObjectStore for OpendalStore {
     }
 
     async fn delete(&self, location: &Path) -> object_store::Result<()> {
+        let decoded_location = percent_decode_path(location.as_ref());
         self.inner
-            .delete(&percent_decode_path(location.as_ref()))
+            .delete(&decoded_location)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
@@ -432,9 +447,12 @@ impl ObjectStore for OpendalStore {
             format!("{}/", percent_decode_path(x.as_ref()))
         });
 
-        let lister_fut = self.inner.lister_with(&path).recursive(true);
+        let this = self.clone();
         let fut = async move {
-            let stream = lister_fut
+            let stream = this
+                .inner
+                .lister_with(&path)
+                .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
 

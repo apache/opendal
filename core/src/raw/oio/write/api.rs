@@ -61,11 +61,16 @@ impl Write for () {
     }
 }
 
+/// WriteDyn is the dyn version of [`Write`] make it possible to use as
+/// `Box<dyn WriteDyn>`.
 pub trait WriteDyn: Unpin + Send + Sync {
+    /// The dyn version of [`Write::write`].
     fn write_dyn(&mut self, bs: Buffer) -> BoxedFuture<'_, Result<()>>;
 
+    /// The dyn version of [`Write::close`].
     fn close_dyn(&mut self) -> BoxedFuture<'_, Result<Metadata>>;
 
+    /// The dyn version of [`Write::abort`].
     fn abort_dyn(&mut self) -> BoxedFuture<'_, Result<()>>;
 }
 

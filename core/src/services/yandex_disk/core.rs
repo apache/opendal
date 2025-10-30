@@ -20,11 +20,11 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
-use http::request;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::request;
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -298,7 +298,7 @@ pub(super) fn parse_info(mf: MetainformationResponse) -> Result<Metadata> {
 
     let mut m = Metadata::new(mode);
 
-    m.set_last_modified(parse_datetime_from_rfc3339(&mf.modified)?);
+    m.set_last_modified(mf.modified.parse::<Timestamp>()?);
 
     if let Some(md5) = mf.md5 {
         m.set_content_md5(&md5);

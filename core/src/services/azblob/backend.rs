@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -30,15 +30,15 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
+use super::AZBLOB_SCHEME;
+use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
-use super::core::AzblobCore;
 use super::delete::AzblobDeleter;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::AzblobConfig;
 use crate::*;
@@ -56,26 +56,13 @@ impl From<AzureStorageConfig> for AzblobConfig {
     }
 }
 
-impl Configurator for AzblobConfig {
-    type Builder = AzblobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzblobBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct AzblobBuilder {
-    config: AzblobConfig,
+    pub(super) config: AzblobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzblobBuilder {
@@ -326,6 +313,9 @@ impl Builder for AzblobBuilder {
         }?;
         debug!("backend use endpoint {}", &container);
 
+        #[cfg(target_arch = "wasm32")]
+        let mut config_loader = AzureStorageConfig::default();
+        #[cfg(not(target_arch = "wasm32"))]
         let mut config_loader = AzureStorageConfig::default().from_env();
 
         if let Some(v) = self
@@ -342,7 +332,7 @@ impl Builder for AzblobBuilder {
             if let Err(e) = BASE64_STANDARD.decode(&v) {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    format!("invalid account_key: cannot decode as base64: {}", e),
+                    format!("invalid account_key: cannot decode as base64: {e}"),
                 )
                 .with_operation("Builder::build")
                 .with_context("service", Scheme::Azblob)
@@ -394,7 +384,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

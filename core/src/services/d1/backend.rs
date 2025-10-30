@@ -15,46 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::sync::Arc;
 
-use http::header;
-use http::Request;
-use http::StatusCode;
-use serde_json::Value;
-
-use super::error::parse_error;
-use super::model::D1Response;
-use crate::raw::adapters::kv;
+use super::config::D1Config;
+use super::core::*;
+use super::deleter::D1Deleter;
+use super::writer::D1Writer;
 use crate::raw::*;
-use crate::services::D1Config;
-use crate::ErrorKind;
 use crate::*;
-
-impl Configurator for D1Config {
-    type Builder = D1Builder;
-    fn into_builder(self) -> Self::Builder {
-        D1Builder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct D1Builder {
-    config: D1Config,
+    pub(super) config: D1Config,
 
-    http_client: Option<HttpClient>,
-}
-
-impl Debug for D1Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("D1Builder")
-            .field("config", &self.config)
-            .finish()
-    }
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl D1Builder {
@@ -189,7 +164,7 @@ impl Builder for D1Builder {
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
-        Ok(D1Backend::new(Adapter {
+        Ok(D1Backend::new(D1Core {
             authorization,
             account_id,
             database_id,
@@ -202,129 +177,98 @@ impl Builder for D1Builder {
     }
 }
 
-pub type D1Backend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    authorization: Option<String>,
-    account_id: String,
-    database_id: String,
-
-    client: HttpClient,
-    table: String,
-    key_field: String,
-    value_field: String,
+/// Backend for D1 services.
+#[derive(Clone, Debug)]
+pub struct D1Backend {
+    core: Arc<D1Core>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("D1Adapter");
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.finish()
-    }
-}
-
-impl Adapter {
-    fn create_d1_query_request(&self, sql: &str, params: Vec<Value>) -> Result<Request<Buffer>> {
-        let p = format!(
-            "/accounts/{}/d1/database/{}/query",
-            self.account_id, self.database_id
-        );
-        let url: String = format!(
-            "{}{}",
-            "https://api.cloudflare.com/client/v4",
-            percent_encode_path(&p)
-        );
-
-        let mut req = Request::post(&url);
-        if let Some(auth) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, auth);
-        }
-        req = req.header(header::CONTENT_TYPE, "application/json");
-
-        let json = serde_json::json!({
-            "sql": sql,
-            "params": params,
+impl D1Backend {
+    pub fn new(core: D1Core) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::D1.into_static());
+        info.set_name(&core.table);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            // Cloudflare D1 supports 1MB as max in write_total.
+            // refer to https://developers.cloudflare.com/d1/platform/limits/
+            write_total_max_size: Some(1000 * 1000),
+            delete: true,
+            shared: true,
+            ..Default::default()
         });
 
-        let body = serde_json::to_vec(&json).map_err(new_json_serialize_error)?;
-        req.body(Buffer::from(body))
-            .map_err(new_request_build_error)
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
     }
 }
 
-impl kv::Adapter for Adapter {
-    type Scanner = ();
+impl Access for D1Backend {
+    type Reader = Buffer;
+    type Writer = D1Writer;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<D1Deleter>;
 
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::D1,
-            &self.table,
-            Capability {
-                read: true,
-                write: true,
-                // Cloudflare D1 supports 1MB as max in write_total.
-                // refer to https://developers.cloudflare.com/d1/platform/limits/
-                write_total_max_size: Some(1000 * 1000),
-                shared: true,
-                ..Default::default()
-            },
-        )
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let query = format!(
-            "SELECT {} FROM {} WHERE {} = ? LIMIT 1",
-            self.value_field, self.table, self.key_field
-        );
-        let req = self.create_d1_query_request(&query, vec![path.into()])?;
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
 
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                let body = resp.into_body();
-                let bs = body.to_bytes();
-                let d1_response = D1Response::parse(&bs)?;
-                Ok(d1_response.get_result(&self.value_field))
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in d1")),
             }
-            _ => Err(parse_error(resp)),
         }
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let table = &self.table;
-        let key_field = &self.key_field;
-        let value_field = &self.value_field;
-        let query = format!(
-            "INSERT INTO {table} ({key_field}, {value_field}) \
-                VALUES (?, ?) \
-                ON CONFLICT ({key_field}) \
-                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
-        );
-
-        let params = vec![path.into(), value.to_vec().into()];
-        let req = self.create_d1_query_request(&query, params)?;
-
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in d1"));
+            }
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
-        let query = format!("DELETE FROM {} WHERE {} = ?", self.table, self.key_field);
-        let req = self.create_d1_query_request(&query, vec![path.into()])?;
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), D1Writer::new(self.core.clone(), p)))
+    }
 
-        let resp = self.client.send(req).await?;
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(D1Deleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
     }
 }

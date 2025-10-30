@@ -21,7 +21,9 @@ This service can be used to:
 - `root`: Set the work dir for backend.
 - `bucket`: Set the container name for backend.
 - `endpoint`: Set the endpoint for backend.
+- `addressing_style`: Set the addressing style for endpoint.
 - `presign_endpoint`: Set the endpoint for presign.
+- `presign_addressing_style`: Set the addressing style for presign endpoint.
 - `access_key_id`: Set the access_key_id for backend.
 - `access_key_secret`: Set the access_key_secret for backend.
 - `role_arn`: Set the role of backend.

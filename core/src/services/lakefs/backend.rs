@@ -20,34 +20,26 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::TimeZone;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::LAKEFS_SCHEME;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::LakefsConfig;
 use crate::*;
-impl Configurator for LakefsConfig {
-    type Builder = LakefsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        LakefsBuilder { config: self }
-    }
-}
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Default, Clone)]
 pub struct LakefsBuilder {
-    config: LakefsConfig,
+    pub(super) config: LakefsConfig,
 }
 
 impl Debug for LakefsBuilder {
@@ -175,7 +167,7 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(LAKEFS_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 
@@ -242,7 +234,7 @@ impl Access for LakefsBackend {
                     meta.set_content_disposition(v);
                 }
 
-                meta.set_last_modified(Utc.timestamp_opt(decoded_response.mtime, 0).unwrap());
+                meta.set_last_modified(Timestamp::from_second(decoded_response.mtime).unwrap());
 
                 Ok(RpStat::new(meta))
             }

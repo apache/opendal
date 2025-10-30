@@ -20,12 +20,12 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Write;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::atomic::AtomicBool;
 
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
 use http::Response;
@@ -41,6 +41,7 @@ use reqsign::AwsDefaultLoader;
 use reqsign::AwsV4Signer;
 use reqwest::Url;
 
+use super::S3_SCHEME;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
@@ -50,7 +51,6 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use super::DEFAULT_SCHEME;
 use crate::raw::oio::PageLister;
 use crate::raw::*;
 use crate::services::S3Config;
@@ -69,32 +69,18 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
-impl Configurator for S3Config {
-    type Builder = S3Builder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        S3Builder {
-            config: self,
-            customized_credential_load: None,
-
-            http_client: None,
-        }
-    }
-}
-
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default)]
 pub struct S3Builder {
-    config: S3Config,
+    pub(super) config: S3Config,
 
-    customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
+    pub(super) customized_credential_load: Option<Box<dyn AwsCredentialLoad>>,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for S3Builder {
@@ -791,7 +777,7 @@ impl Builder for S3Builder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     format!("{v:?} is not a supported checksum_algorithm."),
-                ))
+                ));
             }
         };
 
@@ -905,7 +891,7 @@ impl Builder for S3Builder {
             core: Arc::new(S3Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(S3_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -1157,112 +1143,5 @@ impl Access for S3Backend {
             parts.uri,
             parts.headers,
         )))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_valid_bucket() {
-        let bucket_cases = vec![
-            ("", false, false),
-            ("test", false, true),
-            ("test.xyz", false, true),
-            ("", true, false),
-            ("test", true, true),
-            ("test.xyz", true, false),
-        ];
-
-        for (bucket, enable_virtual_host_style, expected) in bucket_cases {
-            let mut b = S3Builder::default();
-            b = b.bucket(bucket);
-            if enable_virtual_host_style {
-                b = b.enable_virtual_host_style();
-            }
-            assert_eq!(b.is_bucket_valid(), expected)
-        }
-    }
-
-    #[test]
-    fn test_build_endpoint() {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
-        let endpoint_cases = vec![
-            Some("s3.amazonaws.com"),
-            Some("https://s3.amazonaws.com"),
-            Some("https://s3.us-east-2.amazonaws.com"),
-            None,
-        ];
-
-        for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default().bucket("test");
-            if let Some(endpoint) = endpoint {
-                b = b.endpoint(endpoint);
-            }
-
-            let endpoint = b.build_endpoint("us-east-2");
-            assert_eq!(endpoint, "https://s3.us-east-2.amazonaws.com/test");
-        }
-
-        for endpoint in &endpoint_cases {
-            let mut b = S3Builder::default()
-                .bucket("test")
-                .enable_virtual_host_style();
-            if let Some(endpoint) = endpoint {
-                b = b.endpoint(endpoint);
-            }
-
-            let endpoint = b.build_endpoint("us-east-2");
-            assert_eq!(endpoint, "https://test.s3.us-east-2.amazonaws.com");
-        }
-    }
-
-    #[tokio::test]
-    async fn test_detect_region() {
-        let cases = vec![
-            (
-                "aws s3 without region in endpoint",
-                "https://s3.amazonaws.com",
-                "example",
-                Some("us-east-1"),
-            ),
-            (
-                "aws s3 with region in endpoint",
-                "https://s3.us-east-1.amazonaws.com",
-                "example",
-                Some("us-east-1"),
-            ),
-            (
-                "oss with public endpoint",
-                "https://oss-ap-southeast-1.aliyuncs.com",
-                "example",
-                Some("oss-ap-southeast-1"),
-            ),
-            (
-                "oss with internal endpoint",
-                "https://oss-cn-hangzhou-internal.aliyuncs.com",
-                "example",
-                Some("oss-cn-hangzhou-internal"),
-            ),
-            (
-                "r2",
-                "https://abc.xxxxx.r2.cloudflarestorage.com",
-                "example",
-                Some("auto"),
-            ),
-            (
-                "invalid service",
-                "https://opendal.apache.org",
-                "example",
-                None,
-            ),
-        ];
-
-        for (name, endpoint, bucket, expected) in cases {
-            let region = S3Builder::detect_region(endpoint, bucket).await;
-            assert_eq!(region.as_deref(), expected, "{name}");
-        }
     }
 }

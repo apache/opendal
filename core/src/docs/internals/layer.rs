@@ -21,7 +21,7 @@
 //!
 //! ```ignore
 //! pub trait Layer<A: Access> {
-//!     type LayeredAccess: Accessor;
+//!     type LayeredAccess: Access;
 //!
 //!     fn layer(&self, inner: A) -> Self::LayeredAccess;
 //! }
@@ -30,7 +30,7 @@
 //! `XxxLayer` will wrap input [`Access`] as inner and return a new [`Access`]. So normally the implementation of [`Layer`] will be split into two parts:
 //!
 //! - `XxxLayer` will implement [`Layer`] and return `XxxAccessor` as `Self::LayeredAccess`.
-//! - `XxxAccessor` will implement [`Access`] and be built by `XxxLayer`.
+//! - `XxxAccess` will implement [`Access`] and be built by `XxxLayer`.
 //!
 //! Most layer only implements part of [`Access`], so we provide
 //! [`LayeredAccess`] which will forward all unimplemented methods to

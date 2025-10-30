@@ -94,7 +94,7 @@ impl oio::PageList for AzblobLister {
                 .with_content_length(object.properties.content_length)
                 .with_content_md5(object.properties.content_md5)
                 .with_content_type(object.properties.content_type)
-                .with_last_modified(parse_datetime_from_rfc2822(
+                .with_last_modified(Timestamp::parse_rfc2822(
                     object.properties.last_modified.as_str(),
                 )?);
 

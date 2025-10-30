@@ -19,16 +19,16 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::available_parallelism;
 
+use jni::JNIEnv;
+use jni::JavaVM;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::jlong;
-use jni::JNIEnv;
-use jni::JavaVM;
 use tokio::task::JoinHandle;
 
 use crate::Result;
@@ -42,9 +42,11 @@ thread_local! {
 ///
 /// This function could be only called by java vm when unload this lib.
 #[allow(static_mut_refs)]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn JNI_OnUnload(_: JavaVM, _: *mut c_void) {
-    RUNTIME.take();
+    unsafe {
+        RUNTIME.take();
+    }
 }
 
 /// # Safety
@@ -54,7 +56,7 @@ pub(crate) unsafe fn get_current_env<'local>() -> JNIEnv<'local> {
     let env = ENV
         .with(|cell| *cell.borrow_mut())
         .expect("env must be available");
-    JNIEnv::from_raw(env).expect("env must be valid")
+    unsafe { JNIEnv::from_raw(env) }.expect("env must be valid")
 }
 
 pub enum Executor {
@@ -85,7 +87,7 @@ impl Executor {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
     mut env: JNIEnv,
     _: JClass,
@@ -102,13 +104,15 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor(
 /// # Safety
 ///
 /// This function should not be called before the AsyncExecutor is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInternal(
     _: JNIEnv,
     _: JObject,
     executor: *mut Executor,
 ) {
-    drop(Box::from_raw(executor));
+    unsafe {
+        drop(Box::from_raw(executor));
+    }
 }
 
 pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {
@@ -189,7 +193,7 @@ pub(crate) fn executor_or_default<'a>(
 #[allow(static_mut_refs)]
 unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
     // Return the executor if it's already initialized
-    if let Some(runtime) = RUNTIME.get() {
+    if let Some(runtime) = unsafe { RUNTIME.get() } {
         return Ok(runtime);
     }
 
@@ -199,5 +203,5 @@ unsafe fn default_executor<'a>(env: &mut JNIEnv<'a>) -> Result<&'a Executor> {
         available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
     )?;
 
-    Ok(RUNTIME.get_or_init(|| executor))
+    Ok(unsafe { RUNTIME.get_or_init(|| executor) })
 }

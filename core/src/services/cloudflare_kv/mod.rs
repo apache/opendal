@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-cloudflare-kv")]
+pub(super) const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
 mod error;
 
-#[cfg(feature = "services-cloudflare-kv")]
 mod backend;
-#[cfg(feature = "services-cloudflare-kv")]
+mod core;
+mod delete;
+mod lister;
+mod model;
+mod writer;
 pub use backend::CloudflareKvBuilder as CloudflareKv;
 
 mod config;

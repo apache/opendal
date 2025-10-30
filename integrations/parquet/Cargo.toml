@@ -20,12 +20,12 @@ description = "parquet Integration for Apache OpenDAL"
 name = "parquet_opendal"
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
-version = "0.6.0"
+rust-version = "1.85"
+version = "0.6.1"
 
 [dependencies]
 async-trait = "0.1"

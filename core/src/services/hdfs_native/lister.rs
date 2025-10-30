@@ -17,13 +17,13 @@
 
 use hdfs_native::client::ListStatusIterator;
 
-use crate::raw::build_rel_path;
-use crate::raw::oio;
-use crate::raw::parse_datetime_from_from_timestamp_millis;
-use crate::services::hdfs_native::error::parse_hdfs_error;
 use crate::EntryMode;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::Timestamp;
+use crate::raw::build_rel_path;
+use crate::raw::oio;
+use crate::services::hdfs_native::error::parse_hdfs_error;
 
 pub struct HdfsNativeLister {
     root: String,
@@ -67,7 +67,7 @@ impl oio::List for HdfsNativeLister {
                 } else {
                     let meta = Metadata::new(EntryMode::FILE)
                         .with_content_length(status.length as u64)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        .with_last_modified(Timestamp::from_millisecond(
                             status.modification_time as i64,
                         )?);
                     oio::Entry::new(&path, meta)

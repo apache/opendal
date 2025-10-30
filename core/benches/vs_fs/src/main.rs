@@ -16,10 +16,10 @@
 // under the License.
 
 use criterion::Criterion;
+use opendal::Operator;
 use opendal::blocking;
 use opendal::options;
 use opendal::services;
-use opendal::Operator;
 use rand::prelude::*;
 
 fn main() {

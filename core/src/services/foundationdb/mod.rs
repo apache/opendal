@@ -15,9 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-foundationdb")]
 mod backend;
-#[cfg(feature = "services-foundationdb")]
+mod core;
+mod deleter;
+mod writer;
+
 pub use backend::FoundationdbBuilder as Foundationdb;
 
 mod config;

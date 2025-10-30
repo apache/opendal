@@ -120,6 +120,8 @@ pub struct Buffer(Inner);
 #[derive(Clone)]
 enum Inner {
     Contiguous(Bytes),
+    // the logic view of the buffer starts at `parts[idx][offset]` and spans `size` bytes
+    // across subsequent `parts`
     NonContiguous {
         parts: Arc<[Bytes]>,
         size: usize,

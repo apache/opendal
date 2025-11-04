@@ -123,6 +123,20 @@ impl RedisBuilder {
 
         self
     }
+
+    /// Sets the maximum number of connections managed by the pool.
+    ///
+    /// Defaults to 10.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `max_size` is 0.
+    #[must_use]
+    pub fn connection_pool_max_size(mut self, max_size: u32) -> Self {
+        assert!(max_size > 0, "max_size must be greater than zero!");
+        self.config.connection_pool_max_size = Some(max_size);
+        self
+    }
 }
 
 impl Builder for RedisBuilder {
@@ -159,6 +173,7 @@ impl Builder for RedisBuilder {
                 cluster_client: Some(client),
                 conn,
                 default_ttl: self.config.default_ttl,
+                connection_pool_max_size: self.config.connection_pool_max_size,
             })
             .with_normalized_root(root))
         } else {
@@ -184,6 +199,7 @@ impl Builder for RedisBuilder {
                 cluster_client: None,
                 conn,
                 default_ttl: self.config.default_ttl,
+                connection_pool_max_size: self.config.connection_pool_max_size,
             })
             .with_normalized_root(root))
         }

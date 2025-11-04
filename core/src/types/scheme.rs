@@ -29,7 +29,7 @@ use crate::Error;
 /// - Scheme is `non_exhaustive`, new variant COULD be added at any time.
 /// - New variant SHOULD be added in alphabet orders,
 /// - Users MUST NOT relay on its order.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Scheme {
     /// [aliyun-drive][crate::services::AliyunDrive]: Aliyun Drive services.
@@ -98,6 +98,7 @@ pub enum Scheme {
     /// [memcached][crate::services::Memcached]: Memcached service support.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
+    #[default]
     Memory,
     /// [mini-moka][crate::services::MiniMoka]: Mini Moka backend support.
     MiniMoka,
@@ -306,12 +307,6 @@ impl Scheme {
             #[cfg(feature = "services-cloudflare-kv")]
             Scheme::CloudflareKv,
         ])
-    }
-}
-
-impl Default for Scheme {
-    fn default() -> Self {
-        Self::Memory
     }
 }
 

@@ -27,7 +27,7 @@ use crate::*;
 
 /// persy service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub struct PersyBuilder {
     pub(super) config: PersyConfig,
 }

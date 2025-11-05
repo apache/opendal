@@ -15,20 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::services::CacacheConfig;
-use crate::*;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::CACACHE_SCHEME;
+use super::config::CacacheConfig;
 use super::core::CacacheCore;
 use super::delete::CacacheDeleter;
 use super::writer::CacacheWriter;
+use crate::raw::*;
+use crate::*;
 
 /// cacache service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CacacheBuilder {
     pub(super) config: CacacheConfig,
 }

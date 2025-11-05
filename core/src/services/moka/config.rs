@@ -15,15 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-
-use super::backend::MokaBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::backend::MokaBuilder;
+
 /// Config for Moka services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MokaConfig {
@@ -44,18 +42,6 @@ pub struct MokaConfig {
 
     /// root path of this backend
     pub root: Option<String>,
-}
-
-impl Debug for MokaConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MokaConfig")
-            .field("name", &self.name)
-            .field("max_capacity", &self.max_capacity)
-            .field("time_to_live", &self.time_to_live)
-            .field("time_to_idle", &self.time_to_idle)
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
 }
 
 impl crate::Configurator for MokaConfig {

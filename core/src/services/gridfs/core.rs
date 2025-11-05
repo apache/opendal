@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
@@ -39,12 +38,12 @@ pub struct GridfsCore {
 }
 
 impl Debug for GridfsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GridfsCore")
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

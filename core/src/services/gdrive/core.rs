@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bytes;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Duration;
+
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -24,10 +27,6 @@ use http::StatusCode;
 use http::header;
 use serde::Deserialize;
 use serde_json::json;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
@@ -46,10 +45,10 @@ pub struct GdriveCore {
 }
 
 impl Debug for GdriveCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("GdriveCore");
-        de.field("root", &self.root);
-        de.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveCore")
+            .field("root", &self.root)
+            .finish()
     }
 }
 

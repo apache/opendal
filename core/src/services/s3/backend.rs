@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -42,6 +41,7 @@ use reqsign::AwsV4Signer;
 use reqwest::Url;
 
 use super::S3_SCHEME;
+use super::config::S3Config;
 use super::core::*;
 use super::delete::S3Deleter;
 use super::error::parse_error;
@@ -51,9 +51,7 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use crate::raw::oio::PageLister;
 use crate::raw::*;
-use crate::services::S3Config;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -84,11 +82,10 @@ pub struct S3Builder {
 }
 
 impl Debug for S3Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("S3Builder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("S3Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -1080,19 +1077,19 @@ impl Access for S3Backend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = if args.versions() || args.deleted() {
-            ThreeWays::Three(PageLister::new(S3ObjectVersionsLister::new(
+            ThreeWays::Three(oio::PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else if self.core.disable_list_objects_v2 {
-            ThreeWays::One(PageLister::new(S3ListerV1::new(
+            ThreeWays::One(oio::PageLister::new(S3ListerV1::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else {
-            ThreeWays::Two(PageLister::new(S3ListerV2::new(
+            ThreeWays::Two(oio::PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
                 args,

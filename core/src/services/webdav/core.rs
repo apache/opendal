@@ -16,9 +16,7 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::fmt;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -78,7 +76,7 @@ pub struct WebdavCore {
 }
 
 impl Debug for WebdavCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebdavCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)

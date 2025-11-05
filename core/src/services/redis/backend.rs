@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -30,30 +28,21 @@ use redis::cluster::ClusterClientBuilder;
 use tokio::sync::OnceCell;
 
 use super::REDIS_SCHEME;
+use super::config::RedisConfig;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
-use crate::raw::oio;
 use crate::raw::*;
-use crate::services::RedisConfig;
 use crate::*;
+
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;
 
 /// [Redis](https://redis.io/) services support.
 #[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
+#[derive(Debug, Default)]
 pub struct RedisBuilder {
     pub(super) config: RedisConfig,
-}
-
-impl Debug for RedisBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("RedisBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
 }
 
 impl RedisBuilder {

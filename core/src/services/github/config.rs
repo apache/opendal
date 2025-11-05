@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::GithubBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::GithubBuilder;
 
 /// Config for GitHub services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -48,14 +48,12 @@ pub struct GithubConfig {
 }
 
 impl Debug for GithubConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GithubConfig");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubConfig")
+            .field("root", &self.root)
             .field("owner", &self.owner)
-            .field("repo", &self.repo);
-
-        d.finish_non_exhaustive()
+            .field("repo", &self.repo)
+            .finish_non_exhaustive()
     }
 }
 

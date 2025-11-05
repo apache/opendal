@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::HdfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::HdfsBuilder;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
@@ -44,7 +44,7 @@ pub struct HdfsConfig {
 }
 
 impl Debug for HdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsConfig")
             .field("root", &self.root)
             .field("name_node", &self.name_node)

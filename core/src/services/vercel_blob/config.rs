@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::VercelBlobBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::VercelBlobBuilder;
 
 /// Config for VercelBlob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -36,12 +36,10 @@ pub struct VercelBlobConfig {
 }
 
 impl Debug for VercelBlobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelBlobConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 

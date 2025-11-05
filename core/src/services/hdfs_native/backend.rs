@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use log::debug;
 
 use super::HDFS_NATIVE_SCHEME;
+use super::config::HdfsNativeConfig;
 use super::core::HdfsNativeCore;
 use super::delete::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
@@ -29,22 +28,14 @@ use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
 use super::writer::HdfsNativeWriter;
 use crate::raw::*;
-use crate::services::HdfsNativeConfig;
 use crate::*;
+
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 /// Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct HdfsNativeBuilder {
     pub(super) config: HdfsNativeConfig,
-}
-
-impl Debug for HdfsNativeBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HdfsNativeBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl HdfsNativeBuilder {

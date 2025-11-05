@@ -16,16 +16,16 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
+
 use tokio::sync::Mutex;
 
 use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
+use super::config::DropboxConfig;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
-use crate::services::DropboxConfig;
 use crate::*;
 
 /// [Dropbox](https://www.dropbox.com/) backend support.
@@ -39,10 +39,10 @@ pub struct DropboxBuilder {
 }
 
 impl Debug for DropboxBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
-            .field("root", &self.config.root)
-            .finish()
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

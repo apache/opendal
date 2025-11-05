@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -77,9 +76,9 @@ pub struct GcsCore {
 }
 
 impl Debug for GcsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("Backend");
-        de.field("endpoint", &self.endpoint)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GcsCore")
+            .field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
             .field("root", &self.root)
             .finish_non_exhaustive()

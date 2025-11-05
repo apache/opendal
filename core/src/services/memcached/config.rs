@@ -18,12 +18,13 @@
 use std::fmt::Debug;
 use std::time::Duration;
 
-use super::backend::MemcachedBuilder;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::backend::MemcachedBuilder;
+
 /// Config for MemCached services support
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemcachedConfig {
@@ -41,6 +42,17 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+}
+
+impl Debug for MemcachedConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemcachedConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .field("username", &self.username)
+            .field("default_ttl", &self.default_ttl)
+            .finish_non_exhaustive()
+    }
 }
 
 impl crate::Configurator for MemcachedConfig {

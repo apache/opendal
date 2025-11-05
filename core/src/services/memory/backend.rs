@@ -19,18 +19,18 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::MEMORY_SCHEME;
+use super::config::MemoryConfig;
 use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
 use crate::raw::oio;
 use crate::raw::*;
-use crate::services::MemoryConfig;
 use crate::*;
 
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MemoryBuilder {
     pub(super) config: MemoryConfig,
 }

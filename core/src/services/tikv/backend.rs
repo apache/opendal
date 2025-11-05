@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use tokio::sync::OnceCell;
@@ -30,18 +29,9 @@ use crate::*;
 
 /// TiKV backend builder
 #[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
+#[derive(Debug, Default)]
 pub struct TikvBuilder {
     pub(super) config: TikvConfig,
-}
-
-impl Debug for TikvBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("TikvBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
 }
 
 impl TikvBuilder {

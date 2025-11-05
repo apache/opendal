@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::WebdavBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,14 +42,13 @@ pub struct WebdavConfig {
 }
 
 impl Debug for WebdavConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavConfig");
-
-        d.field("endpoint", &self.endpoint)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebdavConfig")
+            .field("endpoint", &self.endpoint)
             .field("username", &self.username)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
+            .field("root", &self.root)
+            .field("disable_copy", &self.disable_copy)
+            .finish_non_exhaustive()
     }
 }
 

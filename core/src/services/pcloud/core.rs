@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -46,8 +45,8 @@ pub struct PcloudCore {
 }
 
 impl Debug for PcloudCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("username", &self.username)

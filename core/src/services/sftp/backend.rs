@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
@@ -28,6 +26,7 @@ use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
 use super::SFTP_SCHEME;
+use super::config::SftpConfig;
 use super::core::SftpCore;
 use super::delete::SftpDeleter;
 use super::error::is_not_found;
@@ -37,7 +36,6 @@ use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
-use crate::services::SftpConfig;
 use crate::*;
 
 /// SFTP services support. (only works on unix)
@@ -50,17 +48,9 @@ use crate::*;
 /// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
 /// lots of files, you should pay attention to close the file after using it.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SftpBuilder {
     pub(super) config: SftpConfig,
-}
-
-impl Debug for SftpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SftpBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl SftpBuilder {
@@ -215,17 +205,9 @@ impl Builder for SftpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SftpBackend {
     pub core: Arc<SftpCore>,
-}
-
-impl Debug for SftpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SftpBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for SftpBackend {

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -37,12 +36,11 @@ pub struct SledConfig {
 }
 
 impl Debug for SledConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SledConfig")
-            .field("datadir", &self.datadir)
             .field("tree", &self.tree)
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

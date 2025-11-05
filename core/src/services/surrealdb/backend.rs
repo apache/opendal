@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use tokio::sync::OnceCell;
@@ -29,17 +28,9 @@ use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SurrealdbBuilder {
     pub(super) config: SurrealdbConfig,
-}
-
-impl Debug for SurrealdbBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SurrealdbBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl SurrealdbBuilder {

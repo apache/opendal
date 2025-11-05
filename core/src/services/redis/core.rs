@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
 use bb8::RunError;
@@ -123,10 +122,10 @@ pub struct RedisCore {
 }
 
 impl Debug for RedisCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("RedisCore");
-        ds.field("addr", &self.addr);
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisCore")
+            .field("addr", &self.addr)
+            .finish_non_exhaustive()
     }
 }
 

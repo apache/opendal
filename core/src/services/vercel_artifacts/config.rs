@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::builder::VercelArtifactsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::VercelArtifactsBuilder;
 
 /// Config for Vercel Cache support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,10 +32,9 @@ pub struct VercelArtifactsConfig {
 }
 
 impl Debug for VercelArtifactsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VercelArtifactsConfig")
-            .field("access_token", &"<redacted>")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

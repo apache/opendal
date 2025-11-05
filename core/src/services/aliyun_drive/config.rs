@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::AliyunDriveBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AliyunDriveBuilder;
 
 /// Config for Aliyun Drive services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -62,13 +62,11 @@ pub struct AliyunDriveConfig {
 }
 
 impl Debug for AliyunDriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AliyunDriveConfig");
-
-        d.field("root", &self.root)
-            .field("drive_type", &self.drive_type);
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AliyunDriveConfig")
+            .field("root", &self.root)
+            .field("drive_type", &self.drive_type)
+            .finish_non_exhaustive()
     }
 }
 

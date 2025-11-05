@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -69,8 +68,8 @@ pub struct UpyunCore {
 }
 
 impl Debug for UpyunCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunCore")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("operator", &self.operator)

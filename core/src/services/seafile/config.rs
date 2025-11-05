@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::SeafileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SeafileBuilder;
 
 /// Config for seafile services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -44,15 +44,13 @@ pub struct SeafileConfig {
 }
 
 impl Debug for SeafileConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SeafileConfig");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SeafileConfig")
+            .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("username", &self.username)
-            .field("repo_name", &self.repo_name);
-
-        d.finish_non_exhaustive()
+            .field("repo_name", &self.repo_name)
+            .finish_non_exhaustive()
     }
 }
 

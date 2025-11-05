@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::CompfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::CompfsBuilder;
 
 /// compio-based file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

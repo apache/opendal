@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
-use super::backend::RedisBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::RedisBuilder;
 
 /// Config for Redis services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,25 +57,15 @@ pub struct RedisConfig {
 }
 
 impl Debug for RedisConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("RedisConfig");
-
-        d.field("db", &self.db.to_string());
-        d.field("root", &self.root);
-        if let Some(endpoint) = self.endpoint.clone() {
-            d.field("endpoint", &endpoint);
-        }
-        if let Some(cluster_endpoints) = self.cluster_endpoints.clone() {
-            d.field("cluster_endpoints", &cluster_endpoints);
-        }
-        if let Some(username) = self.username.clone() {
-            d.field("username", &username);
-        }
-        if self.password.is_some() {
-            d.field("password", &"<redacted>");
-        }
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisConfig")
+            .field("endpoint", &self.endpoint)
+            .field("cluster_endpoints", &self.cluster_endpoints)
+            .field("username", &self.username)
+            .field("root", &self.root)
+            .field("db", &self.db)
+            .field("default_ttl", &self.default_ttl)
+            .finish_non_exhaustive()
     }
 }
 

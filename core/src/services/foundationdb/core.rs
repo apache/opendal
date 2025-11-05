@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use foundationdb::Database;
@@ -31,9 +30,8 @@ pub struct FoundationdbCore {
 }
 
 impl Debug for FoundationdbCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("FoundationdbCore");
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FoundationdbCore").finish_non_exhaustive()
     }
 }
 

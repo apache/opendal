@@ -15,32 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio;
-use crate::raw::*;
-use crate::services::SqliteConfig;
-use crate::services::sqlite::core::SqliteCore;
-use crate::services::sqlite::delete::SqliteDeleter;
-use crate::services::sqlite::writer::SqliteWriter;
-use crate::*;
-use sqlx::sqlite::SqliteConnectOptions;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::str::FromStr;
+
+use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
+use super::config::SqliteConfig;
+use super::core::SqliteCore;
+use super::delete::SqliteDeleter;
+use super::writer::SqliteWriter;
+use crate::raw::oio;
+use crate::raw::*;
+use crate::*;
+
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SqliteBuilder {
     pub(super) config: SqliteConfig,
-}
-
-impl Debug for SqliteBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SqliteBuilder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
 }
 
 impl SqliteBuilder {

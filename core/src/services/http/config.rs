@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::HttpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::HttpBuilder;
 
 /// Config for Http service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,12 +40,11 @@ pub struct HttpConfig {
 }
 
 impl Debug for HttpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HttpConfig");
-        de.field("endpoint", &self.endpoint);
-        de.field("root", &self.root);
-
-        de.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -28,16 +27,16 @@ use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 
 use super::GCS_SCHEME;
+use super::config::GcsConfig;
 use super::core::*;
 use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
-use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
-use crate::services::GcsConfig;
 use crate::*;
+
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
@@ -53,11 +52,10 @@ pub struct GcsBuilder {
 }
 
 impl Debug for GcsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("GcsBuilder");
-
-        ds.field("config", &self.config);
-        ds.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GcsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -431,7 +429,7 @@ impl Access for GcsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(GcsDeleter::new(self.core.clone())),
         ))
     }
 

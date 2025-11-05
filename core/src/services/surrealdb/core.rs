@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use surrealdb::Surreal;
@@ -42,17 +41,16 @@ pub struct SurrealdbCore {
 }
 
 impl Debug for SurrealdbCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SurrealdbCore")
             .field("connection_string", &self.connection_string)
             .field("username", &self.username)
-            .field("password", &"<redacted>")
             .field("namespace", &self.namespace)
             .field("database", &self.database)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

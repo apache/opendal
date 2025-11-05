@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::S3Builder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::S3Builder;
 
 /// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -219,15 +219,13 @@ pub struct S3Config {
 }
 
 impl Debug for S3Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("S3Config");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("S3Config")
+            .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region);
-
-        d.finish_non_exhaustive()
+            .field("region", &self.region)
+            .finish_non_exhaustive()
     }
 }
 

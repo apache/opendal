@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use super::backend::FsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::FsBuilder;
 
 /// config for file system
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

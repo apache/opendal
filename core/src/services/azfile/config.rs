@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::AzfileBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AzfileBuilder;
 
 /// Azure File services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,24 +40,12 @@ pub struct AzfileConfig {
 }
 
 impl Debug for AzfileConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzfileConfig");
-
-        ds.field("root", &self.root);
-        ds.field("share_name", &self.share_name);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzfileConfig")
+            .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
+            .field("share_name", &self.share_name)
+            .finish_non_exhaustive()
     }
 }
 

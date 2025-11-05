@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -46,13 +45,13 @@ pub struct D1Config {
 }
 
 impl Debug for D1Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("D1Config");
-        ds.field("root", &self.root);
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("D1Config")
+            .field("root", &self.root)
+            .field("table", &self.table)
+            .field("key_field", &self.key_field)
+            .field("value_field", &self.value_field)
+            .finish_non_exhaustive()
     }
 }
 
@@ -98,6 +97,7 @@ impl crate::Configurator for D1Config {
         Self::from_iter(map)
     }
 
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         D1Builder {
             config: self,

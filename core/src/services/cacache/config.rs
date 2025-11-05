@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::CacacheBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::CacacheBuilder;
 
 /// cacache service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

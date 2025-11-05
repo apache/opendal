@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -25,21 +24,29 @@ use log::debug;
 use prost::Message;
 
 use super::IPFS_SCHEME;
+use super::config::IpfsConfig;
 use super::core::IpfsCore;
 use super::error::parse_error;
 use super::ipld::PBNode;
 use crate::raw::*;
-use crate::services::IpfsConfig;
 use crate::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone, Debug)]
+#[derive(Default)]
 pub struct IpfsBuilder {
     pub(super) config: IpfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
+}
+
+impl Debug for IpfsBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IpfsBuilder")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl IpfsBuilder {
@@ -146,17 +153,9 @@ impl Builder for IpfsBuilder {
 }
 
 /// Backend for IPFS.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IpfsBackend {
     core: Arc<IpfsCore>,
-}
-
-impl Debug for IpfsBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IpfsBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for IpfsBackend {

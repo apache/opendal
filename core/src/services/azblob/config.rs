@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::AzblobBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AzblobBuilder;
 
 /// Azure Storage Blob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -79,24 +79,12 @@ pub struct AzblobConfig {
 }
 
 impl Debug for AzblobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobConfig");
-
-        ds.field("root", &self.root);
-        ds.field("container", &self.container);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzblobConfig")
+            .field("root", &self.root)
+            .field("container", &self.container)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
     }
 }
 

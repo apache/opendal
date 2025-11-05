@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,6 +24,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::YANDEX_DISK_SCHEME;
+use super::config::YandexDiskConfig;
 use super::core::*;
 use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
@@ -32,7 +32,6 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
-use crate::services::YandexDiskConfig;
 use crate::*;
 
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
@@ -46,11 +45,10 @@ pub struct YandexDiskBuilder {
 }
 
 impl Debug for YandexDiskBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("YandexDiskBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("YandexDiskBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

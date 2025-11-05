@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use crate::*;
 
@@ -27,10 +26,10 @@ pub struct SledCore {
 }
 
 impl Debug for SledCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SledCore");
-        ds.field("path", &self.datadir);
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SledCore")
+            .field("path", &self.datadir)
+            .finish()
     }
 }
 

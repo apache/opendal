@@ -30,17 +30,9 @@ use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MysqlBuilder {
     pub(super) config: MysqlConfig,
-}
-
-impl Debug for MysqlBuilder {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("MysqlBuilder");
-
-        d.field("config", &self.config).finish()
-    }
 }
 
 impl MysqlBuilder {

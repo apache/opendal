@@ -16,8 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -31,6 +29,7 @@ use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
 use super::FTP_SCHEME;
+use super::config::FtpConfig;
 use super::core::FtpCore;
 use super::delete::FtpDeleter;
 use super::err::parse_error;
@@ -38,22 +37,13 @@ use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
-use crate::services::FtpConfig;
 use crate::*;
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct FtpBuilder {
     pub(super) config: FtpConfig,
-}
-
-impl Debug for FtpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FtpBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl FtpBuilder {
@@ -199,8 +189,8 @@ pub struct FtpBackend {
 }
 
 impl Debug for FtpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FtpBackend").finish()
     }
 }
 

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -25,6 +24,7 @@ use log::debug;
 use tokio::sync::RwLock;
 
 use super::SEAFILE_SCHEME;
+use super::config::SeafileConfig;
 use super::core::SeafileCore;
 use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
@@ -35,7 +35,6 @@ use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
-use crate::services::SeafileConfig;
 use crate::*;
 
 /// [seafile](https://www.seafile.com) services support.
@@ -49,11 +48,10 @@ pub struct SeafileBuilder {
 }
 
 impl Debug for SeafileBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SeafileBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SeafileBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

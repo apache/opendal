@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::io;
 use std::io::SeekFrom;
 use std::sync::Arc;
@@ -34,7 +33,7 @@ pub struct HdfsCore {
 }
 
 impl Debug for HdfsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsCore")
             .field("root", &self.root)
             .field("atomic_write_dir", &self.atomic_write_dir)

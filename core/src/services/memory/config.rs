@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::MemoryBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MemoryBuilder;
 
 /// Config for memory.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

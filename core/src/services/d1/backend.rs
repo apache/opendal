@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::config::D1Config;
@@ -29,7 +30,16 @@ use crate::*;
 pub struct D1Builder {
     pub(super) config: D1Config,
 
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
+}
+
+impl Debug for D1Builder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("D1Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl D1Builder {
@@ -134,6 +144,7 @@ impl Builder for D1Builder {
             ));
         };
 
+        #[allow(deprecated)]
         let client = if let Some(client) = self.http_client {
             client
         } else {

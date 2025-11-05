@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,28 +23,19 @@ use http::StatusCode;
 use log::debug;
 
 use super::HUGGINGFACE_SCHEME;
+use super::config::HuggingfaceConfig;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
 use crate::raw::*;
-use crate::services::HuggingfaceConfig;
 use crate::*;
 
 /// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct HuggingfaceBuilder {
     pub(super) config: HuggingfaceConfig,
-}
-
-impl Debug for HuggingfaceBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
 }
 
 impl HuggingfaceBuilder {

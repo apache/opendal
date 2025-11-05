@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -29,6 +28,7 @@ use reqsign::HuaweicloudObsCredentialLoader;
 use reqsign::HuaweicloudObsSigner;
 
 use super::OBS_SCHEME;
+use super::config::ObsConfig;
 use super::core::ObsCore;
 use super::core::constants;
 use super::delete::ObsDeleter;
@@ -37,12 +37,11 @@ use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
 use crate::raw::*;
-use crate::services::ObsConfig;
 use crate::*;
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct ObsBuilder {
     pub(super) config: ObsConfig,
 
@@ -51,10 +50,10 @@ pub struct ObsBuilder {
 }
 
 impl Debug for ObsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("ObsBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

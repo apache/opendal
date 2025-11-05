@@ -21,14 +21,14 @@ use serde::Serialize;
 use super::backend::FoundationdbBuilder;
 
 /// [foundationdb](https://www.foundationdb.org/) service support.
-///Config for FoundationDB.
+/// Config for FoundationDB.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct FoundationdbConfig {
-    ///root of the backend.
+    /// root of the backend.
     pub root: Option<String>,
-    ///config_path for the backend.
+    /// config_path for the backend.
     pub config_path: Option<String>,
 }
 

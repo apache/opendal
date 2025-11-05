@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::OssBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::OssBuilder;
 
 /// Config for Aliyun Object Storage Service (OSS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -102,14 +102,13 @@ pub struct OssConfig {
 }
 
 impl Debug for OssConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("Builder");
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Builder")
+            .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("allow_anonymous", &self.allow_anonymous);
-
-        d.finish_non_exhaustive()
+            .field("allow_anonymous", &self.allow_anonymous)
+            .finish_non_exhaustive()
     }
 }
 

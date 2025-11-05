@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -27,6 +26,7 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::AZFILE_SCHEME;
+use super::config::AzfileConfig;
 use super::core::AzfileCore;
 use super::delete::AzfileDeleter;
 use super::error::parse_error;
@@ -34,8 +34,8 @@ use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
-use crate::services::AzfileConfig;
 use crate::*;
+
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzfileConfig {
@@ -51,7 +51,7 @@ impl From<AzureStorageConfig> for AzfileConfig {
 
 /// Azure File services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzfileBuilder {
     pub(super) config: AzfileConfig,
 
@@ -60,12 +60,10 @@ pub struct AzfileBuilder {
 }
 
 impl Debug for AzfileBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzfileBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzfileBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use sqlx::postgres::PgConnectOptions;
@@ -31,18 +29,9 @@ use crate::*;
 
 /// [PostgreSQL](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct PostgresqlBuilder {
     pub(super) config: PostgresqlConfig,
-}
-
-impl Debug for PostgresqlBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PostgresqlBuilder");
-
-        d.field("config", &self.config);
-        d.finish()
-    }
 }
 
 impl PostgresqlBuilder {

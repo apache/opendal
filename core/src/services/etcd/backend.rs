@@ -166,7 +166,7 @@ impl Builder for EtcdBuilder {
             options,
         };
 
-        Ok(EtcdAccessor::new(core, &root))
+        Ok(EtcdBackend::new(core, &root))
     }
 }
 
@@ -178,12 +178,12 @@ impl EtcdBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct EtcdAccessor {
+pub struct EtcdBackend {
     core: Arc<EtcdCore>,
     info: Arc<AccessorInfo>,
 }
 
-impl EtcdAccessor {
+impl EtcdBackend {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(ETCD_SCHEME);
@@ -211,7 +211,7 @@ impl EtcdAccessor {
     }
 }
 
-impl Access for EtcdAccessor {
+impl Access for EtcdBackend {
     type Reader = Buffer;
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;

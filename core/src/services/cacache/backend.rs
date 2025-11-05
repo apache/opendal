@@ -68,7 +68,7 @@ impl Builder for CacacheBuilder {
             ..Default::default()
         });
 
-        Ok(CacacheAccessor {
+        Ok(CacacheBackend {
             core: Arc::new(core),
             info: Arc::new(info),
         })
@@ -77,12 +77,12 @@ impl Builder for CacacheBuilder {
 
 /// Backend for cacache services.
 #[derive(Debug, Clone)]
-pub struct CacacheAccessor {
+pub struct CacacheBackend {
     core: Arc<CacacheCore>,
     info: Arc<AccessorInfo>,
 }
 
-impl Access for CacacheAccessor {
+impl Access for CacacheBackend {
     type Reader = Buffer;
     type Writer = CacacheWriter;
     type Lister = ();

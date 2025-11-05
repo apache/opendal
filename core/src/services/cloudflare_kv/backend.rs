@@ -142,7 +142,7 @@ impl Builder for CloudflareKvBuilder {
                 .as_str(),
         );
 
-        Ok(CloudflareKvAccessor {
+        Ok(CloudflareKvBackend {
             core: Arc::new(CloudflareKvCore {
                 api_token,
                 account_id,
@@ -197,17 +197,17 @@ impl Builder for CloudflareKvBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct CloudflareKvAccessor {
-    core: std::sync::Arc<CloudflareKvCore>,
+pub struct CloudflareKvBackend {
+    core: Arc<CloudflareKvCore>,
 }
 
-impl Access for CloudflareKvAccessor {
+impl Access for CloudflareKvBackend {
     type Reader = Buffer;
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
     }
 

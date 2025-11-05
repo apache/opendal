@@ -54,7 +54,7 @@ impl Builder for MemoryBuilder {
     }
 }
 
-/// MemoryAccessor implements Access trait directly
+/// MemoryBackend implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct MemoryBackend {
     core: Arc<MemoryCore>,

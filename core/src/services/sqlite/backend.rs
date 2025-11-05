@@ -166,7 +166,7 @@ pub fn parse_sqlite_error(err: sqlx::Error) -> Error {
     error
 }
 
-/// SqliteAccessor implements Access trait directly
+/// SqliteBackend implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct SqliteBackend {
     core: Arc<SqliteCore>,

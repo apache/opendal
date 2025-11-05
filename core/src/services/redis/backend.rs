@@ -249,7 +249,7 @@ impl RedisBuilder {
     }
 }
 
-/// RedisAccessor implements Access trait directly
+/// RedisBackend implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct RedisBackend {
     core: Arc<RedisCore>,

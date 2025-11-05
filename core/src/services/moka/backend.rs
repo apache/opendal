@@ -182,7 +182,7 @@ impl Builder for MokaBuilder {
     }
 }
 
-/// MokaAccessor implements Access trait directly
+/// MokaBackend implements Access trait directly
 #[derive(Debug, Clone)]
 pub struct MokaBackend {
     core: Arc<MokaCore>,

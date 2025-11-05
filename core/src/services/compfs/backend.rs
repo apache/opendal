@@ -24,7 +24,7 @@ use compio::fs::OpenOptions;
 use super::COMPFS_SCHEME;
 use super::config::CompfsConfig;
 use super::core::CompfsCore;
-use super::delete::CompfsDeleter;
+use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
@@ -118,7 +118,7 @@ impl Builder for CompfsBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompfsBackend {
     core: Arc<CompfsCore>,
 }

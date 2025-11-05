@@ -34,7 +34,7 @@ use super::config::AzblobConfig;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
-use super::delete::AzblobDeleter;
+use super::deleter::AzblobDeleter;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;

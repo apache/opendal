@@ -29,7 +29,7 @@ use super::core::SeafileCore;
 use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
-use super::delete::SeafileDeleter;
+use super::deleter::SeafileDeleter;
 use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;

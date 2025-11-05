@@ -16,14 +16,10 @@
 // under the License.
 
 mod backend;
-pub use backend::SqliteBuilder as Sqlite;
-
 mod config;
-pub use config::SqliteConfig;
-
-#[cfg(feature = "services-sqlite")]
 mod core;
-#[cfg(feature = "services-sqlite")]
-mod delete;
-#[cfg(feature = "services-sqlite")]
+mod deleter;
 mod writer;
+
+pub use backend::SqliteBuilder as Sqlite;
+pub use config::SqliteConfig;

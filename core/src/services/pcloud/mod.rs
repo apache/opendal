@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for pcloud service.
-pub(super) const PCLOUD_SCHEME: &str = "pcloud";
+pub const PCLOUD_SCHEME: &str = "pcloud";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::PcloudBuilder as Pcloud;
-
-mod config;
 pub use config::PcloudConfig;

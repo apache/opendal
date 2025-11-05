@@ -31,7 +31,7 @@ use super::OBS_SCHEME;
 use super::config::ObsConfig;
 use super::core::ObsCore;
 use super::core::constants;
-use super::delete::ObsDeleter;
+use super::deleter::ObsDeleter;
 use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;

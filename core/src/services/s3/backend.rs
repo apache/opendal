@@ -43,7 +43,7 @@ use reqwest::Url;
 use super::S3_SCHEME;
 use super::config::S3Config;
 use super::core::*;
-use super::delete::S3Deleter;
+use super::deleter::S3Deleter;
 use super::error::parse_error;
 use super::lister::S3ListerV1;
 use super::lister::S3ListerV2;

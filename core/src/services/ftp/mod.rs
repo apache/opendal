@@ -16,17 +16,16 @@
 // under the License.
 
 /// Default scheme for ftp service.
-pub(super) const FTP_SCHEME: &str = "ftp";
-mod delete;
+pub const FTP_SCHEME: &str = "ftp";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod err;
 mod lister;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::FtpBuilder as Ftp;
-mod core;
-
-mod config;
-
 pub use config::FtpConfig;

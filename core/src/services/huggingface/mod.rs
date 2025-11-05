@@ -16,13 +16,13 @@
 // under the License.
 
 /// Default scheme for huggingface service.
-pub(super) const HUGGINGFACE_SCHEME: &str = "huggingface";
+pub const HUGGINGFACE_SCHEME: &str = "huggingface";
+
+mod backend;
+mod config;
 mod core;
 mod error;
 mod lister;
 
-mod backend;
 pub use backend::HuggingfaceBuilder as Huggingface;
-
-mod config;
 pub use config::HuggingfaceConfig;

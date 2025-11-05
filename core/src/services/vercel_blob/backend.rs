@@ -27,7 +27,7 @@ use super::VERCEL_BLOB_SCHEME;
 use super::core::Blob;
 use super::core::VercelBlobCore;
 use super::core::parse_blob;
-use super::delete::VercelBlobDeleter;
+use super::deleter::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;

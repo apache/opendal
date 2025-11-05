@@ -23,7 +23,7 @@ use tokio::sync::OnceCell;
 
 use super::config::SqliteConfig;
 use super::core::SqliteCore;
-use super::delete::SqliteDeleter;
+use super::deleter::SqliteDeleter;
 use super::writer::SqliteWriter;
 use crate::raw::oio;
 use crate::raw::*;

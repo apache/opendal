@@ -24,7 +24,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
-use super::delete::GdriveDeleter;
+use super::deleter::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;

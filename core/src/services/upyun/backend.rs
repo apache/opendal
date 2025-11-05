@@ -25,7 +25,7 @@ use log::debug;
 use super::UPYUN_SCHEME;
 use super::config::UpyunConfig;
 use super::core::*;
-use super::delete::UpyunDeleter;
+use super::deleter::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;

@@ -29,7 +29,7 @@ use reqsign::TencentCosSigner;
 use super::COS_SCHEME;
 use super::config::CosConfig;
 use super::core::*;
-use super::delete::CosDeleter;
+use super::deleter::CosDeleter;
 use super::error::parse_error;
 use super::lister::CosLister;
 use super::lister::CosListers;

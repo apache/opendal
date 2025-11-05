@@ -17,11 +17,10 @@
 
 mod backend;
 mod binary;
+mod config;
 mod core;
 mod deleter;
 mod writer;
 
 pub use backend::MemcachedBuilder as Memcached;
-
-mod config;
 pub use config::MemcachedConfig;

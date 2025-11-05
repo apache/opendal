@@ -25,7 +25,7 @@ use http::StatusCode;
 use super::CLOUDFLARE_KV_SCHEME;
 use super::config::CloudflareKvConfig;
 use super::core::CloudflareKvCore;
-use super::delete::CloudflareKvDeleter;
+use super::deleter::CloudflareKvDeleter;
 use super::error::parse_error;
 use super::lister::CloudflareKvLister;
 use super::model::*;

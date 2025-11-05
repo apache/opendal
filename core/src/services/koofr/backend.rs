@@ -30,7 +30,7 @@ use super::config::KoofrConfig;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
-use super::delete::KoofrDeleter;
+use super::deleter::KoofrDeleter;
 use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;

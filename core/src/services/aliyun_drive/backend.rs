@@ -27,7 +27,7 @@ use tokio::sync::Mutex;
 use super::ALIYUN_DRIVE_SCHEME;
 use super::config::AliyunDriveConfig;
 use super::core::*;
-use super::delete::AliyunDriveDeleter;
+use super::deleter::AliyunDriveDeleter;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;

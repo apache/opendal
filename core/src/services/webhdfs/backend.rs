@@ -27,7 +27,7 @@ use tokio::sync::OnceCell;
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;
 use super::core::WebhdfsCore;
-use super::delete::WebhdfsDeleter;
+use super::deleter::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;

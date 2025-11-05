@@ -24,7 +24,7 @@ use log::debug;
 use super::MOKA_SCHEME;
 use super::config::MokaConfig;
 use super::core::*;
-use super::delete::MokaDeleter;
+use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
 use crate::raw::oio;

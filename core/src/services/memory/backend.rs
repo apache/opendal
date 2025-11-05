@@ -21,7 +21,7 @@ use std::sync::Arc;
 use super::MEMORY_SCHEME;
 use super::config::MemoryConfig;
 use super::core::*;
-use super::delete::MemoryDeleter;
+use super::deleter::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
 use crate::raw::oio;

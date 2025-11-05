@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for vercel_blob service.
-pub(super) const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
+pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::VercelBlobBuilder as VercelBlob;
-
-mod config;
 pub use config::VercelBlobConfig;

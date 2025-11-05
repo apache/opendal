@@ -26,7 +26,7 @@ use log::debug;
 use super::PCLOUD_SCHEME;
 use super::config::PcloudConfig;
 use super::core::*;
-use super::delete::PcloudDeleter;
+use super::deleter::PcloudDeleter;
 use super::error::PcloudError;
 use super::error::parse_error;
 use super::lister::PcloudLister;

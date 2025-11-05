@@ -17,14 +17,14 @@
 
 /// Default scheme for obs service.
 pub const OBS_SCHEME: &str = "obs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::ObsBuilder as Obs;
-
-mod config;
 pub use config::ObsConfig;

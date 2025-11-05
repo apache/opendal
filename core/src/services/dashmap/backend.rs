@@ -23,7 +23,7 @@ use log::debug;
 use super::DASHMAP_SCHEME;
 use super::config::DashmapConfig;
 use super::core::DashmapCore;
-use super::delete::DashmapDeleter;
+use super::deleter::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
 use crate::raw::*;

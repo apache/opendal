@@ -24,7 +24,7 @@ use log::debug;
 
 use super::SWIFT_SCHEME;
 use super::core::*;
-use super::delete::SwfitDeleter;
+use super::deleter::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;

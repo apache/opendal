@@ -23,7 +23,7 @@ use log::debug;
 use super::HDFS_SCHEME;
 use super::config::HdfsConfig;
 use super::core::HdfsCore;
-use super::delete::HdfsDeleter;
+use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;

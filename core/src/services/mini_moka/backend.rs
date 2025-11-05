@@ -23,7 +23,7 @@ use log::debug;
 use super::MINI_MOKA_SCHEME;
 use super::config::MiniMokaConfig;
 use super::core::*;
-use super::delete::MiniMokaDeleter;
+use super::deleter::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
 use crate::raw::*;

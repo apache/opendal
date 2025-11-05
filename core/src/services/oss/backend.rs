@@ -29,7 +29,7 @@ use reqsign::AliyunOssSigner;
 use super::OSS_SCHEME;
 use super::config::OssConfig;
 use super::core::*;
-use super::delete::OssDeleter;
+use super::deleter::OssDeleter;
 use super::error::parse_error;
 use super::lister::OssLister;
 use super::lister::OssListers;

@@ -21,7 +21,7 @@ use http::Response;
 use http::StatusCode;
 
 use super::core::OneDriveCore;
-use super::delete::OneDriveDeleter;
+use super::deleter::OneDriveDeleter;
 use super::error::parse_error;
 use super::lister::OneDriveLister;
 use super::writer::OneDriveWriter;

@@ -20,7 +20,7 @@ use std::sync::Arc;
 use super::CACACHE_SCHEME;
 use super::config::CacacheConfig;
 use super::core::CacacheCore;
-use super::delete::CacacheDeleter;
+use super::deleter::CacacheDeleter;
 use super::writer::CacacheWriter;
 use crate::raw::*;
 use crate::*;

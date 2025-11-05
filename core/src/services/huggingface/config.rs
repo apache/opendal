@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::HUGGINGFACE_SCHEME;
 use super::backend::HuggingfaceBuilder;
 
 /// Configuration for Huggingface service support.
@@ -79,7 +80,7 @@ impl crate::Configurator for HuggingfaceConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must include owner and repo",
             )
-            .with_context("service", crate::Scheme::Huggingface)
+            .with_context("service", HUGGINGFACE_SCHEME)
         })?;
 
         let mut segments = raw_path.splitn(4, '/');
@@ -88,14 +89,14 @@ impl crate::Configurator for HuggingfaceConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "repository owner is required in uri path",
             )
-            .with_context("service", crate::Scheme::Huggingface)
+            .with_context("service", HUGGINGFACE_SCHEME)
         })?;
         let repo = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
             crate::Error::new(
                 crate::ErrorKind::ConfigInvalid,
                 "repository name is required in uri path",
             )
-            .with_context("service", crate::Scheme::Huggingface)
+            .with_context("service", HUGGINGFACE_SCHEME)
         })?;
 
         map.insert("repo_id".to_string(), format!("{owner}/{repo}"));

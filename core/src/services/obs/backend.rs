@@ -153,7 +153,7 @@ impl Builder for ObsBuilder {
             Some(bucket) => Ok(bucket.to_string()),
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::Obs),
+                    .with_context("service", OBS_SCHEME),
             ),
         }?;
         debug!("backend use bucket {}", &bucket);
@@ -161,11 +161,11 @@ impl Builder for ObsBuilder {
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                    .with_context("service", Scheme::Obs)
+                    .with_context("service", OBS_SCHEME)
                     .set_source(err)
             }),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Obs)),
+                .with_context("service", OBS_SCHEME)),
         }?;
 
         let scheme = match uri.scheme_str() {

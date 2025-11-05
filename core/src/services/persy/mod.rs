@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for persy service.
+pub const PERSY_SCHEME: &str = "persy";
+
 mod backend;
 mod config;
 mod core;

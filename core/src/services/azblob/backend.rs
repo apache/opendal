@@ -299,7 +299,7 @@ impl Builder for AzblobBuilder {
             false => Ok(&self.config.container),
             true => Err(Error::new(ErrorKind::ConfigInvalid, "container is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)),
+                .with_context("service", AZBLOB_SCHEME)),
         }?;
         debug!("backend use container {}", &container);
 
@@ -307,7 +307,7 @@ impl Builder for AzblobBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)),
+                .with_context("service", AZBLOB_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &container);
 
@@ -333,7 +333,7 @@ impl Builder for AzblobBuilder {
                     format!("invalid account_key: cannot decode as base64: {e}"),
                 )
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)
+                .with_context("service", AZBLOB_SCHEME)
                 .with_context("key", "account_key"));
             }
             config_loader.account_key = Some(v);

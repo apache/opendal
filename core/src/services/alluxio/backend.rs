@@ -104,7 +104,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Alluxio)),
+                .with_context("service", ALLUXIO_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

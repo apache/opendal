@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::TIKV_SCHEME;
 use super::config::TikvConfig;
 use super::core::*;
 use super::deleter::TikvDeleter;
@@ -83,7 +84,7 @@ impl Builder for TikvBuilder {
                 ErrorKind::ConfigInvalid,
                 "endpoints is required but not set",
             )
-            .with_context("service", Scheme::Tikv)
+            .with_context("service", TIKV_SCHEME)
         })?;
 
         if self.config.insecure
@@ -93,7 +94,7 @@ impl Builder for TikvBuilder {
         {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid tls configuration")
-                    .with_context("service", Scheme::Tikv)
+                    .with_context("service", TIKV_SCHEME)
                     .with_context("endpoints", format!("{endpoints:?}")),
             )?;
         }
@@ -120,7 +121,7 @@ pub struct TikvBackend {
 impl TikvBackend {
     fn new(core: TikvCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Tikv.into_static());
+        info.set_scheme(TIKV_SCHEME);
         info.set_name("TiKV");
         info.set_root("/");
         info.set_native_capability(Capability {

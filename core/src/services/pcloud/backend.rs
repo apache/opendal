@@ -132,7 +132,7 @@ impl Builder for PcloudBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud));
+                .with_context("service", PCLOUD_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -141,14 +141,14 @@ impl Builder for PcloudBuilder {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         Ok(PcloudBackend {

@@ -21,6 +21,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::REDIS_SCHEME;
 use super::backend::RedisBuilder;
 
 /// Config for Redis services support.
@@ -83,7 +84,7 @@ impl crate::Configurator for RedisConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "endpoint or cluster_endpoints is required",
             )
-            .with_context("service", crate::Scheme::Redis));
+            .with_context("service", REDIS_SCHEME));
         }
 
         if let Some(path) = uri.root() {

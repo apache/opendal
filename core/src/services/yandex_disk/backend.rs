@@ -105,7 +105,7 @@ impl Builder for YandexDiskBuilder {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "access_token is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::YandexDisk),
+                    .with_context("service", YANDEX_DISK_SCHEME),
             );
         }
 

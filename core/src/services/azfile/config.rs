@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::AZFILE_SCHEME;
 use super::backend::AzfileBuilder;
 
 /// Azure File services support.
@@ -55,7 +56,7 @@ impl crate::Configurator for AzfileConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Azfile)
+                .with_context("service", AZFILE_SCHEME)
         })?;
 
         let mut map = uri.options().clone();
@@ -77,7 +78,7 @@ impl crate::Configurator for AzfileConfig {
                         crate::ErrorKind::ConfigInvalid,
                         "share name is required in uri path",
                     )
-                    .with_context("service", crate::Scheme::Azfile));
+                    .with_context("service", AZFILE_SCHEME));
                 }
                 map.insert("share_name".to_string(), share.to_string());
                 if !rest.is_empty() {
@@ -93,7 +94,7 @@ impl crate::Configurator for AzfileConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "share name is required",
             )
-            .with_context("service", crate::Scheme::Azfile));
+            .with_context("service", AZFILE_SCHEME));
         }
 
         Self::from_iter(map)

@@ -21,6 +21,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::MEMCACHED_SCHEME;
 use super::backend::MemcachedBuilder;
 
 /// Config for MemCached services support
@@ -61,7 +62,7 @@ impl crate::Configurator for MemcachedConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Memcached)
+                .with_context("service", MEMCACHED_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

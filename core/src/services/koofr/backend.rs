@@ -135,7 +135,7 @@ impl Builder for KoofrBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -143,7 +143,7 @@ impl Builder for KoofrBuilder {
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use email {}", &self.config.email);
@@ -152,7 +152,7 @@ impl Builder for KoofrBuilder {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr)),
+                .with_context("service", KOOFR_SCHEME)),
         }?;
 
         let signer = Arc::new(Mutex::new(KoofrSigner::default()));

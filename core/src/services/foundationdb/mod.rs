@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for foundationdb service.
+pub const FOUNDATIONDB_SCHEME: &str = "foundationdb";
+
 mod backend;
 mod config;
 mod core;

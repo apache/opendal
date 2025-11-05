@@ -107,7 +107,7 @@ impl Builder for VercelBlobBuilder {
         let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::VercelBlob));
+                .with_context("service", VERCEL_BLOB_SCHEME));
         };
 
         Ok(VercelBlobBackend {

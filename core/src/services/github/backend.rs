@@ -119,7 +119,7 @@ impl Builder for GithubBuilder {
         if self.config.owner.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "owner is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use owner {}", &self.config.owner);
@@ -128,7 +128,7 @@ impl Builder for GithubBuilder {
         if self.config.repo.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "repo is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use repo {}", &self.config.repo);

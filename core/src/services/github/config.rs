@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::GITHUB_SCHEME;
 use super::backend::GithubBuilder;
 
 /// Config for GitHub services support.
@@ -66,7 +67,7 @@ impl crate::Configurator for GithubConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri host must contain owner",
             )
-            .with_context("service", crate::Scheme::Github)
+            .with_context("service", GITHUB_SCHEME)
         })?;
 
         let raw_path = uri.root().ok_or_else(|| {
@@ -74,7 +75,7 @@ impl crate::Configurator for GithubConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must contain repository",
             )
-            .with_context("service", crate::Scheme::Github)
+            .with_context("service", GITHUB_SCHEME)
         })?;
 
         let (repo, remainder) = match raw_path.split_once('/') {
@@ -87,7 +88,7 @@ impl crate::Configurator for GithubConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "repository name is required",
             )
-            .with_context("service", crate::Scheme::Github));
+            .with_context("service", GITHUB_SCHEME));
         }
 
         let mut map = uri.options().clone();

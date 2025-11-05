@@ -86,7 +86,7 @@ impl Builder for HdfsNativeBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name_node is empty")
-                    .with_context("service", Scheme::HdfsNative));
+                    .with_context("service", HDFS_NATIVE_SCHEME));
             }
         };
 

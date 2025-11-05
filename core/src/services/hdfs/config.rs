@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::HDFS_SCHEME;
 use super::backend::HdfsBuilder;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
@@ -65,7 +66,7 @@ impl crate::Configurator for HdfsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Hdfs)
+                .with_context("service", HDFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

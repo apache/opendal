@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::WEBDAV_SCHEME;
 use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
@@ -58,7 +59,7 @@ impl crate::Configurator for WebdavConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Webdav)
+                .with_context("service", WEBDAV_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

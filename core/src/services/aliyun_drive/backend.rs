@@ -141,7 +141,7 @@ impl Builder for AliyunDriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive)),
+                    .with_context("service", ALIYUN_DRIVE_SCHEME)),
             },
         };
 

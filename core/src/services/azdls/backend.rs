@@ -248,7 +248,7 @@ impl Builder for AzdlsBuilder {
             false => Ok(&self.config.filesystem),
             true => Err(Error::new(ErrorKind::ConfigInvalid, "filesystem is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdls)),
+                .with_context("service", AZDLS_SCHEME)),
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
@@ -256,7 +256,7 @@ impl Builder for AzdlsBuilder {
             Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdls)),
+                .with_context("service", AZDLS_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

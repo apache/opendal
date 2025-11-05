@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use super::SLED_SCHEME;
 use super::config::SledConfig;
 use super::core::*;
 use super::deleter::SledDeleter;
@@ -66,12 +67,12 @@ impl Builder for SledBuilder {
     fn build(self) -> Result<impl Access> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
         })?;
 
         let db = sled::open(&datadir_path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open db")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
                 .with_context("datadir", datadir_path.clone())
                 .set_source(e)
         })?;
@@ -84,7 +85,7 @@ impl Builder for SledBuilder {
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open tree")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
                 .with_context("datadir", datadir_path.clone())
                 .with_context("tree", tree_name.clone())
                 .set_source(e)
@@ -111,7 +112,7 @@ pub struct SledBackend {
 impl SledBackend {
     pub fn new(core: SledCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Sled.into_static())
+        info.set_scheme(SLED_SCHEME)
             .set_name(&core.datadir)
             .set_root("/")
             .set_native_capability(Capability {

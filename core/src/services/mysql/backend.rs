@@ -21,6 +21,7 @@ use std::sync::Arc;
 use sqlx::mysql::MySqlConnectOptions;
 use tokio::sync::OnceCell;
 
+use super::MYSQL_SCHEME;
 use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
@@ -108,14 +109,14 @@ impl Builder for MysqlBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
-                        .with_context("service", Scheme::Mysql),
+                        .with_context("service", MYSQL_SCHEME),
                 );
             }
         };
 
         let config = conn.parse::<MySqlConnectOptions>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Mysql)
+                .with_context("service", MYSQL_SCHEME)
                 .set_source(err)
         })?;
 
@@ -123,7 +124,7 @@ impl Builder for MysqlBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Mysql));
+                    .with_context("service", MYSQL_SCHEME));
             }
         };
 
@@ -158,7 +159,7 @@ pub struct MysqlBackend {
 impl MysqlBackend {
     pub fn new(core: MysqlCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Mysql.into_static());
+        info.set_scheme(MYSQL_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {

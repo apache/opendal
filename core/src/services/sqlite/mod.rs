@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for sqlite service.
+pub const SQLITE_SCHEME: &str = "sqlite";
+
 mod backend;
 mod config;
 mod core;

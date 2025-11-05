@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -49,19 +48,16 @@ pub struct SurrealdbConfig {
 }
 
 impl Debug for SurrealdbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SurrealdbConfig");
-
-        d.field("connection_string", &self.connection_string)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SurrealdbConfig")
             .field("username", &self.username)
-            .field("password", &"<redacted>")
             .field("namespace", &self.namespace)
             .field("database", &self.database)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

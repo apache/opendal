@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -40,7 +39,7 @@ pub struct OneDriveCore {
 }
 
 impl Debug for OneDriveCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OneDriveCore")
             .field("root", &self.root)
             .finish_non_exhaustive()

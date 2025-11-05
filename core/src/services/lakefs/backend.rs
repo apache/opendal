@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,6 +23,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::LAKEFS_SCHEME;
+use super::config::LakefsConfig;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
@@ -32,23 +31,13 @@ use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
 use crate::raw::*;
-use crate::services::LakefsConfig;
 use crate::*;
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct LakefsBuilder {
     pub(super) config: LakefsConfig,
-}
-
-impl Debug for LakefsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
 }
 
 impl LakefsBuilder {

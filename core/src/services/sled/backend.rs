@@ -30,7 +30,7 @@ const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
 /// Sled services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SledBuilder {
     pub(super) config: SledConfig,
 }

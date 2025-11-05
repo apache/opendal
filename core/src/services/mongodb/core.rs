@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
@@ -37,14 +36,13 @@ pub struct MongodbCore {
 }
 
 impl Debug for MongodbCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MongodbCore")
-            .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

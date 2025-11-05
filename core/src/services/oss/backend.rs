@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -28,6 +27,7 @@ use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
 use super::OSS_SCHEME;
+use super::config::OssConfig;
 use super::core::*;
 use super::delete::OssDeleter;
 use super::error::parse_error;
@@ -37,8 +37,8 @@ use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
 use crate::raw::*;
-use crate::services::OssConfig;
 use crate::*;
+
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aliyun Object Storage Service (OSS) support
@@ -52,11 +52,10 @@ pub struct OssBuilder {
 }
 
 impl Debug for OssBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("OssBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OssBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

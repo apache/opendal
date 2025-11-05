@@ -16,6 +16,7 @@
 // under the License.
 
 use std::env;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use http::Response;
@@ -24,13 +25,14 @@ use log::debug;
 use sha2::Digest;
 
 use super::GHAC_SCHEME;
+use super::config::GhacConfig;
+use super::core::GhacCore;
 use super::core::*;
 use super::error::parse_error;
 use super::writer::GhacWriter;
 use crate::raw::*;
-use crate::services::GhacConfig;
-use crate::services::ghac::core::GhacCore;
 use crate::*;
+
 fn value_or_env(
     explicit_value: Option<String>,
     env_var_name: &str,
@@ -50,12 +52,20 @@ fn value_or_env(
 
 /// GitHub Action Cache Services support.
 #[doc = include_str!("docs.md")]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct GhacBuilder {
     pub(super) config: GhacConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
+}
+
+impl Debug for GhacBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GhacBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl GhacBuilder {

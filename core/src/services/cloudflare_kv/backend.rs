@@ -16,23 +16,22 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::CLOUDFLARE_KV_SCHEME;
-use crate::ErrorKind;
-use crate::raw::*;
-use crate::services::CloudflareKvConfig;
-use crate::services::cloudflare_kv::core::CloudflareKvCore;
-use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
-use crate::services::cloudflare_kv::error::parse_error;
-use crate::services::cloudflare_kv::lister::CloudflareKvLister;
-use crate::services::cloudflare_kv::model::*;
-use crate::services::cloudflare_kv::writer::CloudflareWriter;
-use crate::*;
 use bytes::Buf;
 use http::StatusCode;
+
+use super::CLOUDFLARE_KV_SCHEME;
+use super::config::CloudflareKvConfig;
+use super::core::CloudflareKvCore;
+use super::delete::CloudflareKvDeleter;
+use super::error::parse_error;
+use super::lister::CloudflareKvLister;
+use super::model::*;
+use super::writer::CloudflareWriter;
+use crate::raw::*;
+use crate::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -40,14 +39,15 @@ pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
 
     /// The HTTP client used to communicate with CloudFlare.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CloudFlareKvBuilder")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudflareKvBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

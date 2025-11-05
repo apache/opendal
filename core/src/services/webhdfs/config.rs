@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::WebhdfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::WebhdfsBuilder;
 
 /// Config for WebHDFS support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,11 +42,12 @@ pub struct WebhdfsConfig {
 }
 
 impl Debug for WebhdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebhdfsConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("user_name", &self.user_name)
+            .field("disable_list_batch", &self.disable_list_batch)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }

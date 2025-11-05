@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use super::builder::IpmfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::IpmfsBuilder;
 
 /// Config for IPFS MFS support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

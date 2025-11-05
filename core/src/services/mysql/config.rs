@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -52,18 +51,13 @@ pub struct MysqlConfig {
 }
 
 impl Debug for MysqlConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("MysqlConfig");
-
-        if self.connection_string.is_some() {
-            d.field("connection_string", &"<redacted>");
-        }
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MysqlConfig")
+            .field("root", &self.root)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

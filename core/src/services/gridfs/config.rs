@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -41,13 +40,13 @@ pub struct GridfsConfig {
 }
 
 impl Debug for GridfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GridFsConfig")
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

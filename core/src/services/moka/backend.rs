@@ -16,13 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
 use log::debug;
 
 use super::MOKA_SCHEME;
+use super::config::MokaConfig;
 use super::core::*;
 use super::delete::MokaDeleter;
 use super::lister::MokaLister;
@@ -30,7 +30,6 @@ use super::writer::MokaWriter;
 use crate::raw::oio;
 use crate::raw::signed_to_duration;
 use crate::raw::*;
-use crate::services::MokaConfig;
 use crate::*;
 
 /// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
@@ -47,10 +46,10 @@ pub struct MokaBuilder {
 }
 
 impl Debug for MokaBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MokaBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

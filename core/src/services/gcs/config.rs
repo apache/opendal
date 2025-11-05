@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::GcsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::GcsBuilder;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -74,7 +74,7 @@ pub struct GcsConfig {
 }
 
 impl Debug for GcsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GcsConfig")
             .field("root", &self.root)
             .field("bucket", &self.bucket)

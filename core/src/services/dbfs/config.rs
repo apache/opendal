@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::DbfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::DbfsBuilder;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -34,17 +34,11 @@ pub struct DbfsConfig {
 }
 
 impl Debug for DbfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("DbfsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DbfsConfig")
+            .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
     }
 }
 

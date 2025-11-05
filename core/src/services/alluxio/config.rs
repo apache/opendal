@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::AlluxioBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AlluxioBuilder;
 
 /// Config for alluxio services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,13 +40,11 @@ pub struct AlluxioConfig {
 }
 
 impl Debug for AlluxioConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AlluxioConfig");
-
-        d.field("root", &self.root)
-            .field("endpoint", &self.endpoint);
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlluxioConfig")
+            .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
     }
 }
 

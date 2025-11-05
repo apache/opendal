@@ -15,26 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::DashmapBuilder;
-use serde::Deserialize;
-use serde::Serialize;
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::backend::DashmapBuilder;
+
 /// Config for Dashmap services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct DashmapConfig {
     /// root path of this backend
     pub root: Option<String>,
-}
-
-impl Debug for DashmapConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DashmapConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
-    }
 }
 
 impl crate::Configurator for DashmapConfig {

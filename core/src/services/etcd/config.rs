@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::EtcdBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::EtcdBuilder;
 
 /// Config for Etcd services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,34 +60,21 @@ pub struct EtcdConfig {
 }
 
 impl Debug for EtcdConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("EtcdConfig");
-
-        ds.field("root", &self.root);
-        if let Some(endpoints) = self.endpoints.clone() {
-            ds.field("endpoints", &endpoints);
-        }
-        if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
-        }
-        if self.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-        if let Some(ca_path) = self.ca_path.clone() {
-            ds.field("ca_path", &ca_path);
-        }
-        if let Some(cert_path) = self.cert_path.clone() {
-            ds.field("cert_path", &cert_path);
-        }
-        if let Some(key_path) = self.key_path.clone() {
-            ds.field("key_path", &key_path);
-        }
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EtcdConfig")
+            .field("root", &self.root)
+            .field("endpoints", &self.endpoints)
+            .field("username", &self.username)
+            .field("ca_path", &self.ca_path)
+            .field("cert_path", &self.cert_path)
+            .field("key_path", &self.key_path)
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for EtcdConfig {
     type Builder = EtcdBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

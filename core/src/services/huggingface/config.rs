@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::HuggingfaceBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::HuggingfaceBuilder;
 
 /// Configuration for Huggingface service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -52,26 +52,13 @@ pub struct HuggingfaceConfig {
 }
 
 impl Debug for HuggingfaceConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("HuggingfaceConfig");
-
-        if let Some(repo_type) = &self.repo_type {
-            ds.field("repo_type", &repo_type);
-        }
-        if let Some(repo_id) = &self.repo_id {
-            ds.field("repo_id", &repo_id);
-        }
-        if let Some(revision) = &self.revision {
-            ds.field("revision", &revision);
-        }
-        if let Some(root) = &self.root {
-            ds.field("root", &root);
-        }
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HuggingfaceConfig")
+            .field("repo_type", &self.repo_type)
+            .field("repo_id", &self.repo_id)
+            .field("revision", &self.revision)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 

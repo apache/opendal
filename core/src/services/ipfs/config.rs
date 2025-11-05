@@ -17,9 +17,10 @@
 
 use std::fmt::Debug;
 
-use super::backend::IpfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::IpfsBuilder;
 
 /// Config for IPFS file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

@@ -15,38 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
 use log::debug;
 
 use super::MINI_MOKA_SCHEME;
+use super::config::MiniMokaConfig;
 use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
-use crate::raw::oio;
-use crate::raw::oio::HierarchyLister;
-use crate::raw::signed_to_duration;
 use crate::raw::*;
-use crate::services::MiniMokaConfig;
 use crate::*;
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MiniMokaBuilder {
     pub(super) config: MiniMokaConfig,
-}
-
-impl Debug for MiniMokaBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MiniMokaBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl MiniMokaBuilder {
@@ -147,7 +134,7 @@ impl MiniMokaBackend {
 impl Access for MiniMokaBackend {
     type Reader = Buffer;
     type Writer = MiniMokaWriter;
-    type Lister = HierarchyLister<MiniMokaLister>;
+    type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -250,7 +237,7 @@ impl Access for MiniMokaBackend {
         let p = build_abs_path(&self.root, path);
 
         let mini_moka_lister = MiniMokaLister::new(self.core.clone(), self.root.clone(), p);
-        let lister = HierarchyLister::new(mini_moka_lister, path, op.recursive());
+        let lister = oio::HierarchyLister::new(mini_moka_lister, path, op.recursive());
 
         Ok((RpList::default(), lister))
     }

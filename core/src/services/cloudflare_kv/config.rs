@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
-use super::backend::CloudflareKvBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::CloudflareKvBuilder;
 
 /// Cloudflare KV Service Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,18 +40,13 @@ pub struct CloudflareKvConfig {
 }
 
 impl Debug for CloudflareKvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("CloudflareKvConfig");
-
-        ds.field("root", &self.root);
-        ds.field("account_id", &self.account_id);
-        ds.field("namespace_id", &self.namespace_id);
-
-        if self.api_token.is_some() {
-            ds.field("api_token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudflareKvConfig")
+            .field("account_id", &self.account_id)
+            .field("namespace_id", &self.namespace_id)
+            .field("default_ttl", &self.default_ttl)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 
@@ -97,6 +92,7 @@ impl crate::Configurator for CloudflareKvConfig {
         Self::from_iter(map)
     }
 
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         CloudflareKvBuilder {
             config: self,

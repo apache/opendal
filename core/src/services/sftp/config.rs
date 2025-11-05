@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::SftpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SftpBuilder;
 
 /// Config for Sftp Service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,7 +42,7 @@ pub struct SftpConfig {
 }
 
 impl Debug for SftpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SftpConfig")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)

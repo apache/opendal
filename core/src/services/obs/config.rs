@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::ObsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::ObsBuilder;
 
 /// Config for Huawei-Cloud Object Storage Service (OBS) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,14 +42,13 @@ pub struct ObsConfig {
 }
 
 impl Debug for ObsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ObsConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("access_key_id", &"<redacted>")
-            .field("secret_access_key", &"<redacted>")
             .field("bucket", &self.bucket)
-            .finish()
+            .field("enable_versioning", &self.enable_versioning)
+            .finish_non_exhaustive()
     }
 }
 

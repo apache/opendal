@@ -32,10 +32,9 @@ struct LakefsError {
 
 impl Debug for LakefsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("LakefsError");
-        de.field("message", &self.error.replace('\n', " "));
-
-        de.finish()
+        f.debug_struct("LakefsError")
+            .field("message", &self.error.replace('\n', " "))
+            .finish()
     }
 }
 

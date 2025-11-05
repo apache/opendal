@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use rocksdb::DB;
@@ -29,10 +28,10 @@ pub struct RocksdbCore {
 }
 
 impl Debug for RocksdbCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("RocksdbCore");
-        ds.field("path", &self.db.path());
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RocksdbCore")
+            .field("path", &self.db.path())
+            .finish()
     }
 }
 

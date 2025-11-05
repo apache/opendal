@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::KoofrBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::KoofrBuilder;
 
 /// Config for Koofr services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,13 +40,11 @@ pub struct KoofrConfig {
 }
 
 impl Debug for KoofrConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("email", &self.email);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KoofrConfig")
+            .field("root", &self.root)
+            .field("email", &self.email)
+            .finish_non_exhaustive()
     }
 }
 

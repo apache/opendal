@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use super::backend::MonoiofsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MonoiofsBuilder;
 
 /// Config for monoiofs services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

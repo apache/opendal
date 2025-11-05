@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use hdfs_native::HdfsError;
@@ -36,7 +35,7 @@ pub struct HdfsNativeCore {
 }
 
 impl Debug for HdfsNativeCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeCore")
             .field("root", &self.root)
             .field("enable_append", &self.enable_append)

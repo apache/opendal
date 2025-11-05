@@ -16,13 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use log::debug;
 
 use super::ALLUXIO_SCHEME;
+use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
 use super::delete::AlluxioDeleter;
 use super::error::parse_error;
@@ -30,7 +30,6 @@ use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
-use crate::services::AlluxioConfig;
 use crate::*;
 
 /// [Alluxio](https://www.alluxio.io/) services support.
@@ -44,11 +43,10 @@ pub struct AlluxioBuilder {
 }
 
 impl Debug for AlluxioBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AlluxioBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlluxioBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

@@ -17,7 +17,6 @@
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -56,8 +55,8 @@ pub struct KoofrCore {
 }
 
 impl Debug for KoofrCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KoofrCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("email", &self.email)

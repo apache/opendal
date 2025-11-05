@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use tikv_client::Config;
 use tikv_client::RawClient;
@@ -36,7 +35,7 @@ pub struct TikvCore {
 }
 
 impl Debug for TikvCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TikvCore")
             .field("endpoints", &self.endpoints)
             .field("insecure", &self.insecure)

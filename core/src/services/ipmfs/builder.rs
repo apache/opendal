@@ -15,15 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
 
 use super::IPMFS_SCHEME;
 use super::backend::IpmfsBackend;
+use super::config::IpmfsConfig;
 use super::core::IpmfsCore;
 use crate::raw::*;
-use crate::services::IpmfsConfig;
 use crate::*;
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
@@ -66,12 +67,20 @@ use crate::*;
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct IpmfsBuilder {
     pub(super) config: IpmfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
+}
+
+impl Debug for IpmfsBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IpmfsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl IpmfsBuilder {

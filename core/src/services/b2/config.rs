@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::B2Builder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::B2Builder;
 
 /// Config for backblaze b2 services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -52,15 +52,13 @@ pub struct B2Config {
 }
 
 impl Debug for B2Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("B2Config");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("B2Config")
+            .field("root", &self.root)
             .field("application_key_id", &self.application_key_id)
             .field("bucket_id", &self.bucket_id)
-            .field("bucket", &self.bucket);
-
-        d.finish_non_exhaustive()
+            .field("bucket", &self.bucket)
+            .finish_non_exhaustive()
     }
 }
 

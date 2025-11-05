@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -48,11 +47,11 @@ pub struct SftpCore {
 }
 
 impl Debug for SftpCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SftpCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

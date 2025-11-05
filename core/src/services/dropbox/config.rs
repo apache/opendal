@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::builder::DropboxBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::DropboxBuilder;
 
 /// Config for [Dropbox](https://www.dropbox.com/) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,7 +40,7 @@ pub struct DropboxConfig {
 }
 
 impl Debug for DropboxConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DropBoxConfig")
             .field("root", &self.root)
             .finish_non_exhaustive()

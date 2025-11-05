@@ -15,36 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use dashmap::DashMap;
 use log::debug;
 
 use super::DASHMAP_SCHEME;
+use super::config::DashmapConfig;
 use super::core::DashmapCore;
 use super::delete::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
-use crate::raw::oio;
 use crate::raw::*;
-use crate::services::DashmapConfig;
 use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct DashmapBuilder {
     pub(super) config: DashmapConfig,
-}
-
-impl Debug for DashmapBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DashmapBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl DashmapBuilder {

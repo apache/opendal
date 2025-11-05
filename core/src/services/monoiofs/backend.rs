@@ -15,24 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use monoio::fs::OpenOptions;
 use std::fmt::Debug;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use monoio::fs::OpenOptions;
+
+use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
 use super::delete::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;
-use crate::services::MonoiofsConfig;
 use crate::*;
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub struct MonoiofsBuilder {
     pub(super) config: MonoiofsConfig,
 }

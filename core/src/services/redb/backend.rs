@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::config::RedbConfig;
@@ -26,11 +27,19 @@ use crate::*;
 
 /// Redb service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct RedbBuilder {
     pub(super) config: RedbConfig,
 
     pub(super) database: Option<Arc<redb::Database>>,
+}
+
+impl Debug for RedbBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedbBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RedbBuilder {

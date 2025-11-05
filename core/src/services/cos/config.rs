@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::CosBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::CosBuilder;
 
 /// Tencent-Cloud COS services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -43,13 +43,13 @@ pub struct CosConfig {
 }
 
 impl Debug for CosConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CosConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("secret_id", &"<redacted>")
-            .field("secret_key", &"<redacted>")
             .field("bucket", &self.bucket)
+            .field("enable_versioning", &self.enable_versioning)
+            .field("disable_config_load", &self.disable_config_load)
             .finish_non_exhaustive()
     }
 }

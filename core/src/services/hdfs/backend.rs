@@ -15,35 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::io;
 use std::sync::Arc;
 
 use log::debug;
 
 use super::HDFS_SCHEME;
+use super::config::HdfsConfig;
 use super::core::HdfsCore;
 use super::delete::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
 use crate::raw::*;
-use crate::services::HdfsConfig;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct HdfsBuilder {
     pub(super) config: HdfsConfig,
-}
-
-impl Debug for HdfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HdfsBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl HdfsBuilder {

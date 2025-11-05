@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use crate::*;
 
@@ -29,12 +28,12 @@ pub struct PersyCore {
 }
 
 impl Debug for PersyCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("path", &self.datafile);
-        ds.field("segment", &self.segment);
-        ds.field("index", &self.index);
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PersyCore")
+            .field("path", &self.datafile)
+            .field("segment", &self.segment)
+            .field("index", &self.index)
+            .finish_non_exhaustive()
     }
 }
 

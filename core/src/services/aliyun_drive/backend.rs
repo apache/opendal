@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -26,6 +25,7 @@ use log::debug;
 use tokio::sync::Mutex;
 
 use super::ALIYUN_DRIVE_SCHEME;
+use super::config::AliyunDriveConfig;
 use super::core::*;
 use super::delete::AliyunDriveDeleter;
 use super::error::parse_error;
@@ -33,7 +33,6 @@ use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
 use super::writer::AliyunDriveWriter;
 use crate::raw::*;
-use crate::services::AliyunDriveConfig;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
@@ -46,11 +45,10 @@ pub struct AliyunDriveBuilder {
 }
 
 impl Debug for AliyunDriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AliyunDriveBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AliyunDriveBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 

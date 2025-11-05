@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::builder::OnedriveBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::OnedriveBuilder;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,9 +42,10 @@ pub struct OnedriveConfig {
 }
 
 impl Debug for OnedriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
+            .field("enable_versioning", &self.enable_versioning)
             .finish_non_exhaustive()
     }
 }
@@ -70,6 +71,7 @@ impl crate::Configurator for OnedriveConfig {
         Self::from_iter(map)
     }
 
+    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         OnedriveBuilder {
             config: self,

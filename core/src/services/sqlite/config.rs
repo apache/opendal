@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::SqliteBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SqliteBuilder;
 
 /// Config for Sqlite support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,21 +57,19 @@ pub struct SqliteConfig {
 }
 
 impl Debug for SqliteConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SqliteConfig");
-
-        d.field("connection_string", &self.connection_string)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteConfig")
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .field("root", &self.root);
-
-        d.finish_non_exhaustive()
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for SqliteConfig {
     type Builder = SqliteBuilder;
+
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
 

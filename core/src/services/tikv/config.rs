@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -41,15 +40,14 @@ pub struct TikvConfig {
 }
 
 impl Debug for TikvConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("TikvConfig");
-
-        d.field("endpoints", &self.endpoints)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TikvConfig")
+            .field("endpoints", &self.endpoints)
             .field("insecure", &self.insecure)
             .field("ca_path", &self.ca_path)
             .field("cert_path", &self.cert_path)
             .field("key_path", &self.key_path)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

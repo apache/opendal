@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::atomic;
@@ -111,7 +109,7 @@ pub struct S3Core {
 }
 
 impl Debug for S3Core {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("S3Core")
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
@@ -1270,7 +1268,7 @@ impl ChecksumAlgorithm {
     }
 }
 impl Display for ChecksumAlgorithm {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",

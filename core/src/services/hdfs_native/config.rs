@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::HdfsNativeBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::HdfsNativeBuilder;
 
 /// Config for HdfsNative services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -36,7 +36,7 @@ pub struct HdfsNativeConfig {
 }
 
 impl Debug for HdfsNativeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeConfig")
             .field("root", &self.root)
             .field("name_node", &self.name_node)

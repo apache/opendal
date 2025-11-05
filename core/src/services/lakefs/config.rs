@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::LakefsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::LakefsBuilder;
 
 /// Configuration for Lakefs service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -55,29 +55,13 @@ pub struct LakefsConfig {
 }
 
 impl Debug for LakefsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("LakefsConfig");
-
-        if let Some(endpoint) = &self.endpoint {
-            ds.field("endpoint", &endpoint);
-        }
-        if let Some(_username) = &self.username {
-            ds.field("username", &"<redacted>");
-        }
-        if let Some(_password) = &self.password {
-            ds.field("password", &"<redacted>");
-        }
-        if let Some(root) = &self.root {
-            ds.field("root", &root);
-        }
-        if let Some(repository) = &self.repository {
-            ds.field("repository", &repository);
-        }
-        if let Some(branch) = &self.branch {
-            ds.field("branch", &branch);
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LakefsConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .field("repository", &self.repository)
+            .field("branch", &self.branch)
+            .finish_non_exhaustive()
     }
 }
 

@@ -29,7 +29,7 @@ use crate::*;
 
 /// [Memcached](https://memcached.org/) service support.
 #[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
+#[derive(Debug, Default)]
 pub struct MemcachedBuilder {
     pub(super) config: MemcachedConfig,
 }

@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::SwiftBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SwiftBuilder;
 
 /// Config for OpenStack Swift support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -38,18 +38,12 @@ pub struct SwiftConfig {
 }
 
 impl Debug for SwiftConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SwiftConfig");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("container", &self.container);
-
-        if self.token.is_some() {
-            ds.field("token", &"<redacted>");
-        }
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SwiftConfig")
+            .field("endpoint", &self.endpoint)
+            .field("container", &self.container)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 

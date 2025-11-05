@@ -27,7 +27,7 @@ use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MongodbBuilder {
     pub(super) config: MongodbConfig,
 }

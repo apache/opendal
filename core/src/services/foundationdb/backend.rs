@@ -28,7 +28,7 @@ use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct FoundationdbBuilder {
     pub(super) config: FoundationdbConfig,
 }

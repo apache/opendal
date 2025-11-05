@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::AzdlsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,32 +60,12 @@ pub struct AzdlsConfig {
 }
 
 impl Debug for AzdlsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsConfig");
-
-        ds.field("root", &self.root);
-        ds.field("filesystem", &self.filesystem);
-        ds.field("endpoint", &self.endpoint);
-
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
-        }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
-        }
-        if self.client_secret.is_some() {
-            ds.field("client_secret", &"<redacted>");
-        }
-        if self.tenant_id.is_some() {
-            ds.field("tenant_id", &"<redacted>");
-        }
-        if self.client_id.is_some() {
-            ds.field("client_id", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzdlsConfig")
+            .field("root", &self.root)
+            .field("filesystem", &self.filesystem)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
     }
 }
 

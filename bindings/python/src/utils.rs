@@ -73,3 +73,45 @@ impl Buffer {
         Ok(())
     }
 }
+
+/// Macro to create and register a PyO3 submodule with multiple classes.
+///
+/// Example:
+/// ```rust
+/// add_pymodule!(py, m, "services", [PyScheme, PyOtherClass]);
+/// ```
+#[macro_export]
+macro_rules! add_pymodule {
+    ($py:expr, $parent:expr, $name:expr, [$($cls:ty),* $(,)?]) => {{
+        let sub_module = pyo3::types::PyModule::new($py, $name)?;
+        $(
+            sub_module.add_class::<$cls>()?;
+        )*
+        $parent.add_submodule(&sub_module)?;
+        $py.import("sys")?
+            .getattr("modules")?
+            .set_item(format!("opendal.{}", $name), &sub_module)?;
+        Ok::<_, pyo3::PyErr>(())
+    }};
+}
+
+/// Macro to create and register a PyO3 submodule containing exception types.
+///
+/// Example:
+/// ```rust
+/// add_pyexceptions!(py, m, "exceptions", [Error, Unexpected]);
+/// ```
+#[macro_export]
+macro_rules! add_pyexceptions {
+    ($py:expr, $parent:expr, $name:expr, [$($exc:ty),* $(,)?]) => {{
+        let sub_module = pyo3::types::PyModule::new($py, $name)?;
+        $(
+            sub_module.add(stringify!($exc), $py.get_type::<$exc>())?;
+        )*
+        $parent.add_submodule(&sub_module)?;
+        $py.import("sys")?
+            .getattr("modules")?
+            .set_item(format!("opendal.{}", $name), &sub_module)?;
+        Ok::<_, pyo3::PyErr>(())
+    }};
+}

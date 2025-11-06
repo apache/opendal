@@ -15,43 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::MINI_MOKA_SCHEME;
+use super::config::MiniMokaConfig;
 use super::core::*;
 use super::delete::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
-use crate::raw::oio;
-use crate::raw::oio::HierarchyLister;
 use crate::raw::*;
-use crate::services::MiniMokaConfig;
 use crate::*;
-impl Configurator for MiniMokaConfig {
-    type Builder = MiniMokaBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MiniMokaBuilder { config: self }
-    }
-}
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MiniMokaBuilder {
-    config: MiniMokaConfig,
-}
-
-impl Debug for MiniMokaBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MiniMokaBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
+    pub(super) config: MiniMokaConfig,
 }
 
 impl MiniMokaBuilder {
@@ -75,7 +57,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_live = Some(v);
+            self.config.time_to_live = Some(format!("{}s", v.as_secs()));
         }
         self
     }
@@ -85,7 +67,7 @@ impl MiniMokaBuilder {
     /// Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_idle = Some(v);
+            self.config.time_to_idle = Some(format!("{}s", v.as_secs()));
         }
         self
     }
@@ -117,11 +99,13 @@ impl Builder for MiniMokaBuilder {
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
-        if let Some(v) = self.config.time_to_live {
-            builder = builder.time_to_live(v);
+        if let Some(value) = self.config.time_to_live.as_deref() {
+            let duration = signed_to_duration(value)?;
+            builder = builder.time_to_live(duration);
         }
-        if let Some(v) = self.config.time_to_idle {
-            builder = builder.time_to_idle(v);
+        if let Some(value) = self.config.time_to_idle.as_deref() {
+            let duration = signed_to_duration(value)?;
+            builder = builder.time_to_idle(duration);
         }
 
         let cache = builder.build();
@@ -150,12 +134,12 @@ impl MiniMokaBackend {
 impl Access for MiniMokaBackend {
     type Reader = Buffer;
     type Writer = MiniMokaWriter;
-    type Lister = HierarchyLister<MiniMokaLister>;
+    type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(MINI_MOKA_SCHEME)
             .set_root(&self.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -253,7 +237,7 @@ impl Access for MiniMokaBackend {
         let p = build_abs_path(&self.root, path);
 
         let mini_moka_lister = MiniMokaLister::new(self.core.clone(), self.root.clone(), p);
-        let lister = HierarchyLister::new(mini_moka_lister, path, op.recursive());
+        let lister = oio::HierarchyLister::new(mini_moka_lister, path, op.recursive());
 
         Ok((RpList::default(), lister))
     }

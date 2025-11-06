@@ -50,15 +50,6 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue(result["components"]["binding_java"])
         self.assertTrue(len(result["binding_java"]) > 0)
 
-    def test_bin_ofs(self):
-        result = plan(["bin/ofs/Cargo.toml"])
-        self.assertTrue(result["components"]["bin_ofs"])
-        self.assertTrue(len(result["bin_ofs"][0]["cases"]) > 0)
-
-        result = plan(["core/src/services/fs/mod.rs"])
-        cases = [v["service"] for v in result["bin_ofs"][0]["cases"]]
-        # Should contain ofs
-        self.assertTrue("fs" in cases)
 
     def test_integration_object_store(self):
         result = plan(["integrations/object_store/Cargo.toml"])

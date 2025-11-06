@@ -16,49 +16,38 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::DEFAULT_SCHEME;
-use crate::ErrorKind;
-use crate::raw::*;
-use crate::services::CloudflareKvConfig;
-use crate::services::cloudflare_kv::core::CloudflareKvCore;
-use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
-use crate::services::cloudflare_kv::error::parse_error;
-use crate::services::cloudflare_kv::lister::CloudflareKvLister;
-use crate::services::cloudflare_kv::model::*;
-use crate::services::cloudflare_kv::writer::CloudflareWriter;
-use crate::*;
 use bytes::Buf;
 use http::StatusCode;
-use jiff::Timestamp;
 
-impl Configurator for CloudflareKvConfig {
-    type Builder = CloudflareKvBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CloudflareKvBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
+use super::CLOUDFLARE_KV_SCHEME;
+use super::config::CloudflareKvConfig;
+use super::core::CloudflareKvCore;
+use super::delete::CloudflareKvDeleter;
+use super::error::parse_error;
+use super::lister::CloudflareKvLister;
+use super::model::*;
+use super::writer::CloudflareWriter;
+use crate::raw::*;
+use crate::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
-    config: CloudflareKvConfig,
+    pub(super) config: CloudflareKvConfig,
 
     /// The HTTP client used to communicate with CloudFlare.
-    http_client: Option<HttpClient>,
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CloudFlareKvBuilder")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudflareKvBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -161,7 +150,7 @@ impl Builder for CloudflareKvBuilder {
                 expiration_ttl: self.config.default_ttl,
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(CLOUDFLARE_KV_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             create_dir: true,
@@ -380,7 +369,7 @@ impl Access for CloudflareKvAccessor {
         })
         .with_etag(metadata.etag)
         .with_content_length(metadata.content_length as u64)
-        .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?);
+        .with_last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
         Ok(RpStat::new(meta))
     }

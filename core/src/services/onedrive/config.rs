@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::OnedriveBuilder;
 
 /// Config for [OneDrive](https://onedrive.com) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -41,9 +42,59 @@ pub struct OnedriveConfig {
 }
 
 impl Debug for OnedriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
+            .field("enable_versioning", &self.enable_versioning)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for OnedriveConfig {
+    type Builder = OnedriveBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                let normalized = match root.split_once('/') {
+                    Some((_, rest)) if !rest.is_empty() => rest.to_string(),
+                    _ => root.to_string(),
+                };
+                if !normalized.is_empty() {
+                    map.insert("root".to_string(), normalized);
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        OnedriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_root() {
+        let uri = OperatorUri::new(
+            "onedrive://drive/root/documents",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = OnedriveConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("documents"));
     }
 }

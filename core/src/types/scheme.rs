@@ -29,10 +29,10 @@ use crate::Error;
 /// - Scheme is `non_exhaustive`, new variant COULD be added at any time.
 /// - New variant SHOULD be added in alphabet orders,
 /// - Users MUST NOT relay on its order.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Scheme {
-    /// [aliyun_drive][crate::services::AliyunDrive]: Aliyun Drive services.
+    /// [aliyun-drive][crate::services::AliyunDrive]: Aliyun Drive services.
     AliyunDrive,
     /// [atomicserver][crate::services::Atomicserver]: Atomicserver services.
     Atomicserver,
@@ -98,6 +98,7 @@ pub enum Scheme {
     /// [memcached][crate::services::Memcached]: Memcached service support.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
+    #[default]
     Memory,
     /// [mini-moka][crate::services::MiniMoka]: Mini Moka backend support.
     MiniMoka,
@@ -309,12 +310,6 @@ impl Scheme {
     }
 }
 
-impl Default for Scheme {
-    fn default() -> Self {
-        Self::Memory
-    }
-}
-
 impl Display for Scheme {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.into_static())
@@ -327,7 +322,7 @@ impl FromStr for Scheme {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let s = s.to_lowercase();
         match s.as_str() {
-            "aliyun_drive" => Ok(Scheme::AliyunDrive),
+            "aliyun-drive" | "aliyun_drive" => Ok(Scheme::AliyunDrive),
             "azblob" => Ok(Scheme::Azblob),
             "alluxio" => Ok(Scheme::Alluxio),
             // Notes:
@@ -338,7 +333,7 @@ impl FromStr for Scheme {
             "b2" => Ok(Scheme::B2),
             "cacache" => Ok(Scheme::Cacache),
             "compfs" => Ok(Scheme::Compfs),
-            "cloudflare_kv" => Ok(Scheme::CloudflareKv),
+            "cloudflare-kv" | "cloudflare_kv" => Ok(Scheme::CloudflareKv),
             "cos" => Ok(Scheme::Cos),
             "d1" => Ok(Scheme::D1),
             "dashmap" => Ok(Scheme::Dashmap),
@@ -362,7 +357,7 @@ impl FromStr for Scheme {
             "memory" => Ok(Scheme::Memory),
             "mysql" => Ok(Scheme::Mysql),
             "sqlite" => Ok(Scheme::Sqlite),
-            "mini_moka" => Ok(Scheme::MiniMoka),
+            "mini-moka" | "mini_moka" => Ok(Scheme::MiniMoka),
             "moka" => Ok(Scheme::Moka),
             "monoiofs" => Ok(Scheme::Monoiofs),
             "obs" => Ok(Scheme::Obs),
@@ -375,22 +370,23 @@ impl FromStr for Scheme {
             "s3" => Ok(Scheme::S3),
             "seafile" => Ok(Scheme::Seafile),
             "upyun" => Ok(Scheme::Upyun),
-            "yandex_disk" => Ok(Scheme::YandexDisk),
+            "yandex-disk" | "yandex_disk" => Ok(Scheme::YandexDisk),
             "pcloud" => Ok(Scheme::Pcloud),
             "sftp" => Ok(Scheme::Sftp),
             "sled" => Ok(Scheme::Sled),
             "swift" => Ok(Scheme::Swift),
             "oss" => Ok(Scheme::Oss),
-            "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
-            "vercel_blob" => Ok(Scheme::VercelBlob),
+            "vercel-artifacts" | "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
+            "vercel-blob" | "vercel_blob" => Ok(Scheme::VercelBlob),
             "webdav" => Ok(Scheme::Webdav),
             "webhdfs" => Ok(Scheme::Webhdfs),
             "tikv" => Ok(Scheme::Tikv),
             "azfile" => Ok(Scheme::Azfile),
             "mongodb" => Ok(Scheme::Mongodb),
-            "hdfs_native" => Ok(Scheme::HdfsNative),
+            "hdfs-native" | "hdfs_native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
             "lakefs" => Ok(Scheme::Lakefs),
+            "nebula-graph" | "nebula_graph" => Ok(Scheme::NebulaGraph),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -399,13 +395,13 @@ impl FromStr for Scheme {
 impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
-            Scheme::AliyunDrive => "aliyun_drive",
+            Scheme::AliyunDrive => "aliyun-drive",
             Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::B2 => "b2",
             Scheme::Cacache => "cacache",
-            Scheme::CloudflareKv => "cloudflare_kv",
+            Scheme::CloudflareKv => "cloudflare-kv",
             Scheme::Cos => "cos",
             Scheme::Compfs => "compfs",
             Scheme::D1 => "d1",
@@ -427,7 +423,7 @@ impl From<Scheme> for &'static str {
             Scheme::Koofr => "koofr",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
-            Scheme::MiniMoka => "mini_moka",
+            Scheme::MiniMoka => "mini-moka",
             Scheme::Moka => "moka",
             Scheme::Monoiofs => "monoiofs",
             Scheme::Obs => "obs",
@@ -445,8 +441,8 @@ impl From<Scheme> for &'static str {
             Scheme::Sftp => "sftp",
             Scheme::Sled => "sled",
             Scheme::Swift => "swift",
-            Scheme::VercelArtifacts => "vercel_artifacts",
-            Scheme::VercelBlob => "vercel_blob",
+            Scheme::VercelArtifacts => "vercel-artifacts",
+            Scheme::VercelBlob => "vercel-blob",
             Scheme::Oss => "oss",
             Scheme::Webdav => "webdav",
             Scheme::Webhdfs => "webhdfs",
@@ -457,12 +453,12 @@ impl From<Scheme> for &'static str {
             Scheme::Mongodb => "mongodb",
             Scheme::Alluxio => "alluxio",
             Scheme::Upyun => "upyun",
-            Scheme::YandexDisk => "yandex_disk",
+            Scheme::YandexDisk => "yandex-disk",
             Scheme::Pcloud => "pcloud",
-            Scheme::HdfsNative => "hdfs_native",
+            Scheme::HdfsNative => "hdfs-native",
             Scheme::Surrealdb => "surrealdb",
             Scheme::Lakefs => "lakefs",
-            Scheme::NebulaGraph => "nebula_graph",
+            Scheme::NebulaGraph => "nebula-graph",
             Scheme::Custom(v) => v,
         }
     }

@@ -16,14 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::SWIFT_SCHEME;
 use super::core::*;
 use super::delete::SwfitDeleter;
 use super::error::parse_error;
@@ -32,28 +31,14 @@ use super::writer::SwiftWriter;
 use crate::raw::*;
 use crate::services::SwiftConfig;
 use crate::*;
-impl Configurator for SwiftConfig {
-    type Builder = SwiftBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SwiftBuilder { config: self }
-    }
-}
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct SwiftBuilder {
-    config: SwiftConfig,
-}
-
-impl Debug for SwiftBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SwiftBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
+    pub(super) config: SwiftConfig,
 }
 
 impl SwiftBuilder {
@@ -155,7 +140,7 @@ impl Builder for SwiftBuilder {
             core: Arc::new(SwiftCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(SWIFT_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -27,50 +26,36 @@ use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
 use reqsign::GoogleTokenLoader;
 
-use super::DEFAULT_SCHEME;
+use super::GCS_SCHEME;
+use super::config::GcsConfig;
 use super::core::*;
 use super::delete::GcsDeleter;
 use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
-use crate::raw::oio::BatchDeleter;
 use crate::raw::*;
-use crate::services::GcsConfig;
 use crate::*;
+
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
-
-impl Configurator for GcsConfig {
-    type Builder = GcsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GcsBuilder {
-            config: self,
-            http_client: None,
-            customized_token_loader: None,
-        }
-    }
-}
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GcsBuilder {
-    config: GcsConfig,
+    pub(super) config: GcsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
-    customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    pub(super) http_client: Option<HttpClient>,
+    pub(super) customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
 impl Debug for GcsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("GcsBuilder");
-
-        ds.field("config", &self.config);
-        ds.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GcsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -307,7 +292,7 @@ impl Builder for GcsBuilder {
             core: Arc::new(GcsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(GCS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -444,7 +429,7 @@ impl Access for GcsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(GcsDeleter::new(self.core.clone())),
         ))
     }
 

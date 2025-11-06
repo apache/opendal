@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::B2Builder;
 
 /// Config for backblaze b2 services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,14 +52,59 @@ pub struct B2Config {
 }
 
 impl Debug for B2Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("B2Config");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("B2Config")
+            .field("root", &self.root)
             .field("application_key_id", &self.application_key_id)
             .field("bucket_id", &self.bucket_id)
-            .field("bucket", &self.bucket);
+            .field("bucket", &self.bucket)
+            .finish_non_exhaustive()
+    }
+}
 
-        d.finish_non_exhaustive()
+impl crate::Configurator for B2Config {
+    type Builder = B2Builder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        B2Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "b2://example-bucket/path/to/root",
+            vec![("bucket_id".to_string(), "bucket-id".to_string())],
+        )
+        .unwrap();
+
+        let cfg = B2Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        assert_eq!(cfg.bucket_id, "bucket-id");
     }
 }

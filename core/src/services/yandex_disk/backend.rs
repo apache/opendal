@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,7 +23,8 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::YANDEX_DISK_SCHEME;
+use super::config::YandexDiskConfig;
 use super::core::*;
 use super::delete::YandexDiskDeleter;
 use super::error::parse_error;
@@ -32,36 +32,23 @@ use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
-use crate::services::YandexDiskConfig;
 use crate::*;
-impl Configurator for YandexDiskConfig {
-    type Builder = YandexDiskBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        YandexDiskBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct YandexDiskBuilder {
-    config: YandexDiskConfig,
+    pub(super) config: YandexDiskConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for YandexDiskBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("YandexDiskBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("YandexDiskBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -126,7 +113,7 @@ impl Builder for YandexDiskBuilder {
             core: Arc::new(YandexDiskCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(YANDEX_DISK_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

@@ -15,37 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
+use std::sync::Arc;
 
-use mongodb::bson::doc;
 use tokio::sync::OnceCell;
 
 use super::config::GridfsConfig;
-use super::core::GridFsCore;
-use crate::raw::adapters::kv;
+use super::core::*;
+use super::deleter::GridfsDeleter;
+use super::writer::GridfsWriter;
 use crate::raw::*;
 use crate::*;
 
-impl Configurator for GridfsConfig {
-    type Builder = GridfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        GridfsBuilder { config: self }
-    }
-}
-
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct GridfsBuilder {
-    config: GridfsConfig,
-}
-
-impl Debug for GridfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GridFsBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
+    pub(super) config: GridfsConfig,
 }
 
 impl GridfsBuilder {
@@ -152,7 +136,7 @@ impl Builder for GridfsBuilder {
                 .as_str(),
         );
 
-        Ok(GridFsBackend::new(GridFsCore {
+        Ok(GridfsBackend::new(GridfsCore {
             connection_string: conn,
             database,
             bucket,
@@ -163,4 +147,95 @@ impl Builder for GridfsBuilder {
     }
 }
 
-pub type GridFsBackend = kv::Backend<GridFsCore>;
+/// Backend for Gridfs services.
+#[derive(Clone, Debug)]
+pub struct GridfsBackend {
+    core: Arc<GridfsCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
+}
+
+impl GridfsBackend {
+    pub fn new(core: GridfsCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Gridfs.into_static());
+        info.set_name(&format!("{}/{}", core.database, core.bucket));
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: true,
+            ..Default::default()
+        });
+
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
+
+impl Access for GridfsBackend {
+    type Reader = Buffer;
+    type Writer = GridfsWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<GridfsDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in gridfs"));
+            }
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), GridfsWriter::new(self.core.clone(), p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(GridfsDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
+    }
+}

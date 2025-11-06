@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -24,44 +23,31 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::WEBDAV_SCHEME;
+use super::config::WebdavConfig;
 use super::core::*;
 use super::delete::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
-use crate::services::WebdavConfig;
 use crate::*;
-impl Configurator for WebdavConfig {
-    type Builder = WebdavBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        WebdavBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct WebdavBuilder {
-    config: WebdavConfig,
+    pub(super) config: WebdavConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for WebdavBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavBuilder");
-
-        d.field("config", &self.config);
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebdavBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -175,7 +161,7 @@ impl Builder for WebdavBuilder {
         let core = Arc::new(WebdavCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(WEBDAV_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
@@ -219,17 +205,9 @@ impl Builder for WebdavBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for http.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WebdavBackend {
     core: Arc<WebdavCore>,
-}
-
-impl Debug for WebdavBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WebdavBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for WebdavBackend {

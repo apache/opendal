@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,7 +24,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::RwLock;
@@ -58,8 +56,8 @@ pub struct B2Core {
 }
 
 impl Debug for B2Core {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("B2Core")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("bucket_id", &self.bucket_id)

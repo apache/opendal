@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for vercel_blob service.
-#[cfg(feature = "services-vercel-blob")]
-pub(super) const DEFAULT_SCHEME: &str = "vercel_blob";
-#[cfg(feature = "services-vercel-blob")]
+pub(super) const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 mod core;
-#[cfg(feature = "services-vercel-blob")]
 mod delete;
-#[cfg(feature = "services-vercel-blob")]
 mod error;
-#[cfg(feature = "services-vercel-blob")]
 mod lister;
-#[cfg(feature = "services-vercel-blob")]
 mod writer;
 
-#[cfg(feature = "services-vercel-blob")]
 mod backend;
-#[cfg(feature = "services-vercel-blob")]
 pub use backend::VercelBlobBuilder as VercelBlob;
 
 mod config;

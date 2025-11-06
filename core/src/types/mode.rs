@@ -19,13 +19,14 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 /// EntryMode represents the mode.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
 pub enum EntryMode {
     /// FILE means the path has data to read.
     FILE,
     /// DIR means the path can be listed.
     DIR,
     /// Unknown means we don't know what we can do on this path.
+    #[default]
     Unknown,
 }
 
@@ -48,12 +49,6 @@ impl EntryMode {
         } else {
             EntryMode::FILE
         }
-    }
-}
-
-impl Default for EntryMode {
-    fn default() -> Self {
-        Self::Unknown
     }
 }
 

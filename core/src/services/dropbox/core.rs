@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Duration;
+
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -23,14 +27,8 @@ use http::StatusCode;
 use http::header;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
-use std::default::Default;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
@@ -44,10 +42,10 @@ pub struct DropboxCore {
 }
 
 impl Debug for DropboxCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DropboxCore")
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

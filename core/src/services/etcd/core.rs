@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use bb8::PooledConnection;
 use bb8::RunError;
@@ -68,11 +67,11 @@ pub struct EtcdCore {
 }
 
 impl Debug for EtcdCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EtcdCore")
             .field("endpoints", &self.endpoints.join(","))
             .field("options", &self.options.clone())
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

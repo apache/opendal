@@ -15,47 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
-use crate::Scheme;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::raw::normalize_root;
-use crate::services::OnedriveConfig;
+use super::config::OnedriveConfig;
+use crate::raw::*;
 use crate::*;
-impl Configurator for OnedriveConfig {
-    type Builder = OnedriveBuilder;
-    fn into_builder(self) -> Self::Builder {
-        OnedriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
-    config: OnedriveConfig,
-    http_client: Option<HttpClient>,
+    pub(super) config: OnedriveConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnedriveBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -142,7 +130,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(ONEDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,

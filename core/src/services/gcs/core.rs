@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -77,9 +76,9 @@ pub struct GcsCore {
 }
 
 impl Debug for GcsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("Backend");
-        de.field("endpoint", &self.endpoint)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GcsCore")
+            .field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
             .field("root", &self.root)
             .finish_non_exhaustive()
@@ -231,17 +230,11 @@ impl GcsCore {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req.extension(Operation::Read);
@@ -741,7 +734,7 @@ impl GcsCore {
             m.set_version(&meta.generation);
         }
 
-        m.set_last_modified(parse_datetime_from_rfc3339(&meta.updated)?);
+        m.set_last_modified(meta.updated.parse::<Timestamp>()?);
 
         if !meta.metadata.is_empty() {
             m = m.with_user_metadata(meta.metadata);
@@ -921,7 +914,8 @@ mod tests {
         assert_eq!(
             meta.last_modified(),
             Some(
-                parse_datetime_from_rfc3339("2022-08-15T11:33:34.866Z")
+                "2022-08-15T11:33:34.866Z"
+                    .parse::<Timestamp>()
                     .expect("parse date should not fail")
             )
         );

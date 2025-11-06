@@ -16,7 +16,6 @@
 // under the License.
 
 use dict_derive::FromPyObject;
-use jiff::Timestamp;
 use opendal::{self as ocore, raw::BytesRange};
 use pyo3::pyclass;
 use std::collections::HashMap;
@@ -33,8 +32,8 @@ pub struct ReadOptions {
     pub size: Option<usize>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<Timestamp>,
-    pub if_unmodified_since: Option<Timestamp>,
+    pub if_modified_since: Option<jiff::Timestamp>,
+    pub if_unmodified_since: Option<jiff::Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,
@@ -72,8 +71,8 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since,
-            if_unmodified_since: opts.if_unmodified_since,
+            if_modified_since: opts.if_modified_since.map(Into::into),
+            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
@@ -90,8 +89,8 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since,
-            if_unmodified_since: opts.if_unmodified_since,
+            if_modified_since: opts.if_modified_since.map(Into::into),
+            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
             gap: opts.gap,
@@ -146,8 +145,8 @@ pub struct StatOptions {
     pub version: Option<String>,
     pub if_match: Option<String>,
     pub if_none_match: Option<String>,
-    pub if_modified_since: Option<Timestamp>,
-    pub if_unmodified_since: Option<Timestamp>,
+    pub if_modified_since: Option<jiff::Timestamp>,
+    pub if_unmodified_since: Option<jiff::Timestamp>,
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,
@@ -159,8 +158,8 @@ impl From<StatOptions> for ocore::options::StatOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since,
-            if_unmodified_since: opts.if_unmodified_since,
+            if_modified_since: opts.if_modified_since.map(Into::into),
+            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,

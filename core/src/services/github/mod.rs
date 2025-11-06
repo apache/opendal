@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for github service.
-#[cfg(feature = "services-github")]
-pub(super) const DEFAULT_SCHEME: &str = "github";
-#[cfg(feature = "services-github")]
+pub(super) const GITHUB_SCHEME: &str = "github";
 mod core;
-#[cfg(feature = "services-github")]
 mod delete;
-#[cfg(feature = "services-github")]
 mod error;
-#[cfg(feature = "services-github")]
 mod lister;
-#[cfg(feature = "services-github")]
 mod writer;
 
-#[cfg(feature = "services-github")]
 mod backend;
-#[cfg(feature = "services-github")]
 pub use backend::GithubBuilder as Github;
 
 mod config;

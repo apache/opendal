@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -26,7 +25,8 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::DEFAULT_SCHEME;
+use super::AZDLS_SCHEME;
+use super::config::AzdlsConfig;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::delete::AzdlsDeleter;
@@ -35,8 +35,8 @@ use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
-use crate::services::AzdlsConfig;
 use crate::*;
+
 impl From<AzureStorageConfig> for AzdlsConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzdlsConfig {
@@ -53,35 +53,21 @@ impl From<AzureStorageConfig> for AzdlsConfig {
     }
 }
 
-impl Configurator for AzdlsConfig {
-    type Builder = AzdlsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzdlsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// Azure Data Lake Storage Gen2 Support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzdlsBuilder {
-    config: AzdlsConfig,
+    pub(super) config: AzdlsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzdlsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzdlsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -295,7 +281,7 @@ impl Builder for AzdlsBuilder {
             core: Arc::new(AzdlsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {

@@ -16,35 +16,30 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::Builder;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
-use crate::raw::adapters::kv;
+use super::config::RedbConfig;
+use super::core::*;
+use super::deleter::RedbDeleter;
+use super::writer::RedbWriter;
 use crate::raw::*;
-use crate::services::RedbConfig;
 use crate::*;
-
-impl Configurator for RedbConfig {
-    type Builder = RedbBuilder;
-    fn into_builder(self) -> Self::Builder {
-        RedbBuilder {
-            config: self,
-            database: None,
-        }
-    }
-}
 
 /// Redb service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct RedbBuilder {
-    config: RedbConfig,
+    pub(super) config: RedbConfig,
 
-    database: Option<Arc<redb::Database>>,
+    pub(super) database: Option<Arc<redb::Database>>,
+}
+
+impl Debug for RedbBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedbBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl RedbBuilder {
@@ -122,159 +117,106 @@ impl Builder for RedbBuilder {
 
         create_table(&db, &table_name)?;
 
-        Ok(RedbBackend::new(Adapter {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+
+        Ok(RedbBackend::new(RedbCore {
             datadir,
             table: table_name,
             db,
         })
-        .with_root(self.config.root.as_deref().unwrap_or_default()))
+        .with_normalized_root(root))
     }
 }
 
 /// Backend for Redb services.
-pub type RedbBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    datadir: Option<String>,
-    table: String,
-    db: Arc<redb::Database>,
+#[derive(Clone, Debug)]
+pub struct RedbBackend {
+    core: Arc<RedbCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("path", &self.datadir);
-        ds.finish()
-    }
-}
+impl RedbBackend {
+    pub fn new(core: RedbCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(Scheme::Redb.into_static());
+        info.set_name(&core.table);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: false,
+            ..Default::default()
+        });
 
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Redb,
-            &self.table,
-            Capability {
-                read: true,
-                write: true,
-                shared: false,
-                ..Default::default()
-            },
-        )
-    }
-
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        let table = read_txn
-            .open_table(table_define)
-            .map_err(parse_table_error)?;
-
-        let result = match table.get(path) {
-            Ok(Some(v)) => Ok(Some(v.value().to_vec())),
-            Ok(None) => Ok(None),
-            Err(e) => Err(parse_storage_error(e)),
-        }?;
-        Ok(result.map(Buffer::from))
-    }
-
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        {
-            let mut table = write_txn
-                .open_table(table_define)
-                .map_err(parse_table_error)?;
-
-            table
-                .insert(path, &*value.to_vec())
-                .map_err(parse_storage_error)?;
-        }
-
-        write_txn.commit().map_err(parse_commit_error)?;
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        let write_txn = self.db.begin_write().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> =
-            redb::TableDefinition::new(&self.table);
-
-        {
-            let mut table = write_txn
-                .open_table(table_define)
-                .map_err(parse_table_error)?;
-
-            table.remove(path).map_err(parse_storage_error)?;
-        }
-
-        write_txn.commit().map_err(parse_commit_error)?;
-        Ok(())
-    }
-}
-
-fn parse_transaction_error(e: redb::TransactionError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_table_error(e: redb::TableError) -> Error {
-    match e {
-        redb::TableError::TableDoesNotExist(_) => {
-            Error::new(ErrorKind::NotFound, "error from redb").set_source(e)
-        }
-        _ => Error::new(ErrorKind::Unexpected, "error from redb").set_source(e),
-    }
-}
-
-fn parse_storage_error(e: redb::StorageError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_database_error(e: redb::DatabaseError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-fn parse_commit_error(e: redb::CommitError) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from redb").set_source(e)
-}
-
-/// Check if a table exists, otherwise create it.
-fn create_table(db: &redb::Database, table: &str) -> Result<()> {
-    // Only one `WriteTransaction` is permitted at same time,
-    // applying new one will block until it available.
-    //
-    // So we first try checking table existence via `ReadTransaction`.
-    {
-        let read_txn = db.begin_read().map_err(parse_transaction_error)?;
-
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
-
-        match read_txn.open_table(table_define) {
-            Ok(_) => return Ok(()),
-            Err(redb::TableError::TableDoesNotExist(_)) => (),
-            Err(e) => return Err(parse_table_error(e)),
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
         }
     }
 
-    {
-        let write_txn = db.begin_write().map_err(parse_transaction_error)?;
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
 
-        let table_define: redb::TableDefinition<&str, &[u8]> = redb::TableDefinition::new(table);
+impl Access for RedbBackend {
+    type Reader = Buffer;
+    type Writer = RedbWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<RedbDeleter>;
 
-        write_txn
-            .open_table(table_define)
-            .map_err(parse_table_error)?;
-        write_txn.commit().map_err(parse_commit_error)?;
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    Ok(())
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p)?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in redb")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p)? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in redb"));
+            }
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), RedbWriter::new(self.core.clone(), p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(RedbDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+        let _ = build_abs_path(&self.root, path);
+        Ok((RpList::default(), ()))
+    }
 }

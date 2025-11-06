@@ -34,6 +34,20 @@ impl SwiftWriter {
     pub fn new(core: Arc<SwiftCore>, op: OpWrite, path: String) -> Self {
         SwiftWriter { core, op, path }
     }
+
+    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(etag) = parse_etag(headers)? {
+            metadata.set_etag(etag);
+        }
+
+        if let Some(last_modified) = parse_last_modified(headers)? {
+            metadata.set_last_modified(last_modified);
+        }
+
+        Ok(metadata)
+    }
 }
 
 impl oio::OneShotWrite for SwiftWriter {
@@ -46,7 +60,10 @@ impl oio::OneShotWrite for SwiftWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => {
+                let metadata = SwiftWriter::parse_metadata(resp.headers())?;
+                Ok(metadata)
+            }
             _ => Err(parse_error(resp)),
         }
     }

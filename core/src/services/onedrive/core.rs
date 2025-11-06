@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -26,7 +25,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use jiff::Timestamp;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
@@ -41,7 +39,7 @@ pub struct OneDriveCore {
 }
 
 impl Debug for OneDriveCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OneDriveCore")
             .field("root", &self.root)
             .finish_non_exhaustive()
@@ -213,7 +211,7 @@ impl OneDriveCore {
         }
 
         let last_modified = decoded_response.last_modified_date_time;
-        let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+        let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
         meta.set_last_modified(date_utc_last_modified);
 
         Ok(meta)

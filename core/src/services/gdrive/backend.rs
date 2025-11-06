@@ -18,6 +18,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use bytes::Buf;
+use http::Response;
+use http::StatusCode;
+
 use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::delete::GdriveDeleter;
@@ -26,10 +30,6 @@ use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
 use crate::raw::*;
 use crate::*;
-use bytes::Buf;
-use http::Response;
-use http::StatusCode;
-use jiff::Timestamp;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {

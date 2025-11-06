@@ -38,6 +38,7 @@ pub use header::build_header_value;
 pub use header::format_authorization_by_basic;
 pub use header::format_authorization_by_bearer;
 pub use header::format_content_md5;
+pub use header::format_content_md5_iter;
 pub use header::parse_content_disposition;
 pub use header::parse_content_encoding;
 pub use header::parse_content_length;

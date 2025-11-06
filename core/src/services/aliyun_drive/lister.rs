@@ -27,7 +27,6 @@ use crate::Metadata;
 use crate::Result;
 use crate::raw::*;
 use bytes::Buf;
-use jiff::Timestamp;
 
 pub struct AliyunDriveLister {
     core: Arc<AliyunDriveCore>,

@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -30,17 +28,9 @@ use super::writer::OneDriveWriter;
 use crate::raw::*;
 use crate::*;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct OnedriveBackend {
     pub core: Arc<OneDriveCore>,
-}
-
-impl Debug for OnedriveBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("OnedriveBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for OnedriveBackend {

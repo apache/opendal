@@ -68,7 +68,7 @@ The following services have been removed due to lack of maintainers:
 
 - `atomicserver`
 - `icloud`
-- `nebula_graph`
+- `nebula-graph`
 
 If you need these services, please consider maintaining them or use alternative services.
 

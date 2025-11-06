@@ -21,8 +21,10 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::backend::MemcachedBuilder;
+
 /// Config for MemCached services support
-#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct MemcachedConfig {
@@ -40,4 +42,61 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+}
+
+impl Debug for MemcachedConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MemcachedConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .field("username", &self.username)
+            .field("default_ttl", &self.default_ttl)
+            .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for MemcachedConfig {
+    type Builder = MemcachedBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", crate::Scheme::Memcached)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("tcp://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        MemcachedBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "memcached://cache.local:11211/app/session",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MemcachedConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("tcp://cache.local:11211"));
+        assert_eq!(cfg.root.as_deref(), Some("app/session"));
+    }
 }

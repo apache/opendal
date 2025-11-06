@@ -15,12 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use serde::Deserialize;
-use serde::Serialize;
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
+use super::backend::DashmapBuilder;
+
 /// Config for Dashmap services support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct DashmapConfig {
@@ -28,10 +31,36 @@ pub struct DashmapConfig {
     pub root: Option<String>,
 }
 
-impl Debug for DashmapConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DashmapConfig")
-            .field("root", &self.root)
-            .finish_non_exhaustive()
+impl crate::Configurator for DashmapConfig {
+    type Builder = DashmapBuilder;
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        DashmapBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_root() {
+        let uri = OperatorUri::new("dashmap:///cache", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = DashmapConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

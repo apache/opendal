@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for dbfs service.
-#[cfg(feature = "services-dbfs")]
-pub(super) const DEFAULT_SCHEME: &str = "dbfs";
-#[cfg(feature = "services-dbfs")]
+pub(super) const DBFS_SCHEME: &str = "dbfs";
 mod core;
-#[cfg(feature = "services-dbfs")]
 mod delete;
-#[cfg(feature = "services-dbfs")]
 mod error;
-#[cfg(feature = "services-dbfs")]
 mod lister;
-#[cfg(feature = "services-dbfs")]
 mod writer;
 
-#[cfg(feature = "services-dbfs")]
 mod backend;
-#[cfg(feature = "services-dbfs")]
 pub use backend::DbfsBuilder as Dbfs;
 
 mod config;

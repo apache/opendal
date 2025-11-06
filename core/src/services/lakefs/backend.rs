@@ -15,17 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
-use jiff::Timestamp;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::LAKEFS_SCHEME;
+use super::config::LakefsConfig;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::delete::LakefsDeleter;
@@ -33,29 +31,13 @@ use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
 use crate::raw::*;
-use crate::services::LakefsConfig;
 use crate::*;
-impl Configurator for LakefsConfig {
-    type Builder = LakefsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        LakefsBuilder { config: self }
-    }
-}
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct LakefsBuilder {
-    config: LakefsConfig,
-}
-
-impl Debug for LakefsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
+    pub(super) config: LakefsConfig,
 }
 
 impl LakefsBuilder {
@@ -174,7 +156,7 @@ impl Builder for LakefsBuilder {
             core: Arc::new(LakefsCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(LAKEFS_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
 

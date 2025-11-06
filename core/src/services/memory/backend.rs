@@ -15,47 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::MEMORY_SCHEME;
+use super::config::MemoryConfig;
 use super::core::*;
 use super::delete::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
 use crate::raw::oio;
 use crate::raw::*;
-use crate::services::MemoryConfig;
 use crate::*;
-use http::Uri;
-use percent_encoding::percent_decode_str;
-impl Configurator for MemoryConfig {
-    type Builder = MemoryBuilder;
-
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
-
-        if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            if !path.is_empty() && path != "/" {
-                map.insert("root".to_string(), path.trim_start_matches('/').to_string());
-            }
-        }
-
-        Self::from_iter(map)
-    }
-
-    fn into_builder(self) -> Self::Builder {
-        MemoryBuilder { config: self }
-    }
-}
 
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MemoryBuilder {
-    config: MemoryConfig,
+    pub(super) config: MemoryConfig,
 }
 
 impl MemoryBuilder {
@@ -188,19 +165,5 @@ impl Access for MemoryAccessor {
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
         Ok((RpList::default(), lister))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_accessor_metadata_name() {
-        let b1 = MemoryBuilder::default().build().unwrap();
-        assert_eq!(b1.info().name(), b1.info().name());
-
-        let b2 = MemoryBuilder::default().build().unwrap();
-        assert_ne!(b1.info().name(), b2.info().name())
     }
 }

@@ -17,11 +17,12 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+
 use web_sys::FileSystemGetDirectoryOptions;
 
 use super::utils::*;
-use crate::Result;
 use crate::raw::*;
+use crate::*;
 
 /// OPFS Service backend
 #[derive(Default, Debug, Clone)]

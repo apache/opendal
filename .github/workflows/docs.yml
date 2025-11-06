@@ -38,8 +38,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This same toolchain for rust 1.85.1 but nightly so we can use new features.
-  RUST_DOC_TOOLCHAIN: nightly-2025-03-18
+  # This is the toolchain used by docs.rs
+  # 
+  # Check this page for updating: https://docs.rs/crate/opendal/0.54.1/builds
+  RUST_DOC_TOOLCHAIN: nightly-2025-10-12
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: "--cfg docsrs"
 
@@ -110,7 +112,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm
@@ -398,29 +400,6 @@ jobs:
           name: dav-server-opendalfs-docs
           path: ./integrations/dav-server/target/doc
 
-  build-fuse3-opendal-doc:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Rust Nightly
-        run: |
-          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
-
-      - name: Build fuse3-opendal doc
-        working-directory: "integrations/fuse3"
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
-
-      - name: Upload docs
-        uses: actions/upload-artifact@v4
-        with:
-          name: fuse3-opendal-docs
-          path: ./integrations/fuse3/target/doc
-
   build-unftp-sbe-opendal-doc:
     runs-on: ubuntu-latest
 
@@ -443,29 +422,6 @@ jobs:
         with:
           name: unftp-sbe-opendal-docs
           path: ./integrations/unftp-sbe/target/doc
-
-  build-virtiofs-opendal-doc:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup Rust Nightly
-        run: |
-          rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}
-
-      - name: Build virtiofs-opendal doc
-        working-directory: "integrations/virtiofs"
-        run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
-
-      - name: Upload docs
-        uses: actions/upload-artifact@v4
-        with:
-          name: virtiofs-opendal-docs
-          path: ./integrations/virtiofs/target/doc
 
   build-parquet-opendal-doc:
     runs-on: ubuntu-latest
@@ -507,9 +463,7 @@ jobs:
       - build-ocaml-doc
       - build-object-store-opendal-doc
       - build-dav-server-opendalfs-doc
-      - build-fuse3-opendal-doc
       - build-unftp-sbe-opendal-doc
-      - build-virtiofs-opendal-doc
       - build-parquet-opendal-doc
 
     steps:
@@ -522,7 +476,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm
@@ -604,23 +558,11 @@ jobs:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
-      - name: Download fuse3-opendal docs
-        uses: actions/download-artifact@v5
-        with:
-          name: fuse3-opendal-docs
-          path: ./website/static/docs/fuse3-opendal
-
       - name: Download unftp-sbe-opendal docs
         uses: actions/download-artifact@v5
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal
-
-      - name: Download virtiofs-opendal docs
-        uses: actions/download-artifact@v5
-        with:
-          name: virtiofs-opendal-docs
-          path: ./website/static/docs/virtiofs-opendal
 
       - name: Install Dependencies
         working-directory: website

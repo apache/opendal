@@ -16,22 +16,14 @@
 // under the License.
 
 /// Default scheme for webdav service.
-#[cfg(feature = "services-webdav")]
-pub(super) const DEFAULT_SCHEME: &str = "webdav";
-#[cfg(feature = "services-webdav")]
+pub(super) const WEBDAV_SCHEME: &str = "webdav";
 mod core;
-#[cfg(feature = "services-webdav")]
 mod delete;
-#[cfg(feature = "services-webdav")]
 mod error;
-#[cfg(feature = "services-webdav")]
 mod lister;
-#[cfg(feature = "services-webdav")]
 mod writer;
 
-#[cfg(feature = "services-webdav")]
 mod backend;
-#[cfg(feature = "services-webdav")]
 pub use backend::WebdavBuilder as Webdav;
 
 mod config;

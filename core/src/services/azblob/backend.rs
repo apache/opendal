@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -30,7 +29,8 @@ use reqsign::AzureStorageSigner;
 use sha2::Digest;
 use sha2::Sha256;
 
-use super::DEFAULT_SCHEME;
+use super::AZBLOB_SCHEME;
+use super::config::AzblobConfig;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
@@ -40,8 +40,8 @@ use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
 use crate::raw::*;
-use crate::services::AzblobConfig;
 use crate::*;
+
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {
@@ -56,35 +56,20 @@ impl From<AzureStorageConfig> for AzblobConfig {
     }
 }
 
-impl Configurator for AzblobConfig {
-    type Builder = AzblobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzblobBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
-
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzblobBuilder {
-    config: AzblobConfig,
+    pub(super) config: AzblobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzblobBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzblobBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -397,7 +382,7 @@ impl Builder for AzblobBuilder {
             core: Arc::new(AzblobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {

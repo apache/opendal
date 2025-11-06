@@ -32,10 +32,9 @@ struct HuggingfaceError {
 
 impl Debug for HuggingfaceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HuggingfaceError");
-        de.field("message", &self.error.replace('\n', " "));
-
-        de.finish()
+        f.debug_struct("HuggingfaceError")
+            .field("message", &self.error.replace('\n', " "))
+            .finish()
     }
 }
 

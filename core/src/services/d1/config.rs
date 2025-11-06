@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::D1Builder;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -44,12 +45,81 @@ pub struct D1Config {
 }
 
 impl Debug for D1Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("D1Config");
-        ds.field("root", &self.root);
-        ds.field("table", &self.table);
-        ds.field("key_field", &self.key_field);
-        ds.field("value_field", &self.value_field);
-        ds.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("D1Config")
+            .field("root", &self.root)
+            .field("table", &self.table)
+            .field("key_field", &self.key_field)
+            .field("value_field", &self.value_field)
+            .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for D1Config {
+    type Builder = D1Builder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let account_id = uri.name().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri host must contain account id",
+            )
+            .with_context("service", crate::Scheme::D1)
+        })?;
+
+        let database_and_root = uri.root().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri path must contain database id",
+            )
+            .with_context("service", crate::Scheme::D1)
+        })?;
+
+        let mut segments = database_and_root.splitn(2, '/');
+        let database_id = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "database id is required in uri path",
+            )
+            .with_context("service", crate::Scheme::D1)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("account_id".to_string(), account_id.to_string());
+        map.insert("database_id".to_string(), database_id.to_string());
+
+        if let Some(rest) = segments.next() {
+            if !rest.is_empty() {
+                map.insert("root".to_string(), rest.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        D1Builder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_account_database_and_root() {
+        let uri =
+            OperatorUri::new("d1://acc123/db456/cache", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = D1Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.account_id.as_deref(), Some("acc123"));
+        assert_eq!(cfg.database_id.as_deref(), Some("db456"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

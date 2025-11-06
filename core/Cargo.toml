@@ -239,7 +239,7 @@ required-features = ["tests"]
 [dependencies]
 # Required dependencies
 anyhow = { version = "1.0.100", features = ["std"] }
-backon = { version = "1.5", features = ["tokio-sleep"] }
+backon = { version = "1.6", features = ["tokio-sleep"] }
 base64 = "0.22"
 bytes = "1.6"
 futures = { version = "0.3", default-features = false, features = [
@@ -248,17 +248,18 @@ futures = { version = "0.3", default-features = false, features = [
 ] }
 http = "1.1"
 http-body = "1"
-jiff = { version = "0.2.15" }
+jiff = { version = "0.2.15", features = ["serde"] }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
+url = "2.5"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
-reqwest = { version = "0.12.23", features = [
+reqwest = { version = "0.12.24", features = [
   "stream",
 ], default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.47", features = ["sync", "io-util"] }
+tokio = { version = "1.48", features = ["sync", "io-util"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
@@ -405,9 +406,9 @@ tracing = { version = "0.1", optional = true }
 probe = { version = "0.5.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-backon = { version = "1.2", features = ["gloo-timers-sleep"] }
+backon = { version = "1.6", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
-tokio = { version = "1.46", features = ["time"] }
+tokio = { version = "1.48", features = ["time"] }
 uuid = { version = "1.18", features = ["serde", "v4", "js"] }
 
 [dev-dependencies]
@@ -426,7 +427,7 @@ pretty_assertions = "1"
 rand = "0.8"
 sha2 = "0.10"
 size = "0.5"
-tokio = { version = "1.47", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,7 +23,8 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::GITHUB_SCHEME;
+use super::config::GithubConfig;
 use super::core::Entry;
 use super::core::GithubCore;
 use super::delete::GithubDeleter;
@@ -33,36 +33,23 @@ use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
-use crate::services::GithubConfig;
 use crate::*;
-impl Configurator for GithubConfig {
-    type Builder = GithubBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GithubBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct GithubBuilder {
-    config: GithubConfig,
+    pub(super) config: GithubConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for GithubBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GithubBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -150,7 +137,7 @@ impl Builder for GithubBuilder {
             core: Arc::new(GithubCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(GITHUB_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

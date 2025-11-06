@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
@@ -27,7 +25,8 @@ use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::SFTP_SCHEME;
+use super::config::SftpConfig;
 use super::core::SftpCore;
 use super::delete::SftpDeleter;
 use super::error::is_not_found;
@@ -37,14 +36,7 @@ use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
 use crate::raw::*;
-use crate::services::SftpConfig;
 use crate::*;
-impl Configurator for SftpConfig {
-    type Builder = SftpBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SftpBuilder { config: self }
-    }
-}
 
 /// SFTP services support. (only works on unix)
 ///
@@ -56,17 +48,9 @@ impl Configurator for SftpConfig {
 /// For example, the default value is 255 in macOS, and 1024 in linux. If you want to open
 /// lots of files, you should pay attention to close the file after using it.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SftpBuilder {
-    config: SftpConfig,
-}
-
-impl Debug for SftpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SftpBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
+    pub(super) config: SftpConfig,
 }
 
 impl SftpBuilder {
@@ -180,7 +164,7 @@ impl Builder for SftpBuilder {
 
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
-            .set_scheme(DEFAULT_SCHEME)
+            .set_scheme(SFTP_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 
@@ -221,17 +205,9 @@ impl Builder for SftpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for sftp.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SftpBackend {
     pub core: Arc<SftpCore>,
-}
-
-impl Debug for SftpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SftpBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for SftpBackend {

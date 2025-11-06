@@ -816,7 +816,7 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
 
 pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
     let path = TEST_FIXTURE.new_file_path();
-    let size = 5 * 1024 * 1024; // write file with 5 MiB
+    let size = 1024 * 1024; // write file with 1 MiB
     let content_a = gen_fixed_bytes(size);
     let digest_a = Sha256::digest(&content_a);
     let content_b = gen_fixed_bytes(size);

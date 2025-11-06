@@ -134,7 +134,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 ## For *ANY* services
 
 | Type                           | Services                                                                                                                  |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------|
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                  |
 | Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                   |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                         |

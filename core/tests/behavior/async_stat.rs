@@ -20,7 +20,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use http::StatusCode;
-use log::warn;
 use reqwest::Url;
 use tokio::time::sleep;
 

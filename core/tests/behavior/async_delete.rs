@@ -17,7 +17,6 @@
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use log::warn;
 use opendal::raw::Access;
 use opendal::raw::OpDelete;
 

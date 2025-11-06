@@ -21,7 +21,6 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
-use log::warn;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;

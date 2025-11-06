@@ -34,8 +34,6 @@ use crate::Error;
 pub enum Scheme {
     /// [aliyun-drive][crate::services::AliyunDrive]: Aliyun Drive services.
     AliyunDrive,
-    /// [atomicserver][crate::services::Atomicserver]: Atomicserver services.
-    Atomicserver,
     /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
     Azblob,
     /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
@@ -93,8 +91,6 @@ pub enum Scheme {
     Ipfs,
     /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
     Ipmfs,
-    /// [icloud][crate::services::Icloud]: APPLE icloud services.
-    Icloud,
     /// [memcached][crate::services::Memcached]: Memcached service support.
     Memcached,
     /// [memory][crate::services::Memory]: In memory backend support.
@@ -160,8 +156,6 @@ pub enum Scheme {
     Surrealdb,
     /// [lakefs](crate::services::Lakefs): LakeFS Services
     Lakefs,
-    /// [NebulaGraph](crate::services::NebulaGraph): NebulaGraph Services
-    NebulaGraph,
     /// Custom that allow users to implement services outside OpenDAL.
     ///
     /// # NOTE
@@ -386,7 +380,6 @@ impl FromStr for Scheme {
             "hdfs-native" | "hdfs_native" => Ok(Scheme::HdfsNative),
             "surrealdb" => Ok(Scheme::Surrealdb),
             "lakefs" => Ok(Scheme::Lakefs),
-            "nebula-graph" | "nebula_graph" => Ok(Scheme::NebulaGraph),
             _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
         }
     }
@@ -396,7 +389,6 @@ impl From<Scheme> for &'static str {
     fn from(v: Scheme) -> Self {
         match v {
             Scheme::AliyunDrive => "aliyun-drive",
-            Scheme::Atomicserver => "atomicserver",
             Scheme::Azblob => "azblob",
             Scheme::Azdls => "azdls",
             Scheme::B2 => "b2",
@@ -419,7 +411,6 @@ impl From<Scheme> for &'static str {
             Scheme::Ftp => "ftp",
             Scheme::Ipfs => "ipfs",
             Scheme::Ipmfs => "ipmfs",
-            Scheme::Icloud => "icloud",
             Scheme::Koofr => "koofr",
             Scheme::Memcached => "memcached",
             Scheme::Memory => "memory",
@@ -458,7 +449,6 @@ impl From<Scheme> for &'static str {
             Scheme::HdfsNative => "hdfs-native",
             Scheme::Surrealdb => "surrealdb",
             Scheme::Lakefs => "lakefs",
-            Scheme::NebulaGraph => "nebula-graph",
             Scheme::Custom(v) => v,
         }
     }

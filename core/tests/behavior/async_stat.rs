@@ -131,14 +131,6 @@ pub async fn test_stat_nested_parent_dir(op: Operator) -> Result<()> {
 
 /// Stat existing file with special chars should return metadata
 pub async fn test_stat_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
-
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 

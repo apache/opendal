@@ -384,14 +384,6 @@ pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with special chars should succeed.
 pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
-
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 

@@ -26,7 +26,6 @@
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Operator;
-//! use opendal::Scheme;
 //! use opendal::services;
 //! use unftp_sbe_opendal::OpendalStorage;
 //!

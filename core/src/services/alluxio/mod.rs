@@ -16,16 +16,15 @@
 // under the License.
 
 /// Default scheme for alluxio service.
-pub(super) const ALLUXIO_SCHEME: &str = "alluxio";
+pub const ALLUXIO_SCHEME: &str = "alluxio";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::AlluxioBuilder as Alluxio;
-
-mod config;
-
 pub use config::AlluxioConfig;

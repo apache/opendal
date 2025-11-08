@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for github service.
-pub(super) const GITHUB_SCHEME: &str = "github";
+pub const GITHUB_SCHEME: &str = "github";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::GithubBuilder as Github;
-
-mod config;
 pub use config::GithubConfig;

@@ -16,14 +16,14 @@
 // under the License.
 
 /// Default scheme for mini_moka service.
-pub(super) const MINI_MOKA_SCHEME: &str = "mini-moka";
+pub const MINI_MOKA_SCHEME: &str = "mini-moka";
+
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod lister;
 mod writer;
 
 pub use backend::MiniMokaBuilder as MiniMoka;
-
-mod config;
 pub use config::MiniMokaConfig;

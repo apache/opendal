@@ -29,7 +29,7 @@ use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
-use super::delete::AzdlsDeleter;
+use super::deleter::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;

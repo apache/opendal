@@ -23,7 +23,7 @@ use log::debug;
 use super::DASHMAP_SCHEME;
 use super::config::DashmapConfig;
 use super::core::DashmapCore;
-use super::delete::DashmapDeleter;
+use super::deleter::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
 use crate::raw::*;
@@ -69,18 +69,18 @@ impl Builder for DashmapBuilder {
             cache: DashMap::new(),
         };
 
-        Ok(DashmapAccessor::new(core, root))
+        Ok(DashmapBackend::new(core, root))
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct DashmapAccessor {
+pub struct DashmapBackend {
     core: Arc<DashmapCore>,
     root: String,
     info: Arc<AccessorInfo>,
 }
 
-impl DashmapAccessor {
+impl DashmapBackend {
     fn new(core: DashmapCore, root: String) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(DASHMAP_SCHEME);
@@ -111,7 +111,7 @@ impl DashmapAccessor {
     }
 }
 
-impl Access for DashmapAccessor {
+impl Access for DashmapBackend {
     type Reader = Buffer;
     type Writer = DashmapWriter;
     type Lister = oio::HierarchyLister<DashmapLister>;

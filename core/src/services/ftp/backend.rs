@@ -31,7 +31,7 @@ use tokio::sync::OnceCell;
 use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
-use super::delete::FtpDeleter;
+use super::deleter::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;

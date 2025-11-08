@@ -16,6 +16,7 @@
 // under the License.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::Uri;
@@ -153,7 +154,7 @@ impl Builder for RedisBuilder {
 
             let conn = OnceCell::new();
 
-            Ok(RedisAccessor::new(RedisCore {
+            Ok(RedisBackend::new(RedisCore {
                 addr: endpoints,
                 client: None,
                 cluster_client: Some(client),
@@ -178,7 +179,7 @@ impl Builder for RedisBuilder {
                 })?;
 
             let conn = OnceCell::new();
-            Ok(RedisAccessor::new(RedisCore {
+            Ok(RedisBackend::new(RedisCore {
                 addr: endpoint,
                 client: Some(client),
                 cluster_client: None,
@@ -248,15 +249,15 @@ impl RedisBuilder {
     }
 }
 
-/// RedisAccessor implements Access trait directly
+/// RedisBackend implements Access trait directly
 #[derive(Debug, Clone)]
-pub struct RedisAccessor {
-    core: std::sync::Arc<RedisCore>,
+pub struct RedisBackend {
+    core: Arc<RedisCore>,
     root: String,
-    info: std::sync::Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
 }
 
-impl RedisAccessor {
+impl RedisBackend {
     fn new(core: RedisCore) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(REDIS_SCHEME);
@@ -273,9 +274,9 @@ impl RedisAccessor {
         });
 
         Self {
-            core: std::sync::Arc::new(core),
+            core: Arc::new(core),
             root: "/".to_string(),
-            info: std::sync::Arc::new(info),
+            info: Arc::new(info),
         }
     }
 
@@ -286,13 +287,13 @@ impl RedisAccessor {
     }
 }
 
-impl Access for RedisAccessor {
+impl Access for RedisBackend {
     type Reader = Buffer;
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
     }
 

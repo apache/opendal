@@ -26,7 +26,7 @@ use log::debug;
 use super::WEBDAV_SCHEME;
 use super::config::WebdavConfig;
 use super::core::*;
-use super::delete::WebdavDeleter;
+use super::deleter::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;

@@ -26,7 +26,7 @@ use super::LAKEFS_SCHEME;
 use super::config::LakefsConfig;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
-use super::delete::LakefsDeleter;
+use super::deleter::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;

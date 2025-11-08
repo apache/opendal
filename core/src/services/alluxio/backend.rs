@@ -24,7 +24,7 @@ use log::debug;
 use super::ALLUXIO_SCHEME;
 use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
-use super::delete::AlluxioDeleter;
+use super::deleter::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;

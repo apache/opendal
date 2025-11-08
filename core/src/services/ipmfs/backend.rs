@@ -23,7 +23,7 @@ use http::StatusCode;
 use serde::Deserialize;
 
 use super::core::IpmfsCore;
-use super::delete::IpmfsDeleter;
+use super::deleter::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;

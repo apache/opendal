@@ -17,14 +17,14 @@
 
 /// Default scheme for upyun service.
 pub const UPYUN_SCHEME: &str = "upyun";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::UpyunBuilder as Upyun;
-
-mod config;
 pub use config::UpyunConfig;

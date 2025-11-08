@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for azdls service.
-pub(super) const AZDLS_SCHEME: &str = "azdls";
+pub const AZDLS_SCHEME: &str = "azdls";
+
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
 pub use backend::AzdlsBuilder as Azdls;
-
-mod config;
 pub use config::AzdlsConfig;

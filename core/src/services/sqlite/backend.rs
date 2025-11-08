@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
 use super::config::SqliteConfig;
 use super::core::SqliteCore;
-use super::delete::SqliteDeleter;
+use super::deleter::SqliteDeleter;
 use super::writer::SqliteWriter;
 use crate::raw::oio;
 use crate::raw::*;
@@ -136,7 +136,7 @@ impl Builder for SqliteBuilder {
 
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
-        Ok(SqliteAccessor::new(SqliteCore {
+        Ok(SqliteBackend::new(SqliteCore {
             pool: OnceCell::new(),
             config,
             table,
@@ -166,15 +166,15 @@ pub fn parse_sqlite_error(err: sqlx::Error) -> Error {
     error
 }
 
-/// SqliteAccessor implements Access trait directly
+/// SqliteBackend implements Access trait directly
 #[derive(Debug, Clone)]
-pub struct SqliteAccessor {
-    core: std::sync::Arc<SqliteCore>,
+pub struct SqliteBackend {
+    core: Arc<SqliteCore>,
     root: String,
-    info: std::sync::Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
 }
 
-impl SqliteAccessor {
+impl SqliteBackend {
     fn new(core: SqliteCore) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(Scheme::Sqlite.into());
@@ -193,9 +193,9 @@ impl SqliteAccessor {
         });
 
         Self {
-            core: std::sync::Arc::new(core),
+            core: Arc::new(core),
             root: "/".to_string(),
-            info: std::sync::Arc::new(info),
+            info: Arc::new(info),
         }
     }
 
@@ -206,13 +206,13 @@ impl SqliteAccessor {
     }
 }
 
-impl Access for SqliteAccessor {
+impl Access for SqliteBackend {
     type Reader = Buffer;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
     }
 
@@ -331,7 +331,7 @@ mod test {
             value_field: "value".to_string(),
         };
 
-        let accessor = SqliteAccessor::new(core);
+        let accessor = SqliteBackend::new(core);
 
         // Verify basic properties
         assert_eq!(accessor.root, "/");
@@ -355,7 +355,7 @@ mod test {
             value_field: "value".to_string(),
         };
 
-        let accessor = SqliteAccessor::new(core).with_normalized_root("/test/".to_string());
+        let accessor = SqliteBackend::new(core).with_normalized_root("/test/".to_string());
 
         assert_eq!(accessor.root, "/test/");
         assert_eq!(accessor.info.root(), "/test/".into());

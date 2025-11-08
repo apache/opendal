@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for compfs service.
-pub(super) const COMPFS_SCHEME: &str = "compfs";
+pub const COMPFS_SCHEME: &str = "compfs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod lister;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::CompfsBuilder as Compfs;
-
-mod config;
 pub use config::CompfsConfig;

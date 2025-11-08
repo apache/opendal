@@ -16,12 +16,11 @@
 // under the License.
 
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod lister;
 mod writer;
 
 pub use backend::RocksdbBuilder as Rocksdb;
-
-mod config;
 pub use config::RocksdbConfig;

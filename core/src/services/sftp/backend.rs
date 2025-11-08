@@ -28,7 +28,7 @@ use tokio::sync::OnceCell;
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
 use super::core::SftpCore;
-use super::delete::SftpDeleter;
+use super::deleter::SftpDeleter;
 use super::error::is_not_found;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;

@@ -16,17 +16,17 @@
 // under the License.
 
 /// Default scheme for sftp service.
-pub(super) const SFTP_SCHEME: &str = "sftp";
-mod delete;
+pub const SFTP_SCHEME: &str = "sftp";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod error;
 mod lister;
 mod reader;
 mod utils;
 mod writer;
 
-mod backend;
 pub use backend::SftpBuilder as Sftp;
-mod core;
-
-mod config;
 pub use config::SftpConfig;

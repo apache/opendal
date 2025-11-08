@@ -17,13 +17,13 @@
 
 /// Default scheme for memory service.
 pub const MEMORY_SCHEME: &str = "memory";
+
 mod backend;
-pub use backend::MemoryBuilder as Memory;
-
 mod config;
-pub use config::MemoryConfig;
-
 mod core;
-mod delete;
+mod deleter;
 mod lister;
 mod writer;
+
+pub use backend::MemoryBuilder as Memory;
+pub use config::MemoryConfig;

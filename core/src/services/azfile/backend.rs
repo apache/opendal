@@ -28,7 +28,7 @@ use reqsign::AzureStorageSigner;
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
 use super::core::AzfileCore;
-use super::delete::AzfileDeleter;
+use super::deleter::AzfileDeleter;
 use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;

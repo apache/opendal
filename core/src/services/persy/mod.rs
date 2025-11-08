@@ -16,11 +16,10 @@
 // under the License.
 
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod writer;
 
 pub use backend::PersyBuilder as Persy;
-
-mod config;
 pub use config::PersyConfig;

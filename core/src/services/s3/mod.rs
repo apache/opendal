@@ -17,14 +17,14 @@
 
 /// Default scheme for s3 service.
 pub const S3_SCHEME: &str = "s3";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::S3Builder as S3;
-
-mod config;
 pub use config::S3Config;

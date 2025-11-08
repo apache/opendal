@@ -16,13 +16,13 @@
 // under the License.
 
 /// Default scheme for ipfs service.
-pub(super) const IPFS_SCHEME: &str = "ipfs";
+pub const IPFS_SCHEME: &str = "ipfs";
+
+mod backend;
+mod config;
+mod core;
 mod error;
 mod ipld;
 
-mod backend;
 pub use backend::IpfsBuilder as Ipfs;
-mod core;
-
-mod config;
 pub use config::IpfsConfig;

@@ -16,10 +16,7 @@
 // under the License.
 
 mod backend;
-mod core;
-
 mod config;
-
+mod core;
 mod error;
-
 mod utils;

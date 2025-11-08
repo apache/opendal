@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for lakefs service.
-pub(super) const LAKEFS_SCHEME: &str = "lakefs";
+pub const LAKEFS_SCHEME: &str = "lakefs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::LakefsBuilder as Lakefs;
-
-mod config;
 pub use config::LakefsConfig;

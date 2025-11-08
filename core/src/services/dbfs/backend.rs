@@ -24,7 +24,7 @@ use serde::Deserialize;
 
 use super::DBFS_SCHEME;
 use super::core::DbfsCore;
-use super::delete::DbfsDeleter;
+use super::deleter::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;

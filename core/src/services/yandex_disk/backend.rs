@@ -26,7 +26,7 @@ use log::debug;
 use super::YANDEX_DISK_SCHEME;
 use super::config::YandexDiskConfig;
 use super::core::*;
-use super::delete::YandexDiskDeleter;
+use super::deleter::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;

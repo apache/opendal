@@ -16,14 +16,14 @@
 // under the License.
 
 /// Default scheme for dashmap service.
-pub(super) const DASHMAP_SCHEME: &str = "dashmap";
+pub const DASHMAP_SCHEME: &str = "dashmap";
+
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod lister;
 mod writer;
 
 pub use backend::DashmapBuilder as Dashmap;
-
-mod config;
 pub use config::DashmapConfig;

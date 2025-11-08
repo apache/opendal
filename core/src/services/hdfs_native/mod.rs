@@ -16,17 +16,16 @@
 // under the License.
 
 /// Default scheme for hdfs_native service.
-pub(super) const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
+pub const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::HdfsNativeBuilder as HdfsNative;
-
-mod config;
-
 pub use config::HdfsNativeConfig;

@@ -1,0 +1,470 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use std::collections::HashSet;
+use std::fmt::Display;
+use std::str::FromStr;
+
+use crate::Error;
+
+/// Services that OpenDAL supports
+///
+/// # Notes
+///
+/// - Scheme is `non_exhaustive`, new variant COULD be added at any time.
+/// - New variant SHOULD be added in alphabet orders,
+/// - Users MUST NOT relay on its order.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum Scheme {
+    /// [aliyun-drive][crate::services::AliyunDrive]: Aliyun Drive services.
+    AliyunDrive,
+    /// [alluxio][crate::services::Alluxio]: Alluxio services.
+    Alluxio,
+    /// [azblob][crate::services::Azblob]: Azure Storage Blob services.
+    Azblob,
+    /// [Azdls][crate::services::Azdls]: Azure Data Lake Storage Gen2.
+    Azdls,
+    /// [azfile][crate::services::Azfile]: Azfile Services
+    Azfile,
+    /// [B2][crate::services::B2]: Backblaze B2 Services.
+    B2,
+    /// [cacache][crate::services::Cacache]: cacache backend support.
+    Cacache,
+    /// [cloudflare-kv][crate::services::CloudflareKv]: Cloudflare KV services.
+    CloudflareKv,
+    /// [Compfs][crate::services::Compfs]: Compio fs Services.
+    Compfs,
+    /// [cos][crate::services::Cos]: Tencent Cloud Object Storage services.
+    Cos,
+    /// [d1][crate::services::D1]: D1 services
+    D1,
+    /// [dashmap][crate::services::Dashmap]: dashmap backend support.
+    Dashmap,
+    /// [dbfs][crate::services::Dbfs]: DBFS backend support.
+    Dbfs,
+    /// [dropbox][crate::services::Dropbox]: Dropbox services.
+    Dropbox,
+    /// [etcd][crate::services::Etcd]: Etcd Services
+    Etcd,
+    /// [foundationdb][crate::services::Foundationdb]: Foundationdb services.
+    Foundationdb,
+    /// [fs][crate::services::Fs]: POSIX-like file system.
+    Fs,
+    /// [ftp][crate::services::Ftp]: FTP backend.
+    Ftp,
+    /// [gcs][crate::services::Gcs]: Google Cloud Storage backend.
+    Gcs,
+    /// [gdrive][crate::services::Gdrive]: GoogleDrive services.
+    Gdrive,
+    /// [ghac][crate::services::Ghac]: GitHub Action Cache services.
+    Ghac,
+    /// [Github Contents][crate::services::Github]: Github contents support.
+    Github,
+    /// [gridfs](crate::services::Gridfs): MongoDB Gridfs Services
+    Gridfs,
+    /// [hdfs][crate::services::Hdfs]: Hadoop Distributed File System.
+    Hdfs,
+    /// [Native HDFS](crate::services::HdfsNative): Hdfs Native service, using rust hdfs-native client for hdfs
+    HdfsNative,
+    /// [http][crate::services::Http]: HTTP backend.
+    Http,
+    /// [huggingface][crate::services::Huggingface]: Huggingface services.
+    Huggingface,
+    /// [ipmfs][crate::services::Ipfs]: IPFS HTTP Gateway
+    Ipfs,
+    /// [ipmfs][crate::services::Ipmfs]: IPFS mutable file system
+    Ipmfs,
+    /// [Koofr][crate::services::Koofr]: Koofr Services.
+    Koofr,
+    /// [lakefs](crate::services::Lakefs): LakeFS Services
+    Lakefs,
+    /// [memcached][crate::services::Memcached]: Memcached service support.
+    Memcached,
+    /// [memory][crate::services::Memory]: In memory backend support.
+    #[default]
+    Memory,
+    /// [mini-moka][crate::services::MiniMoka]: Mini Moka backend support.
+    MiniMoka,
+    /// [moka][crate::services::Moka]: moka backend support.
+    Moka,
+    /// [mongodb](crate::services::Mongodb): MongoDB Services
+    Mongodb,
+    /// [monoiofs][crate::services::Monoiofs]: monoio fs services.
+    Monoiofs,
+    /// [mysql][crate::services::Mysql]: Mysql services
+    Mysql,
+    /// [obs][crate::services::Obs]: Huawei Cloud OBS services.
+    Obs,
+    /// [onedrive][crate::services::Onedrive]: Microsoft OneDrive services.
+    Onedrive,
+    /// [oss][crate::services::Oss]: Aliyun Object Storage Services
+    Oss,
+    /// [Pcloud][crate::services::Pcloud]: Pcloud Services.
+    Pcloud,
+    /// [persy][crate::services::Persy]: persy backend support.
+    Persy,
+    /// [postgresql][crate::services::Postgresql]: Postgresql services
+    Postgresql,
+    /// [redb][crate::services::Redb]: Redb Services
+    Redb,
+    /// [redis][crate::services::Redis]: Redis services
+    Redis,
+    /// [rocksdb][crate::services::Rocksdb]: RocksDB services
+    Rocksdb,
+    /// [s3][crate::services::S3]: AWS S3 alike services.
+    S3,
+    /// [Seafile][crate::services::Seafile]: Seafile Services.
+    Seafile,
+    /// [sftp][crate::services::Sftp]: SFTP services
+    Sftp,
+    /// [sled][crate::services::Sled]: Sled services
+    Sled,
+    /// [sqlite][crate::services::Sqlite]: Sqlite services
+    Sqlite,
+    /// [surrealdb](crate::services::Surrealdb): Surrealdb Services
+    Surrealdb,
+    /// [swift][crate::services::Swift]: Swift backend support.
+    Swift,
+    /// [tikv][crate::services::Tikv]: Tikv Services
+    Tikv,
+    /// [Upyun][crate::services::Upyun]: Upyun Services.
+    Upyun,
+    /// [Vercel Artifacts][crate::services::VercelArtifacts]: Vercel Artifacts service, as known as Vercel Remote Caching.
+    VercelArtifacts,
+    /// [VercelBlob][crate::services::VercelBlob]: VercelBlob Services.
+    VercelBlob,
+    /// [webdav][crate::services::Webdav]: WebDAV support.
+    Webdav,
+    /// [webhdfs][crate::services::Webhdfs]: WebHDFS RESTful API Services
+    Webhdfs,
+    /// [YandexDisk][crate::services::YandexDisk]: YandexDisk Services.
+    YandexDisk,
+    /// Custom that allow users to implement services outside OpenDAL.
+    ///
+    /// # NOTE
+    ///
+    /// - Custom must not overwrite any existing services name.
+    /// - Custom must be in lower case.
+    Custom(&'static str),
+}
+
+impl Scheme {
+    /// Convert self into static str.
+    pub fn into_static(self) -> &'static str {
+        self.into()
+    }
+
+    /// Get all enabled schemes.
+    ///
+    /// OpenDAL could be compiled with different features, which will enable different schemes.
+    /// This function returns all enabled schemes so users can make decisions based on it.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use opendal::Scheme;
+    ///
+    /// let enabled_schemes = Scheme::enabled();
+    /// if !enabled_schemes.contains(&Scheme::Memory) {
+    ///     panic!("s3 support is not enabled")
+    /// }
+    /// ```
+    pub fn enabled() -> HashSet<Scheme> {
+        HashSet::from([
+            #[cfg(feature = "services-aliyun-drive")]
+            Scheme::AliyunDrive,
+            #[cfg(feature = "services-alluxio")]
+            Scheme::Alluxio,
+            #[cfg(feature = "services-azblob")]
+            Scheme::Azblob,
+            #[cfg(feature = "services-azdls")]
+            Scheme::Azdls,
+            #[cfg(feature = "services-azfile")]
+            Scheme::Azfile,
+            #[cfg(feature = "services-b2")]
+            Scheme::B2,
+            #[cfg(feature = "services-cacache")]
+            Scheme::Cacache,
+            #[cfg(feature = "services-cloudflare-kv")]
+            Scheme::CloudflareKv,
+            #[cfg(feature = "services-compfs")]
+            Scheme::Compfs,
+            #[cfg(feature = "services-cos")]
+            Scheme::Cos,
+            #[cfg(feature = "services-d1")]
+            Scheme::D1,
+            #[cfg(feature = "services-dashmap")]
+            Scheme::Dashmap,
+            #[cfg(feature = "services-dbfs")]
+            Scheme::Dbfs,
+            #[cfg(feature = "services-dropbox")]
+            Scheme::Dropbox,
+            #[cfg(feature = "services-etcd")]
+            Scheme::Etcd,
+            #[cfg(feature = "services-foundationdb")]
+            Scheme::Foundationdb,
+            #[cfg(feature = "services-fs")]
+            Scheme::Fs,
+            #[cfg(feature = "services-ftp")]
+            Scheme::Ftp,
+            #[cfg(feature = "services-gcs")]
+            Scheme::Gcs,
+            #[cfg(feature = "services-gdrive")]
+            Scheme::Gdrive,
+            #[cfg(feature = "services-ghac")]
+            Scheme::Ghac,
+            #[cfg(feature = "services-github")]
+            Scheme::Github,
+            #[cfg(feature = "services-gridfs")]
+            Scheme::Gridfs,
+            #[cfg(feature = "services-hdfs")]
+            Scheme::Hdfs,
+            #[cfg(feature = "services-hdfs-native")]
+            Scheme::HdfsNative,
+            #[cfg(feature = "services-http")]
+            Scheme::Http,
+            #[cfg(feature = "services-huggingface")]
+            Scheme::Huggingface,
+            #[cfg(feature = "services-ipfs")]
+            Scheme::Ipfs,
+            #[cfg(feature = "services-ipmfs")]
+            Scheme::Ipmfs,
+            #[cfg(feature = "services-koofr")]
+            Scheme::Koofr,
+            #[cfg(feature = "services-lakefs")]
+            Scheme::Lakefs,
+            #[cfg(feature = "services-memcached")]
+            Scheme::Memcached,
+            #[cfg(feature = "services-memory")]
+            Scheme::Memory,
+            #[cfg(feature = "services-mini-moka")]
+            Scheme::MiniMoka,
+            #[cfg(feature = "services-moka")]
+            Scheme::Moka,
+            #[cfg(feature = "services-mongodb")]
+            Scheme::Mongodb,
+            #[cfg(feature = "services-monoiofs")]
+            Scheme::Monoiofs,
+            #[cfg(feature = "services-mysql")]
+            Scheme::Mysql,
+            #[cfg(feature = "services-obs")]
+            Scheme::Obs,
+            #[cfg(feature = "services-onedrive")]
+            Scheme::Onedrive,
+            #[cfg(feature = "services-oss")]
+            Scheme::Oss,
+            #[cfg(feature = "services-pcloud")]
+            Scheme::Pcloud,
+            #[cfg(feature = "services-persy")]
+            Scheme::Persy,
+            #[cfg(feature = "services-postgresql")]
+            Scheme::Postgresql,
+            #[cfg(feature = "services-redb")]
+            Scheme::Redb,
+            #[cfg(feature = "services-redis")]
+            Scheme::Redis,
+            #[cfg(feature = "services-rocksdb")]
+            Scheme::Rocksdb,
+            #[cfg(feature = "services-s3")]
+            Scheme::S3,
+            #[cfg(feature = "services-seafile")]
+            Scheme::Seafile,
+            #[cfg(feature = "services-sftp")]
+            Scheme::Sftp,
+            #[cfg(feature = "services-sled")]
+            Scheme::Sled,
+            #[cfg(feature = "services-sqlite")]
+            Scheme::Sqlite,
+            #[cfg(feature = "services-surrealdb")]
+            Scheme::Surrealdb,
+            #[cfg(feature = "services-swift")]
+            Scheme::Swift,
+            #[cfg(feature = "services-tikv")]
+            Scheme::Tikv,
+            #[cfg(feature = "services-upyun")]
+            Scheme::Upyun,
+            #[cfg(feature = "services-vercel-artifacts")]
+            Scheme::VercelArtifacts,
+            #[cfg(feature = "services-vercel-blob")]
+            Scheme::VercelBlob,
+            #[cfg(feature = "services-webdav")]
+            Scheme::Webdav,
+            #[cfg(feature = "services-webhdfs")]
+            Scheme::Webhdfs,
+            #[cfg(feature = "services-yandex-disk")]
+            Scheme::YandexDisk,
+        ])
+    }
+}
+
+impl Display for Scheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.into_static())
+    }
+}
+
+impl FromStr for Scheme {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.to_lowercase();
+        match s.as_str() {
+            "aliyun-drive" | "aliyun_drive" => Ok(Scheme::AliyunDrive),
+            "alluxio" => Ok(Scheme::Alluxio),
+            "azblob" => Ok(Scheme::Azblob),
+            // Notes:
+            //
+            // OpenDAL used to call `azdls` as `azdfs`, we keep it for backward compatibility.
+            // And abfs is widely used in hadoop ecosystem, keep it for easy to use.
+            "azdls" | "azdfs" | "abfs" => Ok(Scheme::Azdls),
+            "azfile" => Ok(Scheme::Azfile),
+            "b2" => Ok(Scheme::B2),
+            "cacache" => Ok(Scheme::Cacache),
+            "cloudflare-kv" | "cloudflare_kv" => Ok(Scheme::CloudflareKv),
+            "compfs" => Ok(Scheme::Compfs),
+            "cos" => Ok(Scheme::Cos),
+            "d1" => Ok(Scheme::D1),
+            "dashmap" => Ok(Scheme::Dashmap),
+            "dbfs" => Ok(Scheme::Dbfs),
+            "dropbox" => Ok(Scheme::Dropbox),
+            "etcd" => Ok(Scheme::Etcd),
+            "foundationdb" => Ok(Scheme::Foundationdb),
+            "fs" => Ok(Scheme::Fs),
+            "ftp" | "ftps" => Ok(Scheme::Ftp),
+            "gcs" => Ok(Scheme::Gcs),
+            "gdrive" => Ok(Scheme::Gdrive),
+            "ghac" => Ok(Scheme::Ghac),
+            "github" => Ok(Scheme::Github),
+            "gridfs" => Ok(Scheme::Gridfs),
+            "hdfs" => Ok(Scheme::Hdfs),
+            "hdfs-native" | "hdfs_native" => Ok(Scheme::HdfsNative),
+            "http" | "https" => Ok(Scheme::Http),
+            "huggingface" | "hf" => Ok(Scheme::Huggingface),
+            "ipfs" | "ipns" => Ok(Scheme::Ipfs),
+            "ipmfs" => Ok(Scheme::Ipmfs),
+            "koofr" => Ok(Scheme::Koofr),
+            "lakefs" => Ok(Scheme::Lakefs),
+            "memcached" => Ok(Scheme::Memcached),
+            "memory" => Ok(Scheme::Memory),
+            "mini-moka" | "mini_moka" => Ok(Scheme::MiniMoka),
+            "moka" => Ok(Scheme::Moka),
+            "mongodb" => Ok(Scheme::Mongodb),
+            "monoiofs" => Ok(Scheme::Monoiofs),
+            "mysql" => Ok(Scheme::Mysql),
+            "obs" => Ok(Scheme::Obs),
+            "onedrive" => Ok(Scheme::Onedrive),
+            "oss" => Ok(Scheme::Oss),
+            "pcloud" => Ok(Scheme::Pcloud),
+            "persy" => Ok(Scheme::Persy),
+            "postgresql" => Ok(Scheme::Postgresql),
+            "redb" => Ok(Scheme::Redb),
+            "redis" => Ok(Scheme::Redis),
+            "rocksdb" => Ok(Scheme::Rocksdb),
+            "s3" => Ok(Scheme::S3),
+            "seafile" => Ok(Scheme::Seafile),
+            "sftp" => Ok(Scheme::Sftp),
+            "sled" => Ok(Scheme::Sled),
+            "sqlite" => Ok(Scheme::Sqlite),
+            "surrealdb" => Ok(Scheme::Surrealdb),
+            "swift" => Ok(Scheme::Swift),
+            "tikv" => Ok(Scheme::Tikv),
+            "upyun" => Ok(Scheme::Upyun),
+            "vercel-artifacts" | "vercel_artifacts" => Ok(Scheme::VercelArtifacts),
+            "vercel-blob" | "vercel_blob" => Ok(Scheme::VercelBlob),
+            "webdav" => Ok(Scheme::Webdav),
+            "webhdfs" => Ok(Scheme::Webhdfs),
+            "yandex-disk" | "yandex_disk" => Ok(Scheme::YandexDisk),
+            _ => Ok(Scheme::Custom(Box::leak(s.into_boxed_str()))),
+        }
+    }
+}
+
+impl From<Scheme> for &'static str {
+    fn from(v: Scheme) -> Self {
+        match v {
+            Scheme::AliyunDrive => "aliyun-drive",
+            Scheme::Alluxio => "alluxio",
+            Scheme::Azblob => "azblob",
+            Scheme::Azdls => "azdls",
+            Scheme::Azfile => "azfile",
+            Scheme::B2 => "b2",
+            Scheme::Cacache => "cacache",
+            Scheme::CloudflareKv => "cloudflare-kv",
+            Scheme::Compfs => "compfs",
+            Scheme::Cos => "cos",
+            Scheme::D1 => "d1",
+            Scheme::Dashmap => "dashmap",
+            Scheme::Dbfs => "dbfs",
+            Scheme::Dropbox => "dropbox",
+            Scheme::Etcd => "etcd",
+            Scheme::Foundationdb => "foundationdb",
+            Scheme::Fs => "fs",
+            Scheme::Ftp => "ftp",
+            Scheme::Gcs => "gcs",
+            Scheme::Gdrive => "gdrive",
+            Scheme::Ghac => "ghac",
+            Scheme::Github => "github",
+            Scheme::Gridfs => "gridfs",
+            Scheme::Hdfs => "hdfs",
+            Scheme::HdfsNative => "hdfs-native",
+            Scheme::Http => "http",
+            Scheme::Huggingface => "huggingface",
+            Scheme::Ipfs => "ipfs",
+            Scheme::Ipmfs => "ipmfs",
+            Scheme::Koofr => "koofr",
+            Scheme::Lakefs => "lakefs",
+            Scheme::Memcached => "memcached",
+            Scheme::Memory => "memory",
+            Scheme::MiniMoka => "mini-moka",
+            Scheme::Moka => "moka",
+            Scheme::Mongodb => "mongodb",
+            Scheme::Monoiofs => "monoiofs",
+            Scheme::Mysql => "mysql",
+            Scheme::Obs => "obs",
+            Scheme::Onedrive => "onedrive",
+            Scheme::Oss => "oss",
+            Scheme::Pcloud => "pcloud",
+            Scheme::Persy => "persy",
+            Scheme::Postgresql => "postgresql",
+            Scheme::Redb => "redb",
+            Scheme::Redis => "redis",
+            Scheme::Rocksdb => "rocksdb",
+            Scheme::S3 => "s3",
+            Scheme::Seafile => "seafile",
+            Scheme::Sftp => "sftp",
+            Scheme::Sled => "sled",
+            Scheme::Sqlite => "sqlite",
+            Scheme::Surrealdb => "surrealdb",
+            Scheme::Swift => "swift",
+            Scheme::Tikv => "tikv",
+            Scheme::Upyun => "upyun",
+            Scheme::VercelArtifacts => "vercel-artifacts",
+            Scheme::VercelBlob => "vercel-blob",
+            Scheme::Webdav => "webdav",
+            Scheme::Webhdfs => "webhdfs",
+            Scheme::YandexDisk => "yandex-disk",
+            Scheme::Custom(v) => v,
+        }
+    }
+}
+
+impl From<Scheme> for String {
+    fn from(v: Scheme) -> Self {
+        v.into_static().to_string()
+    }
+}

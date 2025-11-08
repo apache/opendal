@@ -114,13 +114,6 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
     if op.info().scheme() == opendal::Scheme::VercelBlob {
         warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");

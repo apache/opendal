@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::*;
@@ -43,9 +42,8 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     } else {
         return Ok(None);
     };
-    let scheme = Scheme::from_str(&scheme).unwrap();
 
-    let scheme_key = String::from(scheme).replace('-', "_");
+    let scheme_key = scheme.replace('-', "_");
     let prefix = format!("opendal_{scheme_key}_");
 
     let mut cfg = env::vars()
@@ -67,7 +65,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         cfg.insert("root".to_string(), root);
     }
 
-    let op = Operator::via_iter(scheme, cfg).expect("must succeed");
+    let op = Operator::via_iter(&scheme, cfg).expect("must succeed");
 
     #[cfg(feature = "layers-chaos")]
     let op = { op.layer(layers::ChaosLayer::new(0.1)) };

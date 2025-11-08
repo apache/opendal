@@ -116,7 +116,7 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
-    if op.info().scheme() == opendal::Scheme::VercelBlob {
+    if op.info().scheme() == services::VERCEL_BLOB_SCHEME {
         warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
         return Ok(());
     }
@@ -694,7 +694,7 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
 
 pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     // ghac does not support overwrite
-    if op.info().scheme() == Scheme::Ghac {
+    if op.info().scheme() == services::GHAC_SCHEME {
         return Ok(());
     }
 

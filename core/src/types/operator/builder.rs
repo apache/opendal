@@ -182,10 +182,10 @@ impl Operator {
     /// ```
     #[allow(unused_variables, unreachable_code)]
     pub fn via_iter(
-        scheme: &str,
+        scheme: impl AsRef<str>,
         iter: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Operator> {
-        let op = match scheme {
+        let op = match scheme.as_ref() {
             #[cfg(feature = "services-aliyun-drive")]
             services::ALIYUN_DRIVE_SCHEME => {
                 Self::from_iter::<services::AliyunDrive>(iter)?.finish()
@@ -389,7 +389,7 @@ impl Operator {
     /// }
     /// ```
     #[deprecated = "use via_iter instead"]
-    pub fn via_map(scheme: &str, map: HashMap<String, String>) -> Result<Operator> {
+    pub fn via_map(scheme: impl AsRef<str>, map: HashMap<String, String>) -> Result<Operator> {
         Self::via_iter(scheme, map)
     }
 

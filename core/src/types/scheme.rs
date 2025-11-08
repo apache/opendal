@@ -318,6 +318,12 @@ impl Display for Scheme {
     }
 }
 
+impl AsRef<str> for Scheme {
+    fn as_ref(&self) -> &str {
+        self.into_static()
+    }
+}
+
 impl FromStr for Scheme {
     type Err = Error;
 

@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for vercel_blob service.
-pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
+pub const VERCEL_BLOB_SCHEME: &str = "vercel_blob";
 
 mod backend;
 mod config;

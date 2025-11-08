@@ -16,7 +16,7 @@
 // under the License.
 
 /// Default scheme for vercel_artifacts service.
-pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
+pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel_artifacts";
 
 mod backend;
 mod builder;

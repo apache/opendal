@@ -25,7 +25,6 @@ use futures::StreamExt;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
-use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -118,7 +117,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
     #[cfg(feature = "services-vercel-blob")]
     if op.info().scheme() == services::VERCEL_BLOB_SCHEME {
-        warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
+        log::warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
         return Ok(());
     }
 

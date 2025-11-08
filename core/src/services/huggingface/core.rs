@@ -36,6 +36,7 @@ pub struct HuggingfaceCore {
     pub revision: String,
     pub root: String,
     pub token: Option<String>,
+    pub endpoint: String,
 }
 
 impl Debug for HuggingfaceCore {
@@ -45,6 +46,7 @@ impl Debug for HuggingfaceCore {
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
             .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
     }
 }
@@ -57,12 +59,12 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/api/models/{}/paths-info/{}",
-                &self.repo_id, &self.revision
+                "{}/api/models/{}/paths-info/{}",
+                &self.endpoint, &self.repo_id, &self.revision
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/api/datasets/{}/paths-info/{}",
-                &self.repo_id, &self.revision
+                "{}/api/datasets/{}/paths-info/{}",
+                &self.endpoint, &self.repo_id, &self.revision
             ),
         };
 
@@ -92,13 +94,15 @@ impl HuggingfaceCore {
 
         let mut url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/api/models/{}/tree/{}/{}?expand=True",
+                "{}/api/models/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
                 &self.repo_id,
                 &self.revision,
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/api/datasets/{}/tree/{}/{}?expand=True",
+                "{}/api/datasets/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
                 &self.repo_id,
                 &self.revision,
                 percent_encode_path(&p)
@@ -134,13 +138,15 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/{}/resolve/{}/{}",
+                "{}/api/models/{}/resolve/{}/{}",
+                &self.endpoint,
                 &self.repo_id,
                 &self.revision,
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/datasets/{}/resolve/{}/{}",
+                "{}/api/datasets/{}/resolve/{}/{}",
+                &self.endpoint,
                 &self.repo_id,
                 &self.revision,
                 percent_encode_path(&p)
@@ -403,4 +409,5 @@ mod tests {
 
         Ok(())
     }
+
 }

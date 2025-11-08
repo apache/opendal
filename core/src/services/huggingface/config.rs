@@ -50,6 +50,10 @@ pub struct HuggingfaceConfig {
     ///
     /// This is optional.
     pub token: Option<String>,
+    /// Endpoint of the Huggingface Hub.
+    ///
+    /// Default is "https://huggingface.co".
+    pub endpoint: Option<String>,
 }
 
 impl Debug for HuggingfaceConfig {

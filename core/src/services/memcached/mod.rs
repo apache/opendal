@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for memcached service.
+pub const MEMCACHED_SCHEME: &str = "memcached";
+
 mod backend;
 mod binary;
 mod config;

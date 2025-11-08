@@ -116,7 +116,7 @@ impl Builder for HdfsBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
-                    .with_context("service", Scheme::Hdfs));
+                    .with_context("service", HDFS_SCHEME));
             }
         };
 

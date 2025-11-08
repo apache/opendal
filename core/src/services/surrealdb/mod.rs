@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for surrealdb service.
+pub const SURREALDB_SCHEME: &str = "surrealdb";
+
 mod backend;
 mod config;
 mod core;

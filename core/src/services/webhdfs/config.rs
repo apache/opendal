@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::WEBHDFS_SCHEME;
 use super::backend::WebhdfsBuilder;
 
 /// Config for WebHDFS support.
@@ -59,7 +60,7 @@ impl crate::Configurator for WebhdfsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Webhdfs)
+                .with_context("service", WEBHDFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

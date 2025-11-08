@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::DBFS_SCHEME;
 use super::backend::DbfsBuilder;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
@@ -48,7 +49,7 @@ impl crate::Configurator for DbfsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Dbfs)
+                .with_context("service", DBFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

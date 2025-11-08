@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for sled service.
+pub const SLED_SCHEME: &str = "sled";
+
 mod backend;
 mod config;
 mod core;

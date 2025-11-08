@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::REDB_SCHEME;
 use super::config::RedbConfig;
 use super::core::*;
 use super::deleter::RedbDeleter;
@@ -97,7 +98,7 @@ impl Builder for RedbBuilder {
     fn build(self) -> Result<impl Access> {
         let table_name = self.config.table.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
-                .with_context("service", Scheme::Redb)
+                .with_context("service", REDB_SCHEME)
         })?;
 
         let (datadir, db) = if let Some(db) = self.database {
@@ -105,7 +106,7 @@ impl Builder for RedbBuilder {
         } else {
             let datadir = self.config.datadir.ok_or_else(|| {
                 Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                    .with_context("service", Scheme::Redb)
+                    .with_context("service", REDB_SCHEME)
             })?;
 
             let db = redb::Database::create(&datadir)
@@ -139,7 +140,7 @@ pub struct RedbBackend {
 impl RedbBackend {
     pub fn new(core: RedbCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Redb.into_static());
+        info.set_scheme(REDB_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {

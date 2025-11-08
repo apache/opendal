@@ -18,6 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::IPMFS_SCHEME;
 use super::builder::IpmfsBuilder;
 
 /// Config for IPFS MFS support.
@@ -37,7 +38,7 @@ impl crate::Configurator for IpmfsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Ipmfs)
+                .with_context("service", IPMFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

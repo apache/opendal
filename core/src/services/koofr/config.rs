@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::KOOFR_SCHEME;
 use super::backend::KoofrBuilder;
 
 /// Config for Koofr services support.
@@ -54,7 +55,7 @@ impl crate::Configurator for KoofrConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Koofr)
+                .with_context("service", KOOFR_SCHEME)
         })?;
 
         let raw_path = uri.root().ok_or_else(|| {
@@ -62,7 +63,7 @@ impl crate::Configurator for KoofrConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must contain email",
             )
-            .with_context("service", crate::Scheme::Koofr)
+            .with_context("service", KOOFR_SCHEME)
         })?;
 
         let mut segments = raw_path.splitn(2, '/');
@@ -71,7 +72,7 @@ impl crate::Configurator for KoofrConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "email is required in uri path",
             )
-            .with_context("service", crate::Scheme::Koofr)
+            .with_context("service", KOOFR_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

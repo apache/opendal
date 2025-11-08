@@ -136,7 +136,7 @@ impl Builder for B2Builder {
         if self.config.bucket.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::B2));
+                .with_context("service", B2_SCHEME));
         }
 
         debug!("backend use bucket {}", &self.config.bucket);
@@ -145,7 +145,7 @@ impl Builder for B2Builder {
         if self.config.bucket_id.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::B2));
+                .with_context("service", B2_SCHEME));
         }
 
         debug!("backend bucket_id {}", &self.config.bucket_id);
@@ -155,7 +155,7 @@ impl Builder for B2Builder {
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "application_key_id is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::B2),
+                    .with_context("service", B2_SCHEME),
             ),
         }?;
 
@@ -164,7 +164,7 @@ impl Builder for B2Builder {
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "application_key is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::B2),
+                    .with_context("service", B2_SCHEME),
             ),
         }?;
 

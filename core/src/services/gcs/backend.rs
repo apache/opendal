@@ -233,7 +233,7 @@ impl Builder for GcsBuilder {
             true => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::Gcs),
+                    .with_context("service", GCS_SCHEME),
             ),
         }?;
 

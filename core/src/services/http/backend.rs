@@ -126,7 +126,7 @@ impl Builder for HttpBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Http));
+                    .with_context("service", HTTP_SCHEME));
             }
         };
 

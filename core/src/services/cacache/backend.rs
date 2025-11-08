@@ -46,7 +46,7 @@ impl Builder for CacacheBuilder {
     fn build(self) -> Result<impl Access> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Cacache)
+                .with_context("service", CACACHE_SCHEME)
         })?;
 
         let core = CacacheCore {

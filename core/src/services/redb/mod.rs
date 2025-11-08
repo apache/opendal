@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for redb service.
+pub const REDB_SCHEME: &str = "redb";
+
 mod backend;
 mod config;
 mod core;

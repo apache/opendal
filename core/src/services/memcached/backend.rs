@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use tokio::sync::OnceCell;
 
+use super::MEMCACHED_SCHEME;
 use super::config::MemcachedConfig;
 use super::core::*;
 use super::deleter::MemcachedDeleter;
@@ -83,11 +84,11 @@ impl Builder for MemcachedBuilder {
     fn build(self) -> Result<impl Access> {
         let endpoint = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Memcached)
+                .with_context("service", MEMCACHED_SCHEME)
         })?;
         let uri = http::Uri::try_from(&endpoint).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                .with_context("service", Scheme::Memcached)
+                .with_context("service", MEMCACHED_SCHEME)
                 .with_context("endpoint", &endpoint)
                 .set_source(err)
         })?;
@@ -102,7 +103,7 @@ impl Builder for MemcachedBuilder {
                         ErrorKind::ConfigInvalid,
                         "endpoint is using invalid scheme",
                     )
-                    .with_context("service", Scheme::Memcached)
+                    .with_context("service", MEMCACHED_SCHEME)
                     .with_context("endpoint", &endpoint)
                     .with_context("scheme", scheme.to_string()));
                 }
@@ -114,7 +115,7 @@ impl Builder for MemcachedBuilder {
         } else {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have host")
-                    .with_context("service", Scheme::Memcached)
+                    .with_context("service", MEMCACHED_SCHEME)
                     .with_context("endpoint", &endpoint),
             );
         };
@@ -123,7 +124,7 @@ impl Builder for MemcachedBuilder {
         } else {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have port")
-                    .with_context("service", Scheme::Memcached)
+                    .with_context("service", MEMCACHED_SCHEME)
                     .with_context("endpoint", &endpoint),
             );
         };
@@ -160,7 +161,7 @@ pub struct MemcachedBackend {
 impl MemcachedBackend {
     pub fn new(core: MemcachedCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Memcached.into_static());
+        info.set_scheme(MEMCACHED_SCHEME);
         info.set_name("memcached");
         info.set_root("/");
         info.set_native_capability(Capability {

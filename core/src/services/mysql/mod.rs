@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for mysql service.
+pub const MYSQL_SCHEME: &str = "mysql";
+
 mod backend;
 mod config;
 mod core;

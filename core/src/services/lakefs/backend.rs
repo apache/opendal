@@ -117,7 +117,7 @@ impl Builder for LakefsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {:?}", &endpoint);
 
@@ -125,7 +125,7 @@ impl Builder for LakefsBuilder {
             Some(repository) => Ok(repository.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repository is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
         debug!("backend use repository: {}", &repository);
 
@@ -142,14 +142,14 @@ impl Builder for LakefsBuilder {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
 
         Ok(LakefsBackend {

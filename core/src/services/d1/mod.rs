@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for d1 service.
+pub const D1_SCHEME: &str = "d1";
+
 mod backend;
 mod config;
 mod core;

@@ -172,7 +172,7 @@ impl Builder for RedisBuilder {
             let client =
                 Client::open(self.get_connection_info(endpoint.clone())?).map_err(|e| {
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
-                        .with_context("service", Scheme::Redis)
+                        .with_context("service", REDIS_SCHEME)
                         .with_context("endpoint", self.config.endpoint.as_ref().unwrap())
                         .with_context("db", self.config.db.to_string())
                         .set_source(e)
@@ -195,7 +195,7 @@ impl RedisBuilder {
     fn get_connection_info(&self, endpoint: String) -> Result<ConnectionInfo> {
         let ep_url = endpoint.parse::<Uri>().map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                .with_context("service", Scheme::Redis)
+                .with_context("service", REDIS_SCHEME)
                 .with_context("endpoint", endpoint)
                 .set_source(e)
         })?;
@@ -229,7 +229,7 @@ impl RedisBuilder {
             Some(s) => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "invalid or unsupported scheme")
-                        .with_context("service", Scheme::Redis)
+                        .with_context("service", REDIS_SCHEME)
                         .with_context("scheme", s),
                 );
             }

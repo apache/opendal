@@ -127,7 +127,7 @@ impl Builder for HuggingfaceBuilder {
                 format!("unknown repo_type: {repo_type}").as_str(),
             )
             .with_operation("Builder::build")
-            .with_context("service", Scheme::Huggingface)),
+            .with_context("service", HUGGINGFACE_SCHEME)),
             None => Ok(RepoType::Model),
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);
@@ -136,7 +136,7 @@ impl Builder for HuggingfaceBuilder {
             Some(repo_id) => Ok(repo_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Huggingface)),
+                .with_context("service", HUGGINGFACE_SCHEME)),
         }?;
         debug!("backend use repo_id: {}", &repo_id);
 

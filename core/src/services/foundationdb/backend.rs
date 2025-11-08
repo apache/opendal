@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use foundationdb::Database;
 
+use super::FOUNDATIONDB_SCHEME;
 use super::config::FoundationdbConfig;
 use super::core::*;
 use super::deleter::FoundationdbDeleter;
@@ -56,13 +57,13 @@ impl Builder for FoundationdbBuilder {
         if let Some(cfg_path) = &self.config.config_path {
             db = Database::from_path(cfg_path).map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open foundation db")
-                    .with_context("service", Scheme::Foundationdb)
+                    .with_context("service", FOUNDATIONDB_SCHEME)
                     .set_source(e)
             })?;
         } else {
             db = Database::default().map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open foundation db")
-                    .with_context("service", Scheme::Foundationdb)
+                    .with_context("service", FOUNDATIONDB_SCHEME)
                     .set_source(e)
             })?
         }
@@ -92,7 +93,7 @@ pub struct FoundationdbBackend {
 impl FoundationdbBackend {
     pub fn new(core: FoundationdbCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Foundationdb.into_static());
+        info.set_scheme(FOUNDATIONDB_SCHEME);
         info.set_name("foundationdb");
         info.set_root("/");
         info.set_native_capability(Capability {

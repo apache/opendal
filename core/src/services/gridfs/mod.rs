@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for gridfs service.
+pub const GRIDFS_SCHEME: &str = "gridfs";
+
 mod backend;
 mod config;
 mod core;

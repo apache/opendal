@@ -91,7 +91,7 @@ impl Builder for DbfsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Dbfs)),
+                .with_context("service", DBFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 

@@ -21,6 +21,7 @@ use std::sync::Arc;
 use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
+use super::SQLITE_SCHEME;
 use super::config::SqliteConfig;
 use super::core::SqliteCore;
 use super::deleter::SqliteDeleter;
@@ -109,13 +110,13 @@ impl Builder for SqliteBuilder {
                     ErrorKind::ConfigInvalid,
                     "connection_string is required but not set",
                 )
-                .with_context("service", Scheme::Sqlite));
+                .with_context("service", SQLITE_SCHEME));
             }
         };
 
         let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Sqlite)
+                .with_context("service", SQLITE_SCHEME)
                 .set_source(err)
         })?;
 
@@ -123,7 +124,7 @@ impl Builder for SqliteBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Sqlite));
+                    .with_context("service", SQLITE_SCHEME));
             }
         };
 
@@ -177,7 +178,7 @@ pub struct SqliteBackend {
 impl SqliteBackend {
     fn new(core: SqliteCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Sqlite.into());
+        info.set_scheme(SQLITE_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -335,10 +336,7 @@ mod test {
 
         // Verify basic properties
         assert_eq!(accessor.root, "/");
-        assert_eq!(
-            accessor.info.scheme(),
-            <Scheme as Into<&'static str>>::into(Scheme::Sqlite)
-        );
+        assert_eq!(accessor.info.scheme(), SQLITE_SCHEME);
         assert!(accessor.info.native_capability().read);
         assert!(accessor.info.native_capability().write);
         assert!(accessor.info.native_capability().delete);

@@ -53,7 +53,7 @@ impl crate::Configurator for FtpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Ftp)
+                .with_context("service", FTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

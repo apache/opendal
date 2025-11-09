@@ -10,16 +10,15 @@ This service will visit the [ABFS](https://learn.microsoft.com/en-us/azure/stora
 
 This service can be used to:
 
+- [x] create_dir
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
 - [x] delete
+- [x] list
 - [ ] copy
 - [x] rename
-- [x] list
 - [ ] presign
-- [ ] blocking
 
 ## Configuration
 

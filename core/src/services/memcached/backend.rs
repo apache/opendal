@@ -234,9 +234,4 @@ impl Access for MemcachedBackend {
             oio::OneShotDeleter::new(MemcachedDeleter::new(self.core.clone(), self.root.clone())),
         ))
     }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
-    }
 }

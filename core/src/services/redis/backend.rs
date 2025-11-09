@@ -351,10 +351,4 @@ impl Access for RedisBackend {
             oio::OneShotDeleter::new(RedisDeleter::new(self.core.clone(), self.root.clone())),
         ))
     }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        // Redis doesn't support listing keys, return empty list
-        Ok((RpList::default(), ()))
-    }
 }

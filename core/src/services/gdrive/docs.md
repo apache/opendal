@@ -2,16 +2,15 @@
 
 This service can be used to:
 
+- [x] create_dir
 - [x] stat
 - [x] read
 - [x] write
 - [x] delete
-- [x] create_dir
 - [x] list
 - [x] copy
 - [x] rename
-- [ ] batch
-
+- [ ] presign
 
 # Configuration
 
@@ -62,4 +61,3 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
-

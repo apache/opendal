@@ -677,6 +677,68 @@ export declare class Operator {
    */
   listSync(path: string, options?: ListOptions | undefined | null): Array<Entry>
   /**
+   * Create a lister to list entries at given path.
+   *
+   * This function returns a Lister that can be used to iterate over entries
+   * in a streaming manner, which is more memory-efficient for large directories.
+   *
+   * An error will be returned if given path doesn't end with `/`.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const lister = await op.lister("path/to/dir/");
+   * let entry;
+   * while ((entry = await lister.next()) !== null) {
+   *   console.log(entry.path());
+   * }
+   * ```
+   *
+   * #### List recursively
+   *
+   * With `recursive` option, you can list recursively.
+   *
+   * ```javascript
+   * const lister = await op.lister("path/to/dir/", { recursive: true });
+   * let entry;
+   * while ((entry = await lister.next()) !== null) {
+   *   console.log(entry.path());
+   * }
+   * ```
+   */
+  lister(path: string, options?: ListOptions | undefined | null): Promise<Lister>
+  /**
+   * Create a lister to list entries at given path synchronously.
+   *
+   * This function returns a BlockingLister that can be used to iterate over entries
+   * in a streaming manner, which is more memory-efficient for large directories.
+   *
+   * An error will be returned if given path doesn't end with `/`.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const lister = op.listerSync("path/to/dir/");
+   * let entry;
+   * while ((entry = lister.next()) !== null) {
+   *   console.log(entry.path());
+   * }
+   * ```
+   *
+   * #### List recursively
+   *
+   * With `recursive` option, you can list recursively.
+   *
+   * ```javascript
+   * const lister = op.listerSync("path/to/dir/", { recursive: true });
+   * let entry;
+   * while ((entry = lister.next()) !== null) {
+   *   console.log(entry.path());
+   * }
+   * ```
+   */
+  listerSync(path: string, options?: ListOptions | undefined | null): BlockingLister
+  /**
    * Get a presigned request for read.
    *
    * Unit of `expires` is seconds.

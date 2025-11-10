@@ -5,15 +5,15 @@ Using [Native Rust HDFS client](https://github.com/Kimahriman/hdfs-native).
 
 This service can be used to:
 
+- [x] create_dir
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
 - [x] delete
-- [x] rename
 - [x] list
-- [x] blocking
-- [x] append
+- [ ] copy
+- [x] rename
+- [ ] ~~presign~~
 
 ## Differences with webhdfs
 
@@ -31,5 +31,4 @@ HDFS-native support needs to enable feature `services-hdfs-native`.
 
 - `root`: Set the work dir for backend.
 - `name_node`: Set the name node for backend.
-- `enable_append`: enable the append capacity. Default is false. 
-
+- `enable_append`: enable the append capacity. Default is false.

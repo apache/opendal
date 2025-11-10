@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,45 +23,33 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::PCLOUD_SCHEME;
+use super::config::PcloudConfig;
 use super::core::*;
-use super::delete::PcloudDeleter;
+use super::deleter::PcloudDeleter;
 use super::error::PcloudError;
 use super::error::parse_error;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
-use crate::services::PcloudConfig;
 use crate::*;
-impl Configurator for PcloudConfig {
-    type Builder = PcloudBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        PcloudBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [pCloud](https://www.pcloud.com/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct PcloudBuilder {
-    config: PcloudConfig,
+    pub(super) config: PcloudConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for PcloudBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PcloudBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -145,7 +132,7 @@ impl Builder for PcloudBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud));
+                .with_context("service", PCLOUD_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -154,21 +141,21 @@ impl Builder for PcloudBuilder {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         Ok(PcloudBackend {
             core: Arc::new(PcloudCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(PCLOUD_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

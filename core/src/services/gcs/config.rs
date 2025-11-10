@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::GcsBuilder;
 
 /// [Google Cloud Storage](https://cloud.google.com/storage) services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -73,7 +74,7 @@ pub struct GcsConfig {
 }
 
 impl Debug for GcsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GcsConfig")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
@@ -83,23 +84,49 @@ impl Debug for GcsConfig {
     }
 }
 
+impl crate::Configurator for GcsConfig {
+    type Builder = GcsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        GcsBuilder {
+            config: self,
+            http_client: None,
+            customized_token_loader: None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn test_bucket_aliases() {
-        // Test google_bucket alias
         let config_json = r#"{"google_bucket": "test-bucket"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket", config.bucket);
 
-        // Test google_bucket_name alias
         let config_json = r#"{"google_bucket_name": "test-bucket-name"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket-name", config.bucket);
 
-        // Test bucket_name alias
         let config_json = r#"{"bucket_name": "test-bucket-alias"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!("test-bucket-alias", config.bucket);
@@ -107,12 +134,10 @@ mod tests {
 
     #[test]
     fn test_service_account_aliases() {
-        // Test google_service_account alias
         let config_json = r#"{"google_service_account": "/path/to/sa.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("/path/to/sa.json".to_string()), config.service_account);
 
-        // Test google_service_account_path alias
         let config_json = r#"{"google_service_account_path": "/path/to/sa2.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(
@@ -120,7 +145,6 @@ mod tests {
             config.service_account
         );
 
-        // Test service_account_path alias
         let config_json = r#"{"service_account_path": "/path/to/sa3.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(
@@ -131,12 +155,10 @@ mod tests {
 
     #[test]
     fn test_credential_aliases() {
-        // Test google_service_account_key alias
         let config_json = r#"{"google_service_account_key": "key-content"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("key-content".to_string()), config.credential);
 
-        // Test service_account_key alias
         let config_json = r#"{"service_account_key": "key-content-2"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(Some("key-content-2".to_string()), config.credential);
@@ -144,7 +166,6 @@ mod tests {
 
     #[test]
     fn test_credential_path_aliases() {
-        // Test google_application_credentials alias
         let config_json = r#"{"google_application_credentials": "/path/to/app.json"}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert_eq!(
@@ -155,14 +176,24 @@ mod tests {
 
     #[test]
     fn test_allow_anonymous_aliases() {
-        // Test google_skip_signature alias
         let config_json = r#"{"google_skip_signature": true}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert!(config.allow_anonymous);
 
-        // Test skip_signature alias
         let config_json = r#"{"skip_signature": true}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
         assert!(config.allow_anonymous);
+    }
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "gcs://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = GcsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

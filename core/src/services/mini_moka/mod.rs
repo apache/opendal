@@ -16,21 +16,14 @@
 // under the License.
 
 /// Default scheme for mini_moka service.
-#[cfg(feature = "services-mini-moka")]
-pub(super) const DEFAULT_SCHEME: &str = "mini_moka";
-#[cfg(feature = "services-mini-moka")]
+pub const MINI_MOKA_SCHEME: &str = "mini-moka";
+
 mod backend;
-#[cfg(feature = "services-mini-moka")]
+mod config;
 mod core;
-#[cfg(feature = "services-mini-moka")]
-mod delete;
-#[cfg(feature = "services-mini-moka")]
+mod deleter;
 mod lister;
-#[cfg(feature = "services-mini-moka")]
 mod writer;
 
-#[cfg(feature = "services-mini-moka")]
 pub use backend::MiniMokaBuilder as MiniMoka;
-
-mod config;
 pub use config::MiniMokaConfig;

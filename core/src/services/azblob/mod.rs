@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for azblob service.
-#[cfg(feature = "services-azblob")]
-pub(super) const DEFAULT_SCHEME: &str = "azblob";
-#[cfg(feature = "services-azblob")]
+pub const AZBLOB_SCHEME: &str = "azblob";
+
+mod backend;
+mod config;
 pub(crate) mod core;
-#[cfg(feature = "services-azblob")]
-mod delete;
-#[cfg(feature = "services-azblob")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-azblob")]
 mod lister;
-#[cfg(feature = "services-azblob")]
 pub(crate) mod writer;
 
-#[cfg(feature = "services-azblob")]
-mod backend;
-#[cfg(feature = "services-azblob")]
 pub use backend::AzblobBuilder as Azblob;
-
-mod config;
 pub use config::AzblobConfig;

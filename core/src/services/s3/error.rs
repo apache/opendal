@@ -43,6 +43,9 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        // 409 Conflict can be returned e.g. when PutObject with conditions.
+        // In this case the AWS docs say to retry.
+        409 => (ErrorKind::ConditionNotMatch, true),
         // Service like R2 could return 499 error with a message like:
         // Client Disconnect, we should retry it.
         499 => (ErrorKind::Unexpected, true),

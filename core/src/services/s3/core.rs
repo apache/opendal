@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::sync::Arc;
 use std::time::Duration;
@@ -106,7 +104,7 @@ pub struct S3Core {
 }
 
 impl Debug for S3Core {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("S3Core")
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
@@ -264,6 +262,7 @@ impl S3Core {
                     .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
                 Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
             }
+            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }
     pub fn insert_checksum_header(
@@ -401,16 +400,10 @@ impl S3Core {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         // Set request payer header if enabled.
@@ -484,17 +477,11 @@ impl S3Core {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         // Set request payer header if enabled.
@@ -585,6 +572,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Calculate Checksum.
+        if let Some(checksum) = self.calculate_checksum(&body) {
+            // Set Checksum header.
+            req = self.insert_checksum_header(req, &checksum);
+        }
 
         // Inject operation to the request.
         req = req.extension(Operation::Write);
@@ -1229,21 +1222,25 @@ pub struct ListObjectVersionsOutputDeleteMarker {
 
 pub enum ChecksumAlgorithm {
     Crc32c,
+    /// Mapping to the `Content-MD5` header from S3.
+    Md5,
 }
 impl ChecksumAlgorithm {
     pub fn to_header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Md5 => HeaderName::from_static("content-md5"),
         }
     }
 }
 impl Display for ChecksumAlgorithm {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Md5 => "MD5",
             }
         )
     }

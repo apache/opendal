@@ -96,7 +96,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm

@@ -151,7 +151,6 @@ services-compfs = ["opendal/services-compfs"]
 
 [dependencies]
 anyhow = { version = "1.0.100" }
-jiff = { version = "0.2.15" }
 jni = { version = "0.21.1" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [

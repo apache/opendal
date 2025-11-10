@@ -17,7 +17,6 @@
 
 use std::env;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -89,7 +88,7 @@ pub struct GhacCore {
 }
 
 impl Debug for GhacCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GhacCore")
             .field("root", &self.root)
             .field("cache_url", &self.cache_url)

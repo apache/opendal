@@ -33,12 +33,11 @@ struct DbfsError {
 
 impl Debug for DbfsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("DbfsError");
-        de.field("error_code", &self.error_code);
-        // replace `\n` to ` ` for better reading.
-        de.field("message", &self.message.replace('\n', " "));
-
-        de.finish()
+        f.debug_struct("DbfsError")
+            .field("error_code", &self.error_code)
+            // replace `\n` to ` ` for better reading.
+            .field("message", &self.message.replace('\n', " "))
+            .finish()
     }
 }
 

@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::FTP_SCHEME;
+use super::backend::FtpBuilder;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -37,10 +39,37 @@ pub struct FtpConfig {
 }
 
 impl Debug for FtpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FtpConfig")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for FtpConfig {
+    type Builder = FtpBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", FTP_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert(
+            "endpoint".to_string(),
+            format!("{FTP_SCHEME}://{authority}"),
+        );
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        FtpBuilder { config: self }
     }
 }

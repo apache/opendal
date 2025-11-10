@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Request;
@@ -25,47 +24,35 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::RwLock;
 
-use super::DEFAULT_SCHEME;
+use super::B2_SCHEME;
+use super::config::B2Config;
 use super::core::B2Core;
 use super::core::B2Signer;
 use super::core::constants;
 use super::core::parse_file_info;
-use super::delete::B2Deleter;
+use super::deleter::B2Deleter;
 use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
 use crate::raw::*;
-use crate::services::B2Config;
 use crate::*;
-impl Configurator for B2Config {
-    type Builder = B2Builder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        B2Builder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct B2Builder {
-    config: B2Config,
+    pub(super) config: B2Config,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for B2Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("B2Builder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("B2Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -149,7 +136,7 @@ impl Builder for B2Builder {
         if self.config.bucket.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::B2));
+                .with_context("service", B2_SCHEME));
         }
 
         debug!("backend use bucket {}", &self.config.bucket);
@@ -158,7 +145,7 @@ impl Builder for B2Builder {
         if self.config.bucket_id.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::B2));
+                .with_context("service", B2_SCHEME));
         }
 
         debug!("backend bucket_id {}", &self.config.bucket_id);
@@ -168,7 +155,7 @@ impl Builder for B2Builder {
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "application_key_id is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::B2),
+                    .with_context("service", B2_SCHEME),
             ),
         }?;
 
@@ -177,7 +164,7 @@ impl Builder for B2Builder {
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "application_key is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::B2),
+                    .with_context("service", B2_SCHEME),
             ),
         }?;
 
@@ -191,7 +178,7 @@ impl Builder for B2Builder {
             core: Arc::new(B2Core {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(B2_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

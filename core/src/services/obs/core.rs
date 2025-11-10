@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -54,8 +53,8 @@ pub struct ObsCore {
 }
 
 impl Debug for ObsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObsCore")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)

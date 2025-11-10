@@ -16,50 +16,37 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::ALLUXIO_SCHEME;
+use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
-use super::delete::AlluxioDeleter;
+use super::deleter::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
-use crate::services::AlluxioConfig;
 use crate::*;
-impl Configurator for AlluxioConfig {
-    type Builder = AlluxioBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AlluxioBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Alluxio](https://www.alluxio.io/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct AlluxioBuilder {
-    config: AlluxioConfig,
+    pub(super) config: AlluxioConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AlluxioBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AlluxioBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlluxioBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -117,7 +104,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Alluxio)),
+                .with_context("service", ALLUXIO_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
@@ -125,7 +112,7 @@ impl Builder for AlluxioBuilder {
             core: Arc::new(AlluxioCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(ALLUXIO_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

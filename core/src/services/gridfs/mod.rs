@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-gridfs")]
-mod backend;
-#[cfg(feature = "services-gridfs")]
-pub use backend::GridfsBuilder as Gridfs;
-#[cfg(feature = "services-gridfs")]
-mod core;
+/// Default scheme for gridfs service.
+pub const GRIDFS_SCHEME: &str = "gridfs";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::GridfsBuilder as Gridfs;
 pub use config::GridfsConfig;

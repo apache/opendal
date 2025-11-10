@@ -15,27 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
 
-use super::DEFAULT_SCHEME;
+use super::IPMFS_SCHEME;
 use super::backend::IpmfsBackend;
+use super::config::IpmfsConfig;
 use super::core::IpmfsCore;
 use crate::raw::*;
-use crate::services::IpmfsConfig;
 use crate::*;
-impl Configurator for IpmfsConfig {
-    type Builder = IpmfsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        IpmfsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
@@ -77,12 +67,20 @@ impl Configurator for IpmfsConfig {
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct IpmfsBuilder {
-    config: IpmfsConfig,
+    pub(super) config: IpmfsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
+}
+
+impl Debug for IpmfsBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IpmfsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl IpmfsBuilder {
@@ -137,7 +135,7 @@ impl Builder for IpmfsBuilder {
             .unwrap_or_else(|| "http://localhost:5001".to_string());
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(IPMFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,

@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::FsBuilder;
 
 /// config for file system
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -30,4 +30,37 @@ pub struct FsConfig {
 
     /// tmp dir for atomic write
     pub atomic_write_dir: Option<String>,
+}
+
+impl crate::Configurator for FsConfig {
+    type Builder = FsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+            map.entry("root".to_string())
+                .or_insert_with(|| format!("/{}", root));
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        FsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri = OperatorUri::new("fs:///tmp/data", Vec::<(String, String)>::new()).unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+    }
 }

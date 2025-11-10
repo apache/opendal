@@ -45,7 +45,8 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     };
     let scheme = Scheme::from_str(&scheme).unwrap();
 
-    let prefix = format!("opendal_{scheme}_");
+    let scheme_key = String::from(scheme).replace('-', "_");
+    let prefix = format!("opendal_{scheme_key}_");
 
     let mut cfg = env::vars()
         .filter_map(|(k, v)| {

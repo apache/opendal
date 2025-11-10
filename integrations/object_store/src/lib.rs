@@ -98,10 +98,14 @@ mod assert_send {
     }
 }
 
-fn timestamp_to_datetime(ts: jiff::Timestamp) -> Option<chrono::DateTime<chrono::Utc>> {
-    chrono::DateTime::<chrono::Utc>::from_timestamp(ts.as_second(), ts.subsec_nanosecond() as u32)
+fn timestamp_to_datetime(ts: opendal::raw::Timestamp) -> Option<chrono::DateTime<chrono::Utc>> {
+    let jiff_ts = ts.into_inner();
+    chrono::DateTime::<chrono::Utc>::from_timestamp(
+        jiff_ts.as_second(),
+        jiff_ts.subsec_nanosecond() as u32,
+    )
 }
 
-fn datetime_to_timestamp(dt: chrono::DateTime<chrono::Utc>) -> Option<jiff::Timestamp> {
-    jiff::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32).ok()
+fn datetime_to_timestamp(dt: chrono::DateTime<chrono::Utc>) -> Option<opendal::raw::Timestamp> {
+    opendal::raw::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32).ok()
 }

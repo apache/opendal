@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -27,9 +26,10 @@ use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
 
-use super::DEFAULT_SCHEME;
+use super::OSS_SCHEME;
+use super::config::OssConfig;
 use super::core::*;
-use super::delete::OssDeleter;
+use super::deleter::OssDeleter;
 use super::error::parse_error;
 use super::lister::OssLister;
 use super::lister::OssListers;
@@ -37,39 +37,25 @@ use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
 use crate::raw::*;
-use crate::services::OssConfig;
 use crate::*;
+
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
-
-impl Configurator for OssConfig {
-    type Builder = OssBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        OssBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
 
 /// Aliyun Object Storage Service (OSS) support
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OssBuilder {
-    config: OssConfig,
+    pub(super) config: OssConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OssBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("OssBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OssBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -216,13 +202,13 @@ impl OssBuilder {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                        .with_context("service", Scheme::Oss)
+                        .with_context("service", OSS_SCHEME)
                         .with_context("endpoint", &ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
-                        .with_context("service", Scheme::Oss)
+                        .with_context("service", OSS_SCHEME)
                         .with_context("endpoint", &ep)
                 })?;
                 let full_host = match addressing_style {
@@ -254,7 +240,7 @@ impl OssBuilder {
                                 ErrorKind::ConfigInvalid,
                                 "endpoint protocol is invalid",
                             )
-                            .with_context("service", Scheme::Oss));
+                            .with_context("service", OSS_SCHEME));
                         }
                     },
                     None => format!("https://{full_host}"),
@@ -267,7 +253,7 @@ impl OssBuilder {
             }
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Oss));
+                    .with_context("service", OSS_SCHEME));
             }
         };
         Ok((endpoint, host))
@@ -400,7 +386,7 @@ impl TryFrom<&Option<String>> for AddressingStyle {
                 ErrorKind::ConfigInvalid,
                 "Invalid addressing style, available: `virtual`, `path`, `cname`",
             )
-            .with_context("service", Scheme::Oss)
+            .with_context("service", OSS_SCHEME)
             .with_context("addressing_style", v)),
         }
     }
@@ -420,7 +406,7 @@ impl Builder for OssBuilder {
             false => Ok(&self.config.bucket),
             true => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::Oss),
+                    .with_context("service", OSS_SCHEME),
             ),
         }?;
 
@@ -511,7 +497,7 @@ impl Builder for OssBuilder {
             core: Arc::new(OssCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(OSS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {

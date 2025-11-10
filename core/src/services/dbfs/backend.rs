@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,37 +22,21 @@ use http::StatusCode;
 use log::debug;
 use serde::Deserialize;
 
-use super::DEFAULT_SCHEME;
+use super::DBFS_SCHEME;
 use super::core::DbfsCore;
-use super::delete::DbfsDeleter;
+use super::deleter::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
 use crate::raw::*;
 use crate::services::DbfsConfig;
 use crate::*;
-impl Configurator for DbfsConfig {
-    type Builder = DbfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        DbfsBuilder { config: self }
-    }
-}
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct DbfsBuilder {
-    config: DbfsConfig,
-}
-
-impl Debug for DbfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("DbfsBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
-    }
+    pub(super) config: DbfsConfig,
 }
 
 impl DbfsBuilder {
@@ -109,7 +91,7 @@ impl Builder for DbfsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Dbfs)),
+                .with_context("service", DBFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 
@@ -149,7 +131,7 @@ impl Access for DbfsBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let am = AccessorInfo::default();
-        am.set_scheme(DEFAULT_SCHEME)
+        am.set_scheme(DBFS_SCHEME)
             .set_root(&self.core.root)
             .set_native_capability(Capability {
                 stat: true,
@@ -195,7 +177,7 @@ impl Access for DbfsBackend {
                 let bs = resp.into_body();
                 let decoded_response: DbfsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                meta.set_last_modified(parse_datetime_from_timestamp_millis(
+                meta.set_last_modified(Timestamp::from_millisecond(
                     decoded_response.modification_time,
                 )?);
                 match decoded_response.is_dir {

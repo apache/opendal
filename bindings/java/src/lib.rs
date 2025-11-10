@@ -156,8 +156,8 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
                     "ofEpochSecond",
                     "(JJ)Ljava/time/Instant;",
                     &[
-                        JValue::Long(v.as_second()),
-                        JValue::Long(v.subsec_nanosecond() as jlong),
+                        JValue::Long(v.into_inner().as_second()),
+                        JValue::Long(v.into_inner().subsec_nanosecond() as jlong),
                     ],
                 )?
                 .l()?)

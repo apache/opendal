@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::CosBuilder;
 
 /// Tencent-Cloud COS services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,13 +43,59 @@ pub struct CosConfig {
 }
 
 impl Debug for CosConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CosConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .field("secret_id", &"<redacted>")
-            .field("secret_key", &"<redacted>")
             .field("bucket", &self.bucket)
+            .field("enable_versioning", &self.enable_versioning)
+            .field("disable_config_load", &self.disable_config_load)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for CosConfig {
+    type Builder = CosBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        CosBuilder {
+            config: self,
+
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "cos://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = CosConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

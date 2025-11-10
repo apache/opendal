@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::KOOFR_SCHEME;
+use super::backend::KoofrBuilder;
 
 /// Config for Koofr services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -39,12 +41,87 @@ pub struct KoofrConfig {
 }
 
 impl Debug for KoofrConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KoofrConfig")
+            .field("root", &self.root)
+            .field("email", &self.email)
+            .finish_non_exhaustive()
+    }
+}
 
-        ds.field("root", &self.root);
-        ds.field("email", &self.email);
+impl crate::Configurator for KoofrConfig {
+    type Builder = KoofrBuilder;
 
-        ds.finish()
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", KOOFR_SCHEME)
+        })?;
+
+        let raw_path = uri.root().ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "uri path must contain email",
+            )
+            .with_context("service", KOOFR_SCHEME)
+        })?;
+
+        let mut segments = raw_path.splitn(2, '/');
+        let email = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
+            crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "email is required in uri path",
+            )
+            .with_context("service", KOOFR_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        map.insert("email".to_string(), email.to_string());
+
+        if let Some(rest) = segments.next() {
+            if !rest.is_empty() {
+                map.insert("root".to_string(), rest.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        KoofrBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_email_and_root() {
+        let uri = OperatorUri::new(
+            "koofr://api.koofr.net/me%40example.com/library",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = KoofrConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint, "https://api.koofr.net".to_string());
+        assert_eq!(cfg.email, "me@example.com".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("library"));
+    }
+
+    #[test]
+    fn from_uri_requires_email_segment() {
+        let uri =
+            OperatorUri::new("koofr://api.koofr.net", Vec::<(String, String)>::new()).unwrap();
+
+        assert!(KoofrConfig::from_uri(&uri).is_err());
     }
 }

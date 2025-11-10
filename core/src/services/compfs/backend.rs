@@ -21,27 +21,20 @@ use std::sync::Arc;
 use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
 
-use super::DEFAULT_SCHEME;
+use super::COMPFS_SCHEME;
+use super::config::CompfsConfig;
 use super::core::CompfsCore;
-use super::delete::CompfsDeleter;
+use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
-use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
-use crate::services::CompfsConfig;
 use crate::*;
-impl Configurator for CompfsConfig {
-    type Builder = CompfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        CompfsBuilder { config: self }
-    }
-}
 
 /// [`compio`]-based file system support.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct CompfsBuilder {
-    config: CompfsConfig,
+    pub(super) config: CompfsConfig,
 }
 
 impl CompfsBuilder {
@@ -90,7 +83,7 @@ impl Builder for CompfsBuilder {
         let core = CompfsCore {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(COMPFS_SCHEME)
                     .set_root(&root)
                     .set_native_capability(Capability {
                         stat: true,
@@ -125,7 +118,7 @@ impl Builder for CompfsBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompfsBackend {
     core: Arc<CompfsCore>,
 }
@@ -134,7 +127,7 @@ impl Access for CompfsBackend {
     type Reader = CompfsReader;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
-    type Deleter = OneShotDeleter<CompfsDeleter>;
+    type Deleter = oio::OneShotDeleter<CompfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -164,7 +157,7 @@ impl Access for CompfsBackend {
         } else {
             EntryMode::Unknown
         };
-        let last_mod = parse_datetime_from_system_time(meta.modified().map_err(new_std_io_error)?)?;
+        let last_mod = Timestamp::try_from(meta.modified().map_err(new_std_io_error)?)?;
         let ret = Metadata::new(mode)
             .with_last_modified(last_mod)
             .with_content_length(meta.len());
@@ -174,7 +167,7 @@ impl Access for CompfsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
+            oio::OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
         ))
     }
 

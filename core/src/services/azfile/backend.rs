@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -26,16 +25,17 @@ use reqsign::AzureStorageConfig;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
-use super::DEFAULT_SCHEME;
+use super::AZFILE_SCHEME;
+use super::config::AzfileConfig;
 use super::core::AzfileCore;
-use super::delete::AzfileDeleter;
+use super::deleter::AzfileDeleter;
 use super::error::parse_error;
 use super::lister::AzfileLister;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use crate::raw::*;
-use crate::services::AzfileConfig;
 use crate::*;
+
 impl From<AzureStorageConfig> for AzfileConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzfileConfig {
@@ -49,35 +49,21 @@ impl From<AzureStorageConfig> for AzfileConfig {
     }
 }
 
-impl Configurator for AzfileConfig {
-    type Builder = AzfileBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        AzfileBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
-
 /// Azure File services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzfileBuilder {
-    config: AzfileConfig,
+    pub(super) config: AzfileConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzfileBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzfileBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzfileBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -193,7 +179,7 @@ impl Builder for AzfileBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azfile)),
+                .with_context("service", AZFILE_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
@@ -208,7 +194,7 @@ impl Builder for AzfileBuilder {
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "account_name is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::Azfile),
+                    .with_context("service", AZFILE_SCHEME),
             ),
         }?;
 
@@ -225,7 +211,7 @@ impl Builder for AzfileBuilder {
             core: Arc::new(AzfileCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

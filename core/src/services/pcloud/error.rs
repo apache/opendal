@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use http::Response;
 use serde::Deserialize;
@@ -32,7 +31,7 @@ pub(super) struct PcloudError {
 }
 
 impl Debug for PcloudError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PcloudError")
             .field("result", &self.result)
             .field("error", &self.error)

@@ -23,7 +23,6 @@ use crate::raw::*;
 use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::*;
 use http::StatusCode;
-use jiff::Timestamp;
 
 pub struct CloudflareWriter {
     core: Arc<CloudflareKvCore>,
@@ -56,8 +55,7 @@ impl oio::OneShotWrite for CloudflareWriter {
             StatusCode::OK => {
                 let mut metadata = Metadata::default();
                 metadata.set_etag(&cf_kv_metadata.etag);
-                metadata
-                    .set_last_modified(parse_datetime_from_rfc3339(&cf_kv_metadata.last_modified)?);
+                metadata.set_last_modified(cf_kv_metadata.last_modified.parse::<Timestamp>()?);
                 metadata.set_content_length(cf_kv_metadata.content_length as u64);
 
                 Ok(metadata)

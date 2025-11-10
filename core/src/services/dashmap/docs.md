@@ -2,14 +2,14 @@
 
 This service can be used to:
 
+- [ ] create_dir
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
 - [x] delete
-- [x] copy
-- [x] rename
 - [x] list
+- [ ] copy
+- [ ] rename
 - [ ] presign
 
 ## Configuration

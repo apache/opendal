@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -65,8 +64,8 @@ pub struct VercelBlobCore {
 }
 
 impl Debug for VercelBlobCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelBlobCore")
             .field("root", &self.root)
             .finish_non_exhaustive()
     }
@@ -395,7 +394,7 @@ pub fn parse_blob(blob: &Blob) -> Result<Metadata> {
         md.set_content_type(&content_type);
     }
     md.set_content_length(blob.size);
-    md.set_last_modified(parse_datetime_from_rfc3339(&blob.uploaded_at)?);
+    md.set_last_modified(blob.uploaded_at.parse::<Timestamp>()?);
     md.set_content_disposition(&blob.content_disposition);
     Ok(md)
 }

@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::fmt::Write;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -29,12 +28,10 @@ use constants::X_AMZ_META_PREFIX;
 use constants::X_AMZ_VERSION_ID;
 use http::Response;
 use http::StatusCode;
-use http::Uri;
 use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use percent_encoding::percent_decode_str;
 use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
@@ -49,8 +46,9 @@ use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqwest::Url;
 
 use super::S3_SCHEME;
+use super::config::S3Config;
 use super::core::*;
-use super::delete::S3Deleter;
+use super::deleter::S3Deleter;
 use super::error::parse_error;
 use super::lister::S3ListerV1;
 use super::lister::S3ListerV2;
@@ -58,9 +56,7 @@ use super::lister::S3Listers;
 use super::lister::S3ObjectVersionsLister;
 use super::writer::S3Writer;
 use super::writer::S3Writers;
-use crate::raw::oio::PageLister;
 use crate::raw::*;
-use crate::services::S3Config;
 use crate::*;
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
@@ -76,63 +72,24 @@ static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyL
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
-impl Configurator for S3Config {
-    type Builder = S3Builder;
-
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
-
-        let bucket_missing = map.get("bucket").map(|v| v.is_empty()).unwrap_or(true);
-        if bucket_missing {
-            let bucket = uri
-                .authority()
-                .map(|authority| authority.host())
-                .filter(|host| !host.is_empty())
-                .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "s3 uri requires bucket"))?;
-            map.insert("bucket".to_string(), bucket.to_string());
-        }
-
-        if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            let trimmed = path.trim_matches('/');
-            if !trimmed.is_empty() {
-                map.insert("root".to_string(), trimmed.to_string());
-            }
-        }
-
-        Self::from_iter(map)
-    }
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        S3Builder {
-            config: self,
-
-            http_client: None,
-            credential_providers: None,
-        }
-    }
-}
-
 /// Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 /// For more information about s3-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
 #[derive(Default)]
 pub struct S3Builder {
-    config: S3Config,
+    pub(super) config: S3Config,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
-    credential_providers: Option<ProvideCredentialChain<Credential>>,
+    pub(super) http_client: Option<HttpClient>,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for S3Builder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("S3Builder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("S3Builder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -751,7 +708,7 @@ impl Builder for S3Builder {
 
         #[allow(deprecated)]
         let S3Builder {
-            config,
+            mut config,
             http_client,
             credential_providers,
         } = self;
@@ -765,7 +722,7 @@ impl Builder for S3Builder {
         } else {
             Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::S3),
+                    .with_context("service", S3_SCHEME),
             )
         }?;
         debug!("backend use bucket {}", &bucket);
@@ -819,6 +776,7 @@ impl Builder for S3Builder {
 
         let checksum_algorithm = match config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
+            Some("md5") => Some(ChecksumAlgorithm::Md5),
             None => None,
             v => {
                 return Err(Error::new(
@@ -832,7 +790,6 @@ impl Builder for S3Builder {
         let region = if let Some(ref v) = config.region {
             v.to_string()
         } else {
-            // Try to get region from environment
             std::env::var("AWS_REGION")
                 .or_else(|_| std::env::var("AWS_DEFAULT_REGION"))
                 .map_err(|_| {
@@ -841,10 +798,21 @@ impl Builder for S3Builder {
                         "region is missing. Please find it by S3::detect_region() or set them in env.",
                     )
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::S3)
+                    .with_context("service", S3_SCHEME)
                 })?
         };
         debug!("backend use region: {region}");
+
+        if config.endpoint.is_none() && !config.disable_config_load {
+            let endpoint_from_env = std::env::var("AWS_ENDPOINT_URL")
+                .or_else(|_| std::env::var("AWS_ENDPOINT"))
+                .or_else(|_| std::env::var("AWS_S3_ENDPOINT"))
+                .ok();
+            if let Some(endpoint) = endpoint_from_env {
+                let normalized = endpoint.trim_end_matches('/').to_string();
+                config.endpoint = Some(normalized);
+            }
+        }
 
         // Building endpoint.
         let endpoint = Self::build_endpoint(&config, &region);
@@ -1103,19 +1071,19 @@ impl Access for S3Backend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = if args.versions() || args.deleted() {
-            ThreeWays::Three(PageLister::new(S3ObjectVersionsLister::new(
+            ThreeWays::Three(oio::PageLister::new(S3ObjectVersionsLister::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else if self.core.disable_list_objects_v2 {
-            ThreeWays::One(PageLister::new(S3ListerV1::new(
+            ThreeWays::One(oio::PageLister::new(S3ListerV1::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else {
-            ThreeWays::Two(PageLister::new(S3ListerV2::new(
+            ThreeWays::Two(oio::PageLister::new(S3ListerV2::new(
                 self.core.clone(),
                 path,
                 args,
@@ -1168,7 +1136,6 @@ impl Access for S3Backend {
         )))
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;

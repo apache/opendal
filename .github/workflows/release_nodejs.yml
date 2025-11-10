@@ -107,7 +107,7 @@ jobs:
           version: 8
           run_install: false
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm
@@ -157,6 +157,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+    environment: release
 
     defaults:
       run:
@@ -169,7 +170,7 @@ jobs:
           version: 8
           run_install: false
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm
@@ -188,6 +189,10 @@ jobs:
         run: ls -R ./npm
         shell: bash
 
+      - name: Update npm
+        # Trusted publishing requires npm CLI version 11.5.1 or later.
+        run: npm install -g npm@latest
+
       - name: Add LICENSE & NOTICE
         # Set working directory to root to copy LICENSE & NOTICE
         working-directory: .
@@ -195,14 +200,12 @@ jobs:
 
       - name: Publish Dry Run
         if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish-dry-run) || (startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-'))
-        run: |
-          npm publish --access public --provenance --dry-run
+        run: npm publish --access public --dry-run
 
       - name: Publish
         if: (github.event_name == 'workflow_dispatch' && inputs.nodejs-publish) || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-'))
-        run: |
-          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" >> ~/.npmrc
-          npm publish --access public --provenance
+        # No --provenance flag needed - it's automatic with trusted publishers
+        # https://docs.npmjs.com/trusted-publishers#automatic-provenance-generation
+        run: npm publish --access public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

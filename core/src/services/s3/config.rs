@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::S3Builder;
 
 /// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -218,21 +219,48 @@ pub struct S3Config {
 }
 
 impl Debug for S3Config {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("S3Config");
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("S3Config")
+            .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("region", &self.region);
+            .field("region", &self.region)
+            .finish_non_exhaustive()
+    }
+}
 
-        d.finish_non_exhaustive()
+impl crate::Configurator for S3Config {
+    type Builder = S3Builder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        S3Builder {
+            config: self,
+            http_client: None,
+            credential_providers: None,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
 
     #[test]
     fn test_s3_config_original_field_names() {
@@ -323,5 +351,17 @@ mod tests {
             config.server_side_encryption_customer_key,
             Some("dGVzdC1jdXN0b21lci1rZXk=".to_string())
         );
+    }
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "s3://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = S3Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use dashmap::DashMap;
 
@@ -37,7 +36,7 @@ pub struct DashmapCore {
 }
 
 impl Debug for DashmapCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DashmapCore")
             .field("size", &self.cache.len())
             .finish()

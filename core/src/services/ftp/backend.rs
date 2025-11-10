@@ -16,8 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -30,36 +28,22 @@ use suppaftp::list::File;
 use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
-use super::DEFAULT_SCHEME;
+use super::FTP_SCHEME;
+use super::config::FtpConfig;
 use super::core::FtpCore;
-use super::delete::FtpDeleter;
+use super::deleter::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
-use crate::services::FtpConfig;
 use crate::*;
-impl Configurator for FtpConfig {
-    type Builder = FtpBuilder;
-    fn into_builder(self) -> Self::Builder {
-        FtpBuilder { config: self }
-    }
-}
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct FtpBuilder {
-    config: FtpConfig,
-}
-
-impl Debug for FtpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FtpBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
+    pub(super) config: FtpConfig,
 }
 
 impl FtpBuilder {
@@ -161,7 +145,7 @@ impl Builder for FtpBuilder {
 
         let accessor_info = AccessorInfo::default();
         accessor_info
-            .set_scheme(DEFAULT_SCHEME)
+            .set_scheme(FTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -205,8 +189,8 @@ pub struct FtpBackend {
 }
 
 impl Debug for FtpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FtpBackend").finish()
     }
 }
 
@@ -258,7 +242,7 @@ impl Access for FtpBackend {
 
         let mut meta = Metadata::new(mode);
         meta.set_content_length(file.size() as u64);
-        meta.set_last_modified(parse_datetime_from_system_time(file.modified())?);
+        meta.set_last_modified(Timestamp::try_from(file.modified())?);
 
         Ok(RpStat::new(meta))
     }
@@ -355,6 +339,7 @@ impl FtpBackend {
 #[cfg(test)]
 mod build_test {
     use super::FtpBuilder;
+    use crate::services::FtpConfig;
     use crate::*;
 
     #[test]
@@ -384,5 +369,35 @@ mod build_test {
         assert!(b.is_err());
         let e = b.unwrap_err();
         assert_eq!(e.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "ftp://example.com/public/data",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FtpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
+        assert_eq!(cfg.root.as_deref(), Some("public/data"));
+    }
+
+    #[test]
+    fn from_uri_applies_credentials_from_query() {
+        let uri = OperatorUri::new(
+            "ftp://example.com/data",
+            vec![
+                ("user".to_string(), "alice".to_string()),
+                ("password".to_string(), "secret".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = FtpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
+        assert_eq!(cfg.user.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("secret"));
     }
 }

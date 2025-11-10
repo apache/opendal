@@ -15,46 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jiff::Timestamp;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
+
 use tokio::sync::Mutex;
 
-use super::DEFAULT_SCHEME;
+use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
+use super::config::DropboxConfig;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
-use crate::services::DropboxConfig;
 use crate::*;
-impl Configurator for DropboxConfig {
-    type Builder = DropboxBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        DropboxBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Dropbox](https://www.dropbox.com/) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct DropboxBuilder {
-    config: DropboxConfig,
+    pub(super) config: DropboxConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for DropboxBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
-            .field("root", &self.config.root)
-            .finish()
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -142,14 +130,14 @@ impl Builder for DropboxBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
 
                 DropboxSigner {
@@ -164,14 +152,14 @@ impl Builder for DropboxBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token can not be set at the same time",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
         };
 
@@ -179,7 +167,7 @@ impl Builder for DropboxBuilder {
             core: Arc::new(DropboxCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(DROPBOX_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

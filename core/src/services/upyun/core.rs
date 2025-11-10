@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -26,7 +25,6 @@ use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::header;
-use jiff::Timestamp;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
@@ -70,8 +68,8 @@ pub struct UpyunCore {
 }
 
 impl Debug for UpyunCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunCore")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("operator", &self.operator)
@@ -87,9 +85,7 @@ impl UpyunCore {
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
         // get rfc1123 date
-        let date = Timestamp::now()
-            .strftime("%a, %d %b %Y %H:%M:%S GMT")
-            .to_string();
+        let date = Timestamp::now().format_http_date();
         let authorization =
             self.signer
                 .authorization(&date, req.method().as_str(), req.uri().path());

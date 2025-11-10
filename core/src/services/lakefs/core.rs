@@ -233,6 +233,41 @@ impl LakefsCore {
             .map_err(new_request_build_error)?;
         self.info.http_client().send(req).await
     }
+
+    /// Parse LakefsStatus into Metadata
+    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Metadata {
+        // Determine entry mode based on path_type
+        // "common_prefix" indicates a directory in list operations
+        let mode = if status.path_type == "common_prefix" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+
+        let mut meta = Metadata::new(mode);
+
+        // Set checksum as etag
+        if !status.checksum.is_empty() {
+            meta.set_etag(&status.checksum);
+        }
+
+        // Set content length
+        if let Some(size) = status.size_bytes {
+            meta.set_content_length(size);
+        }
+
+        // Set content type
+        if let Some(ref content_type) = status.content_type {
+            meta.set_content_type(content_type);
+        }
+
+        // Set last modified time
+        if let Ok(timestamp) = Timestamp::from_second(status.mtime) {
+            meta.set_last_modified(timestamp);
+        }
+
+        meta
+    }
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]

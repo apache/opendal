@@ -24,6 +24,7 @@ import { checkRandomRootEnabled, generateRandomRoot, loadConfigFromEnv } from '.
 import { run as AsyncIOTestRun } from './async.suite.mjs'
 import { run as ServicesTestRun } from './services.suite.mjs'
 import { run as SyncIOTestRun } from './sync.suite.mjs'
+import { run as LayerTestRun } from './layer.suite.mjs'
 import { run as AsyncStatOptionsTestRun } from './asyncStatOptions.suite.mjs'
 import { run as SyncStatOptionsTestRun } from './syncStatOptions.suite.mjs'
 import { run as AsyncReadOptionsTestRun } from './asyncReadOptions.suite.mjs'
@@ -63,6 +64,7 @@ export function runner(testName, scheme) {
     AsyncIOTestRun(operator)
     ServicesTestRun(operator)
     SyncIOTestRun(operator)
+    LayerTestRun(operator)
     AsyncStatOptionsTestRun(operator)
     SyncStatOptionsTestRun(operator)
     AsyncReadOptionsTestRun(operator)

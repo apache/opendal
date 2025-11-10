@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -83,8 +82,8 @@ pub struct OssCore {
 }
 
 impl Debug for OssCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OssCore")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
@@ -351,17 +350,11 @@ impl OssCore {
         }
 
         if let Some(if_modified_since) = args.if_modified_since() {
-            req = req.header(
-                IF_MODIFIED_SINCE,
-                format_datetime_into_http_date(if_modified_since),
-            );
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
         }
 
         if let Some(if_unmodified_since) = args.if_unmodified_since() {
-            req = req.header(
-                IF_UNMODIFIED_SINCE,
-                format_datetime_into_http_date(if_unmodified_since),
-            );
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req.extension(Operation::Read);

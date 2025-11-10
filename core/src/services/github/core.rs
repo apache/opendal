@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -27,7 +26,6 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 use http::request;
-use jiff::Timestamp;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -50,8 +48,8 @@ pub struct GithubCore {
 }
 
 impl Debug for GithubCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubCore")
             .field("root", &self.root)
             .field("owner", &self.owner)
             .field("repo", &self.repo)

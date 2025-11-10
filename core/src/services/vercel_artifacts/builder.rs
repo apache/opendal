@@ -16,44 +16,30 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use super::DEFAULT_SCHEME;
+use super::VERCEL_ARTIFACTS_SCHEME;
 use super::backend::VercelArtifactsBackend;
+use super::config::VercelArtifactsConfig;
 use super::core::VercelArtifactsCore;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::services::VercelArtifactsConfig;
+use crate::raw::*;
 use crate::*;
-impl Configurator for VercelArtifactsConfig {
-    type Builder = VercelArtifactsBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        VercelArtifactsBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Vercel Cache](https://vercel.com/docs/concepts/monorepos/remote-caching) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct VercelArtifactsBuilder {
-    config: VercelArtifactsConfig,
+    pub(super) config: VercelArtifactsConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for VercelArtifactsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("VercelArtifactsBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelArtifactsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -85,7 +71,7 @@ impl Builder for VercelArtifactsBuilder {
 
     fn build(self) -> Result<impl Access> {
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(VERCEL_ARTIFACTS_SCHEME)
             .set_native_capability(Capability {
                 stat: true,
 

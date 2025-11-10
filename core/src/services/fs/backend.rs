@@ -15,60 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
 
 use super::FS_SCHEME;
+use super::config::FsConfig;
 use super::core::*;
-use super::delete::FsDeleter;
+use super::deleter::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use crate::raw::*;
-use crate::services::FsConfig;
 use crate::*;
-use http::Uri;
-use percent_encoding::percent_decode_str;
-impl Configurator for FsConfig {
-    type Builder = FsBuilder;
-
-    fn from_uri(uri: &Uri, options: &HashMap<String, String>) -> Result<Self> {
-        let mut map = options.clone();
-
-        if !map.contains_key("root") {
-            let path = percent_decode_str(uri.path()).decode_utf8_lossy();
-            if path.is_empty() || path == "/" {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "fs uri requires absolute path",
-                ));
-            }
-            if !path.starts_with('/') {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "fs uri root must be absolute",
-                ));
-            }
-            map.insert("root".to_string(), path.to_string());
-        }
-
-        Self::from_iter(map)
-    }
-
-    fn into_builder(self) -> Self::Builder {
-        FsBuilder { config: self }
-    }
-}
 
 /// POSIX file system support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub struct FsBuilder {
-    config: FsConfig,
+    pub(super) config: FsConfig,
 }
 
 impl FsBuilder {

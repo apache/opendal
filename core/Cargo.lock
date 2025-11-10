@@ -6895,8 +6895,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-aws-v4"
-version = "2.0.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=c7953e5#c7953e52e3daf8ed328dec2d34b5f89df9b6643a"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4510c2a3e42b653cf788d560a3d54b0ae4cc315a62aaba773554f18319c0db0b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6916,8 +6917,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-core"
-version = "2.0.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=c7953e5#c7953e52e3daf8ed328dec2d34b5f89df9b6643a"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39da118ccf3bdb067ac6cc40136fec99bc5ba418cbd388dc88e4ce0e5d0b1423"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6937,8 +6939,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-file-read-tokio"
-version = "2.0.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=c7953e5#c7953e52e3daf8ed328dec2d34b5f89df9b6643a"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "669ea66036266a9ac371d2e63cc7d345e69994da0168b4e6f3487fe21e126f76"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6948,16 +6951,19 @@ dependencies = [
 
 [[package]]
 name = "reqsign-http-send-reqwest"
-version = "2.0.0"
-source = "git+https://github.com/apache/opendal-reqsign?rev=c7953e5#c7953e52e3daf8ed328dec2d34b5f89df9b6643a"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46186bce769674f9200ad01af6f2ca42de3e819ddc002fff1edae135bfb6cd9c"
 dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
+ "futures-channel",
  "http 1.3.1",
  "http-body-util",
  "reqsign-core",
  "reqwest",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

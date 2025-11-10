@@ -282,14 +282,10 @@ sqlx = { version = "0.8.0", features = [
 # For http based services.
 reqsign = { version = "0.16.5", default-features = false, optional = true }
 # For S3 service migration to v1
-# reqsign-aws-v4 = { version = "2.0", default-features = false, optional = true }
-# reqsign-core = { version = "2.0", default-features = false, optional = true }
-# reqsign-file-read-tokio = { version = "2.0", default-features = false, optional = true }
-# reqsign-http-send-reqwest = { version = "2.0", default-features = false, optional = true }
-reqsign-aws-v4 = { version = "2.0", default-features = false, optional = true, git = "https://github.com/apache/opendal-reqsign", rev = "c7953e5" }
-reqsign-core = { version = "2.0", default-features = false, optional = true, git = "https://github.com/apache/opendal-reqsign", rev = "c7953e5" }
-reqsign-file-read-tokio = { version = "2.0", default-features = false, optional = true, git = "https://github.com/apache/opendal-reqsign", rev = "c7953e5" }
-reqsign-http-send-reqwest = { version = "2.0", default-features = false, optional = true, git = "https://github.com/apache/opendal-reqsign", rev = "c7953e5" }
+reqsign-aws-v4 = { version = "2.0.1", default-features = false, optional = true }
+reqsign-core = { version = "2.0.1", default-features = false, optional = true }
+reqsign-file-read-tokio = { version = "2.0.1", default-features = false, optional = true }
+reqsign-http-send-reqwest = { version = "2.0.1", default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }

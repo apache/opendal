@@ -199,9 +199,10 @@ services-redis = ["dep:redis", "dep:bb8", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-s3 = [
-  "dep:reqsign",
-  "reqsign?/services-aws",
-  "reqsign?/reqwest_request",
+  "dep:reqsign-core",
+  "dep:reqsign-aws-v4",
+  "dep:reqsign-file-read-tokio",
+  "dep:reqsign-http-send-reqwest",
   "dep:crc32c",
 ]
 services-seafile = []
@@ -252,7 +253,6 @@ jiff = { version = "0.2.15", features = ["serde"] }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
-url = "2.5"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [
   "stream",
@@ -260,6 +260,7 @@ reqwest = { version = "0.12.24", features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.48", features = ["sync", "io-util"] }
+url = "2.5"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
@@ -280,6 +281,11 @@ sqlx = { version = "0.8.0", features = [
 
 # For http based services.
 reqsign = { version = "0.16.5", default-features = false, optional = true }
+# For S3 service migration to v1
+reqsign-aws-v4 = { version = "2.0.1", default-features = false, optional = true }
+reqsign-core = { version = "2.0.1", default-features = false, optional = true }
+reqsign-file-read-tokio = { version = "2.0.1", default-features = false, optional = true }
+reqsign-http-send-reqwest = { version = "2.0.1", default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }
@@ -408,6 +414,7 @@ probe = { version = "0.5.1", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
+jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { version = "1.48", features = ["time"] }
 uuid = { version = "1.18", features = ["serde", "v4", "js"] }
 

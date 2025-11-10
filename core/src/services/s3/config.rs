@@ -250,9 +250,8 @@ impl crate::Configurator for S3Config {
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
-            customized_credential_load: None,
-
             http_client: None,
+            credential_providers: None,
         }
     }
 }

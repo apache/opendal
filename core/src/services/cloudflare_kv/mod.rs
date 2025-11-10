@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for cloudflare_kv service.
-pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare_kv";
+/// Default scheme for cloudflare-kv service.
+pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
 
 mod backend;
 mod config;

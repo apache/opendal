@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for vercel_blob service.
-pub const VERCEL_BLOB_SCHEME: &str = "vercel_blob";
+/// Default scheme for vercel-blob service.
+pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 
 mod backend;
 mod config;

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for yandex_disk service.
-pub const YANDEX_DISK_SCHEME: &str = "yandex_disk";
+/// Default scheme for yandex-disk service.
+pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
 
 mod backend;
 mod config;

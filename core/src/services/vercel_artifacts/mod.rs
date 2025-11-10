@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for vercel_artifacts service.
-pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel_artifacts";
+/// Default scheme for vercel-artifacts service.
+pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
 
 mod backend;
 mod builder;

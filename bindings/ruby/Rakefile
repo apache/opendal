@@ -25,6 +25,33 @@ require "standard/rake"
 GEMSPEC = Gem::Specification.load("opendal.gemspec")
 CRATE_PACKAGE_NAME = "opendal-ruby"
 
+desc "Copy core files for compilation"
+task :copy_core do
+  core_dir = "../../core"
+  distributed_core_dir = "core"
+
+  puts "Copying core files from #{core_dir} to #{distributed_core_dir}..."
+  FileUtils.rm_rf(distributed_core_dir, secure: true)
+  system("cp", "-Lr", core_dir, distributed_core_dir) # resolves symbolic links to a copy
+
+  # Verify core files were copied
+  core_files_count = `git -C #{File.expand_path(core_dir, __dir__)} ls-files -z`.split("\x0").length
+  puts "Copied #{core_files_count} files from core directory"
+
+  # Patch Cargo.toml for source distribution
+  # When core files are copied locally, update Cargo.toml to reference the local copy
+  if File.directory?(distributed_core_dir)
+    cargo_toml = File.read("Cargo.toml")
+
+    # Only patch if we haven't already and we're using the relative path
+    if cargo_toml.include?('path = "../../core"')
+      puts "Patching Cargo.toml to use local core directory..."
+      cargo_toml.gsub!('path = "../../core"', 'path = "core"')
+      File.write("Cargo.toml", cargo_toml)
+    end
+  end
+end
+
 RbSys::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
@@ -93,16 +120,8 @@ task :version do
   print GEMSPEC.version
 end
 
-desc "Copy the core directory for gem packaging" # Read more in `./.github/workflows/release-ruby.yml`
-task :copy_core do
-  puts "Copy the core directory for packaging..."
-  src = "../../core"
-  dst = "./core"
-  `cp -RL #{src} #{dst}`
-end
-
-# Hook into build task to copy the core directory first
-Rake::Task["build"].enhance([:copy_core]) if Rake::Task.task_defined?("build")
+# Ensure core files are copied before compilation and packaging
+Rake::Task["build"].enhance(["copy_core"]) if Rake::Task.task_defined?("build")
 
 Rake::Task["release"].clear # clear the existing release task to allow override
 Rake::Task["release:rubygem_push"].clear if Rake::Task.task_defined?("release:rubygem_push")

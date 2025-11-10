@@ -17,9 +17,11 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::LakefsCore;
+use super::core::LakefsStatus;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -43,7 +45,37 @@ impl oio::OneShotWrite for LakefsWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::CREATED | StatusCode::OK => {
+                let body = resp.into_body();
+                let body_bytes = body.to_bytes();
+
+                // Try to parse metadata from upload response body
+                match serde_json::from_slice::<LakefsStatus>(&body_bytes) {
+                    Ok(lakefs_status) => {
+                        // Successfully parsed ObjectStats from upload response
+                        Ok(LakefsCore::parse_lakefs_status_into_metadata(
+                            &lakefs_status,
+                        ))
+                    }
+                    Err(_) => {
+                        // Upload response doesn't contain ObjectStats, fetch via stat API
+                        let stat_resp = self.core.get_object_metadata(&self.path).await?;
+
+                        match stat_resp.status() {
+                            StatusCode::OK => {
+                                let lakefs_status: LakefsStatus =
+                                    serde_json::from_reader(stat_resp.into_body().reader())
+                                        .map_err(new_json_deserialize_error)?;
+
+                                Ok(LakefsCore::parse_lakefs_status_into_metadata(
+                                    &lakefs_status,
+                                ))
+                            }
+                            _ => Err(parse_error(stat_resp)),
+                        }
+                    }
+                }
+            }
             _ => Err(parse_error(resp)),
         }
     }

@@ -119,6 +119,7 @@ pub struct RedisCore {
     pub cluster_client: Option<ClusterClient>,
     pub conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
     pub default_ttl: Option<Duration>,
+    pub connection_pool_max_size: Option<u32>,
 }
 
 impl Debug for RedisCore {
@@ -135,6 +136,7 @@ impl RedisCore {
             .conn
             .get_or_try_init(|| async {
                 bb8::Pool::builder()
+                    .max_size(self.connection_pool_max_size.unwrap_or(10))
                     .build(self.get_redis_connection_manager())
                     .await
                     .map_err(|err| {

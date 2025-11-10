@@ -43,6 +43,10 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+    /// The maximum number of connections allowed.
+    ///
+    /// default is 10
+    pub connection_pool_max_size: Option<u32>,
 }
 
 impl Debug for MemcachedConfig {

@@ -7,16 +7,15 @@ Huggingface doesn't host official HTTP API docs. Detailed HTTP request API infor
 
 This service can be used to:
 
+- [ ] create_dir
 - [x] stat
 - [x] read
 - [ ] write
-- [ ] create_dir
 - [ ] delete
+- [x] list
 - [ ] copy
 - [ ] rename
-- [x] list
 - [ ] ~~presign~~
-- [ ] blocking
 
 ## Configurations
 

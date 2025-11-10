@@ -37,6 +37,10 @@ pub struct RedisConfig {
     ///
     /// default is None
     pub cluster_endpoints: Option<String>,
+    /// The maximum number of connections allowed.
+    ///
+    /// default is 10
+    pub connection_pool_max_size: Option<u32>,
     /// the username to connect redis service.
     ///
     /// default is None

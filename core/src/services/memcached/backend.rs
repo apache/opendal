@@ -76,6 +76,20 @@ impl MemcachedBuilder {
         self.config.default_ttl = Some(ttl);
         self
     }
+
+    /// Sets the maximum number of connections managed by the pool.
+    ///
+    /// Defaults to 10.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if `max_size` is 0.
+    #[must_use]
+    pub fn connection_pool_max_size(mut self, max_size: u32) -> Self {
+        assert!(max_size > 0, "max_size must be greater than zero!");
+        self.config.connection_pool_max_size = Some(max_size);
+        self
+    }
 }
 
 impl Builder for MemcachedBuilder {
@@ -145,6 +159,7 @@ impl Builder for MemcachedBuilder {
             username: self.config.username.clone(),
             password: self.config.password.clone(),
             default_ttl: self.config.default_ttl,
+            connection_pool_max_size: self.config.connection_pool_max_size,
         })
         .with_normalized_root(root))
     }
@@ -233,10 +248,5 @@ impl Access for MemcachedBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(MemcachedDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

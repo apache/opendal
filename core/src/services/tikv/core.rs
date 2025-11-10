@@ -21,6 +21,7 @@ use tikv_client::Config;
 use tikv_client::RawClient;
 use tokio::sync::OnceCell;
 
+use super::TIKV_SCHEME;
 use crate::*;
 
 /// TikvCore holds the configuration and client for interacting with TiKV.
@@ -65,7 +66,7 @@ impl TikvCore {
         } else {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                    .with_context("service", Scheme::Tikv)
+                    .with_context("service", TIKV_SCHEME)
                     .with_context("endpoints", format!("{:?}", self.endpoints)),
             );
         };
@@ -106,6 +107,6 @@ fn parse_tikv_error(e: tikv_client::Error) -> Error {
 
 fn parse_tikv_config_error(e: tikv_client::Error) -> Error {
     Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-        .with_context("service", Scheme::Tikv)
+        .with_context("service", TIKV_SCHEME)
         .set_source(e)
 }

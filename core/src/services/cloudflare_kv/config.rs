@@ -21,6 +21,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::CLOUDFLARE_KV_SCHEME;
 use super::backend::CloudflareKvBuilder;
 
 /// Cloudflare KV Service Support.
@@ -59,7 +60,7 @@ impl crate::Configurator for CloudflareKvConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri host must contain account id",
             )
-            .with_context("service", crate::Scheme::CloudflareKv)
+            .with_context("service", CLOUDFLARE_KV_SCHEME)
         })?;
 
         let raw_root = uri.root().ok_or_else(|| {
@@ -67,7 +68,7 @@ impl crate::Configurator for CloudflareKvConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must contain namespace id",
             )
-            .with_context("service", crate::Scheme::CloudflareKv)
+            .with_context("service", CLOUDFLARE_KV_SCHEME)
         })?;
 
         let mut segments = raw_root.splitn(2, '/');
@@ -76,7 +77,7 @@ impl crate::Configurator for CloudflareKvConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "namespace id is required in uri path",
             )
-            .with_context("service", crate::Scheme::CloudflareKv)
+            .with_context("service", CLOUDFLARE_KV_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

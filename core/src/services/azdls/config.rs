@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::AZDLS_SCHEME;
 use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
@@ -75,7 +76,7 @@ impl crate::Configurator for AzdlsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Azdls)
+                .with_context("service", AZDLS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();
@@ -97,7 +98,7 @@ impl crate::Configurator for AzdlsConfig {
                         crate::ErrorKind::ConfigInvalid,
                         "filesystem is required in uri path",
                     )
-                    .with_context("service", crate::Scheme::Azdls));
+                    .with_context("service", AZDLS_SCHEME));
                 }
                 map.insert("filesystem".to_string(), filesystem.to_string());
                 if !rest.is_empty() {
@@ -113,7 +114,7 @@ impl crate::Configurator for AzdlsConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "filesystem is required",
             )
-            .with_context("service", crate::Scheme::Azdls));
+            .with_context("service", AZDLS_SCHEME));
         }
 
         Self::from_iter(map)

@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::IPFS_SCHEME;
 use super::backend::IpfsBuilder;
 
 /// Config for IPFS file system support.
@@ -39,7 +38,7 @@ impl crate::Configurator for IpfsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Ipfs)
+                .with_context("service", IPFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

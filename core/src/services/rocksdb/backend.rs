@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use rocksdb::DB;
 
+use super::ROCKSDB_SCHEME;
 use super::config::RocksdbConfig;
 use super::core::*;
 use super::deleter::RocksdbDeleter;
@@ -61,11 +62,11 @@ impl Builder for RocksdbBuilder {
     fn build(self) -> Result<impl Access> {
         let path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Rocksdb)
+                .with_context("service", ROCKSDB_SCHEME)
         })?;
         let db = DB::open_default(&path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
-                .with_context("service", Scheme::Rocksdb)
+                .with_context("service", ROCKSDB_SCHEME)
                 .with_context("datadir", path)
                 .set_source(e)
         })?;
@@ -87,7 +88,7 @@ pub struct RocksdbBackend {
 impl RocksdbBackend {
     pub fn new(core: RocksdbCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Rocksdb.into_static())
+        info.set_scheme(ROCKSDB_SCHEME)
             .set_name(&core.db.path().to_string_lossy())
             .set_root("/")
             .set_native_capability(Capability {

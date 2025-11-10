@@ -43,7 +43,7 @@ use reqwest::Url;
 use super::S3_SCHEME;
 use super::config::S3Config;
 use super::core::*;
-use super::delete::S3Deleter;
+use super::deleter::S3Deleter;
 use super::error::parse_error;
 use super::lister::S3ListerV1;
 use super::lister::S3ListerV2;
@@ -714,7 +714,7 @@ impl Builder for S3Builder {
         } else {
             Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::S3),
+                    .with_context("service", S3_SCHEME),
             )
         }?;
         debug!("backend use bucket {}", &bucket);
@@ -798,7 +798,7 @@ impl Builder for S3Builder {
                 "region is missing. Please find it by S3::detect_region() or set them in env.",
             )
             .with_operation("Builder::build")
-            .with_context("service", Scheme::S3));
+            .with_context("service", S3_SCHEME));
         }
 
         let region = cfg.region.to_owned().unwrap();
@@ -858,7 +858,7 @@ impl Builder for S3Builder {
                     ErrorKind::ConfigInvalid,
                     "The assume_role_loader is misconfigured",
                 )
-                .with_context("service", Scheme::S3)
+                .with_context("service", S3_SCHEME)
                 .set_source(err)
             })?;
             loader = Some(Box::new(assume_role_loader));

@@ -7,9 +7,9 @@ This service can be used to:
 - [x] read
 - [x] write
 - [x] delete
+- [ ] list
 - [ ] copy
 - [ ] rename
-- [ ] list
 - [ ] ~~presign~~
 
 **Note**: As for [Known Limitations - FoundationDB](https://apple.github.io/foundationdb/known-limitations), keys cannot exceed 10,000 bytes in size, and values cannot exceed 100,000 bytes in size. Errors will be raised by OpenDAL if these limits are exceeded.

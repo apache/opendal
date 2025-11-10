@@ -21,6 +21,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::MEMCACHED_SCHEME;
 use super::backend::MemcachedBuilder;
 
 /// Config for MemCached services support
@@ -42,6 +43,10 @@ pub struct MemcachedConfig {
     pub password: Option<String>,
     /// The default ttl for put operations.
     pub default_ttl: Option<Duration>,
+    /// The maximum number of connections allowed.
+    ///
+    /// default is 10
+    pub connection_pool_max_size: Option<u32>,
 }
 
 impl Debug for MemcachedConfig {
@@ -61,7 +66,7 @@ impl crate::Configurator for MemcachedConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Memcached)
+                .with_context("service", MEMCACHED_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

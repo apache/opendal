@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::PERSY_SCHEME;
 use super::config::PersyConfig;
 use super::core::*;
 use super::deleter::PersyDeleter;
@@ -58,19 +59,19 @@ impl Builder for PersyBuilder {
     fn build(self) -> Result<impl Access> {
         let datafile_path = self.config.datafile.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
-                .with_context("service", Scheme::Persy)
+                .with_context("service", PERSY_SCHEME)
         })?;
 
         let segment_name = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
-                .with_context("service", Scheme::Persy)
+                .with_context("service", PERSY_SCHEME)
         })?;
 
         let segment = segment_name.clone();
 
         let index_name = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
-                .with_context("service", Scheme::Persy)
+                .with_context("service", PERSY_SCHEME)
         })?;
 
         let index = index_name.clone();
@@ -81,7 +82,7 @@ impl Builder for PersyBuilder {
             .open(&datafile_path)
             .map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open db")
-                    .with_context("service", Scheme::Persy)
+                    .with_context("service", PERSY_SCHEME)
                     .with_context("datafile", datafile_path.clone())
                     .set_source(e)
             })?;
@@ -127,7 +128,7 @@ pub struct PersyBackend {
 impl PersyBackend {
     pub fn new(core: PersyCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Persy.into_static());
+        info.set_scheme(PERSY_SCHEME);
         info.set_name(&core.datafile);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -195,10 +196,5 @@ impl Access for PersyBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(PersyDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

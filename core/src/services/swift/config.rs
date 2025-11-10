@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::SWIFT_SCHEME;
 use super::backend::SwiftBuilder;
 
 /// Config for OpenStack Swift support.
@@ -59,7 +60,7 @@ impl crate::Configurator for SwiftConfig {
         } else if !map.contains_key("endpoint") {
             return Err(
                 crate::Error::new(crate::ErrorKind::ConfigInvalid, "endpoint is required")
-                    .with_context("service", crate::Scheme::Swift),
+                    .with_context("service", SWIFT_SCHEME),
             );
         }
 
@@ -81,7 +82,7 @@ impl crate::Configurator for SwiftConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "container is required",
             )
-            .with_context("service", crate::Scheme::Swift));
+            .with_context("service", SWIFT_SCHEME));
         }
 
         Self::from_iter(map)

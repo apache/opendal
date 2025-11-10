@@ -27,7 +27,7 @@ use tokio::sync::Mutex;
 use super::ALIYUN_DRIVE_SCHEME;
 use super::config::AliyunDriveConfig;
 use super::core::*;
-use super::delete::AliyunDriveDeleter;
+use super::deleter::AliyunDriveDeleter;
 use super::error::parse_error;
 use super::lister::AliyunDriveLister;
 use super::lister::AliyunDriveParent;
@@ -141,7 +141,7 @@ impl Builder for AliyunDriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and a set of client_id, client_secret, and refresh_token are both missing.")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::AliyunDrive)),
+                    .with_context("service", ALIYUN_DRIVE_SCHEME)),
             },
         };
 

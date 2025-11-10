@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for mysql service.
+pub const MYSQL_SCHEME: &str = "mysql";
+
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod writer;
 
 pub use backend::MysqlBuilder as Mysql;
-
-mod config;
 pub use config::MysqlConfig;

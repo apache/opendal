@@ -22,7 +22,7 @@ use log::debug;
 use super::HDFS_NATIVE_SCHEME;
 use super::config::HdfsNativeConfig;
 use super::core::HdfsNativeCore;
-use super::delete::HdfsNativeDeleter;
+use super::deleter::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
 use super::lister::HdfsNativeLister;
 use super::reader::HdfsNativeReader;
@@ -86,7 +86,7 @@ impl Builder for HdfsNativeBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name_node is empty")
-                    .with_context("service", Scheme::HdfsNative));
+                    .with_context("service", HDFS_NATIVE_SCHEME));
             }
         };
 

@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::LAKEFS_SCHEME;
 use super::backend::LakefsBuilder;
 
 /// Configuration for Lakefs service support.
@@ -71,7 +72,7 @@ impl crate::Configurator for LakefsConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Lakefs)
+                .with_context("service", LAKEFS_SCHEME)
         })?;
 
         let raw_path = uri.root().ok_or_else(|| {
@@ -79,7 +80,7 @@ impl crate::Configurator for LakefsConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must contain repository",
             )
-            .with_context("service", crate::Scheme::Lakefs)
+            .with_context("service", LAKEFS_SCHEME)
         })?;
 
         let (repository, remainder) = match raw_path.split_once('/') {
@@ -97,7 +98,7 @@ impl crate::Configurator for LakefsConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "repository is required in uri path",
             )
-            .with_context("service", crate::Scheme::Lakefs)
+            .with_context("service", LAKEFS_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

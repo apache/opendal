@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::HTTP_SCHEME;
 use super::backend::HttpBuilder;
 
 /// Config for Http service support.
@@ -54,7 +55,7 @@ impl crate::Configurator for HttpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Http)
+                .with_context("service", HTTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

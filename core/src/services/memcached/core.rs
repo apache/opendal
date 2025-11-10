@@ -76,6 +76,7 @@ pub struct MemcachedCore {
     pub username: Option<String>,
     pub password: Option<String>,
     pub default_ttl: Option<Duration>,
+    pub connection_pool_max_size: Option<u32>,
 }
 
 impl MemcachedCore {
@@ -89,10 +90,14 @@ impl MemcachedCore {
                     self.password.clone(),
                 );
 
-                bb8::Pool::builder().build(mgr).await.map_err(|err| {
-                    Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
-                        .set_source(err)
-                })
+                bb8::Pool::builder()
+                    .max_size(self.connection_pool_max_size.unwrap_or(10))
+                    .build(mgr)
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
+                            .set_source(err)
+                    })
             })
             .await?;
 

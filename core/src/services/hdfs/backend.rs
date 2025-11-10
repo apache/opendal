@@ -23,7 +23,7 @@ use log::debug;
 use super::HDFS_SCHEME;
 use super::config::HdfsConfig;
 use super::core::HdfsCore;
-use super::delete::HdfsDeleter;
+use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
@@ -116,7 +116,7 @@ impl Builder for HdfsBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
-                    .with_context("service", Scheme::Hdfs));
+                    .with_context("service", HDFS_SCHEME));
             }
         };
 

@@ -186,7 +186,7 @@ impl Builder for OnedriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Onedrive)
+                    .with_context("service", ONEDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -200,14 +200,14 @@ impl Builder for OnedriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Onedrive));
+                .with_context("service", ONEDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Onedrive));
+                .with_context("service", ONEDRIVE_SCHEME));
             }
         };
 

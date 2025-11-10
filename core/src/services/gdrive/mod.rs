@@ -16,16 +16,16 @@
 // under the License.
 
 /// Default scheme for gdrive service.
-pub(super) const GDRIVE_SCHEME: &str = "gdrive";
+pub const GDRIVE_SCHEME: &str = "gdrive";
+
 mod backend;
+mod builder;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod builder;
 pub use builder::GdriveBuilder as Gdrive;
-
-mod config;
 pub use config::GdriveConfig;

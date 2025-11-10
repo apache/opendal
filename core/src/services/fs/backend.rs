@@ -23,7 +23,7 @@ use log::debug;
 use super::FS_SCHEME;
 use super::config::FsConfig;
 use super::core::*;
-use super::delete::FsDeleter;
+use super::deleter::FsDeleter;
 use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;

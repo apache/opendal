@@ -4,17 +4,15 @@ A distributed file system that provides high-throughput access to application da
 
 This service can be used to:
 
+- [x] create_dir
 - [x] stat
 - [x] read
 - [x] write
-- [x] create_dir
 - [x] delete
+- [x] list
 - [ ] copy
 - [x] rename
-- [x] list
 - [ ] ~~presign~~
-- [x] blocking
-- [x] append
 
 ## Differences with webhdfs
 

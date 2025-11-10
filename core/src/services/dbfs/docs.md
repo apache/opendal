@@ -4,16 +4,15 @@ This service will visit the [DBFS API](https://docs.databricks.com/api/azure/wor
 
 This service can be used to:
 
-- [x] stat
-- [x] read
-- [x] write
 - [x] create_dir
+- [x] stat
+- [ ] read
+- [x] write
 - [x] delete
 - [ ] copy
 - [x] rename
 - [x] list
 - [ ] ~~presign~~
-- [ ] blocking
 
 ## Configurations
 

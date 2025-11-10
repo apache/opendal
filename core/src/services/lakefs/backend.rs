@@ -26,7 +26,7 @@ use super::LAKEFS_SCHEME;
 use super::config::LakefsConfig;
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
-use super::delete::LakefsDeleter;
+use super::deleter::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
@@ -117,7 +117,7 @@ impl Builder for LakefsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {:?}", &endpoint);
 
@@ -125,7 +125,7 @@ impl Builder for LakefsBuilder {
             Some(repository) => Ok(repository.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repository is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
         debug!("backend use repository: {}", &repository);
 
@@ -142,14 +142,14 @@ impl Builder for LakefsBuilder {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Lakefs)),
+                .with_context("service", LAKEFS_SCHEME)),
         }?;
 
         Ok(LakefsBackend {
@@ -210,20 +210,13 @@ impl Access for LakefsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.clone().into_body();
+                let bs = resp.into_body();
 
                 let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if let Some(size_bytes) = decoded_response.size_bytes {
-                    meta.set_content_length(size_bytes);
-                }
-                meta.set_mode(EntryMode::FILE);
-                if let Some(v) = parse_content_disposition(resp.headers())? {
-                    meta.set_content_disposition(v);
-                }
 
-                meta.set_last_modified(Timestamp::from_second(decoded_response.mtime).unwrap());
+                // Use the helper function to parse LakefsStatus into Metadata
+                let meta = LakefsCore::parse_lakefs_status_into_metadata(&decoded_response);
 
                 Ok(RpStat::new(meta))
             }

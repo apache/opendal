@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::D1_SCHEME;
 use super::backend::D1Builder;
 
 /// Config for [Cloudflare D1](https://developers.cloudflare.com/d1) backend support.
@@ -64,7 +65,7 @@ impl crate::Configurator for D1Config {
                 crate::ErrorKind::ConfigInvalid,
                 "uri host must contain account id",
             )
-            .with_context("service", crate::Scheme::D1)
+            .with_context("service", D1_SCHEME)
         })?;
 
         let database_and_root = uri.root().ok_or_else(|| {
@@ -72,7 +73,7 @@ impl crate::Configurator for D1Config {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must contain database id",
             )
-            .with_context("service", crate::Scheme::D1)
+            .with_context("service", D1_SCHEME)
         })?;
 
         let mut segments = database_and_root.splitn(2, '/');
@@ -81,7 +82,7 @@ impl crate::Configurator for D1Config {
                 crate::ErrorKind::ConfigInvalid,
                 "database id is required in uri path",
             )
-            .with_context("service", crate::Scheme::D1)
+            .with_context("service", D1_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

@@ -26,7 +26,7 @@ use log::debug;
 use super::YANDEX_DISK_SCHEME;
 use super::config::YandexDiskConfig;
 use super::core::*;
-use super::delete::YandexDiskDeleter;
+use super::deleter::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
@@ -105,7 +105,7 @@ impl Builder for YandexDiskBuilder {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "access_token is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::YandexDisk),
+                    .with_context("service", YANDEX_DISK_SCHEME),
             );
         }
 

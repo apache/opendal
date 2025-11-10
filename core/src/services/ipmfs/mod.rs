@@ -16,16 +16,16 @@
 // under the License.
 
 /// Default scheme for ipmfs service.
-pub(super) const IPMFS_SCHEME: &str = "ipmfs";
+pub const IPMFS_SCHEME: &str = "ipmfs";
+
 mod backend;
+mod builder;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod builder;
 pub use builder::IpmfsBuilder as Ipmfs;
-
-mod config;
 pub use config::IpmfsConfig;

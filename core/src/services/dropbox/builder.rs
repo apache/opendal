@@ -130,14 +130,14 @@ impl Builder for DropboxBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
 
                 DropboxSigner {
@@ -152,14 +152,14 @@ impl Builder for DropboxBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token can not be set at the same time",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
         };
 

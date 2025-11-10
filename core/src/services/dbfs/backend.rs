@@ -24,7 +24,7 @@ use serde::Deserialize;
 
 use super::DBFS_SCHEME;
 use super::core::DbfsCore;
-use super::delete::DbfsDeleter;
+use super::deleter::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
@@ -91,7 +91,7 @@ impl Builder for DbfsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Dbfs)),
+                .with_context("service", DBFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 

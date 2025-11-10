@@ -24,7 +24,7 @@ use log::debug;
 use super::MOKA_SCHEME;
 use super::config::MokaConfig;
 use super::core::*;
-use super::delete::MokaDeleter;
+use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
 use crate::raw::oio;
@@ -178,19 +178,19 @@ impl Builder for MokaBuilder {
             cache: builder.build(),
         };
 
-        Ok(MokaAccessor::new(core).with_normalized_root(root))
+        Ok(MokaBackend::new(core).with_normalized_root(root))
     }
 }
 
-/// MokaAccessor implements Access trait directly
+/// MokaBackend implements Access trait directly
 #[derive(Debug, Clone)]
-pub struct MokaAccessor {
+pub struct MokaBackend {
     core: Arc<MokaCore>,
     root: String,
     info: Arc<AccessorInfo>,
 }
 
-impl MokaAccessor {
+impl MokaBackend {
     fn new(core: MokaCore) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(MOKA_SCHEME);
@@ -225,7 +225,7 @@ impl MokaAccessor {
     }
 }
 
-impl Access for MokaAccessor {
+impl Access for MokaBackend {
     type Reader = Buffer;
     type Writer = MokaWriter;
     type Lister = oio::HierarchyLister<MokaLister>;

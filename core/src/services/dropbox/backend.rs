@@ -22,7 +22,7 @@ use http::Response;
 use http::StatusCode;
 
 use super::core::*;
-use super::delete::DropboxDeleter;
+use super::deleter::DropboxDeleter;
 use super::error::*;
 use super::lister::DropboxLister;
 use super::writer::DropboxWriter;

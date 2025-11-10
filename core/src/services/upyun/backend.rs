@@ -25,7 +25,7 @@ use log::debug;
 use super::UPYUN_SCHEME;
 use super::config::UpyunConfig;
 use super::core::*;
-use super::delete::UpyunDeleter;
+use super::deleter::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
@@ -128,7 +128,7 @@ impl Builder for UpyunBuilder {
         if self.config.bucket.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun));
+                .with_context("service", UPYUN_SCHEME));
         }
 
         debug!("backend use bucket {}", &self.config.bucket);
@@ -137,14 +137,14 @@ impl Builder for UpyunBuilder {
             Some(operator) => Ok(operator.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "operator is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun)),
+                .with_context("service", UPYUN_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun)),
+                .with_context("service", UPYUN_SCHEME)),
         }?;
 
         let signer = UpyunSigner {

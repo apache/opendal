@@ -16,17 +16,16 @@
 // under the License.
 
 /// Default scheme for webhdfs service.
-pub(super) const WEBHDFS_SCHEME: &str = "webhdfs";
-mod delete;
+pub const WEBHDFS_SCHEME: &str = "webhdfs";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod error;
 mod lister;
 mod message;
 mod writer;
 
-mod backend;
 pub use backend::WebhdfsBuilder as Webhdfs;
-
-mod core;
-
-mod config;
 pub use config::WebhdfsConfig;

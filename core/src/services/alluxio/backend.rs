@@ -24,7 +24,7 @@ use log::debug;
 use super::ALLUXIO_SCHEME;
 use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
-use super::delete::AlluxioDeleter;
+use super::deleter::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
@@ -104,7 +104,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Alluxio)),
+                .with_context("service", ALLUXIO_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

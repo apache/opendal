@@ -27,7 +27,7 @@ use super::GITHUB_SCHEME;
 use super::config::GithubConfig;
 use super::core::Entry;
 use super::core::GithubCore;
-use super::delete::GithubDeleter;
+use super::deleter::GithubDeleter;
 use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
@@ -119,7 +119,7 @@ impl Builder for GithubBuilder {
         if self.config.owner.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "owner is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use owner {}", &self.config.owner);
@@ -128,7 +128,7 @@ impl Builder for GithubBuilder {
         if self.config.repo.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "repo is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use repo {}", &self.config.repo);

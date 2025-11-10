@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::SURREALDB_SCHEME;
 use super::config::SurrealdbConfig;
 use super::core::*;
 use super::deleter::SurrealdbDeleter;
@@ -134,7 +135,7 @@ impl Builder for SurrealdbBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
-                        .with_context("service", Scheme::Surrealdb),
+                        .with_context("service", SURREALDB_SCHEME),
                 );
             }
         };
@@ -143,21 +144,21 @@ impl Builder for SurrealdbBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "namespace is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
         let database = match self.config.database.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
         let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
 
@@ -207,7 +208,7 @@ pub struct SurrealdbBackend {
 impl SurrealdbBackend {
     pub fn new(core: SurrealdbCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Surrealdb.into_static());
+        info.set_scheme(SURREALDB_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -281,10 +282,5 @@ impl Access for SurrealdbBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(SurrealdbDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

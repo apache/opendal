@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for webdav service.
-pub(super) const WEBDAV_SCHEME: &str = "webdav";
+pub const WEBDAV_SCHEME: &str = "webdav";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::WebdavBuilder as Webdav;
-
-mod config;
 pub use config::WebdavConfig;

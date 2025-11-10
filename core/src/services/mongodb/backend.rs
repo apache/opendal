@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::MONGODB_SCHEME;
 use super::config::MongodbConfig;
 use super::core::*;
 use super::deleter::MongodbDeleter;
@@ -118,7 +119,7 @@ impl Builder for MongodbBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
-                        .with_context("service", Scheme::Mongodb),
+                        .with_context("service", MONGODB_SCHEME),
                 );
             }
         };
@@ -126,7 +127,7 @@ impl Builder for MongodbBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
-                    .with_context("service", Scheme::Mongodb));
+                    .with_context("service", MONGODB_SCHEME));
             }
         };
         let collection = match &self.config.collection.clone() {
@@ -134,7 +135,7 @@ impl Builder for MongodbBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "collection is required")
-                        .with_context("service", Scheme::Mongodb),
+                        .with_context("service", MONGODB_SCHEME),
                 );
             }
         };
@@ -176,7 +177,7 @@ pub struct MongodbBackend {
 impl MongodbBackend {
     pub fn new(core: MongodbCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Mongodb.into_static());
+        info.set_scheme(MONGODB_SCHEME);
         info.set_name(&format!("{}/{}", core.database, core.collection));
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -250,10 +251,5 @@ impl Access for MongodbBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(MongodbDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

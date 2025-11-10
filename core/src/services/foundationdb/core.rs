@@ -21,6 +21,7 @@ use std::sync::Arc;
 use foundationdb::Database;
 use foundationdb::api::NetworkAutoStop;
 
+use super::FOUNDATIONDB_SCHEME;
 use crate::*;
 
 #[derive(Clone)]
@@ -78,5 +79,5 @@ impl FoundationdbCore {
 
 fn parse_transaction_commit_error(e: foundationdb::TransactionCommitError) -> Error {
     Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-        .with_context("service", Scheme::Foundationdb)
+        .with_context("service", FOUNDATIONDB_SCHEME)
 }

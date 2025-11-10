@@ -20,6 +20,7 @@ use std::sync::Arc;
 use sqlx::postgres::PgConnectOptions;
 use tokio::sync::OnceCell;
 
+use super::POSTGRESQL_SCHEME;
 use super::config::PostgresqlConfig;
 use super::core::*;
 use super::deleter::PostgresqlDeleter;
@@ -103,14 +104,14 @@ impl Builder for PostgresqlBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
-                        .with_context("service", Scheme::Postgresql),
+                        .with_context("service", POSTGRESQL_SCHEME),
                 );
             }
         };
 
         let config = conn.parse::<PgConnectOptions>().map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Postgresql)
+                .with_context("service", POSTGRESQL_SCHEME)
                 .set_source(err)
         })?;
 
@@ -118,7 +119,7 @@ impl Builder for PostgresqlBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Postgresql));
+                    .with_context("service", POSTGRESQL_SCHEME));
             }
         };
 
@@ -153,7 +154,7 @@ pub struct PostgresqlBackend {
 impl PostgresqlBackend {
     pub fn new(core: PostgresqlCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Postgresql.into_static());
+        info.set_scheme(POSTGRESQL_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -233,10 +234,5 @@ impl Access for PostgresqlBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(PostgresqlDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

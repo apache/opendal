@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for seafile service.
-pub(super) const SEAFILE_SCHEME: &str = "seafile";
+pub const SEAFILE_SCHEME: &str = "seafile";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::SeafileBuilder as Seafile;
-
-mod config;
 pub use config::SeafileConfig;

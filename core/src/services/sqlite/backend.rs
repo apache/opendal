@@ -15,15 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
+use super::SQLITE_SCHEME;
 use super::config::SqliteConfig;
 use super::core::SqliteCore;
-use super::delete::SqliteDeleter;
+use super::deleter::SqliteDeleter;
 use super::writer::SqliteWriter;
 use crate::raw::oio;
 use crate::raw::*;
@@ -109,13 +110,13 @@ impl Builder for SqliteBuilder {
                     ErrorKind::ConfigInvalid,
                     "connection_string is required but not set",
                 )
-                .with_context("service", Scheme::Sqlite));
+                .with_context("service", SQLITE_SCHEME));
             }
         };
 
         let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Sqlite)
+                .with_context("service", SQLITE_SCHEME)
                 .set_source(err)
         })?;
 
@@ -123,7 +124,7 @@ impl Builder for SqliteBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Sqlite));
+                    .with_context("service", SQLITE_SCHEME));
             }
         };
 
@@ -136,7 +137,7 @@ impl Builder for SqliteBuilder {
 
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
-        Ok(SqliteAccessor::new(SqliteCore {
+        Ok(SqliteBackend::new(SqliteCore {
             pool: OnceCell::new(),
             config,
             table,
@@ -166,18 +167,18 @@ pub fn parse_sqlite_error(err: sqlx::Error) -> Error {
     error
 }
 
-/// SqliteAccessor implements Access trait directly
+/// SqliteBackend implements Access trait directly
 #[derive(Debug, Clone)]
-pub struct SqliteAccessor {
-    core: std::sync::Arc<SqliteCore>,
+pub struct SqliteBackend {
+    core: Arc<SqliteCore>,
     root: String,
-    info: std::sync::Arc<AccessorInfo>,
+    info: Arc<AccessorInfo>,
 }
 
-impl SqliteAccessor {
+impl SqliteBackend {
     fn new(core: SqliteCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Sqlite.into());
+        info.set_scheme(SQLITE_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -193,9 +194,9 @@ impl SqliteAccessor {
         });
 
         Self {
-            core: std::sync::Arc::new(core),
+            core: Arc::new(core),
             root: "/".to_string(),
-            info: std::sync::Arc::new(info),
+            info: Arc::new(info),
         }
     }
 
@@ -206,13 +207,13 @@ impl SqliteAccessor {
     }
 }
 
-impl Access for SqliteAccessor {
+impl Access for SqliteBackend {
     type Reader = Buffer;
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()
     }
 
@@ -331,14 +332,11 @@ mod test {
             value_field: "value".to_string(),
         };
 
-        let accessor = SqliteAccessor::new(core);
+        let accessor = SqliteBackend::new(core);
 
         // Verify basic properties
         assert_eq!(accessor.root, "/");
-        assert_eq!(
-            accessor.info.scheme(),
-            <Scheme as Into<&'static str>>::into(Scheme::Sqlite)
-        );
+        assert_eq!(accessor.info.scheme(), SQLITE_SCHEME);
         assert!(accessor.info.native_capability().read);
         assert!(accessor.info.native_capability().write);
         assert!(accessor.info.native_capability().delete);
@@ -355,7 +353,7 @@ mod test {
             value_field: "value".to_string(),
         };
 
-        let accessor = SqliteAccessor::new(core).with_normalized_root("/test/".to_string());
+        let accessor = SqliteBackend::new(core).with_normalized_root("/test/".to_string());
 
         assert_eq!(accessor.root, "/test/");
         assert_eq!(accessor.info.root(), "/test/".into());

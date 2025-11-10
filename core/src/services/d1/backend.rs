@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use super::D1_SCHEME;
 use super::config::D1Config;
 use super::core::*;
 use super::deleter::D1Deleter;
@@ -150,7 +151,7 @@ impl Builder for D1Builder {
         } else {
             HttpClient::new().map_err(|err| {
                 err.with_operation("Builder::build")
-                    .with_context("service", Scheme::D1)
+                    .with_context("service", D1_SCHEME)
             })?
         };
 
@@ -199,7 +200,7 @@ pub struct D1Backend {
 impl D1Backend {
     pub fn new(core: D1Core) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::D1.into_static());
+        info.set_scheme(D1_SCHEME);
         info.set_name(&core.table);
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -276,10 +277,5 @@ impl Access for D1Backend {
             RpDelete::default(),
             oio::OneShotDeleter::new(D1Deleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

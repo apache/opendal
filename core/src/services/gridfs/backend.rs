@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use tokio::sync::OnceCell;
 
+use super::GRIDFS_SCHEME;
 use super::config::GridfsConfig;
 use super::core::*;
 use super::deleter::GridfsDeleter;
@@ -111,7 +112,7 @@ impl Builder for GridfsBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is required")
-                        .with_context("service", Scheme::Gridfs),
+                        .with_context("service", GRIDFS_SCHEME),
                 );
             }
         };
@@ -119,7 +120,7 @@ impl Builder for GridfsBuilder {
             Some(v) => v.clone(),
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is required")
-                    .with_context("service", Scheme::Gridfs));
+                    .with_context("service", GRIDFS_SCHEME));
             }
         };
         let bucket = match &self.config.bucket.clone() {
@@ -158,7 +159,7 @@ pub struct GridfsBackend {
 impl GridfsBackend {
     pub fn new(core: GridfsCore) -> Self {
         let info = AccessorInfo::default();
-        info.set_scheme(Scheme::Gridfs.into_static());
+        info.set_scheme(GRIDFS_SCHEME);
         info.set_name(&format!("{}/{}", core.database, core.bucket));
         info.set_root("/");
         info.set_native_capability(Capability {
@@ -232,10 +233,5 @@ impl Access for GridfsBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(GridfsDeleter::new(self.core.clone(), self.root.clone())),
         ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let _ = build_abs_path(&self.root, path);
-        Ok((RpList::default(), ()))
     }
 }

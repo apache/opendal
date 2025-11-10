@@ -164,14 +164,14 @@ impl Builder for GdriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -183,14 +183,14 @@ impl Builder for GdriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Gdrive));
+                .with_context("service", GDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Gdrive));
+                .with_context("service", GDRIVE_SCHEME));
             }
         };
 

@@ -25,7 +25,7 @@ use monoio::fs::OpenOptions;
 use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
-use super::delete::MonoiofsDeleter;
+use super::deleter::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;

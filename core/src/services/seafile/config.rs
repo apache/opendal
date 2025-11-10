@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::SEAFILE_SCHEME;
 use super::backend::SeafileBuilder;
 
 /// Config for seafile services support.
@@ -60,7 +61,7 @@ impl crate::Configurator for SeafileConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Seafile)
+                .with_context("service", SEAFILE_SCHEME)
         })?;
 
         let raw_path = uri.root().ok_or_else(|| {
@@ -68,7 +69,7 @@ impl crate::Configurator for SeafileConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "uri path must start with repo name",
             )
-            .with_context("service", crate::Scheme::Seafile)
+            .with_context("service", SEAFILE_SCHEME)
         })?;
 
         let mut segments = raw_path.splitn(2, '/');
@@ -77,7 +78,7 @@ impl crate::Configurator for SeafileConfig {
                 crate::ErrorKind::ConfigInvalid,
                 "repo name is required in uri path",
             )
-            .with_context("service", crate::Scheme::Seafile)
+            .with_context("service", SEAFILE_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for tikv service.
+pub const TIKV_SCHEME: &str = "tikv";
+
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod writer;
 
 pub use backend::TikvBuilder as Tikv;
-
-mod config;
 pub use config::TikvConfig;

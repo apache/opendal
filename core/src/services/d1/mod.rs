@@ -15,14 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for d1 service.
+pub const D1_SCHEME: &str = "d1";
+
+mod backend;
+mod config;
 mod core;
 mod deleter;
 mod error;
 mod model;
 mod writer;
 
-mod backend;
 pub use backend::D1Builder as D1;
-
-mod config;
 pub use config::D1Config;

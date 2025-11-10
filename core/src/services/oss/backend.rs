@@ -29,7 +29,7 @@ use reqsign::AliyunOssSigner;
 use super::OSS_SCHEME;
 use super::config::OssConfig;
 use super::core::*;
-use super::delete::OssDeleter;
+use super::deleter::OssDeleter;
 use super::error::parse_error;
 use super::lister::OssLister;
 use super::lister::OssListers;
@@ -202,13 +202,13 @@ impl OssBuilder {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                        .with_context("service", Scheme::Oss)
+                        .with_context("service", OSS_SCHEME)
                         .with_context("endpoint", &ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
-                        .with_context("service", Scheme::Oss)
+                        .with_context("service", OSS_SCHEME)
                         .with_context("endpoint", &ep)
                 })?;
                 let full_host = match addressing_style {
@@ -240,7 +240,7 @@ impl OssBuilder {
                                 ErrorKind::ConfigInvalid,
                                 "endpoint protocol is invalid",
                             )
-                            .with_context("service", Scheme::Oss));
+                            .with_context("service", OSS_SCHEME));
                         }
                     },
                     None => format!("https://{full_host}"),
@@ -253,7 +253,7 @@ impl OssBuilder {
             }
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Oss));
+                    .with_context("service", OSS_SCHEME));
             }
         };
         Ok((endpoint, host))
@@ -386,7 +386,7 @@ impl TryFrom<&Option<String>> for AddressingStyle {
                 ErrorKind::ConfigInvalid,
                 "Invalid addressing style, available: `virtual`, `path`, `cname`",
             )
-            .with_context("service", Scheme::Oss)
+            .with_context("service", OSS_SCHEME)
             .with_context("addressing_style", v)),
         }
     }
@@ -406,7 +406,7 @@ impl Builder for OssBuilder {
             false => Ok(&self.config.bucket),
             true => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::Oss),
+                    .with_context("service", OSS_SCHEME),
             ),
         }?;
 

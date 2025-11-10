@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::SFTP_SCHEME;
 use super::backend::SftpBuilder;
 
 /// Config for Sftp Service support.
@@ -56,7 +57,7 @@ impl crate::Configurator for SftpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Sftp)
+                .with_context("service", SFTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

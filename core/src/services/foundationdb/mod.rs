@@ -15,12 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for foundationdb service.
+pub const FOUNDATIONDB_SCHEME: &str = "foundationdb";
+
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod writer;
 
 pub use backend::FoundationdbBuilder as Foundationdb;
-
-mod config;
 pub use config::FoundationdbConfig;

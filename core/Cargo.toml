@@ -253,7 +253,6 @@ jiff = { version = "0.2.15", features = ["serde"] }
 log = "0.4"
 md-5 = "0.10"
 percent-encoding = "2"
-url = "2.5"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [
   "stream",
@@ -261,6 +260,7 @@ reqwest = { version = "0.12.24", features = [
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.48", features = ["sync", "io-util"] }
+url = "2.5"
 uuid = { version = "1", features = ["serde", "v4"] }
 
 # Test only dependencies
@@ -414,6 +414,7 @@ probe = { version = "0.5.1", optional = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
+jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { version = "1.48", features = ["time"] }
 uuid = { version = "1.18", features = ["serde", "v4", "js"] }
 

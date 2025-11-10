@@ -210,20 +210,13 @@ impl Access for LakefsBackend {
 
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.clone().into_body();
+                let bs = resp.into_body();
 
                 let decoded_response: LakefsStatus =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-                if let Some(size_bytes) = decoded_response.size_bytes {
-                    meta.set_content_length(size_bytes);
-                }
-                meta.set_mode(EntryMode::FILE);
-                if let Some(v) = parse_content_disposition(resp.headers())? {
-                    meta.set_content_disposition(v);
-                }
 
-                meta.set_last_modified(Timestamp::from_second(decoded_response.mtime).unwrap());
+                // Use the helper function to parse LakefsStatus into Metadata
+                let meta = LakefsCore::parse_lakefs_status_into_metadata(&decoded_response);
 
                 Ok(RpStat::new(meta))
             }

@@ -4228,10 +4228,12 @@ checksum = "be1f93b8b1eb69c77f24bbb0afdf66f54b632ee39af40ca21c4365a1d7347e49"
 dependencies = [
  "jiff-static",
  "jiff-tzdb-platform",
+ "js-sys",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde",
+ "wasm-bindgen",
  "windows-sys 0.59.0",
 ]
 

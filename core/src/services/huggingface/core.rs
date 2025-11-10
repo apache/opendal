@@ -138,14 +138,14 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "{}/api/models/{}/resolve/{}/{}",
+                "{}/models/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
                 &self.revision,
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
-                "{}/api/datasets/{}/resolve/{}/{}",
+                "{}/datasets/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
                 &self.revision,

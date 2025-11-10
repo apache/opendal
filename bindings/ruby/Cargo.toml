@@ -34,8 +34,11 @@ name = "opendal_ruby"
 
 [dependencies]
 magnus = { version = "0.8", features = ["bytes", "io"] }
-# 1. this crate won't be published, we always use the local version
-# 2. we use the symbolink to allow released gem to find core's source files.
+# 1. we don't use published core but a local copy
+# 2. for a source release, this path must be the local "./core".
+#   we set it via rake copy_core. Read more in:
+#     - Rakefile
+#     - opendal.gemspec
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-throttle",

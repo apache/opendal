@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
+
 use crate::raw::*;
 use crate::{Error, ErrorKind, Result};
 
@@ -67,10 +69,7 @@ impl<A: Access> LayeredAccess for SanityCheckAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let (rp, lister) = self.inner.list(path, args).await?;
         let prefix = path.to_string();
-        let checker = SanityCheckLister {
-            inner: lister,
-            prefix,
-        };
+        let checker = SanityCheckLister::new(lister, prefix);
         Ok((rp, checker))
     }
 }
@@ -78,6 +77,17 @@ impl<A: Access> LayeredAccess for SanityCheckAccessor<A> {
 pub struct SanityCheckLister<L: oio::List> {
     inner: L,
     prefix: String,
+    seen: HashSet<String>,
+}
+
+impl<L: oio::List> SanityCheckLister<L> {
+    fn new(inner: L, prefix: String) -> Self {
+        Self {
+            inner,
+            prefix,
+            seen: HashSet::new(),
+        }
+    }
 }
 
 impl<L: oio::List> oio::List for SanityCheckLister<L> {
@@ -92,6 +102,12 @@ impl<L: oio::List> oio::List for SanityCheckLister<L> {
                             "sanity check failed: entry {} is outside prefix {}",
                             p, self.prefix
                         ),
+                    ));
+                }
+                if !self.seen.insert(p.to_string()) {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("sanity check failed: duplicate entry {} detected", p),
                     ));
                 }
                 Ok(Some(entry))

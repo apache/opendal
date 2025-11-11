@@ -23,10 +23,15 @@ use http::Request;
 use http::Response;
 use http::header;
 use serde::Deserialize;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use super::backend::RepoType;
 use crate::raw::*;
 use crate::*;
+
+fn percent_encode_revision(revision: &str) -> String {
+    utf8_percent_encode(revision, NON_ALPHANUMERIC).to_string()
+}
 
 pub struct HuggingfaceCore {
     pub info: Arc<AccessorInfo>,
@@ -62,13 +67,13 @@ impl HuggingfaceCore {
                 "{}/api/models/{}/paths-info/{}",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision)
+                percent_encode_revision(&self.revision)
             ),
             RepoType::Dataset => format!(
                 "{}/api/datasets/{}/paths-info/{}",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision)
+                percent_encode_revision(&self.revision)
             ),
         };
 
@@ -101,14 +106,14 @@ impl HuggingfaceCore {
                 "{}/api/models/{}/tree/{}/{}?expand=True",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision),
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
                 "{}/api/datasets/{}/tree/{}/{}?expand=True",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision),
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
         };
@@ -145,14 +150,14 @@ impl HuggingfaceCore {
                 "{}/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision),
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
                 "{}/datasets/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
-                percent_encode_path(&self.revision),
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
         };

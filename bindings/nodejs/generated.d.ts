@@ -293,6 +293,44 @@ export declare class Lister {
   next(): Promise<Entry | null>
 }
 
+/**
+ * Logging layer
+ *
+ * Add log for every operation.
+ *
+ * # Logging
+ *
+ * - OpenDAL will log in structural way.
+ * - Every operation will start with a `started` log entry.
+ * - Every operation will finish with the following status:
+ *   - `succeeded`: the operation is successful, but might have more to take.
+ *   - `finished`: the whole operation is finished.
+ *   - `failed`: the operation returns an unexpected error.
+ * - The default log level while expected error happened is `Warn`.
+ * - The default log level while unexpected failure happened is `Error`.
+ *
+ * # Examples
+ *
+ * ```javascript
+ * const op = new Operator("fs", { root: "/tmp" })
+ *
+ * const logging = new LoggingLayer();
+ * op.layer(logging.build());
+ * ```
+ *
+ * # Output
+ *
+ * To enable logging output, set the `RUST_LOG` environment variable:
+ *
+ * ```shell
+ * RUST_LOG=debug node app.js
+ * ```
+ */
+export declare class LoggingLayer {
+  constructor()
+  build(): ExternalObject<Layer>
+}
+
 /** Metadata carries all metadata associated with a path. */
 export declare class Metadata {
   /** Returns true if the <op.stat> object describes a file system directory. */
@@ -873,6 +911,104 @@ export declare class RetryLayer {
    * - The unit of min_delay is millisecond.
    */
   set minDelay(v: number)
+  build(): ExternalObject<Layer>
+}
+
+/**
+ * Throttle layer
+ *
+ * Add a bandwidth rate limiter to the underlying services.
+ *
+ * # Throttle
+ *
+ * There are several algorithms when it come to rate limiting techniques.
+ * This throttle layer uses Generic Cell Rate Algorithm (GCRA) provided by Governor.
+ * By setting the `bandwidth` and `burst`, we can control the byte flow rate of underlying services.
+ *
+ * # Note
+ *
+ * When setting the ThrottleLayer, always consider the largest possible operation size as the burst size,
+ * as **the burst size should be larger than any possible byte length to allow it to pass through**.
+ *
+ * # Examples
+ *
+ * This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
+ *
+ * ```javascript
+ * const op = new Operator("fs", { root: "/tmp" })
+ *
+ * const throttle = new ThrottleLayer(10 * 1024, 10000 * 1024);
+ * op.layer(throttle.build());
+ * ```
+ */
+export declare class ThrottleLayer {
+  /**
+   * Create a new `ThrottleLayer` with given bandwidth and burst.
+   *
+   * # Arguments
+   *
+   * - `bandwidth`: the maximum number of bytes allowed to pass through per second.
+   * - `burst`: the maximum number of bytes allowed to pass through at once.
+   *
+   * # Panics
+   *
+   * This function will panic if bandwidth or burst is 0.
+   */
+  constructor(bandwidth: number, burst: number)
+  build(): ExternalObject<Layer>
+}
+
+/**
+ * Timeout layer
+ *
+ * Add timeout for every operation to avoid slow or unexpected hang operations.
+ *
+ * # Notes
+ *
+ * `TimeoutLayer` treats all operations in two kinds:
+ *
+ * - Non IO Operation like `stat`, `delete` they operate on a single file. We control
+ *   them by setting `timeout`.
+ * - IO Operation like `read`, `Reader::read` and `Writer::write`, they operate on data directly, we
+ *   control them by setting `io_timeout`.
+ *
+ * # Default
+ *
+ * - timeout: 60 seconds
+ * - io_timeout: 10 seconds
+ *
+ * # Examples
+ *
+ * ```javascript
+ * const op = new Operator("fs", { root: "/tmp" })
+ *
+ * const timeout = new TimeoutLayer();
+ * timeout.timeout = 10000;      // 10 seconds for non-IO ops (in milliseconds)
+ * timeout.ioTimeout = 3000;     // 3 seconds for IO ops (in milliseconds)
+ *
+ * op.layer(timeout.build());
+ * ```
+ */
+export declare class TimeoutLayer {
+  constructor()
+  /**
+   * Set timeout for non-IO operations (stat, delete, etc.)
+   *
+   * # Notes
+   *
+   * - The unit is millisecond.
+   * - Default is 60000ms (60 seconds).
+   */
+  set timeout(v: number)
+  /**
+   * Set timeout for IO operations (read, write, etc.)
+   *
+   * # Notes
+   *
+   * - The unit is millisecond.
+   * - Default is 10000ms (10 seconds).
+   */
+  set ioTimeout(v: number)
   build(): ExternalObject<Layer>
 }
 

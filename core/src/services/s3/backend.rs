@@ -363,8 +363,7 @@ impl S3Builder {
         self.config.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.config.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
         let key_md5 = Md5::digest(key);
-        self.config.server_side_encryption_customer_key_md5 =
-            Some(BASE64_STANDARD.encode(key_md5));
+        self.config.server_side_encryption_customer_key_md5 = Some(BASE64_STANDARD.encode(key_md5));
         self
     }
 

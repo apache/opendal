@@ -60,11 +60,15 @@ impl HuggingfaceCore {
         let url = match self.repo_type {
             RepoType::Model => format!(
                 "{}/api/models/{}/paths-info/{}",
-                &self.endpoint, &self.repo_id, &self.revision
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_path(&self.revision)
             ),
             RepoType::Dataset => format!(
                 "{}/api/datasets/{}/paths-info/{}",
-                &self.endpoint, &self.repo_id, &self.revision
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_path(&self.revision)
             ),
         };
 
@@ -97,14 +101,14 @@ impl HuggingfaceCore {
                 "{}/api/models/{}/tree/{}/{}?expand=True",
                 &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_path(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
                 "{}/api/datasets/{}/tree/{}/{}?expand=True",
                 &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_path(&self.revision),
                 percent_encode_path(&p)
             ),
         };
@@ -138,17 +142,17 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "{}/models/{}/resolve/{}/{}",
+                "{}/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_path(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
                 "{}/datasets/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_path(&self.revision),
                 percent_encode_path(&p)
             ),
         };
@@ -409,5 +413,4 @@ mod tests {
 
         Ok(())
     }
-
 }

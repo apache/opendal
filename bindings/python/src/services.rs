@@ -154,7 +154,6 @@ impl PyScheme {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -213,7 +212,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -250,7 +248,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -314,7 +311,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -382,7 +378,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -427,7 +422,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -480,7 +474,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -510,7 +503,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -561,7 +553,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -591,7 +582,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -635,7 +625,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -668,7 +657,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -708,7 +696,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -783,7 +770,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -826,7 +812,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -865,7 +850,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -913,7 +897,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -949,7 +932,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -992,7 +974,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1043,7 +1024,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1077,7 +1057,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1110,7 +1089,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1152,7 +1130,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1205,7 +1182,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1235,7 +1211,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1281,7 +1256,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1331,7 +1305,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1376,7 +1349,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1432,7 +1404,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1477,7 +1448,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1527,7 +1497,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1632,7 +1601,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1669,7 +1637,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1724,7 +1691,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1760,7 +1726,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -1825,7 +1790,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -2042,7 +2006,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2086,7 +2049,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -2133,7 +2095,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2169,7 +2130,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -2227,7 +2187,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2266,7 +2225,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -2308,7 +2266,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2338,7 +2295,6 @@ submit! {
         "#
     }
 }
-
 
 submit! {
     gen_methods_from_python! {
@@ -2385,7 +2341,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2431,7 +2386,6 @@ submit! {
     }
 }
 
-
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2465,8 +2419,6 @@ submit! {
         "#
     }
 }
-
-
 
 submit! {
     gen_methods_from_python! {

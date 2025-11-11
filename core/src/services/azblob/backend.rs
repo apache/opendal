@@ -210,8 +210,8 @@ impl AzblobBuilder {
         // Only AES256 is supported for now
         self.config.encryption_algorithm = Some("AES256".to_string());
         self.config.encryption_key = Some(BASE64_STANDARD.encode(key));
-        self.config.encryption_key_sha256 =
-            Some(BASE64_STANDARD.encode(Sha256::digest(key).as_slice()));
+        let key_sha256 = Sha256::digest(key);
+        self.config.encryption_key_sha256 = Some(BASE64_STANDARD.encode(key_sha256));
         self
     }
 

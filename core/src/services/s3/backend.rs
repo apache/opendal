@@ -362,8 +362,9 @@ impl S3Builder {
     pub fn server_side_encryption_with_customer_key(mut self, algorithm: &str, key: &[u8]) -> Self {
         self.config.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.config.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
+        let key_md5 = Md5::digest(key);
         self.config.server_side_encryption_customer_key_md5 =
-            Some(BASE64_STANDARD.encode(Md5::digest(key).as_slice()));
+            Some(BASE64_STANDARD.encode(key_md5));
         self
     }
 

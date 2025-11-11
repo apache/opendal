@@ -1638,6 +1638,11 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Memcached implements ServiceConfig {
         /**
+         * <p>The maximum number of connections allowed.</p>
+         * <p>default is 10</p>
+         */
+        public final Integer connectionPoolMaxSize;
+        /**
          * <p>The default ttl for put operations.</p>
          */
         public final Duration defaultTtl;
@@ -1668,6 +1673,9 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (connectionPoolMaxSize != null) {
+                map.put("connection_pool_max_size", String.valueOf(connectionPoolMaxSize));
+            }
             if (defaultTtl != null) {
                 map.put("default_ttl", defaultTtl.toString());
             }
@@ -2517,6 +2525,11 @@ public interface ServiceConfig {
          */
         public final String clusterEndpoints;
         /**
+         * <p>The maximum number of connections allowed.</p>
+         * <p>default is 10</p>
+         */
+        public final Integer connectionPoolMaxSize;
+        /**
          * <p>the number of DBs redis can take is unlimited</p>
          * <p>default is db 0</p>
          */
@@ -2556,6 +2569,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (clusterEndpoints != null) {
                 map.put("cluster_endpoints", clusterEndpoints);
+            }
+            if (connectionPoolMaxSize != null) {
+                map.put("connection_pool_max_size", String.valueOf(connectionPoolMaxSize));
             }
             map.put("db", String.valueOf(db));
             if (defaultTtl != null) {

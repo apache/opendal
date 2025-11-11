@@ -154,6 +154,7 @@ impl PyScheme {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -212,6 +213,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -248,6 +250,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -311,6 +314,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -378,6 +382,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -422,6 +427,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -474,6 +480,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -503,6 +510,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -553,6 +561,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -582,6 +591,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -625,6 +635,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -657,6 +668,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -696,6 +708,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -770,6 +783,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -812,6 +826,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -850,6 +865,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -897,6 +913,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -932,6 +949,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -974,6 +992,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1024,6 +1043,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1057,6 +1077,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1089,6 +1110,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1131,6 +1153,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1143,6 +1166,7 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
+                connection_pool_max_size: builtins.int = ...,
                 default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
                 password: builtins.str = ...,
@@ -1154,6 +1178,9 @@ submit! {
 
                 Parameters
                 ----------
+                connection_pool_max_size : builtins.int, optional
+                    The maximum number of connections allowed.
+                    default is 10
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
@@ -1177,6 +1204,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1207,6 +1235,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1252,6 +1281,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1301,6 +1331,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1345,6 +1376,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1400,6 +1432,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1444,6 +1477,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1493,6 +1527,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1597,6 +1632,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1633,6 +1669,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1687,6 +1724,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1723,6 +1761,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -1736,6 +1775,7 @@ submit! {
                 /,
                 *,
                 cluster_endpoints: builtins.str = ...,
+                connection_pool_max_size: builtins.int = ...,
                 db: builtins.int,
                 default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
@@ -1754,6 +1794,9 @@ submit! {
                     "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381",
                     e.g.
                     default is None
+                connection_pool_max_size : builtins.int, optional
+                    The maximum number of connections allowed.
+                    default is 10
                 db : builtins.int
                     the number of DBs redis can take is unlimited
                     default is db 0
@@ -1782,6 +1825,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -1998,6 +2042,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2041,6 +2086,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -2087,6 +2133,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2122,6 +2169,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -2179,6 +2227,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2217,6 +2266,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -2258,6 +2308,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2287,6 +2338,7 @@ submit! {
         "#
     }
 }
+
 
 submit! {
     gen_methods_from_python! {
@@ -2333,6 +2385,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2378,6 +2431,7 @@ submit! {
     }
 }
 
+
 submit! {
     gen_methods_from_python! {
         r#"
@@ -2411,6 +2465,8 @@ submit! {
         "#
     }
 }
+
+
 
 submit! {
     gen_methods_from_python! {
@@ -3401,6 +3457,7 @@ submit! {
                 scheme: typing.Union[opendal.services.Scheme.Memcached, typing.Literal["memcached"]],
                 /,
                 *,
+                connection_pool_max_size: builtins.int = ...,
                 default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
                 password: builtins.str = ...,
@@ -3412,6 +3469,9 @@ submit! {
 
                 Parameters
                 ----------
+                connection_pool_max_size : builtins.int, optional
+                    The maximum number of connections allowed.
+                    default is 10
                 default_ttl : typing.Any, optional
                     The default ttl for put operations..
                     a human readable duration string see
@@ -3994,6 +4054,7 @@ submit! {
                 /,
                 *,
                 cluster_endpoints: builtins.str = ...,
+                connection_pool_max_size: builtins.int = ...,
                 db: builtins.int,
                 default_ttl: typing.Any = ...,
                 endpoint: builtins.str = ...,
@@ -4012,6 +4073,9 @@ submit! {
                     "tcp://127.0.0.1:6379,tcp://127.0.0.1:6380,tcp://127.0.0.1:6381",
                     e.g.
                     default is None
+                connection_pool_max_size : builtins.int, optional
+                    The maximum number of connections allowed.
+                    default is 10
                 db : builtins.int
                     the number of DBs redis can take is unlimited
                     default is db 0

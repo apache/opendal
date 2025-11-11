@@ -60,22 +60,22 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.54.1", vec![]);
+    let core = make_package("core", "0.55.0", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.6.3", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.54.1", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.6.1", vec![core.clone()]);
-    let unftp_sbe = make_package("integrations/unftp-sbe", "0.3.1", vec![core.clone()]);
+    let dav_server = make_package("integrations/dav-server", "0.7.0", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.55.0", vec![core.clone()]);
+    let parquet = make_package("integrations/parquet", "0.7.0", vec![core.clone()]);
+    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.0", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
-    let c = make_package("bindings/c", "0.46.3", vec![core.clone()]);
-    let cpp = make_package("bindings/cpp", "0.45.23", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.48.1", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.49.1", vec![core.clone()]);
-    let python = make_package("bindings/python", "0.46.1", vec![core.clone()]);
+    let c = make_package("bindings/c", "0.46.4", vec![core.clone()]);
+    let cpp = make_package("bindings/cpp", "0.45.24", vec![core.clone()]);
+    let java = make_package("bindings/java", "0.48.2", vec![core.clone()]);
+    let nodejs = make_package("bindings/nodejs", "0.49.2", vec![core.clone()]);
+    let python = make_package("bindings/python", "0.47.0", vec![core.clone()]);
 
     vec![
         core,

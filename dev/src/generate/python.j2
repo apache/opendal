@@ -75,6 +75,7 @@ submit! {
         import typing_extensions
         import opendal.services
         class Operator:
+            @overload
             def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
                 /,
@@ -115,6 +116,7 @@ submit! {
         import typing_extensions
         import opendal.services
         class AsyncOperator:
+            @overload
             def __new__(cls,
                 scheme: typing.Union[opendal.services.Scheme.{{ service_to_pascal(srv) }}, typing.Literal["{{ snake_to_kebab_case(srv) }}"]],
                 /,

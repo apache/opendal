@@ -202,7 +202,7 @@ opendal = { version = ">=0", path = "../../core", features = [
 ] }
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
-pyo3-stub-gen = { version = "0.16" }
+pyo3-stub-gen = { version = "0.17" }
 tokio = "1"
 
 [target.'cfg(unix)'.dependencies.opendal]

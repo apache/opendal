@@ -25,7 +25,6 @@ use futures::StreamExt;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
-use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -116,8 +115,9 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
-    if op.info().scheme() == opendal::Scheme::VercelBlob {
-        warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
+    #[cfg(feature = "services-vercel-blob")]
+    if op.info().scheme() == services::VERCEL_BLOB_SCHEME {
+        log::warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
         return Ok(());
     }
 
@@ -694,7 +694,8 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
 
 pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     // ghac does not support overwrite
-    if op.info().scheme() == Scheme::Ghac {
+    #[cfg(feature = "services-ghac")]
+    if op.info().scheme() == services::GHAC_SCHEME {
         return Ok(());
     }
 

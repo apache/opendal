@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for aliyun_drive service.
+/// Default scheme for aliyun-drive service.
 pub const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 
 mod backend;

@@ -44,7 +44,7 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
     let res = env.new_object_array(services.len() as jsize, "java/lang/String", JObject::null())?;
 
     for (idx, service) in services.iter().enumerate() {
-        let srv = string_to_jstring(env, Some(&service.to_string()))?;
+        let srv = string_to_jstring(env, Some(service.as_ref()))?;
         env.set_object_array_element(&res, idx as jsize, srv)?;
     }
 

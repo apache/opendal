@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for hdfs_native service.
-pub const HDFS_NATIVE_SCHEME: &str = "hdfs_native";
+/// Default scheme for hdfs-native service.
+pub const HDFS_NATIVE_SCHEME: &str = "hdfs-native";
 
 mod backend;
 mod config;

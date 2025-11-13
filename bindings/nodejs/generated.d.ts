@@ -950,9 +950,9 @@ export declare class ThrottleLayer {
    * - `bandwidth`: the maximum number of bytes allowed to pass through per second.
    * - `burst`: the maximum number of bytes allowed to pass through at once.
    *
-   * # Panics
+   * # Notes
    *
-   * This function will panic if bandwidth or burst is 0.
+   * Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
    */
   constructor(bandwidth: number, burst: number)
   build(): ExternalObject<Layer>

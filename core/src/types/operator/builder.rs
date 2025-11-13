@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::layers::*;
@@ -330,69 +329,6 @@ impl Operator {
         Ok(op)
     }
 
-    /// Create a new operator from given map.
-    ///
-    /// # Notes
-    ///
-    /// from_map is using static dispatch layers which is zero cost. via_map is
-    /// using dynamic dispatch layers which has a bit runtime overhead with an
-    /// extra vtable lookup and unable to inline. But from_map requires generic
-    /// type parameter which is not always easy to be used.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use std::collections::HashMap;
-    ///
-    /// use opendal::services::Memory;
-    /// use opendal::Operator;
-    /// async fn test() -> Result<()> {
-    ///     let map = HashMap::new();
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::from_map::<Memory>(map)?.finish();
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[deprecated = "use from_iter instead"]
-    pub fn from_map<B: Builder>(
-        map: HashMap<String, String>,
-    ) -> Result<OperatorBuilder<impl Access>> {
-        Self::from_iter::<B>(map)
-    }
-
-    /// Create a new operator from given scheme and map.
-    ///
-    /// # Notes
-    ///
-    /// from_map is using static dispatch layers which is zero cost. via_map is
-    /// using dynamic dispatch layers which has a bit runtime overhead with an
-    /// extra vtable lookup and unable to inline. But from_map requires generic
-    /// type parameter which is not always easy to be used.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use anyhow::Result;
-    /// use std::collections::HashMap;
-    ///
-    /// use opendal::Operator;
-    /// async fn test() -> Result<()> {
-    ///     let map = HashMap::new();
-    ///
-    ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_map(opendal::services::MEMORY_SCHEME, map)?;
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[deprecated = "use via_iter instead"]
-    pub fn via_map(scheme: impl AsRef<str>, map: HashMap<String, String>) -> Result<Operator> {
-        Self::via_iter(scheme, map)
-    }
-
     /// Create a new layer with dynamic dispatch.
     ///
     /// Please note that `Layer` can modify internal contexts such as `HttpClient`
@@ -459,7 +395,7 @@ impl Operator {
 /// use opendal::Result;
 ///
 /// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
-///     let op = Operator::from_map::<B>(cfg)?
+///     let op = Operator::from_iter::<B>(cfg)?
 ///         .layer(LoggingLayer::default())
 ///         .layer(RetryLayer::new())
 ///         .finish();

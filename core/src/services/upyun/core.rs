@@ -453,7 +453,7 @@ impl UpyunSigner {
         mac.update(sign.as_bytes());
         let sign_str = mac.finalize().into_bytes();
 
-        let sign = base64::engine::general_purpose::STANDARD.encode(sign_str.as_slice());
+        let sign = base64::engine::general_purpose::STANDARD.encode(sign_str);
         format!("UPYUN {}:{}", self.operator, sign)
     }
 }

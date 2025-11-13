@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for mini_moka service.
+/// Default scheme for mini-moka service.
 pub const MINI_MOKA_SCHEME: &str = "mini-moka";
 
 mod backend;

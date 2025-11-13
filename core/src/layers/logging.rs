@@ -45,7 +45,6 @@ use crate::*;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -83,7 +82,6 @@ use crate::*;
 /// # use opendal::Error;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// #[derive(Debug, Clone)]
 /// struct MyLoggingInterceptor;

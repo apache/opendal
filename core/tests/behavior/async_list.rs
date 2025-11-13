@@ -115,7 +115,8 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
 
@@ -653,7 +654,8 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
 pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
     if !op.info().full_capability().list_with_versions {

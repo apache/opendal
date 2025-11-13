@@ -379,12 +379,6 @@ impl S3Builder {
         self
     }
 
-    /// Set temporary credential used in AWS S3 connections
-    #[deprecated(note = "Please use `session_token` instead")]
-    pub fn security_token(self, token: &str) -> Self {
-        self.session_token(token)
-    }
-
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///

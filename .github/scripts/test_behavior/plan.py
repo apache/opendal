@@ -171,7 +171,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_go = True
             hint.all_service = True
 
-        # cpp affected  
+        # cpp affected 
         if p.startswith("bindings/cpp/"):
             hint.binding_cpp = True
             hint.all_service = True

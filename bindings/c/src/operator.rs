@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::ffi::c_void;
 use std::os::raw::c_char;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use ::opendal as core;
@@ -86,7 +85,7 @@ impl opendal_operator {
 }
 
 fn build_operator(
-    schema: core::Scheme,
+    schema: &str,
     map: HashMap<String, String>,
 ) -> core::Result<core::blocking::Operator> {
     let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
@@ -144,15 +143,6 @@ pub unsafe extern "C" fn opendal_operator_new(
     let scheme = std::ffi::CStr::from_ptr(scheme)
         .to_str()
         .expect("malformed scheme");
-    let scheme = match core::Scheme::from_str(scheme) {
-        Ok(s) => s,
-        Err(e) => {
-            return opendal_result_operator_new {
-                op: std::ptr::null_mut(),
-                error: opendal_error::new(e),
-            };
-        }
-    };
 
     let mut map = HashMap::<String, String>::default();
     if !options.is_null() {

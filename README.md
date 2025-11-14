@@ -12,6 +12,8 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* languages
 
+> **Note**: Each binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to the specific binding's version rather than the core version.
+
 | Name              | Release                                          | Docs                                                                              | Used By |
 | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------- |
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       | [![Rust Core Users Image]][Rust Core Users]            |

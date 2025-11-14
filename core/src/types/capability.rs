@@ -162,9 +162,6 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// Indicates if recursive listing is supported.
     pub list_with_recursive: bool,
-    /// Indicates if versions listing is supported.
-    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
-    pub list_with_version: bool,
     /// Indicates if listing with versions included is supported.
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.

@@ -182,22 +182,9 @@ impl OpList {
     }
 
     /// Change the version of this list operation
-    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
-    pub fn with_version(mut self, version: bool) -> Self {
-        self.versions = version;
-        self
-    }
-
-    /// Change the version of this list operation
     pub fn with_versions(mut self, versions: bool) -> Self {
         self.versions = versions;
         self
-    }
-
-    /// Get the version of this list operation
-    #[deprecated(since = "0.51.1", note = "use versions instead")]
-    pub fn version(&self) -> bool {
-        self.versions
     }
 
     /// Get the version of this list operation

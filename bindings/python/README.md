@@ -9,6 +9,8 @@ layer that allows you to access various storage services in a unified way.
 
 ![OpenDAL Python Usage Demo](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+
 ## Useful Links
 
 - [Documentation](https://opendal.apache.org/docs/python/)

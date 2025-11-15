@@ -1375,6 +1375,32 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated since v0.55.0. Use [`Operator::delete_try_stream`] with
+    /// [`Operator::lister_with`] instead.
+    ///
+    /// ## Migration Example
+    ///
+    /// Instead of:
+    /// ```ignore
+    /// op.remove_all("path/to/dir").await?;
+    /// ```
+    ///
+    /// Use:
+    /// ```ignore
+    /// let lister = op.lister_with("path/to/dir").recursive(true).await?;
+    /// op.delete_try_stream(lister).await?;
+    /// ```
+    ///
+    /// Or use [`Deleter`] for more control:
+    /// ```ignore
+    /// let mut deleter = op.deleter().await?;
+    /// let lister = op.lister_with("path/to/dir").recursive(true).await?;
+    /// deleter.delete_try_stream(lister).await?;
+    /// deleter.close().await?;
+    /// ```
+    ///
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1392,6 +1418,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.55.0",
+        note = "Use `delete_try_stream` with `lister_with().recursive(true)` instead. This method will be removed in a future version."
+    )]
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         match self.stat(path).await {
             // If object exists.

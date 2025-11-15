@@ -555,6 +555,42 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated since v0.55.0. Use [`blocking::Operator::delete_try_iter`] with
+    /// [`blocking::Operator::list_options`] instead.
+    ///
+    /// ## Migration Example
+    ///
+    /// Instead of:
+    /// ```ignore
+    /// op.remove_all("path/to/dir")?;
+    /// ```
+    ///
+    /// Use:
+    /// ```ignore
+    /// use opendal::options::ListOptions;
+    /// let entries = op.list_options("path/to/dir", ListOptions {
+    ///     recursive: true,
+    ///     ..Default::default()
+    /// })?;
+    /// op.delete_try_iter(entries.into_iter().map(|e| Ok(e.path().to_string())))?;
+    /// ```
+    ///
+    /// Or use [`BlockingDeleter`] for more control:
+    /// ```ignore
+    /// use opendal::options::ListOptions;
+    /// let mut deleter = op.deleter()?;
+    /// let entries = op.list_options("path/to/dir", ListOptions {
+    ///     recursive: true,
+    ///     ..Default::default()
+    /// })?;
+    /// for entry in entries {
+    ///     deleter.delete(entry.path())?;
+    /// }
+    /// deleter.close()?;
+    /// ```
+    ///
     /// # Notes
     ///
     /// We don't support batch delete now.
@@ -571,6 +607,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.55.0",
+        note = "Use `delete_try_iter` with `list_with().recursive(true)` instead. This method will be removed in a future version."
+    )]
     pub fn remove_all(&self, path: &str) -> Result<()> {
         self.handle.block_on(self.op.remove_all(path))
     }

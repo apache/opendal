@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="HTTP Optimization"><title>opendal::docs::performance::http_optimization - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (be0ade2b6 2025-10-11)" data-channel="nightly" data-search-js="search-8d3311b9.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js"><script src="../../../../static.files/storage-e2aeef58.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module http_optimization</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.55.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module http_<wbr>optimization</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#http-optimization" title="HTTP Optimization">HTTP Optimization</a><ul><li><a href="#http11" title="HTTP/1.1">HTTP/1.1</a></li><li><a href="#dns-caching" title="DNS Caching">DNS Caching</a></li><li><a href="#timeout" title="Timeout">Timeout</a></li><li><a href="#connection-pool" title="Connection Pool">Connection Pool</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>performance</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">performance</a></div><h1>Module <span>http_<wbr>optimization</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal/docs/performance/mod.rs.html#32">Source</a> </span></div><span class="item-info"><div class="stab portability">Available on <strong><code>docsrs</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><h2 id="http-optimization"><a class="doc-anchor" href="#http-optimization">§</a>HTTP Optimization</h2>
+<p>All OpenDAL HTTP-based storage services use the same <a href="../../../raw/struct.HttpClient.html" title="struct opendal::raw::HttpClient">HttpClient</a> abstraction. This design offers users a unified interface for configuring HTTP clients. The default HTTP client is <a href="https://crates.io/crates/reqwest">reqwest</a>, a popular and widely used HTTP client library in Rust.</p>
+<p>Many of the services supported by OpenDAL are HTTP-based. This guide aims to provide optimization tips for using HTTP-based storage services. While these tips are also applicable to other HTTP clients, the configuration methods may vary.</p>
+<p>Please note that the following optimizations are based on experience and may not be suitable for all scenarios. The most effective way to determine the optimal configuration is to test it in your specific environment.</p>
+<h3 id="http11"><a class="doc-anchor" href="#http11">§</a>HTTP/1.1</h3>
+<p>According to benchmarks from OpenDAL users, <code>HTTP/1.1</code> is generally faster than <code>HTTP/2</code> for large-scale download and upload operations.</p>
+<p><code>reqwest</code> tends to maintain only a single TCP connection for <code>HTTP/2</code>, relying on its built-in multiplexing capabilities. While this works well for small files, such as web page downloads, the design is not ideal for handling large files or massive file scan OLAP workloads.</p>
+<p>When <code>HTTP/2</code> is disabled, <code>reqwest</code> falls back to <code>HTTP/1.1</code> and utilizes its default connection pool. This approach is better suited for large files, as it allows multiple TCP connections to be opened and used concurrently, significantly improving performance for large file downloads and uploads.</p>
+<p>If your workloads involve large files or require high throughput, and are not sensitive to latency, consider disabling <code>HTTP/2</code> in your configuration.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>client = reqwest::ClientBuilder::new()
+  <span class="comment">// Disable http2 for better performance.
+  </span>.http1_only()
+  .build()
+  .expect(<span class="string">"http client must be created"</span>);
+
+<span class="comment">// Update the http client in the operator.
+</span><span class="kw">let </span>op = op.update_http_client(|<span class="kw">_</span>| HttpClient::with(client));</code></pre></div><h3 id="dns-caching"><a class="doc-anchor" href="#dns-caching">§</a>DNS Caching</h3>
+<p><code>reqwest</code> uses the DNS resolver provided by Rust’s standard library by default, which is backed by the <code>getaddrinfo</code> system call under the hood. This system call does not cache results by default, meaning that each time you make a request to a new domain, a DNS lookup will be performed.</p>
+<p>Under high-throughput workloads, this can cause a significant performance degradation, as each request incurs the overhead of a DNS lookup. It can also negatively affect the resolver, potentially overwhelming it with the volume of requests. In extreme cases, this may result in a DoS attack on the resolver, rendering it unresponsive.</p>
+<p>To mitigate this issue, you can enable DNS caching in <code>reqwest</code> by using the <code>hickory-dns</code> feature. This feature provides a more efficient DNS resolver that caches results.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>client = reqwest::ClientBuilder::new()
+  <span class="comment">// Enable hickory dns for dns caching and async dns resolve.
+  </span>.hickory_dns(<span class="bool-val">true</span>)
+  .build()
+  .expect(<span class="string">"http client must be created"</span>);
+
+<span class="comment">// Update the http client in the operator.
+</span><span class="kw">let </span>op = op.update_http_client(|<span class="kw">_</span>| HttpClient::with(client));</code></pre></div>
+<p>The default DNS cache settings from <code>hickory_dns</code> are generally sufficient for most workloads. However, if you have specific requirements—such as sharing the same DNS cache across multiple HTTP clients or configuring the DNS cache size—you can use the <code>Xuanwo/reqwest-hickory-resolver</code> crate to set up a custom DNS resolver.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="doccomment">/// Global shared hickory resolver.
+</span><span class="kw">static </span>GLOBAL_HICKORY_RESOLVER: LazyLock&lt;Arc&lt;HickoryResolver&gt;&gt; = LazyLock::new(|| {
+    <span class="kw">let </span><span class="kw-2">mut </span>opts = ResolverOpts::default();
+    <span class="comment">// Only query for the ipv4 address.
+    </span>opts.ip_strategy = LookupIpStrategy::Ipv4Only;
+    <span class="comment">// Use larger cache size for better performance.
+    </span>opts.cache_size = <span class="number">1024</span>;
+    <span class="comment">// Positive TTL is set to 5 minutes.
+    </span>opts.positive_min_ttl = <span class="prelude-val">Some</span>(Duration::from_secs(<span class="number">300</span>));
+    <span class="comment">// Negative TTL is set to 1 minute.
+    </span>opts.negative_min_ttl = <span class="prelude-val">Some</span>(Duration::from_secs(<span class="number">60</span>));
+
+    Arc::new(
+        HickoryResolver::default()
+            <span class="comment">// Always shuffle the DNS results for better performance.
+            </span>.with_shuffle(<span class="bool-val">true</span>)
+            .with_options(opts),
+    )
+});
+
+<span class="kw">let </span>client = reqwest::ClientBuilder::new()
+  <span class="comment">// Use our global hickory resolver instead.
+  </span>.dns_resolver(GLOBAL_HICKORY_RESOLVER.clone())
+  .build()
+  .expect(<span class="string">"http client must be created"</span>);
+
+<span class="comment">// Update the http client in the operator.
+</span><span class="kw">let </span>op = op.update_http_client(|<span class="kw">_</span>| HttpClient::with(client));</code></pre></div>
+<p>The <code>ResolverOpts</code> has many options that can be configured. For a complete list of options, please refer to the <a href="https://docs.rs/hickory-resolver/latest/hickory_resolver/config/struct.ResolverOpts.html">hickory_resolver documentation</a>.</p>
+<p>Here is a summary of the most commonly used options:</p>
+<ul>
+<li><code>ip_strategy</code>: <code>hickory_resolver</code> default to use <code>Ipv4thenIpv6</code> strategy, which means it will first query for the IPv4 address and then the IPv6 address. This is generally a good strategy for most workloads. However, if you only need IPv4 addresses, you can set this option to <code>Ipv4Only</code> to avoid unnecessary DNS lookups.</li>
+<li><code>cache_size</code>: This option controls the size of the DNS cache. A larger cache size can improve performance, but it may also increase memory usage. The default value is <code>32</code>.</li>
+<li><code>positive_min_ttl</code> and <code>negative_min_ttl</code>: This option controls the minimum TTL for positive and negative DNS responses. A longer TTL can improve performance, but it may also increase the risk of stale DNS records. The default value is <code>None</code>. Some bad DNS servers may return a TTL of <code>0</code> even when the record is valid. In this case, you can set a longer TTL to avoid unnecessary DNS lookups.</li>
+</ul>
+<p>In addition to the options mentioned above, <code>Xuanwo/reqwest-hickory-resolver</code> also offers a <code>shuffle</code> option. This setting determines whether the DNS results are shuffled before being returned. Shuffling can enhance performance by distributing the load more evenly across multiple IP addresses.</p>
+<h3 id="timeout"><a class="doc-anchor" href="#timeout">§</a>Timeout</h3>
+<p><code>reqwest</code> didn’t set a default timeout for HTTP requests. This means that if a request hangs or takes too long to complete, it can block the entire process, leading to performance degradation or even application crashes.</p>
+<p>It’s recommended to set a connect timeout for HTTP requests to prevent this issue.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>client = reqwest::ClientBuilder::new()
+  <span class="comment">// Set a connect timeout of 5 seconds.
+  </span>.connect_timeout(Duration::from_secs(<span class="number">5</span>))
+  .build()
+  .expect(<span class="string">"http client must be created"</span>);
+
+<span class="comment">// Update the http client in the operator.
+</span><span class="kw">let </span>op = op.update_http_client(|<span class="kw">_</span>| HttpClient::with(client));</code></pre></div>
+<p>It’s also recommended to use opendal’s <a href="../../../layers/struct.TimeoutLayer.html" title="struct opendal::layers::TimeoutLayer"><code>TimeoutLayer</code></a> to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let </span>op = op.layer(TimeoutLayer::new());</code></pre></div><h3 id="connection-pool"><a class="doc-anchor" href="#connection-pool">§</a>Connection Pool</h3>
+<p><code>reqwest</code> uses a connection pool to manage HTTP connections. This allows multiple requests to share the same connection, reducing the overhead of establishing new connections for each request.</p>
+<p>By default, the connection pool is unlimited, allowing <code>reqwest</code> to open as many connections as needed. The default keep-alive timeout is 90 seconds, meaning any connection idle for longer than that will be closed.</p>
+<p>You can tune those settings via:</p>
+<ul>
+<li><a href="https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout">pool_idle_timeout</a>: Set an optional timeout for idle sockets being kept-alive.</li>
+<li><a href="https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_max_idle_per_host">pool_max_idle_per_host</a>: Sets the maximum idle connection per host allowed in the pool.</li>
+</ul>
+</div></details></section></div></main></body></html>

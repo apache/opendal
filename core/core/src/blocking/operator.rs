@@ -609,7 +609,7 @@ impl Operator {
     /// ```
     #[deprecated(
         since = "0.55.0",
-        note = "Use `delete_try_iter` with `list_with().recursive(true)` instead. This method will be removed in a future version."
+        note = "Use `delete_try_iter` with `list_options` and `recursive: true` instead"
     )]
     pub fn remove_all(&self, path: &str) -> Result<()> {
         self.handle.block_on(self.op.remove_all(path))

@@ -611,6 +611,7 @@ impl Operator {
         since = "0.55.0",
         note = "Use `delete_try_iter` with `list_options` and `recursive: true` instead"
     )]
+    #[allow(deprecated)]
     pub fn remove_all(&self, path: &str) -> Result<()> {
         self.handle.block_on(self.op.remove_all(path))
     }

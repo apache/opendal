@@ -166,30 +166,14 @@ impl FsCore {
                 match e.kind() {
                     // Return empty list if the directory not found
                     std::io::ErrorKind::NotFound => Ok(None),
-                    // TODO: enable after our MSRV has been raised to 1.83
-                    //
                     // If the path is not a directory, return an empty list
                     //
                     // The path could be a file or a symbolic link in this case.
                     // Returning a NotADirectory error to the user isn't helpful; instead,
                     // providing an empty directory is a more user-friendly. In fact, the dir
                     // `path/` does not exist.
-                    // std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
-                    _ => {
-                        // TODO: remove this after we have MSRV 1.83
-                        #[cfg(unix)]
-                        if e.raw_os_error() == Some(20) {
-                            // On unix 20: Not a directory
-                            return Ok(None);
-                        }
-                        #[cfg(windows)]
-                        if e.raw_os_error() == Some(267) {
-                            // On windows 267: DIRECTORY
-                            return Ok(None);
-                        }
-
-                        Err(new_std_io_error(e))
-                    }
+                    std::io::ErrorKind::NotADirectory => Ok(None),
+                    _ => Err(new_std_io_error(e)),
                 }
             }
         }

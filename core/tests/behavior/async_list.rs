@@ -140,7 +140,8 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
-    op.remove_all(parent).await?;
+    let lister = op.lister_with(parent).recursive(true).await?;
+    op.delete_try_stream(lister).await?;
     Ok(())
 }
 
@@ -399,7 +400,8 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
 
     assert_eq!(expected, actual);
 
-    op.remove_all(dir).await?;
+    let lister = op.lister_with(dir).recursive(true).await?;
+    op.delete_try_stream(lister).await?;
 
     Ok(())
 }
@@ -556,7 +558,8 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         }
     }
 
-    op.remove_all(&format!("{parent}/x/")).await?;
+    let lister = op.lister_with(&format!("{parent}/x/")).recursive(true).await?;
+    op.delete_try_stream(lister).await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
@@ -688,7 +691,8 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
-    op.remove_all(parent).await?;
+    let lister = op.lister_with(parent).recursive(true).await?;
+    op.delete_try_stream(lister).await?;
     Ok(())
 }
 
@@ -735,7 +739,8 @@ pub async fn test_list_with_versions_and_start_after(op: Operator) -> Result<()>
     actual.sort_unstable();
     assert_eq!(expected, actual);
 
-    op.remove_all(dir).await?;
+    let lister = op.lister_with(dir).recursive(true).await?;
+    op.delete_try_stream(lister).await?;
 
     Ok(())
 }

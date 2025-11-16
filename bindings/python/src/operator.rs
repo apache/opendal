@@ -484,8 +484,21 @@ impl Operator {
     /// path : str
     ///     The path to remove.
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
+        use ocore::options::ListOptions;
         let path = path.to_string_lossy().to_string();
-        self.core.remove_all(&path).map_err(format_pyerr)
+        let entries = self
+            .core
+            .list_options(
+                &path,
+                ListOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
+            .map_err(format_pyerr)?;
+        self.core
+            .delete_try_iter(entries.into_iter().map(Ok))
+            .map_err(format_pyerr)
     }
 
     /// Create a directory at the given path.
@@ -1216,10 +1229,16 @@ impl AsyncOperator {
         imports=("collections.abc")
     ))]
     pub fn remove_all<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+        use ocore::options::ListOptions;
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            this.remove_all(&path).await.map_err(format_pyerr)
+            let lister = this
+                .lister_with(&path)
+                .recursive(true)
+                .await
+                .map_err(format_pyerr)?;
+            this.delete_try_stream(lister).await.map_err(format_pyerr)
         })
     }
 

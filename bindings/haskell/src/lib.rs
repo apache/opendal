@@ -721,7 +721,7 @@ pub unsafe extern "C" fn blocking_remove_all(
                     return;
                 }
             };
-            match op.delete_try_iter(entries.into_iter().map(|e| Ok(e))) {
+            match op.delete_try_iter(entries.into_iter().map(Ok)) {
                 Ok(()) => FFIResult::ok(()),
                 Err(e) => FFIResult::err_with_source("Failed to remove all", e),
             }

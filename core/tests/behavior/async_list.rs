@@ -558,7 +558,10 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         }
     }
 
-    let lister = op.lister_with(&format!("{parent}/x/")).recursive(true).await?;
+    let lister = op
+        .lister_with(&format!("{parent}/x/"))
+        .recursive(true)
+        .await?;
     op.delete_try_stream(lister).await?;
 
     for path in expected.iter() {

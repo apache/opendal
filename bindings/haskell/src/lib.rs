@@ -708,10 +708,13 @@ pub unsafe extern "C" fn blocking_remove_all(
 
         let res = {
             use od::options::ListOptions;
-            let entries = match op.list_options(path_str, ListOptions {
-                recursive: true,
-                ..Default::default()
-            }) {
+            let entries = match op.list_options(
+                path_str,
+                ListOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            ) {
                 Ok(entries) => entries,
                 Err(e) => {
                     *result = FFIResult::err_with_source("Failed to list entries", e);

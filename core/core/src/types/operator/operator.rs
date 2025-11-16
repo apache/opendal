@@ -1420,7 +1420,7 @@ impl Operator {
     /// ```
     #[deprecated(
         since = "0.55.0",
-        note = "Use `delete_try_stream` with `lister_with().recursive(true)` instead. This method will be removed in a future version."
+        note = "Use `delete_try_stream` with `lister_with().recursive(true)` instead"
     )]
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         match self.stat(path).await {

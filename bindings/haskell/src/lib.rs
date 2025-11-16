@@ -707,21 +707,14 @@ pub unsafe extern "C" fn blocking_remove_all(
         };
 
         let res = {
-            use od::options::ListOptions;
-            let entries = match op.list_options(
+            use od::options::DeleteOptions;
+            match op.delete_options(
                 path_str,
-                ListOptions {
+                DeleteOptions {
                     recursive: true,
                     ..Default::default()
                 },
             ) {
-                Ok(entries) => entries,
-                Err(e) => {
-                    *result = FFIResult::err_with_source("Failed to list entries", e);
-                    return;
-                }
-            };
-            match op.delete_try_iter(entries.into_iter().map(Ok)) {
                 Ok(()) => FFIResult::ok(()),
                 Err(e) => FFIResult::err_with_source("Failed to remove all", e),
             }

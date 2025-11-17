@@ -177,7 +177,7 @@ impl Reader {
         let mut bufs = Vec::with_capacity(ranges.len());
         for range in ranges {
             let partition_idx = merged_ranges.partition_point(|v| v.start <= range.start);
-            
+
             if partition_idx == 0 {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
@@ -185,18 +185,21 @@ impl Reader {
                 )
                 .with_operation("fetch"));
             }
-            
+
             let idx = partition_idx - 1;
-            
+
             // Verify that range is within the merged range
             if range.start < merged_ranges[idx].start || range.end > merged_ranges[idx].end {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    format!("range {:?} is not within merged range {:?}", range, merged_ranges[idx]),
+                    format!(
+                        "range {:?} is not within merged range {:?}",
+                        range, merged_ranges[idx]
+                    ),
                 )
                 .with_operation("fetch"));
             }
-            
+
             let start = range.start - merged_ranges[idx].start;
             let end = range.end - merged_ranges[idx].start;
             bufs.push(merged_bufs[idx].slice(start as usize..end as usize));
@@ -624,6 +627,7 @@ mod tests {
 
     /// Test that partition_point returning 0 is handled correctly.
     #[tokio::test]
+    #[allow(clippy::single_range_in_vec_init, clippy::useless_vec)]
     async fn test_fetch_partition_point_validation() -> Result<()> {
         // Test that partition_point returning 0 is detected and handled
         let merged_ranges = vec![100..200];
@@ -631,10 +635,10 @@ mod tests {
 
         let partition_idx = merged_ranges.partition_point(|v| v.start <= range.start);
         assert_eq!(partition_idx, 0);
-        
+
         // Verify that checked_sub correctly detects the underflow
         assert_eq!(partition_idx.checked_sub(1), None);
-        
+
         Ok(())
     }
 }

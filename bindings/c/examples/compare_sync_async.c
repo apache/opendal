@@ -20,6 +20,7 @@
 #include "opendal.h"
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 /* -------- Sync (blocking) -------- */
 static void sync_example(void)
@@ -114,8 +115,46 @@ int main(void)
     printf("--- sync example ---\n");
     sync_example();
 
-    printf("--- async example ---\n");
+    printf("--- async example (blocking await) ---\n");
     async_example();
+
+    // Non-blocking polling style: start a read, poll until ready, then await once.
+    printf("--- async example (non-blocking poll) ---\n");
+    opendal_result_operator_new r = opendal_async_operator_new("memory", NULL);
+    const opendal_async_operator* op = (const opendal_async_operator*)r.op;
+
+    const char* msg = "hello poll";
+    opendal_bytes data = {.data = (uint8_t*)msg, .len = strlen(msg), .capacity = strlen(msg)};
+    opendal_result_future_write wf = opendal_async_operator_write(op, "poll.txt", &data);
+    opendal_error* werr = opendal_future_write_await(wf.future);
+    if (werr) { opendal_error_free(werr); }
+
+    opendal_result_future_read rf = opendal_async_operator_read(op, "poll.txt");
+    opendal_result_read rd = {0};
+    while (1) {
+        opendal_future_status st = opendal_future_read_poll(rf.future, &rd);
+        if (st == OPENDAL_FUTURE_PENDING) {
+            // simulate doing other work
+            struct timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 1 * 1000 * 1000; // 1ms
+            nanosleep(&ts, NULL);
+            continue;
+        }
+        break;
+    }
+    if (rd.error == NULL) {
+        printf("[async poll] got %zu bytes: %.*s\n", rd.data.len, (int)rd.data.len, rd.data.data);
+        opendal_bytes_free(&rd.data);
+    } else {
+        opendal_error_free(rd.error);
+    }
+
+    opendal_result_future_delete df = opendal_async_operator_delete(op, "poll.txt");
+    opendal_error* derr = opendal_future_delete_await(df.future);
+    if (derr) opendal_error_free(derr);
+
+    opendal_async_operator_free(op);
 
     return 0;
 }

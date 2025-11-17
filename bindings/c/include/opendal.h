@@ -88,6 +88,28 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * Status returned by non-blocking future polling.
+ */
+typedef enum opendal_future_status {
+  /**
+   * Future is still pending.
+   */
+  OPENDAL_FUTURE_PENDING = 0,
+  /**
+   * Future is ready and output has been written to the provided out param.
+   */
+  OPENDAL_FUTURE_READY = 1,
+  /**
+   * Future completed with an error state (e.g., channel closed).
+   */
+  OPENDAL_FUTURE_ERROR = 2,
+  /**
+   * Future was cancelled.
+   */
+  OPENDAL_FUTURE_CANCELED = 3,
+} opendal_future_status;
+
+/**
  * The `Operator` serves as the entry point for all public asynchronous APIs.
  *
  * For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
@@ -207,11 +229,13 @@ typedef enum opendal_code {
  */
 typedef struct Operator Operator;
 
-typedef struct Option_JoinHandle_Result Option_JoinHandle_Result;
+typedef struct Option_JoinHandle Option_JoinHandle;
 
-typedef struct Option_JoinHandle_Result_Buffer Option_JoinHandle_Result_Buffer;
+typedef struct Option_Receiver_Result Option_Receiver_Result;
 
-typedef struct Option_JoinHandle_Result_Metadata Option_JoinHandle_Result_Metadata;
+typedef struct Option_Receiver_Result_Buffer Option_Receiver_Result_Buffer;
+
+typedef struct Option_Receiver_Result_Metadata Option_Receiver_Result_Metadata;
 
 /**
  * \brief opendal_bytes carries raw-bytes with its length
@@ -570,7 +594,11 @@ typedef struct opendal_future_stat {
   /**
    * Pointer to an owned JoinHandle wrapped in Option for safe extraction.
    */
-  struct Option_JoinHandle_Result_Metadata *inner;
+  struct Option_JoinHandle *handle;
+  /**
+   * Receiver for the stat result.
+   */
+  struct Option_Receiver_Result_Metadata *rx;
 } opendal_future_stat;
 
 /**
@@ -591,7 +619,8 @@ typedef struct opendal_result_future_stat {
  * Future handle for asynchronous read operations.
  */
 typedef struct opendal_future_read {
-  struct Option_JoinHandle_Result_Buffer *inner;
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result_Buffer *rx;
 } opendal_future_read;
 
 /**
@@ -612,7 +641,8 @@ typedef struct opendal_result_future_read {
  * Future handle for asynchronous write operations.
  */
 typedef struct opendal_future_write {
-  struct Option_JoinHandle_Result_Metadata *inner;
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result_Metadata *rx;
 } opendal_future_write;
 
 /**
@@ -633,7 +663,8 @@ typedef struct opendal_result_future_write {
  * Future handle for asynchronous delete operations.
  */
 typedef struct opendal_future_delete {
-  struct Option_JoinHandle_Result *inner;
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result *rx;
 } opendal_future_delete;
 
 /**
@@ -1599,6 +1630,17 @@ struct opendal_result_future_stat opendal_async_operator_stat(const struct opend
 struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat *future);
 
 /**
+ * \brief Non-blocking check whether a stat future has completed and, if so, fill output.
+ */
+enum opendal_future_status opendal_future_stat_poll(struct opendal_future_stat *future,
+                                                    struct opendal_result_stat *out);
+
+/**
+ * \brief Non-blocking check whether the stat future has completed.
+ */
+bool opendal_future_stat_is_ready(const struct opendal_future_stat *future);
+
+/**
  * \brief Cancel and free a stat future without awaiting it.
  */
 void opendal_future_stat_free(struct opendal_future_stat *future);
@@ -1618,6 +1660,17 @@ struct opendal_result_future_read opendal_async_operator_read(const struct opend
 struct opendal_result_read opendal_future_read_await(struct opendal_future_read *future);
 
 /**
+ * \brief Non-blocking check whether a read future has completed and, if so, fill output.
+ */
+enum opendal_future_status opendal_future_read_poll(struct opendal_future_read *future,
+                                                    struct opendal_result_read *out);
+
+/**
+ * \brief Non-blocking check whether the read future has completed.
+ */
+bool opendal_future_read_is_ready(const struct opendal_future_read *future);
+
+/**
  * \brief Cancel and free a read future without awaiting it.
  */
 void opendal_future_read_free(struct opendal_future_read *future);
@@ -1635,6 +1688,17 @@ struct opendal_result_future_write opendal_async_operator_write(const struct ope
 struct opendal_error *opendal_future_write_await(struct opendal_future_write *future);
 
 /**
+ * \brief Non-blocking check whether a write future has completed and, if so, return any error.
+ */
+enum opendal_future_status opendal_future_write_poll(struct opendal_future_write *future,
+                                                     struct opendal_error **error_out);
+
+/**
+ * \brief Non-blocking check whether the write future has completed.
+ */
+bool opendal_future_write_is_ready(const struct opendal_future_write *future);
+
+/**
  * \brief Cancel and free a write future without awaiting it.
  */
 void opendal_future_write_free(struct opendal_future_write *future);
@@ -1649,6 +1713,17 @@ struct opendal_result_future_delete opendal_async_operator_delete(const struct o
  * \brief Await an asynchronous delete future.
  */
 struct opendal_error *opendal_future_delete_await(struct opendal_future_delete *future);
+
+/**
+ * \brief Non-blocking check whether a delete future has completed and, if so, return any error.
+ */
+enum opendal_future_status opendal_future_delete_poll(struct opendal_future_delete *future,
+                                                      struct opendal_error **error_out);
+
+/**
+ * \brief Non-blocking check whether the delete future has completed.
+ */
+bool opendal_future_delete_is_ready(const struct opendal_future_delete *future);
 
 /**
  * \brief Cancel and free a delete future without awaiting it.

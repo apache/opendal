@@ -133,6 +133,7 @@ The C binding also exposes a small asynchronous API surface, mirroring Rust's `a
 - Create an async operator with `opendal_async_operator_new` (cast the returned `op` field to `opendal_async_operator`).
 - Start operations with `opendal_async_operator_stat`, `opendal_async_operator_write`, `opendal_async_operator_read`, and `opendal_async_operator_delete`.
 - Await results using the matching `opendal_future_*_await` helpers, or abort early with `opendal_future_*_free`.
+- For non-blocking event-loop style, poll with `opendal_future_*_poll` which returns `opendal_future_status` (`PENDING`, `READY`, `ERROR`, `CANCELED`) without blocking the thread; call `*_await` once `READY` to consume the result, or keep polling.
 
 ```c
 opendal_result_operator_new res = opendal_async_operator_new("memory", NULL);

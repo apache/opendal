@@ -123,6 +123,33 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   make basic error_handle async_stat
   ```
 
+## Async APIs
+
+The C binding also exposes a small asynchronous API surface, mirroring Rust's `async` operator. Each async call returns a future handle that you can await or cancel.
+
+- Create an async operator with `opendal_async_operator_new` (cast the returned `op` field to `opendal_async_operator`).
+- Start operations with `opendal_async_operator_stat`, `opendal_async_operator_write`, `opendal_async_operator_read`, and `opendal_async_operator_delete`.
+- Await results using the matching `opendal_future_*_await` helpers, or abort early with `opendal_future_*_free`.
+
+```c
+opendal_result_operator_new res = opendal_async_operator_new("memory", NULL);
+const opendal_async_operator* op = (const opendal_async_operator*)res.op;
+
+opendal_bytes data = { .data = (uint8_t*)"hello", .len = 5, .capacity = 5 };
+opendal_error* write_err = opendal_future_write_await(
+    opendal_async_operator_write(op, "hello.txt", &data).future);
+
+opendal_result_read read_out = opendal_future_read_await(
+    opendal_async_operator_read(op, "hello.txt").future);
+printf("read %zu bytes: %.*s\n", read_out.data.len, (int)read_out.data.len, read_out.data.data);
+opendal_bytes_free(&read_out.data);
+
+opendal_future_delete_await(opendal_async_operator_delete(op, "hello.txt").future);
+opendal_async_operator_free(op);
+```
+
+See `tests/async_stat_test.cpp` for more complete usage with GoogleTest.
+
 ## Documentation
 
 The documentation index page source is under `./docs/doxygen/html/index.html`.

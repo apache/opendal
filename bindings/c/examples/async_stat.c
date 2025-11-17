@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "opendal.h"
 
@@ -77,6 +78,59 @@ int main(int argc, char* argv[])
     } else if (stat_result.meta != NULL) {
         // Should not happen in this example
         opendal_metadata_free(stat_result.meta);
+    }
+
+    // --- Async write/read/delete demo ---
+    const char* write_path = "greeting.txt";
+    const char* message = "hi from async write";
+    opendal_bytes data = {
+        .data = (uint8_t*)message,
+        .len = strlen(message),
+        .capacity = strlen(message),
+    };
+
+    printf("Writing '%s' to %s asynchronously...\n", message, write_path);
+    opendal_result_future_write write_future = opendal_async_operator_write(op, write_path, &data);
+    if (write_future.error != NULL) {
+        printf("Write future creation failed: %.*s\n", (int)write_future.error->message.len, (char*)write_future.error->message.data);
+        opendal_error_free(write_future.error);
+    } else {
+        opendal_error* write_err = opendal_future_write_await(write_future.future);
+        if (write_err != NULL) {
+            printf("Write failed: %.*s\n", (int)write_err->message.len, (char*)write_err->message.data);
+            opendal_error_free(write_err);
+        } else {
+            printf("Write completed. Reading it back asynchronously...\n");
+            opendal_result_future_read read_future = opendal_async_operator_read(op, write_path);
+            if (read_future.error != NULL) {
+                printf("Read future creation failed: %.*s\n", (int)read_future.error->message.len, (char*)read_future.error->message.data);
+                opendal_error_free(read_future.error);
+            } else {
+                opendal_result_read read_result = opendal_future_read_await(read_future.future);
+                if (read_result.error != NULL) {
+                    printf("Read failed: %.*s\n", (int)read_result.error->message.len, (char*)read_result.error->message.data);
+                    opendal_error_free(read_result.error);
+                } else {
+                    printf("Read back %zu bytes: %.*s\n", read_result.data.len, (int)read_result.data.len, read_result.data.data);
+                    opendal_bytes_free(&read_result.data);
+                }
+            }
+
+            printf("Deleting %s asynchronously...\n", write_path);
+            opendal_result_future_delete delete_future = opendal_async_operator_delete(op, write_path);
+            if (delete_future.error != NULL) {
+                printf("Delete future creation failed: %.*s\n", (int)delete_future.error->message.len, (char*)delete_future.error->message.data);
+                opendal_error_free(delete_future.error);
+            } else {
+                opendal_error* delete_err = opendal_future_delete_await(delete_future.future);
+                if (delete_err != NULL) {
+                    printf("Delete failed: %.*s\n", (int)delete_err->message.len, (char*)delete_err->message.data);
+                    opendal_error_free(delete_err);
+                } else {
+                    printf("Delete completed.\n");
+                }
+            }
+        }
     }
 
     // --- Cleanup ---

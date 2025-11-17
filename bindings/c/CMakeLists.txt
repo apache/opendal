@@ -91,6 +91,7 @@ target_link_libraries(async_stat opendal_c_shared pthread)
 
 # test targets
 set(GTEST_SRCS
+    tests/async_stat_test.cpp
     tests/bdd.cpp
     tests/error_msg.cpp
     tests/list.cpp
@@ -98,7 +99,7 @@ set(GTEST_SRCS
     tests/reader.cpp
 )
 add_executable(tests ${GTEST_SRCS})
-target_link_libraries(tests opendal_c_shared gtest_main uuid)
+target_link_libraries(tests opendal_c_shared gtest_main uuid pthread)
 if (TEST_ENABLE_ASAN)
     target_compile_options(tests PRIVATE -fsanitize=address)
     target_link_options(tests PRIVATE -fsanitize=address)

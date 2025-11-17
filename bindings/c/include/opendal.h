@@ -207,6 +207,10 @@ typedef enum opendal_code {
  */
 typedef struct Operator Operator;
 
+typedef struct Option_JoinHandle_Result Option_JoinHandle_Result;
+
+typedef struct Option_JoinHandle_Result_Buffer Option_JoinHandle_Result_Buffer;
+
 typedef struct Option_JoinHandle_Result_Metadata Option_JoinHandle_Result_Metadata;
 
 /**
@@ -582,6 +586,69 @@ typedef struct opendal_result_future_stat {
    */
   struct opendal_error *error;
 } opendal_result_future_stat;
+
+/**
+ * Future handle for asynchronous read operations.
+ */
+typedef struct opendal_future_read {
+  struct Option_JoinHandle_Result_Buffer *inner;
+} opendal_future_read;
+
+/**
+ * Result type for creating an asynchronous read future.
+ */
+typedef struct opendal_result_future_read {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_read *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_read;
+
+/**
+ * Future handle for asynchronous write operations.
+ */
+typedef struct opendal_future_write {
+  struct Option_JoinHandle_Result_Metadata *inner;
+} opendal_future_write;
+
+/**
+ * Result type for creating an asynchronous write future.
+ */
+typedef struct opendal_result_future_write {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_write *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_write;
+
+/**
+ * Future handle for asynchronous delete operations.
+ */
+typedef struct opendal_future_delete {
+  struct Option_JoinHandle_Result *inner;
+} opendal_future_delete;
+
+/**
+ * Result type for creating an asynchronous delete future.
+ */
+typedef struct opendal_result_future_delete {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_delete *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_delete;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1535,6 +1602,58 @@ struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat 
  * \brief Cancel and free a stat future without awaiting it.
  */
 void opendal_future_stat_free(struct opendal_future_stat *future);
+
+/**
+ * \brief Asynchronously reads data from a path.
+ *
+ * The returned future can be awaited via `opendal_future_read_await` to obtain
+ * the resulting bytes or error.
+ */
+struct opendal_result_future_read opendal_async_operator_read(const struct opendal_async_operator *op,
+                                                              const char *path);
+
+/**
+ * \brief Await an asynchronous read future and return the resulting data.
+ */
+struct opendal_result_read opendal_future_read_await(struct opendal_future_read *future);
+
+/**
+ * \brief Cancel and free a read future without awaiting it.
+ */
+void opendal_future_read_free(struct opendal_future_read *future);
+
+/**
+ * \brief Asynchronously writes data to a path.
+ */
+struct opendal_result_future_write opendal_async_operator_write(const struct opendal_async_operator *op,
+                                                                const char *path,
+                                                                const struct opendal_bytes *bytes);
+
+/**
+ * \brief Await an asynchronous write future.
+ */
+struct opendal_error *opendal_future_write_await(struct opendal_future_write *future);
+
+/**
+ * \brief Cancel and free a write future without awaiting it.
+ */
+void opendal_future_write_free(struct opendal_future_write *future);
+
+/**
+ * \brief Asynchronously deletes the specified path.
+ */
+struct opendal_result_future_delete opendal_async_operator_delete(const struct opendal_async_operator *op,
+                                                                  const char *path);
+
+/**
+ * \brief Await an asynchronous delete future.
+ */
+struct opendal_error *opendal_future_delete_await(struct opendal_future_delete *future);
+
+/**
+ * \brief Cancel and free a delete future without awaiting it.
+ */
+void opendal_future_delete_free(struct opendal_future_delete *future);
 
 /**
  * \brief Get information of underlying accessor.

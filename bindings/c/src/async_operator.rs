@@ -25,7 +25,9 @@ use ::opendal as core;
 use super::*;
 use crate::error::opendal_error;
 use crate::metadata::opendal_metadata; // Keep this
+use crate::result::opendal_result_read;
 use crate::result::opendal_result_stat; // Keep this
+use crate::types::opendal_bytes;
 use crate::types::opendal_operator_options; // Keep this
 
 /// Future handle for asynchronous stat operations.
@@ -47,6 +49,63 @@ pub struct opendal_result_future_stat {
 }
 
 unsafe impl Send for opendal_result_future_stat {}
+
+/// Future handle for asynchronous read operations.
+#[repr(C)]
+pub struct opendal_future_read {
+    inner: *mut Option<task::JoinHandle<core::Result<core::Buffer>>>,
+}
+
+unsafe impl Send for opendal_future_read {}
+
+/// Result type for creating an asynchronous read future.
+#[repr(C)]
+pub struct opendal_result_future_read {
+    /// The future handle. Null when creation fails.
+    pub future: *mut opendal_future_read,
+    /// The error information. Null on success.
+    pub error: *mut opendal_error,
+}
+
+unsafe impl Send for opendal_result_future_read {}
+
+/// Future handle for asynchronous write operations.
+#[repr(C)]
+pub struct opendal_future_write {
+    inner: *mut Option<task::JoinHandle<core::Result<core::Metadata>>>,
+}
+
+unsafe impl Send for opendal_future_write {}
+
+/// Result type for creating an asynchronous write future.
+#[repr(C)]
+pub struct opendal_result_future_write {
+    /// The future handle. Null when creation fails.
+    pub future: *mut opendal_future_write,
+    /// The error information. Null on success.
+    pub error: *mut opendal_error,
+}
+
+unsafe impl Send for opendal_result_future_write {}
+
+/// Future handle for asynchronous delete operations.
+#[repr(C)]
+pub struct opendal_future_delete {
+    inner: *mut Option<task::JoinHandle<core::Result<()>>>,
+}
+
+unsafe impl Send for opendal_future_delete {}
+
+/// Result type for creating an asynchronous delete future.
+#[repr(C)]
+pub struct opendal_result_future_delete {
+    /// The future handle. Null when creation fails.
+    pub future: *mut opendal_future_delete,
+    /// The error information. Null on success.
+    pub error: *mut opendal_error,
+}
+
+unsafe impl Send for opendal_result_future_delete {}
 
 /// \brief Represents an asynchronous OpenDAL Operator.
 ///
@@ -295,6 +354,383 @@ pub unsafe extern "C" fn opendal_future_stat_await(
 /// \brief Cancel and free a stat future without awaiting it.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_future_stat_free(future: *mut opendal_future_stat) {
+    if future.is_null() {
+        return;
+    }
+
+    let mut future = Box::from_raw(future);
+    if !future.inner.is_null() {
+        let mut handle_box = Box::from_raw(future.inner);
+        future.inner = std::ptr::null_mut();
+        if let Some(handle) = (*handle_box).take() {
+            handle.abort();
+        }
+    }
+}
+
+// --- Async Read Operation ---
+
+/// \brief Asynchronously reads data from a path.
+///
+/// The returned future can be awaited via `opendal_future_read_await` to obtain
+/// the resulting bytes or error.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_async_operator_read(
+    op: *const opendal_async_operator,
+    path: *const c_char,
+) -> opendal_result_future_read {
+    if op.is_null() {
+        return opendal_result_future_read {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_async_operator is null",
+            )),
+        };
+    }
+    if path.is_null() {
+        return opendal_result_future_read {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "path is null",
+            )),
+        };
+    }
+
+    let operator = (*op).as_ref();
+    let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            return opendal_result_future_read {
+                future: std::ptr::null_mut(),
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "invalid path string")
+                        .set_source(e),
+                ),
+            };
+        }
+    };
+
+    let operator_clone = operator.clone();
+    let handle: task::JoinHandle<core::Result<core::Buffer>> =
+        crate::operator::RUNTIME.spawn(async move { operator_clone.read(&path_str).await });
+    let future = Box::into_raw(Box::new(opendal_future_read {
+        inner: Box::into_raw(Box::new(Some(handle))),
+    }));
+
+    opendal_result_future_read {
+        future,
+        error: std::ptr::null_mut(),
+    }
+}
+
+/// \brief Await an asynchronous read future and return the resulting data.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_read_await(
+    future: *mut opendal_future_read,
+) -> opendal_result_read {
+    if future.is_null() {
+        return opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_read is null",
+            )),
+        };
+    }
+
+    let mut future = Box::from_raw(future);
+    if future.inner.is_null() {
+        return opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_read inner handle is null",
+            )),
+        };
+    }
+
+    let mut handle_box = Box::from_raw(future.inner);
+    future.inner = std::ptr::null_mut();
+    let handle = match (*handle_box).take() {
+        Some(handle) => handle,
+        None => {
+            return opendal_result_read {
+                data: opendal_bytes::empty(),
+                error: opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    "opendal_future_read already awaited",
+                )),
+            };
+        }
+    };
+
+    let join_result = crate::operator::RUNTIME.block_on(handle);
+
+    match join_result {
+        Ok(Ok(buffer)) => opendal_result_read {
+            data: opendal_bytes::new(buffer),
+            error: std::ptr::null_mut(),
+        },
+        Ok(Err(e)) => opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(e),
+        },
+        Err(join_err) => opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                format!("join error: {}", join_err),
+            )),
+        },
+    }
+}
+
+/// \brief Cancel and free a read future without awaiting it.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_read_free(future: *mut opendal_future_read) {
+    if future.is_null() {
+        return;
+    }
+
+    let mut future = Box::from_raw(future);
+    if !future.inner.is_null() {
+        let mut handle_box = Box::from_raw(future.inner);
+        future.inner = std::ptr::null_mut();
+        if let Some(handle) = (*handle_box).take() {
+            handle.abort();
+        }
+    }
+}
+
+// --- Async Write Operation ---
+
+/// \brief Asynchronously writes data to a path.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_async_operator_write(
+    op: *const opendal_async_operator,
+    path: *const c_char,
+    bytes: *const opendal_bytes,
+) -> opendal_result_future_write {
+    if op.is_null() {
+        return opendal_result_future_write {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_async_operator is null",
+            )),
+        };
+    }
+    if path.is_null() {
+        return opendal_result_future_write {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "path is null",
+            )),
+        };
+    }
+    if bytes.is_null() {
+        return opendal_result_future_write {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "bytes is null",
+            )),
+        };
+    }
+
+    let operator = (*op).as_ref();
+    let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            return opendal_result_future_write {
+                future: std::ptr::null_mut(),
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "invalid path string")
+                        .set_source(e),
+                ),
+            };
+        }
+    };
+
+    let buffer: core::Buffer = core::Buffer::from(&*bytes);
+    let operator_clone = operator.clone();
+    let handle: task::JoinHandle<core::Result<core::Metadata>> = crate::operator::RUNTIME
+        .spawn(async move { operator_clone.write(&path_str, buffer).await });
+    let future = Box::into_raw(Box::new(opendal_future_write {
+        inner: Box::into_raw(Box::new(Some(handle))),
+    }));
+
+    opendal_result_future_write {
+        future,
+        error: std::ptr::null_mut(),
+    }
+}
+
+/// \brief Await an asynchronous write future.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_write_await(
+    future: *mut opendal_future_write,
+) -> *mut opendal_error {
+    if future.is_null() {
+        return opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            "opendal_future_write is null",
+        ));
+    }
+
+    let mut future = Box::from_raw(future);
+    if future.inner.is_null() {
+        return opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            "opendal_future_write inner handle is null",
+        ));
+    }
+
+    let mut handle_box = Box::from_raw(future.inner);
+    future.inner = std::ptr::null_mut();
+    let handle = match (*handle_box).take() {
+        Some(handle) => handle,
+        None => {
+            return opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_write already awaited",
+            ));
+        }
+    };
+
+    let join_result = crate::operator::RUNTIME.block_on(handle);
+
+    match join_result {
+        Ok(Ok(_)) => std::ptr::null_mut(),
+        Ok(Err(e)) => opendal_error::new(e),
+        Err(join_err) => opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            format!("join error: {}", join_err),
+        )),
+    }
+}
+
+/// \brief Cancel and free a write future without awaiting it.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_write_free(future: *mut opendal_future_write) {
+    if future.is_null() {
+        return;
+    }
+
+    let mut future = Box::from_raw(future);
+    if !future.inner.is_null() {
+        let mut handle_box = Box::from_raw(future.inner);
+        future.inner = std::ptr::null_mut();
+        if let Some(handle) = (*handle_box).take() {
+            handle.abort();
+        }
+    }
+}
+
+// --- Async Delete Operation ---
+
+/// \brief Asynchronously deletes the specified path.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_async_operator_delete(
+    op: *const opendal_async_operator,
+    path: *const c_char,
+) -> opendal_result_future_delete {
+    if op.is_null() {
+        return opendal_result_future_delete {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_async_operator is null",
+            )),
+        };
+    }
+    if path.is_null() {
+        return opendal_result_future_delete {
+            future: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "path is null",
+            )),
+        };
+    }
+
+    let operator = (*op).as_ref();
+    let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
+        Ok(s) => s.to_string(),
+        Err(e) => {
+            return opendal_result_future_delete {
+                future: std::ptr::null_mut(),
+                error: opendal_error::new(
+                    core::Error::new(core::ErrorKind::Unexpected, "invalid path string")
+                        .set_source(e),
+                ),
+            };
+        }
+    };
+
+    let operator_clone = operator.clone();
+    let handle: task::JoinHandle<core::Result<()>> =
+        crate::operator::RUNTIME.spawn(async move { operator_clone.delete(&path_str).await });
+    let future = Box::into_raw(Box::new(opendal_future_delete {
+        inner: Box::into_raw(Box::new(Some(handle))),
+    }));
+
+    opendal_result_future_delete {
+        future,
+        error: std::ptr::null_mut(),
+    }
+}
+
+/// \brief Await an asynchronous delete future.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_delete_await(
+    future: *mut opendal_future_delete,
+) -> *mut opendal_error {
+    if future.is_null() {
+        return opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            "opendal_future_delete is null",
+        ));
+    }
+
+    let mut future = Box::from_raw(future);
+    if future.inner.is_null() {
+        return opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            "opendal_future_delete inner handle is null",
+        ));
+    }
+
+    let mut handle_box = Box::from_raw(future.inner);
+    future.inner = std::ptr::null_mut();
+    let handle = match (*handle_box).take() {
+        Some(handle) => handle,
+        None => {
+            return opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_future_delete already awaited",
+            ));
+        }
+    };
+
+    let join_result = crate::operator::RUNTIME.block_on(handle);
+
+    match join_result {
+        Ok(Ok(())) => std::ptr::null_mut(),
+        Ok(Err(e)) => opendal_error::new(e),
+        Err(join_err) => opendal_error::new(core::Error::new(
+            core::ErrorKind::Unexpected,
+            format!("join error: {}", join_err),
+        )),
+    }
+}
+
+/// \brief Cancel and free a delete future without awaiting it.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_delete_free(future: *mut opendal_future_delete) {
     if future.is_null() {
         return;
     }

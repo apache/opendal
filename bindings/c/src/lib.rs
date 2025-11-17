@@ -48,8 +48,14 @@ pub use operator::opendal_operator;
 // Add new async modules and types
 mod async_operator;
 pub use async_operator::opendal_async_operator;
+pub use async_operator::opendal_future_delete;
+pub use async_operator::opendal_future_read;
 pub use async_operator::opendal_future_stat;
+pub use async_operator::opendal_future_write;
+pub use async_operator::opendal_result_future_delete;
+pub use async_operator::opendal_result_future_read;
 pub use async_operator::opendal_result_future_stat;
+pub use async_operator::opendal_result_future_write;
 
 mod operator_info;
 

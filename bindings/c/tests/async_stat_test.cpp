@@ -72,3 +72,65 @@ TEST_F(OpendalAsyncStatTest, AsyncStatFreeFuture)
     opendal_future_stat_free(future_result.future);
     // Nothing to assert beyond not crashing; the future is cancelled.
 }
+
+TEST_F(OpendalAsyncStatTest, AsyncWriteThenRead)
+{
+    const char* path = "async_write_read.txt";
+    const char* payload = "hello async";
+    opendal_bytes data = {
+        .data = (uint8_t*)payload,
+        .len = strlen(payload),
+        .capacity = strlen(payload),
+    };
+
+    opendal_result_future_write write_result = opendal_async_operator_write(this->op, path, &data);
+    ASSERT_TRUE(write_result.error == nullptr);
+    ASSERT_TRUE(write_result.future != nullptr);
+
+    opendal_error* write_err = opendal_future_write_await(write_result.future);
+    ASSERT_TRUE(write_err == nullptr);
+
+    opendal_result_future_read read_result = opendal_async_operator_read(this->op, path);
+    ASSERT_TRUE(read_result.error == nullptr);
+    ASSERT_TRUE(read_result.future != nullptr);
+
+    opendal_result_read read_out = opendal_future_read_await(read_result.future);
+    ASSERT_TRUE(read_out.error == nullptr);
+    ASSERT_EQ(read_out.data.len, strlen(payload));
+    EXPECT_EQ(memcmp(read_out.data.data, payload, read_out.data.len), 0);
+    opendal_bytes_free(&read_out.data);
+
+    opendal_result_future_delete delete_result = opendal_async_operator_delete(this->op, path);
+    ASSERT_TRUE(delete_result.error == nullptr);
+    opendal_error* delete_err = opendal_future_delete_await(delete_result.future);
+    ASSERT_TRUE(delete_err == nullptr);
+}
+
+TEST_F(OpendalAsyncStatTest, AsyncDeleteMakesStatReturnNotFound)
+{
+    const char* path = "async_delete.txt";
+    const char* payload = "cleanup";
+    opendal_bytes data = {
+        .data = (uint8_t*)payload,
+        .len = strlen(payload),
+        .capacity = strlen(payload),
+    };
+
+    // Write first so the delete has work to do.
+    opendal_result_future_write write_result = opendal_async_operator_write(this->op, path, &data);
+    ASSERT_TRUE(write_result.error == nullptr);
+    ASSERT_TRUE(opendal_future_write_await(write_result.future) == nullptr);
+
+    opendal_result_future_delete delete_result = opendal_async_operator_delete(this->op, path);
+    ASSERT_TRUE(delete_result.error == nullptr);
+    ASSERT_TRUE(opendal_future_delete_await(delete_result.future) == nullptr);
+
+    // Stat should now report not found.
+    opendal_result_future_stat stat_future = opendal_async_operator_stat(this->op, path);
+    ASSERT_TRUE(stat_future.error == nullptr);
+    opendal_result_stat stat_result = opendal_future_stat_await(stat_future.future);
+    ASSERT_TRUE(stat_result.meta == nullptr);
+    ASSERT_TRUE(stat_result.error != nullptr);
+    EXPECT_EQ(stat_result.error->code, OPENDAL_NOT_FOUND);
+    opendal_error_free(stat_result.error);
+}

@@ -120,8 +120,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
   ```sh
   cd build
-  make basic error_handle async_stat
+  make basic error_handle async_stat compare_sync_async
   ```
+
+- The `compare_sync_async` example prints the same write/read/delete flow with both
+  blocking and async operators so you can see the API differences in one run.
 
 ## Async APIs
 

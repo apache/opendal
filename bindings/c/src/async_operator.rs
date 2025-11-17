@@ -45,6 +45,258 @@ pub enum opendal_future_status {
     OPENDAL_FUTURE_CANCELED = 3,
 }
 
+#[no_mangle]
+pub static OPENDAL_FUTURE_PENDING: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_PENDING;
+#[no_mangle]
+pub static OPENDAL_FUTURE_READY: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_READY;
+#[no_mangle]
+pub static OPENDAL_FUTURE_ERROR: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_ERROR;
+#[no_mangle]
+pub static OPENDAL_FUTURE_CANCELED: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_CANCELED;
+
+macro_rules! impl_poll_result {
+    ($fn_name:ident, $future_ty:ty, $out_ty:ty, $ok_ctor:expr, $err_ctor:expr) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(
+            future: *mut $future_ty,
+            out: *mut $out_ty,
+        ) -> opendal_future_status {
+            if future.is_null() || out.is_null() {
+                return opendal_future_status::OPENDAL_FUTURE_ERROR;
+            }
+
+            let future = &mut *future;
+            if future.rx.is_null() {
+                return opendal_future_status::OPENDAL_FUTURE_READY;
+            }
+
+            let rx_opt = unsafe { &mut *future.rx };
+            let Some(rx) = rx_opt.as_mut() else {
+                return opendal_future_status::OPENDAL_FUTURE_READY;
+            };
+
+            match rx.try_recv() {
+                Ok(Ok(value)) => {
+                    rx_opt.take();
+                    if !future.handle.is_null() {
+                        let mut handle_box = Box::from_raw(future.handle);
+                        future.handle = std::ptr::null_mut();
+                        if let Some(handle) = (*handle_box).take() {
+                            let _ = handle;
+                        }
+                    }
+
+                    let out_ref = &mut *out;
+                    *out_ref = $ok_ctor(value);
+                    opendal_future_status::OPENDAL_FUTURE_READY
+                }
+                Ok(Err(err)) => {
+                    rx_opt.take();
+                    if !future.handle.is_null() {
+                        let mut handle_box = Box::from_raw(future.handle);
+                        future.handle = std::ptr::null_mut();
+                        if let Some(handle) = (*handle_box).take() {
+                            let _ = handle;
+                        }
+                    }
+                    let out_ref = &mut *out;
+                    *out_ref = $err_ctor(err);
+                    opendal_future_status::OPENDAL_FUTURE_READY
+                }
+                Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
+                Err(TryRecvError::Closed) => {
+                    rx_opt.take();
+                    opendal_future_status::OPENDAL_FUTURE_CANCELED
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_poll_error_only {
+    ($fn_name:ident, $future_ty:ty) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(
+            future: *mut $future_ty,
+            error_out: *mut *mut opendal_error,
+        ) -> opendal_future_status {
+            if future.is_null() || error_out.is_null() {
+                return opendal_future_status::OPENDAL_FUTURE_ERROR;
+            }
+
+            let future = &mut *future;
+            if future.rx.is_null() {
+                return opendal_future_status::OPENDAL_FUTURE_READY;
+            }
+
+            let rx_opt = unsafe { &mut *future.rx };
+            let Some(rx) = rx_opt.as_mut() else {
+                return opendal_future_status::OPENDAL_FUTURE_READY;
+            };
+
+            match rx.try_recv() {
+                Ok(Ok(_)) => {
+                    rx_opt.take();
+                    if !future.handle.is_null() {
+                        let mut handle_box = Box::from_raw(future.handle);
+                        future.handle = std::ptr::null_mut();
+                        if let Some(handle) = (*handle_box).take() {
+                            let _ = handle;
+                        }
+                    }
+                    *error_out = std::ptr::null_mut();
+                    opendal_future_status::OPENDAL_FUTURE_READY
+                }
+                Ok(Err(err)) => {
+                    rx_opt.take();
+                    if !future.handle.is_null() {
+                        let mut handle_box = Box::from_raw(future.handle);
+                        future.handle = std::ptr::null_mut();
+                        if let Some(handle) = (*handle_box).take() {
+                            let _ = handle;
+                        }
+                    }
+                    *error_out = opendal_error::new(err);
+                    opendal_future_status::OPENDAL_FUTURE_READY
+                }
+                Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
+                Err(TryRecvError::Closed) => {
+                    rx_opt.take();
+                    opendal_future_status::OPENDAL_FUTURE_CANCELED
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_is_ready_fn {
+    ($fn_name:ident, $future_ty:ty) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(future: *const $future_ty) -> bool {
+            if future.is_null() {
+                return false;
+            }
+
+            let future = &*future;
+            if future.handle.is_null() {
+                return false;
+            }
+
+            let handle_slot = &*future.handle;
+            match handle_slot.as_ref() {
+                Some(handle) => handle.is_finished(),
+                None => true,
+            }
+        }
+    };
+}
+
+macro_rules! impl_await_result {
+    ($fn_name:ident, $future_ty:ty, $out_ty:ty, $ok_ctor:expr, $err_ctor:expr) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(future: *mut $future_ty) -> $out_ty {
+            if future.is_null() {
+                return $err_ctor(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    stringify!($fn_name).to_string() + " future is null",
+                ));
+            }
+
+            let mut future = Box::from_raw(future);
+            if future.rx.is_null() {
+                return $err_ctor(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    stringify!($fn_name).to_string() + " receiver is null",
+                ));
+            }
+
+            let mut rx_box = Box::from_raw(future.rx);
+            future.rx = std::ptr::null_mut();
+            let rx = match rx_box.take() {
+                Some(rx) => rx,
+                None => {
+                    return $err_ctor(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        stringify!($fn_name).to_string() + " already awaited",
+                    ));
+                }
+            };
+
+            let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
+
+            if !future.handle.is_null() {
+                let mut handle_box = Box::from_raw(future.handle);
+                future.handle = std::ptr::null_mut();
+                if let Some(handle) = (*handle_box).take() {
+                    let _ = handle;
+                }
+            }
+
+            match recv_result {
+                Ok(Ok(v)) => $ok_ctor(v),
+                Ok(Err(e)) => $err_ctor(e),
+                Err(recv_err) => $err_ctor(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    format!("join error: {}", recv_err),
+                )),
+            }
+        }
+    };
+}
+
+macro_rules! impl_await_error_only {
+    ($fn_name:ident, $future_ty:ty) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(future: *mut $future_ty) -> *mut opendal_error {
+            if future.is_null() {
+                return opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    stringify!($fn_name).to_string() + " future is null",
+                ));
+            }
+
+            let mut future = Box::from_raw(future);
+            if future.rx.is_null() {
+                return opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    stringify!($fn_name).to_string() + " receiver is null",
+                ));
+            }
+
+            let mut rx_box = Box::from_raw(future.rx);
+            future.rx = std::ptr::null_mut();
+            let rx = match rx_box.take() {
+                Some(rx) => rx,
+                None => {
+                    return opendal_error::new(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        stringify!($fn_name).to_string() + " already awaited",
+                    ));
+                }
+            };
+
+            let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
+
+            if !future.handle.is_null() {
+                let mut handle_box = Box::from_raw(future.handle);
+                future.handle = std::ptr::null_mut();
+                if let Some(handle) = (*handle_box).take() {
+                    let _ = handle;
+                }
+            }
+
+            match recv_result {
+                Ok(Ok(_)) => std::ptr::null_mut(),
+                Ok(Err(e)) => opendal_error::new(e),
+                Err(recv_err) => opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    format!("join error: {}", recv_err),
+                )),
+            }
+        }
+    };
+}
+
 /// Future handle for asynchronous stat operations.
 #[repr(C)]
 pub struct opendal_future_stat {
@@ -309,162 +561,42 @@ pub unsafe extern "C" fn opendal_async_operator_stat(
     }
 }
 
-/// \brief Await an asynchronous stat future and return the resulting metadata.
-///
-/// This function consumes the provided future pointer. After calling this function,
-/// the future pointer must not be reused.
+impl_await_result!(
+    opendal_future_stat_await_impl,
+    opendal_future_stat,
+    opendal_result_stat,
+    |metadata| opendal_result_stat {
+        meta: Box::into_raw(Box::new(opendal_metadata::new(metadata))),
+        error: std::ptr::null_mut(),
+    },
+    |e| opendal_result_stat {
+        meta: std::ptr::null_mut(),
+        error: opendal_error::new(e),
+    }
+);
+
 #[no_mangle]
 pub unsafe extern "C" fn opendal_future_stat_await(
     future: *mut opendal_future_stat,
 ) -> opendal_result_stat {
-    if future.is_null() {
-        return opendal_result_stat {
-            meta: std::ptr::null_mut(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_stat is null",
-            )),
-        };
-    }
-
-    let mut future = Box::from_raw(future);
-    if future.rx.is_null() {
-        return opendal_result_stat {
-            meta: std::ptr::null_mut(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_stat receiver is null",
-            )),
-        };
-    }
-
-    let mut rx_box = Box::from_raw(future.rx);
-    future.rx = std::ptr::null_mut();
-    let rx = match rx_box.take() {
-        Some(rx) => rx,
-        None => {
-            return opendal_result_stat {
-                meta: std::ptr::null_mut(),
-                error: opendal_error::new(core::Error::new(
-                    core::ErrorKind::Unexpected,
-                    "opendal_future_stat already awaited",
-                )),
-            };
-        }
-    };
-
-    let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
-
-    // Drop handle now that we have the result
-    if !future.handle.is_null() {
-        let mut handle_box = Box::from_raw(future.handle);
-        future.handle = std::ptr::null_mut();
-        if let Some(handle) = (*handle_box).take() {
-            let _ = handle;
-        }
-    }
-
-    match recv_result {
-        Ok(Ok(metadata)) => opendal_result_stat {
-            meta: Box::into_raw(Box::new(opendal_metadata::new(metadata))),
-            error: std::ptr::null_mut(),
-        },
-        Ok(Err(e)) => opendal_result_stat {
-            meta: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-        Err(recv_err) => opendal_result_stat {
-            meta: std::ptr::null_mut(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                format!("join error: {}", recv_err),
-            )),
-        },
-    }
+    opendal_future_stat_await_impl(future)
 }
 
-/// \brief Non-blocking check whether a stat future has completed and, if so, fill output.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_stat_poll(
-    future: *mut opendal_future_stat,
-    out: *mut opendal_result_stat,
-) -> opendal_future_status {
-    if future.is_null() || out.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_ERROR;
+impl_poll_result!(
+    opendal_future_stat_poll,
+    opendal_future_stat,
+    opendal_result_stat,
+    |metadata| opendal_result_stat {
+        meta: Box::into_raw(Box::new(opendal_metadata::new(metadata))),
+        error: std::ptr::null_mut(),
+    },
+    |e| opendal_result_stat {
+        meta: std::ptr::null_mut(),
+        error: opendal_error::new(e),
     }
+);
 
-    let future = &mut *future;
-    if future.rx.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    }
-
-    let rx_opt = unsafe { &mut *future.rx };
-    let Some(rx) = rx_opt.as_mut() else {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    };
-
-    match rx.try_recv() {
-        Ok(Ok(metadata)) => {
-            // consume rx
-            rx_opt.take();
-            // drop handle
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-
-            let out_ref = &mut *out;
-            *out_ref = opendal_result_stat {
-                meta: Box::into_raw(Box::new(opendal_metadata::new(metadata))),
-                error: std::ptr::null_mut(),
-            };
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Ok(Err(e)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            let out_ref = &mut *out;
-            *out_ref = opendal_result_stat {
-                meta: std::ptr::null_mut(),
-                error: opendal_error::new(e),
-            };
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
-        Err(TryRecvError::Closed) => {
-            rx_opt.take();
-            opendal_future_status::OPENDAL_FUTURE_CANCELED
-        }
-    }
-}
-
-/// \brief Non-blocking check whether the stat future has completed.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_stat_is_ready(future: *const opendal_future_stat) -> bool {
-    if future.is_null() {
-        return false;
-    }
-
-    let future = &*future;
-    if future.handle.is_null() {
-        return false;
-    }
-
-    let handle_slot = &*future.handle;
-    match handle_slot.as_ref() {
-        Some(handle) => handle.is_finished(),
-        None => true,
-    }
-}
+impl_is_ready_fn!(opendal_future_stat_is_ready, opendal_future_stat);
 
 /// \brief Cancel and free a stat future without awaiting it.
 #[no_mangle]
@@ -548,155 +680,42 @@ pub unsafe extern "C" fn opendal_async_operator_read(
     }
 }
 
-/// \brief Await an asynchronous read future and return the resulting data.
+impl_await_result!(
+    opendal_future_read_await_impl,
+    opendal_future_read,
+    opendal_result_read,
+    |buffer| opendal_result_read {
+        data: opendal_bytes::new(buffer),
+        error: std::ptr::null_mut(),
+    },
+    |e| opendal_result_read {
+        data: opendal_bytes::empty(),
+        error: opendal_error::new(e),
+    }
+);
+
 #[no_mangle]
 pub unsafe extern "C" fn opendal_future_read_await(
     future: *mut opendal_future_read,
 ) -> opendal_result_read {
-    if future.is_null() {
-        return opendal_result_read {
-            data: opendal_bytes::empty(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_read is null",
-            )),
-        };
-    }
-
-    let mut future = Box::from_raw(future);
-    if future.rx.is_null() {
-        return opendal_result_read {
-            data: opendal_bytes::empty(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_read receiver is null",
-            )),
-        };
-    }
-
-    let mut rx_box = Box::from_raw(future.rx);
-    future.rx = std::ptr::null_mut();
-    let rx = match rx_box.take() {
-        Some(rx) => rx,
-        None => {
-            return opendal_result_read {
-                data: opendal_bytes::empty(),
-                error: opendal_error::new(core::Error::new(
-                    core::ErrorKind::Unexpected,
-                    "opendal_future_read already awaited",
-                )),
-            };
-        }
-    };
-
-    let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
-
-    if !future.handle.is_null() {
-        let mut handle_box = Box::from_raw(future.handle);
-        future.handle = std::ptr::null_mut();
-        if let Some(handle) = (*handle_box).take() {
-            let _ = handle;
-        }
-    }
-
-    match recv_result {
-        Ok(Ok(buffer)) => opendal_result_read {
-            data: opendal_bytes::new(buffer),
-            error: std::ptr::null_mut(),
-        },
-        Ok(Err(e)) => opendal_result_read {
-            data: opendal_bytes::empty(),
-            error: opendal_error::new(e),
-        },
-        Err(recv_err) => opendal_result_read {
-            data: opendal_bytes::empty(),
-            error: opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                format!("join error: {}", recv_err),
-            )),
-        },
-    }
+    opendal_future_read_await_impl(future)
 }
 
-/// \brief Non-blocking check whether a read future has completed and, if so, fill output.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_read_poll(
-    future: *mut opendal_future_read,
-    out: *mut opendal_result_read,
-) -> opendal_future_status {
-    if future.is_null() || out.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_ERROR;
+impl_poll_result!(
+    opendal_future_read_poll,
+    opendal_future_read,
+    opendal_result_read,
+    |buffer| opendal_result_read {
+        data: opendal_bytes::new(buffer),
+        error: std::ptr::null_mut(),
+    },
+    |e| opendal_result_read {
+        data: opendal_bytes::empty(),
+        error: opendal_error::new(e),
     }
+);
 
-    let future = &mut *future;
-    if future.rx.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    }
-
-    let rx_opt = unsafe { &mut *future.rx };
-    let Some(rx) = rx_opt.as_mut() else {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    };
-
-    match rx.try_recv() {
-        Ok(Ok(buffer)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            let out_ref = &mut *out;
-            *out_ref = opendal_result_read {
-                data: opendal_bytes::new(buffer),
-                error: std::ptr::null_mut(),
-            };
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Ok(Err(e)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            let out_ref = &mut *out;
-            *out_ref = opendal_result_read {
-                data: opendal_bytes::empty(),
-                error: opendal_error::new(e),
-            };
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
-        Err(TryRecvError::Closed) => {
-            rx_opt.take();
-            opendal_future_status::OPENDAL_FUTURE_CANCELED
-        }
-    }
-}
-
-/// \brief Non-blocking check whether the read future has completed.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_read_is_ready(future: *const opendal_future_read) -> bool {
-    if future.is_null() {
-        return false;
-    }
-
-    let future = &*future;
-    if future.handle.is_null() {
-        return false;
-    }
-
-    let handle_slot = &*future.handle;
-    match handle_slot.as_ref() {
-        Some(handle) => handle.is_finished(),
-        None => true, // already awaited
-    }
-}
+impl_is_ready_fn!(opendal_future_read_is_ready, opendal_future_read);
 
 /// \brief Cancel and free a read future without awaiting it.
 #[no_mangle]
@@ -788,131 +807,18 @@ pub unsafe extern "C" fn opendal_async_operator_write(
     }
 }
 
-/// \brief Await an asynchronous write future.
+impl_await_error_only!(opendal_future_write_await_impl, opendal_future_write);
+
 #[no_mangle]
 pub unsafe extern "C" fn opendal_future_write_await(
     future: *mut opendal_future_write,
 ) -> *mut opendal_error {
-    if future.is_null() {
-        return opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            "opendal_future_write is null",
-        ));
-    }
-
-    let mut future = Box::from_raw(future);
-    if future.rx.is_null() {
-        return opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            "opendal_future_write receiver is null",
-        ));
-    }
-
-    let mut rx_box = Box::from_raw(future.rx);
-    future.rx = std::ptr::null_mut();
-    let rx = match rx_box.take() {
-        Some(rx) => rx,
-        None => {
-            return opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_write already awaited",
-            ));
-        }
-    };
-
-    let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
-
-    if !future.handle.is_null() {
-        let mut handle_box = Box::from_raw(future.handle);
-        future.handle = std::ptr::null_mut();
-        if let Some(handle) = (*handle_box).take() {
-            let _ = handle;
-        }
-    }
-
-    match recv_result {
-        Ok(Ok(_)) => std::ptr::null_mut(),
-        Ok(Err(e)) => opendal_error::new(e),
-        Err(join_err) => opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            format!("join error: {}", join_err),
-        )),
-    }
+    opendal_future_write_await_impl(future)
 }
 
-/// \brief Non-blocking check whether a write future has completed and, if so, return any error.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_write_poll(
-    future: *mut opendal_future_write,
-    error_out: *mut *mut opendal_error,
-) -> opendal_future_status {
-    if future.is_null() || error_out.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_ERROR;
-    }
+impl_poll_error_only!(opendal_future_write_poll, opendal_future_write);
 
-    let future = &mut *future;
-    if future.rx.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    }
-
-    let rx_opt = unsafe { &mut *future.rx };
-    let Some(rx) = rx_opt.as_mut() else {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    };
-
-    match rx.try_recv() {
-        Ok(Ok(_)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            *error_out = std::ptr::null_mut();
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Ok(Err(e)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            *error_out = opendal_error::new(e);
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
-        Err(TryRecvError::Closed) => {
-            rx_opt.take();
-            opendal_future_status::OPENDAL_FUTURE_CANCELED
-        }
-    }
-}
-
-/// \brief Non-blocking check whether the write future has completed.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_write_is_ready(
-    future: *const opendal_future_write,
-) -> bool {
-    if future.is_null() {
-        return false;
-    }
-
-    let future = &*future;
-    if future.handle.is_null() {
-        return false;
-    }
-
-    let handle_slot = &*future.handle;
-    match handle_slot.as_ref() {
-        Some(handle) => handle.is_finished(),
-        None => true,
-    }
-}
+impl_is_ready_fn!(opendal_future_write_is_ready, opendal_future_write);
 
 /// \brief Cancel and free a write future without awaiting it.
 #[no_mangle]
@@ -993,131 +899,18 @@ pub unsafe extern "C" fn opendal_async_operator_delete(
     }
 }
 
-/// \brief Await an asynchronous delete future.
+impl_await_error_only!(opendal_future_delete_await_impl, opendal_future_delete);
+
 #[no_mangle]
 pub unsafe extern "C" fn opendal_future_delete_await(
     future: *mut opendal_future_delete,
 ) -> *mut opendal_error {
-    if future.is_null() {
-        return opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            "opendal_future_delete is null",
-        ));
-    }
-
-    let mut future = Box::from_raw(future);
-    if future.rx.is_null() {
-        return opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            "opendal_future_delete receiver is null",
-        ));
-    }
-
-    let mut rx_box = Box::from_raw(future.rx);
-    future.rx = std::ptr::null_mut();
-    let rx = match rx_box.take() {
-        Some(rx) => rx,
-        None => {
-            return opendal_error::new(core::Error::new(
-                core::ErrorKind::Unexpected,
-                "opendal_future_delete already awaited",
-            ));
-        }
-    };
-
-    let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
-
-    if !future.handle.is_null() {
-        let mut handle_box = Box::from_raw(future.handle);
-        future.handle = std::ptr::null_mut();
-        if let Some(handle) = (*handle_box).take() {
-            let _ = handle;
-        }
-    }
-
-    match recv_result {
-        Ok(Ok(())) => std::ptr::null_mut(),
-        Ok(Err(e)) => opendal_error::new(e),
-        Err(join_err) => opendal_error::new(core::Error::new(
-            core::ErrorKind::Unexpected,
-            format!("join error: {}", join_err),
-        )),
-    }
+    opendal_future_delete_await_impl(future)
 }
 
-/// \brief Non-blocking check whether a delete future has completed and, if so, return any error.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_delete_poll(
-    future: *mut opendal_future_delete,
-    error_out: *mut *mut opendal_error,
-) -> opendal_future_status {
-    if future.is_null() || error_out.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_ERROR;
-    }
+impl_poll_error_only!(opendal_future_delete_poll, opendal_future_delete);
 
-    let future = &mut *future;
-    if future.rx.is_null() {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    }
-
-    let rx_opt = unsafe { &mut *future.rx };
-    let Some(rx) = rx_opt.as_mut() else {
-        return opendal_future_status::OPENDAL_FUTURE_READY;
-    };
-
-    match rx.try_recv() {
-        Ok(Ok(())) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            *error_out = std::ptr::null_mut();
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Ok(Err(e)) => {
-            rx_opt.take();
-            if !future.handle.is_null() {
-                let mut handle_box = Box::from_raw(future.handle);
-                future.handle = std::ptr::null_mut();
-                if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
-                }
-            }
-            *error_out = opendal_error::new(e);
-            opendal_future_status::OPENDAL_FUTURE_READY
-        }
-        Err(TryRecvError::Empty) => opendal_future_status::OPENDAL_FUTURE_PENDING,
-        Err(TryRecvError::Closed) => {
-            rx_opt.take();
-            opendal_future_status::OPENDAL_FUTURE_CANCELED
-        }
-    }
-}
-
-/// \brief Non-blocking check whether the delete future has completed.
-#[no_mangle]
-pub unsafe extern "C" fn opendal_future_delete_is_ready(
-    future: *const opendal_future_delete,
-) -> bool {
-    if future.is_null() {
-        return false;
-    }
-
-    let future = &*future;
-    if future.handle.is_null() {
-        return false;
-    }
-
-    let handle_slot = &*future.handle;
-    match handle_slot.as_ref() {
-        Some(handle) => handle.is_finished(),
-        None => true,
-    }
-}
+impl_is_ready_fn!(opendal_future_delete_is_ready, opendal_future_delete);
 
 /// \brief Cancel and free a delete future without awaiting it.
 #[no_mangle]

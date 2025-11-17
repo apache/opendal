@@ -109,126 +109,6 @@ typedef enum opendal_future_status {
   OPENDAL_FUTURE_CANCELED = 3,
 } opendal_future_status;
 
-/**
- * The `Operator` serves as the entry point for all public asynchronous APIs.
- *
- * For more details about the `Operator`, refer to the [`concepts`][crate::docs::concepts] section.
- *
- * All cloned `Operator` instances share the same internal state, such as
- * `HttpClient` and `Runtime`. Some layers may modify the internal state of
- * the `Operator` too like inject logging and metrics for `HttpClient`.
- *
- * ## Build
- *
- * Users can initialize an `Operator` through the following methods:
- *
- * - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::S3`].
- * - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::S3Config`].
- * - [`Operator::from_iter`]: Creates an operator from an iterator of configuration key-value pairs.
- *
- * ```
- * # use anyhow::Result;
- * use opendal::services::Memory;
- * use opendal::Operator;
- * async fn test() -> Result<()> {
- *     // Build an `Operator` to start operating the storage.
- *     let _: Operator = Operator::new(Memory::default())?.finish();
- *
- *     Ok(())
- * }
- * ```
- *
- * ## Layer
- *
- * After the operator is built, users can add the layers they need on top of it.
- *
- * OpenDAL offers various layers for users to choose from, such as `RetryLayer`, `LoggingLayer`, and more. Visit [`layers`] for further details.
- *
- * Please note that `Layer` can modify internal contexts such as `HttpClient`
- * and `Runtime` for all clones of given operator. Therefore, it is recommended
- * to add layers before interacting with the storage. Adding or duplicating
- * layers after accessing the storage may result in unexpected behavior.
- *
- * ```
- * # use anyhow::Result;
- * use opendal::layers::RetryLayer;
- * use opendal::services::Memory;
- * use opendal::Operator;
- * async fn test() -> Result<()> {
- *     let op: Operator = Operator::new(Memory::default())?.finish();
- *
- *     // OpenDAL will retry failed operations now.
- *     let op = op.layer(RetryLayer::default());
- *
- *     Ok(())
- * }
- * ```
- *
- * ## Operate
- *
- * After the operator is built and the layers are added, users can start operating the storage.
- *
- * The operator is `Send`, `Sync`, and `Clone`. It has no internal state, and all APIs only take
- * a `&self` reference, making it safe to share the operator across threads.
- *
- * Operator provides a consistent API pattern for data operations. For reading operations, it exposes:
- *
- * - [`Operator::read`]: Executes a read operation.
- * - [`Operator::read_with`]: Executes a read operation with additional options using the builder pattern.
- * - [`Operator::read_options`]: Executes a read operation with extra options provided via a [`options::ReadOptions`] struct.
- * - [`Operator::reader`]: Creates a reader for streaming data, allowing for flexible access.
- * - [`Operator::reader_with`]: Creates a reader with advanced options using the builder pattern.
- * - [`Operator::reader_options`]: Creates a reader with extra options provided via a [`options::ReadOptions`] struct.
- *
- * The [`Reader`] created by [`Operator`] supports custom read control methods and can be converted
- * into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
- *
- * ```no_run
- * use opendal::layers::LoggingLayer;
- * use opendal::options;
- * use opendal::services;
- * use opendal::Operator;
- * use opendal::Result;
- *
- * #[tokio::main]
- * async fn main() -> Result<()> {
- *     // Pick a builder and configure it.
- *     let mut builder = services::S3::default().bucket("test");
- *
- *     // Init an operator
- *     let op = Operator::new(builder)?
- *         // Init with logging layer enabled.
- *         .layer(LoggingLayer::default())
- *         .finish();
- *
- *     // Fetch this file's metadata
- *     let meta = op.stat("hello.txt").await?;
- *     let length = meta.content_length();
- *
- *     // Read data from `hello.txt` with options.
- *     let bs = op
- *         .read_with("hello.txt")
- *         .range(0..8 * 1024 * 1024)
- *         .chunk(1024 * 1024)
- *         .concurrent(4)
- *         .await?;
- *
- *     // The same to:
- *     let bs = op
- *         .read_options("hello.txt", options::ReadOptions {
- *             range: (0..8 * 1024 * 1024).into(),
- *             chunk: Some(1024 * 1024),
- *             concurrent: 4,
- *             ..Default::default()
- *         })
- *         .await?;
- *
- *     Ok(())
- * }
- * ```
- */
-typedef struct Operator Operator;
-
 typedef struct Option_JoinHandle Option_JoinHandle;
 
 typedef struct Option_Receiver_Result Option_Receiver_Result;
@@ -584,7 +464,7 @@ typedef struct opendal_async_operator {
   /**
    * Internal pointer to the Rust async Operator.
    */
-  struct Operator *inner;
+  Operator *inner;
 } opendal_async_operator;
 
 /**
@@ -891,6 +771,14 @@ typedef struct opendal_result_writer_write {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+extern const enum opendal_future_status OPENDAL_FUTURE_PENDING;
+
+extern const enum opendal_future_status OPENDAL_FUTURE_READY;
+
+extern const enum opendal_future_status OPENDAL_FUTURE_ERROR;
+
+extern const enum opendal_future_status OPENDAL_FUTURE_CANCELED;
 
 /**
  * \brief Frees the opendal_error, ok to call on NULL
@@ -1621,24 +1509,7 @@ void opendal_async_operator_free(const struct opendal_async_operator *op);
 struct opendal_result_future_stat opendal_async_operator_stat(const struct opendal_async_operator *op,
                                                               const char *path);
 
-/**
- * \brief Await an asynchronous stat future and return the resulting metadata.
- *
- * This function consumes the provided future pointer. After calling this function,
- * the future pointer must not be reused.
- */
 struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat *future);
-
-/**
- * \brief Non-blocking check whether a stat future has completed and, if so, fill output.
- */
-enum opendal_future_status opendal_future_stat_poll(struct opendal_future_stat *future,
-                                                    struct opendal_result_stat *out);
-
-/**
- * \brief Non-blocking check whether the stat future has completed.
- */
-bool opendal_future_stat_is_ready(const struct opendal_future_stat *future);
 
 /**
  * \brief Cancel and free a stat future without awaiting it.
@@ -1654,21 +1525,7 @@ void opendal_future_stat_free(struct opendal_future_stat *future);
 struct opendal_result_future_read opendal_async_operator_read(const struct opendal_async_operator *op,
                                                               const char *path);
 
-/**
- * \brief Await an asynchronous read future and return the resulting data.
- */
 struct opendal_result_read opendal_future_read_await(struct opendal_future_read *future);
-
-/**
- * \brief Non-blocking check whether a read future has completed and, if so, fill output.
- */
-enum opendal_future_status opendal_future_read_poll(struct opendal_future_read *future,
-                                                    struct opendal_result_read *out);
-
-/**
- * \brief Non-blocking check whether the read future has completed.
- */
-bool opendal_future_read_is_ready(const struct opendal_future_read *future);
 
 /**
  * \brief Cancel and free a read future without awaiting it.
@@ -1682,21 +1539,7 @@ struct opendal_result_future_write opendal_async_operator_write(const struct ope
                                                                 const char *path,
                                                                 const struct opendal_bytes *bytes);
 
-/**
- * \brief Await an asynchronous write future.
- */
 struct opendal_error *opendal_future_write_await(struct opendal_future_write *future);
-
-/**
- * \brief Non-blocking check whether a write future has completed and, if so, return any error.
- */
-enum opendal_future_status opendal_future_write_poll(struct opendal_future_write *future,
-                                                     struct opendal_error **error_out);
-
-/**
- * \brief Non-blocking check whether the write future has completed.
- */
-bool opendal_future_write_is_ready(const struct opendal_future_write *future);
 
 /**
  * \brief Cancel and free a write future without awaiting it.
@@ -1709,21 +1552,7 @@ void opendal_future_write_free(struct opendal_future_write *future);
 struct opendal_result_future_delete opendal_async_operator_delete(const struct opendal_async_operator *op,
                                                                   const char *path);
 
-/**
- * \brief Await an asynchronous delete future.
- */
 struct opendal_error *opendal_future_delete_await(struct opendal_future_delete *future);
-
-/**
- * \brief Non-blocking check whether a delete future has completed and, if so, return any error.
- */
-enum opendal_future_status opendal_future_delete_poll(struct opendal_future_delete *future,
-                                                      struct opendal_error **error_out);
-
-/**
- * \brief Non-blocking check whether the delete future has completed.
- */
-bool opendal_future_delete_is_ready(const struct opendal_future_delete *future);
 
 /**
  * \brief Cancel and free a delete future without awaiting it.

@@ -860,8 +860,12 @@ impl Operator {
             if let Some(chunk_size) = actual_chunk_size {
                 if bs.len() > chunk_size {
                     let mut w = Writer::new(context).await?;
-                    for chunk in bs.chunks(chunk_size) {
+                    let mut offset = 0;
+                    while offset < bs.len() {
+                        let end = (offset + chunk_size).min(bs.len());
+                        let chunk = bs.slice(offset..end);
                         w.write(chunk).await?;
+                        offset = end;
                     }
                     return w.close().await;
                 }

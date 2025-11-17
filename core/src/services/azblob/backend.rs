@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -31,17 +30,18 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::AZBLOB_SCHEME;
+use super::config::AzblobConfig;
 use super::core::AzblobCore;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
-use super::delete::AzblobDeleter;
+use super::deleter::AzblobDeleter;
 use super::error::parse_error;
 use super::lister::AzblobLister;
 use super::writer::AzblobWriter;
 use super::writer::AzblobWriters;
 use crate::raw::*;
-use crate::services::AzblobConfig;
 use crate::*;
+
 const AZBLOB_BATCH_LIMIT: usize = 256;
 
 impl From<AzureStorageConfig> for AzblobConfig {
@@ -57,7 +57,7 @@ impl From<AzureStorageConfig> for AzblobConfig {
 }
 
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzblobBuilder {
     pub(super) config: AzblobConfig,
 
@@ -66,12 +66,10 @@ pub struct AzblobBuilder {
 }
 
 impl Debug for AzblobBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzblobBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzblobBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -212,8 +210,8 @@ impl AzblobBuilder {
         // Only AES256 is supported for now
         self.config.encryption_algorithm = Some("AES256".to_string());
         self.config.encryption_key = Some(BASE64_STANDARD.encode(key));
-        self.config.encryption_key_sha256 =
-            Some(BASE64_STANDARD.encode(Sha256::digest(key).as_slice()));
+        let key_sha256 = Sha256::digest(key);
+        self.config.encryption_key_sha256 = Some(BASE64_STANDARD.encode(key_sha256));
         self
     }
 
@@ -301,7 +299,7 @@ impl Builder for AzblobBuilder {
             false => Ok(&self.config.container),
             true => Err(Error::new(ErrorKind::ConfigInvalid, "container is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)),
+                .with_context("service", AZBLOB_SCHEME)),
         }?;
         debug!("backend use container {}", &container);
 
@@ -309,7 +307,7 @@ impl Builder for AzblobBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)),
+                .with_context("service", AZBLOB_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &container);
 
@@ -335,7 +333,7 @@ impl Builder for AzblobBuilder {
                     format!("invalid account_key: cannot decode as base64: {e}"),
                 )
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azblob)
+                .with_context("service", AZBLOB_SCHEME)
                 .with_context("key", "account_key"));
             }
             config_loader.account_key = Some(v);

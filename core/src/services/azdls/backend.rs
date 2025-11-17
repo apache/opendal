@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -27,16 +26,17 @@ use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
 
 use super::AZDLS_SCHEME;
+use super::config::AzdlsConfig;
 use super::core::AzdlsCore;
 use super::core::DIRECTORY;
-use super::delete::AzdlsDeleter;
+use super::deleter::AzdlsDeleter;
 use super::error::parse_error;
 use super::lister::AzdlsLister;
 use super::writer::AzdlsWriter;
 use super::writer::AzdlsWriters;
 use crate::raw::*;
-use crate::services::AzdlsConfig;
 use crate::*;
+
 impl From<AzureStorageConfig> for AzdlsConfig {
     fn from(config: AzureStorageConfig) -> Self {
         AzdlsConfig {
@@ -55,7 +55,7 @@ impl From<AzureStorageConfig> for AzdlsConfig {
 
 /// Azure Data Lake Storage Gen2 Support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct AzdlsBuilder {
     pub(super) config: AzdlsConfig,
 
@@ -64,12 +64,10 @@ pub struct AzdlsBuilder {
 }
 
 impl Debug for AzdlsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzdlsBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -250,7 +248,7 @@ impl Builder for AzdlsBuilder {
             false => Ok(&self.config.filesystem),
             true => Err(Error::new(ErrorKind::ConfigInvalid, "filesystem is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdls)),
+                .with_context("service", AZDLS_SCHEME)),
         }?;
         debug!("backend use filesystem {}", &filesystem);
 
@@ -258,7 +256,7 @@ impl Builder for AzdlsBuilder {
             Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Azdls)),
+                .with_context("service", AZDLS_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

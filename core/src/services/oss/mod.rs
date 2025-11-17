@@ -17,14 +17,14 @@
 
 /// Default scheme for oss service.
 pub const OSS_SCHEME: &str = "oss";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::OssBuilder as Oss;
-
-mod config;
 pub use config::OssConfig;

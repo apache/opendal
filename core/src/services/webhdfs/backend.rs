@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use core::fmt::Debug;
-use std::fmt::Formatter;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -26,8 +25,9 @@ use log::debug;
 use tokio::sync::OnceCell;
 
 use super::WEBHDFS_SCHEME;
+use super::config::WebhdfsConfig;
 use super::core::WebhdfsCore;
-use super::delete::WebhdfsDeleter;
+use super::deleter::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
@@ -36,23 +36,15 @@ use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
 use crate::raw::*;
-use crate::services::WebhdfsConfig;
 use crate::*;
+
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct WebhdfsBuilder {
     pub(super) config: WebhdfsConfig,
-}
-
-impl Debug for WebhdfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebhdfsBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
 }
 
 impl WebhdfsBuilder {

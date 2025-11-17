@@ -15,8 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::RocksdbBuilder as Rocksdb;
+/// Default scheme for rocksdb service.
+pub const ROCKSDB_SCHEME: &str = "rocksdb";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod lister;
+mod writer;
+
+pub use backend::RocksdbBuilder as Rocksdb;
 pub use config::RocksdbConfig;

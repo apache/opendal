@@ -15,14 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub(super) const ETCD_SCHEME: &str = "etcd";
+/// Default scheme for etcd service.
+pub const ETCD_SCHEME: &str = "etcd";
+
 mod backend;
+mod config;
 mod core;
 mod deleter;
 mod error;
 mod lister;
 mod writer;
-pub use backend::EtcdBuilder as Etcd;
 
-mod config;
+pub use backend::EtcdBuilder as Etcd;
 pub use config::EtcdConfig;

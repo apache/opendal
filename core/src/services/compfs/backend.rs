@@ -22,18 +22,17 @@ use compio::dispatcher::Dispatcher;
 use compio::fs::OpenOptions;
 
 use super::COMPFS_SCHEME;
+use super::config::CompfsConfig;
 use super::core::CompfsCore;
-use super::delete::CompfsDeleter;
+use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
-use crate::raw::oio::OneShotDeleter;
 use crate::raw::*;
-use crate::services::CompfsConfig;
 use crate::*;
 
 /// [`compio`]-based file system support.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct CompfsBuilder {
     pub(super) config: CompfsConfig,
 }
@@ -119,7 +118,7 @@ impl Builder for CompfsBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CompfsBackend {
     core: Arc<CompfsCore>,
 }
@@ -128,7 +127,7 @@ impl Access for CompfsBackend {
     type Reader = CompfsReader;
     type Writer = CompfsWriter;
     type Lister = Option<CompfsLister>;
-    type Deleter = OneShotDeleter<CompfsDeleter>;
+    type Deleter = oio::OneShotDeleter<CompfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -168,7 +167,7 @@ impl Access for CompfsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
+            oio::OneShotDeleter::new(CompfsDeleter::new(self.core.clone())),
         ))
     }
 

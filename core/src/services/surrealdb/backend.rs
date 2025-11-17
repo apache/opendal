@@ -16,32 +16,22 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use surrealdb::Surreal;
-use surrealdb::engine::any::Any;
-use surrealdb::opt::auth::Database;
 use tokio::sync::OnceCell;
 
-use crate::raw::Access;
-use crate::raw::adapters::kv;
-use crate::raw::normalize_root;
-use crate::services::SurrealdbConfig;
+use super::SURREALDB_SCHEME;
+use super::config::SurrealdbConfig;
+use super::core::*;
+use super::deleter::SurrealdbDeleter;
+use super::writer::SurrealdbWriter;
+use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SurrealdbBuilder {
     pub(super) config: SurrealdbConfig,
-}
-
-impl Debug for SurrealdbBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SurrealdbBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl SurrealdbBuilder {
@@ -145,7 +135,7 @@ impl Builder for SurrealdbBuilder {
             None => {
                 return Err(
                     Error::new(ErrorKind::ConfigInvalid, "connection_string is empty")
-                        .with_context("service", Scheme::Surrealdb),
+                        .with_context("service", SURREALDB_SCHEME),
                 );
             }
         };
@@ -154,21 +144,21 @@ impl Builder for SurrealdbBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "namespace is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
         let database = match self.config.database.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
         let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Surrealdb));
+                    .with_context("service", SURREALDB_SCHEME));
             }
         };
 
@@ -192,7 +182,7 @@ impl Builder for SurrealdbBuilder {
                 .as_str(),
         );
 
-        Ok(SurrealdbBackend::new(Adapter {
+        Ok(SurrealdbBackend::new(SurrealdbCore {
             db: OnceCell::new(),
             connection_string,
             username,
@@ -208,154 +198,89 @@ impl Builder for SurrealdbBuilder {
 }
 
 /// Backend for Surrealdb service
-pub type SurrealdbBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    db: OnceCell<Arc<Surreal<Any>>>,
-    connection_string: String,
-
-    username: String,
-    password: String,
-    namespace: String,
-    database: String,
-
-    table: String,
-    key_field: String,
-    value_field: String,
+#[derive(Clone, Debug)]
+pub struct SurrealdbBackend {
+    core: Arc<SurrealdbCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Adapter")
-            .field("connection_string", &self.connection_string)
-            .field("username", &self.username)
-            .field("password", &"<redacted>")
-            .field("namespace", &self.namespace)
-            .field("database", &self.database)
-            .field("table", &self.table)
-            .field("key_field", &self.key_field)
-            .field("value_field", &self.value_field)
-            .finish()
+impl SurrealdbBackend {
+    pub fn new(core: SurrealdbCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(SURREALDB_SCHEME);
+        info.set_name(&core.table);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            stat: true,
+            write: true,
+            write_can_empty: true,
+            delete: true,
+            shared: true,
+            ..Default::default()
+        });
+
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
     }
 }
 
-impl Adapter {
-    async fn get_connection(&self) -> crate::Result<&Surreal<Any>> {
-        self.db
-            .get_or_try_init(|| async {
-                let namespace = self.namespace.as_str();
-                let database = self.database.as_str();
+impl Access for SurrealdbBackend {
+    type Reader = Buffer;
+    type Writer = SurrealdbWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<SurrealdbDeleter>;
 
-                let db: Surreal<Any> = Surreal::init();
-                db.connect(self.connection_string.clone())
-                    .await
-                    .map_err(parse_surrealdb_error)?;
-
-                if !self.username.is_empty() && !self.password.is_empty() {
-                    db.signin(Database {
-                        namespace,
-                        database,
-                        username: self.username.as_str(),
-                        password: self.password.as_str(),
-                    })
-                    .await
-                    .map_err(parse_surrealdb_error)?;
-                }
-                db.use_ns(namespace)
-                    .use_db(database)
-                    .await
-                    .map_err(parse_surrealdb_error)?;
-
-                Ok(Arc::new(db))
-            })
-            .await
-            .map(|v| v.as_ref())
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = ();
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Surrealdb,
-            &self.table,
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-                ..Default::default()
-            },
-        )
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
     }
 
-    async fn get(&self, path: &str) -> crate::Result<Option<Buffer>> {
-        let query: String = if self.key_field == "id" {
-            "SELECT type::field($value_field) FROM type::thing($table, $path)".to_string()
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
         } else {
-            format!(
-                "SELECT type::field($value_field) FROM type::table($table) WHERE {} = $path LIMIT 1",
-                self.key_field
-            )
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in surrealdb")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p).await? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in surrealdb"));
+            }
         };
-
-        let mut result = self
-            .get_connection()
-            .await?
-            .query(query)
-            .bind(("namespace", "opendal"))
-            .bind(("path", path.to_string()))
-            .bind(("table", self.table.to_string()))
-            .bind(("value_field", self.value_field.to_string()))
-            .await
-            .map_err(parse_surrealdb_error)?;
-
-        let value: Option<Vec<u8>> = result
-            .take((0, self.value_field.as_str()))
-            .map_err(parse_surrealdb_error)?;
-
-        Ok(value.map(Buffer::from))
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> crate::Result<()> {
-        let query = format!(
-            "INSERT INTO {} ({}, {}) \
-            VALUES ($path, $value) \
-            ON DUPLICATE KEY UPDATE {} = $value",
-            self.table, self.key_field, self.value_field, self.value_field
-        );
-        self.get_connection()
-            .await?
-            .query(query)
-            .bind(("path", path.to_string()))
-            .bind(("value", value.to_vec()))
-            .await
-            .map_err(parse_surrealdb_error)?;
-        Ok(())
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), SurrealdbWriter::new(self.core.clone(), p)))
     }
 
-    async fn delete(&self, path: &str) -> crate::Result<()> {
-        let query: String = if self.key_field == "id" {
-            "DELETE FROM type::thing($table, $path)".to_string()
-        } else {
-            format!(
-                "DELETE FROM type::table($table) WHERE {} = $path",
-                self.key_field
-            )
-        };
-
-        self.get_connection()
-            .await?
-            .query(query.as_str())
-            .bind(("path", path.to_string()))
-            .bind(("table", self.table.to_string()))
-            .await
-            .map_err(parse_surrealdb_error)?;
-        Ok(())
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(SurrealdbDeleter::new(self.core.clone(), self.root.clone())),
+        ))
     }
-}
-
-fn parse_surrealdb_error(err: surrealdb::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "unhandled error from surrealdb").set_source(err)
 }

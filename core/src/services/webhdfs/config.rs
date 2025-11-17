@@ -16,11 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::WebhdfsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::WEBHDFS_SCHEME;
+use super::backend::WebhdfsBuilder;
 
 /// Config for WebHDFS support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,11 +43,12 @@ pub struct WebhdfsConfig {
 }
 
 impl Debug for WebhdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebhdfsConfig")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("user_name", &self.user_name)
+            .field("disable_list_batch", &self.disable_list_batch)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }
@@ -54,7 +56,50 @@ impl Debug for WebhdfsConfig {
 
 impl crate::Configurator for WebhdfsConfig {
     type Builder = WebhdfsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", WEBHDFS_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("http://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         WebhdfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "webhdfs://namenode.example.com:50070/user/hadoop/data",
+            vec![("user_name".to_string(), "hadoop".to_string())],
+        )
+        .unwrap();
+
+        let cfg = WebhdfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("http://namenode.example.com:50070")
+        );
+        assert_eq!(cfg.root.as_deref(), Some("user/hadoop/data"));
+        assert_eq!(cfg.user_name.as_deref(), Some("hadoop"));
     }
 }

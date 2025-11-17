@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,15 +24,15 @@ use http::StatusCode;
 use log::debug;
 
 use super::PCLOUD_SCHEME;
+use super::config::PcloudConfig;
 use super::core::*;
-use super::delete::PcloudDeleter;
+use super::deleter::PcloudDeleter;
 use super::error::PcloudError;
 use super::error::parse_error;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
 use crate::raw::*;
-use crate::services::PcloudConfig;
 use crate::*;
 
 /// [pCloud](https://www.pcloud.com/) services support.
@@ -47,11 +46,10 @@ pub struct PcloudBuilder {
 }
 
 impl Debug for PcloudBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PcloudBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -134,7 +132,7 @@ impl Builder for PcloudBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud));
+                .with_context("service", PCLOUD_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -143,14 +141,14 @@ impl Builder for PcloudBuilder {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Pcloud)),
+                .with_context("service", PCLOUD_SCHEME)),
         }?;
 
         Ok(PcloudBackend {

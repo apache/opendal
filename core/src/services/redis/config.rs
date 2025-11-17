@@ -16,12 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
-use super::backend::RedisBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::REDIS_SCHEME;
+use super::backend::RedisBuilder;
 
 /// Config for Redis services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -36,6 +37,10 @@ pub struct RedisConfig {
     ///
     /// default is None
     pub cluster_endpoints: Option<String>,
+    /// The maximum number of connections allowed.
+    ///
+    /// default is 10
+    pub connection_pool_max_size: Option<u32>,
     /// the username to connect redis service.
     ///
     /// default is None
@@ -57,30 +62,62 @@ pub struct RedisConfig {
 }
 
 impl Debug for RedisConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("RedisConfig");
-
-        d.field("db", &self.db.to_string());
-        d.field("root", &self.root);
-        if let Some(endpoint) = self.endpoint.clone() {
-            d.field("endpoint", &endpoint);
-        }
-        if let Some(cluster_endpoints) = self.cluster_endpoints.clone() {
-            d.field("cluster_endpoints", &cluster_endpoints);
-        }
-        if let Some(username) = self.username.clone() {
-            d.field("username", &username);
-        }
-        if self.password.is_some() {
-            d.field("password", &"<redacted>");
-        }
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisConfig")
+            .field("endpoint", &self.endpoint)
+            .field("cluster_endpoints", &self.cluster_endpoints)
+            .field("username", &self.username)
+            .field("root", &self.root)
+            .field("db", &self.db)
+            .field("default_ttl", &self.default_ttl)
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for RedisConfig {
     type Builder = RedisBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("endpoint".to_string())
+                .or_insert_with(|| format!("redis://{authority}"));
+        } else if !map.contains_key("endpoint") && !map.contains_key("cluster_endpoints") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "endpoint or cluster_endpoints is required",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                if let Some((first, rest)) = path.split_once('/') {
+                    if let Ok(db) = first.parse::<i64>() {
+                        map.insert("db".to_string(), db.to_string());
+                        if !rest.is_empty() {
+                            map.insert("root".to_string(), rest.to_string());
+                        }
+                    } else {
+                        let mut root_value = first.to_string();
+                        if !rest.is_empty() {
+                            root_value.push('/');
+                            root_value.push_str(rest);
+                        }
+                        map.insert("root".to_string(), root_value);
+                    }
+                } else if let Ok(db) = path.parse::<i64>() {
+                    map.insert("db".to_string(), db.to_string());
+                } else {
+                    map.insert("root".to_string(), path.to_string());
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         RedisBuilder { config: self }
     }
@@ -89,6 +126,36 @@ impl crate::Configurator for RedisConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_db_and_root() {
+        let uri = OperatorUri::new(
+            "redis://localhost:6379/2/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = RedisConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
+        assert_eq!(cfg.db, 2);
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
+    }
+
+    #[test]
+    fn from_uri_treats_non_numeric_path_as_root() {
+        let uri = OperatorUri::new(
+            "redis://localhost:6379/app/data",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = RedisConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
+        assert_eq!(cfg.db, 0);
+        assert_eq!(cfg.root.as_deref(), Some("app/data"));
+    }
 
     #[test]
     fn test_redis_builder_interface() {

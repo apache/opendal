@@ -16,17 +16,17 @@
 // under the License.
 
 /// Default scheme for onedrive service.
-pub(super) const ONEDRIVE_SCHEME: &str = "onedrive";
+pub const ONEDRIVE_SCHEME: &str = "onedrive";
+
 mod backend;
+mod builder;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod graph_model;
 mod lister;
 mod writer;
 
-mod builder;
 pub use builder::OnedriveBuilder as Onedrive;
-
-mod config;
 pub use config::OnedriveConfig;

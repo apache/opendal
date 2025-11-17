@@ -221,6 +221,21 @@ pub fn format_content_md5(bs: &[u8]) -> String {
     general_purpose::STANDARD.encode(hasher.finalize())
 }
 
+/// format content md5 header by given iter of bytes.
+pub fn format_content_md5_iter<I>(bs: I) -> String
+where
+    I: IntoIterator,
+    I::Item: AsRef<[u8]>,
+{
+    let mut hasher = md5::Md5::new();
+
+    for b in bs {
+        hasher.update(b.as_ref());
+    }
+
+    general_purpose::STANDARD.encode(hasher.finalize())
+}
+
 /// format authorization header by basic auth.
 ///
 /// # Errors

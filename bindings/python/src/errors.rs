@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::exceptions::PyIOError;
+use pyo3_stub_gen::create_exception;
 
 use crate::*;
 
@@ -27,34 +27,54 @@ create_exception!(
     PyException,
     "OpenDAL Base Exception"
 );
-create_exception!(opendal.exceptions, Unexpected, Error, "Unexpected errors");
+create_exception!(
+    opendal.exceptions,
+    Unexpected,
+    PyException,
+    "Unexpected errors"
+);
 create_exception!(
     opendal.exceptions,
     Unsupported,
-    Error,
+    PyException,
     "Unsupported operation"
 );
 create_exception!(
     opendal.exceptions,
     ConfigInvalid,
-    Error,
+    PyException,
     "Config is invalid"
 );
-create_exception!(opendal.exceptions, NotFound, Error, "Not found");
+create_exception!(opendal.exceptions, NotFound, PyException, "Not found");
 create_exception!(
     opendal.exceptions,
     PermissionDenied,
-    Error,
+    PyException,
     "Permission denied"
 );
-create_exception!(opendal.exceptions, IsADirectory, Error, "Is a directory");
-create_exception!(opendal.exceptions, NotADirectory, Error, "Not a directory");
-create_exception!(opendal.exceptions, AlreadyExists, Error, "Already exists");
-create_exception!(opendal.exceptions, IsSameFile, Error, "Is same file");
+create_exception!(
+    opendal.exceptions,
+    IsADirectory,
+    PyException,
+    "Is a directory"
+);
+create_exception!(
+    opendal.exceptions,
+    NotADirectory,
+    PyException,
+    "Not a directory"
+);
+create_exception!(
+    opendal.exceptions,
+    AlreadyExists,
+    PyException,
+    "Already exists"
+);
+create_exception!(opendal.exceptions, IsSameFile, PyException, "Is same file");
 create_exception!(
     opendal.exceptions,
     ConditionNotMatch,
-    Error,
+    PyException,
     "Condition not match"
 );
 

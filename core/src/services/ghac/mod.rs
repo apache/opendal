@@ -16,14 +16,13 @@
 // under the License.
 
 /// Default scheme for ghac service.
-pub(super) const GHAC_SCHEME: &str = "ghac";
+pub const GHAC_SCHEME: &str = "ghac";
+
+mod backend;
+mod config;
+mod core;
 mod error;
 mod writer;
 
-mod backend;
 pub use backend::GhacBuilder as Ghac;
-
-mod core;
-
-mod config;
 pub use config::GhacConfig;

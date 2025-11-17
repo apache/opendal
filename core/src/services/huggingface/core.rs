@@ -22,11 +22,16 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
 use crate::raw::*;
 use crate::*;
+
+fn percent_encode_revision(revision: &str) -> String {
+    utf8_percent_encode(revision, NON_ALPHANUMERIC).to_string()
+}
 
 pub struct HuggingfaceCore {
     pub info: Arc<AccessorInfo>,
@@ -36,6 +41,7 @@ pub struct HuggingfaceCore {
     pub revision: String,
     pub root: String,
     pub token: Option<String>,
+    pub endpoint: String,
 }
 
 impl Debug for HuggingfaceCore {
@@ -45,6 +51,7 @@ impl Debug for HuggingfaceCore {
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
             .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
     }
 }
@@ -57,12 +64,16 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/api/models/{}/paths-info/{}",
-                &self.repo_id, &self.revision
+                "{}/api/models/{}/paths-info/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision)
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/api/datasets/{}/paths-info/{}",
-                &self.repo_id, &self.revision
+                "{}/api/datasets/{}/paths-info/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision)
             ),
         };
 
@@ -92,15 +103,17 @@ impl HuggingfaceCore {
 
         let mut url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/api/models/{}/tree/{}/{}?expand=True",
+                "{}/api/models/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/api/datasets/{}/tree/{}/{}?expand=True",
+                "{}/api/datasets/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
         };
@@ -134,15 +147,17 @@ impl HuggingfaceCore {
 
         let url = match self.repo_type {
             RepoType::Model => format!(
-                "https://huggingface.co/{}/resolve/{}/{}",
+                "{}/{}/resolve/{}/{}",
+                &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
             RepoType::Dataset => format!(
-                "https://huggingface.co/datasets/{}/resolve/{}/{}",
+                "{}/datasets/{}/resolve/{}/{}",
+                &self.endpoint,
                 &self.repo_id,
-                &self.revision,
+                percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
         };
@@ -238,6 +253,242 @@ mod tests {
     use super::*;
     use crate::raw::new_json_deserialize_error;
     use crate::types::Result;
+    use http::{Request, Response, StatusCode};
+    use std::sync::{Arc, Mutex};
+
+    // Mock HTTP client that captures the request URL and headers
+    #[derive(Clone)]
+    struct MockHttpClient {
+        url: Arc<Mutex<Option<String>>>,
+        headers: Arc<Mutex<Option<http::HeaderMap>>>,
+    }
+
+    impl MockHttpClient {
+        fn new() -> Self {
+            Self {
+                url: Arc::new(Mutex::new(None)),
+                headers: Arc::new(Mutex::new(None)),
+            }
+        }
+
+        fn get_captured_url(&self) -> String {
+            self.url.lock().unwrap().clone().unwrap()
+        }
+
+        fn get_captured_headers(&self) -> http::HeaderMap {
+            self.headers.lock().unwrap().clone().unwrap()
+        }
+    }
+
+    impl HttpFetch for MockHttpClient {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            // Capture the URL and headers
+            *self.url.lock().unwrap() = Some(req.uri().to_string());
+            *self.headers.lock().unwrap() = Some(req.headers().clone());
+
+            // Return a mock response with empty body
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .unwrap())
+        }
+    }
+
+    /// Utility function to create HuggingfaceCore with mocked HTTP client
+    fn create_test_core(
+        repo_type: RepoType,
+        repo_id: &str,
+        revision: &str,
+        endpoint: &str,
+    ) -> (HuggingfaceCore, MockHttpClient) {
+        let mock_client = MockHttpClient::new();
+        let http_client = HttpClient::with(mock_client.clone());
+
+        let info = AccessorInfo::default();
+        info.set_scheme("huggingface")
+            .set_native_capability(Capability::default());
+        info.update_http_client(|_| http_client);
+
+        let core = HuggingfaceCore {
+            info: Arc::new(info),
+            repo_type,
+            repo_id: repo_id.to_string(),
+            revision: revision.to_string(),
+            root: "/".to_string(),
+            token: None,
+            endpoint: endpoint.to_string(),
+        };
+
+        (core, mock_client)
+    }
+
+    #[tokio::test]
+    async fn test_hf_path_info_url_model() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_path_info("test.txt").await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/models/test-user/test-repo/paths-info/main"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_path_info_url_dataset() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Dataset,
+            "test-org/test-dataset",
+            "v1.0.0",
+            "https://huggingface.co",
+        );
+
+        core.hf_path_info("data/file.csv").await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/datasets/test-org/test-dataset/paths-info/v1%2E0%2E0"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_path_info_url_custom_endpoint() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "test-org/test-dataset",
+            "refs/convert/parquet",
+            "https://custom-hf.example.com",
+        );
+
+        core.hf_path_info("model.bin").await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://custom-hf.example.com/api/models/test-org/test-dataset/paths-info/refs%2Fconvert%2Fparquet"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_non_recursive() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "org/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("path1", false).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/models/org/model/tree/main/path1?expand=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_recursive() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "org/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("path2", true).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/models/org/model/tree/main/path2?expand=True&recursive=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_resolve_url_model() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "user/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let args = OpRead::default();
+        core.hf_resolve("config.json", BytesRange::default(), &args)
+            .await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/user/model/resolve/main/config.json"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_resolve_url_dataset() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Dataset,
+            "org/data",
+            "v1.0",
+            "https://huggingface.co",
+        );
+
+        let args = OpRead::default();
+        core.hf_resolve("train.csv", BytesRange::default(), &args)
+            .await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/datasets/org/data/resolve/v1%2E0/train.csv"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_resolve_with_range() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "user/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let args = OpRead::default();
+        let range = BytesRange::new(0, Some(1024));
+        core.hf_resolve("large_file.bin", range, &args).await?;
+
+        let url = mock_client.get_captured_url();
+        let headers = mock_client.get_captured_headers();
+        assert_eq!(
+            url,
+            "https://huggingface.co/user/model/resolve/main/large_file.bin"
+        );
+        assert_eq!(headers.get(http::header::RANGE).unwrap(), "bytes=0-1023");
+
+        Ok(())
+    }
 
     #[test]
     fn parse_list_response_test() -> Result<()> {

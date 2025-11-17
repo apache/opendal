@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -24,10 +23,10 @@ use http::StatusCode;
 use log::debug;
 
 use super::HTTP_SCHEME;
+use super::config::HttpConfig;
 use super::core::HttpCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::HttpConfig;
 use crate::*;
 
 /// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
@@ -41,10 +40,10 @@ pub struct HttpBuilder {
 }
 
 impl Debug for HttpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HttpBuilder");
-
-        de.field("config", &self.config).finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -127,7 +126,7 @@ impl Builder for HttpBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Http));
+                    .with_context("service", HTTP_SCHEME));
             }
         };
 
@@ -187,17 +186,9 @@ impl Builder for HttpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for http.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HttpBackend {
     core: Arc<HttpCore>,
-}
-
-impl Debug for HttpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HttpBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for HttpBackend {

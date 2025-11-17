@@ -172,14 +172,13 @@ impl ReadGenerator {
 
 #[cfg(test)]
 mod tests {
-
     use bytes::Bytes;
 
     use super::*;
 
     #[tokio::test]
     async fn test_next_reader() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -205,7 +204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_reader_without_size() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),

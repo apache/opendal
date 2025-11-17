@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::UpyunBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::UpyunBuilder;
 
 /// Config for upyun services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,14 +40,12 @@ pub struct UpyunConfig {
 }
 
 impl Debug for UpyunConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("bucket", &self.bucket);
-        ds.field("operator", &self.operator);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunConfig")
+            .field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("operator", &self.operator)
+            .finish_non_exhaustive()
     }
 }
 
@@ -86,7 +84,7 @@ mod tests {
     #[test]
     fn from_uri_extracts_bucket_and_root() {
         let uri = OperatorUri::new(
-            "upyun://example-bucket/path/to/root".parse().unwrap(),
+            "upyun://example-bucket/path/to/root",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

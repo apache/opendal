@@ -16,21 +16,20 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use log::debug;
 
 use super::ALLUXIO_SCHEME;
+use super::config::AlluxioConfig;
 use super::core::AlluxioCore;
-use super::delete::AlluxioDeleter;
+use super::deleter::AlluxioDeleter;
 use super::error::parse_error;
 use super::lister::AlluxioLister;
 use super::writer::AlluxioWriter;
 use super::writer::AlluxioWriters;
 use crate::raw::*;
-use crate::services::AlluxioConfig;
 use crate::*;
 
 /// [Alluxio](https://www.alluxio.io/) services support.
@@ -44,11 +43,10 @@ pub struct AlluxioBuilder {
 }
 
 impl Debug for AlluxioBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AlluxioBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlluxioBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -106,7 +104,7 @@ impl Builder for AlluxioBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Alluxio)),
+                .with_context("service", ALLUXIO_SCHEME)),
         }?;
         debug!("backend use endpoint {}", &endpoint);
 

@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
+
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::FTP_SCHEME;
 use super::backend::FtpBuilder;
-use serde::Deserialize;
-use serde::Serialize;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -39,7 +39,7 @@ pub struct FtpConfig {
 }
 
 impl Debug for FtpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FtpConfig")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
@@ -53,7 +53,7 @@ impl crate::Configurator for FtpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Ftp)
+                .with_context("service", FTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();

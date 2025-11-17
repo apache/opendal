@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::PersyBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::PersyBuilder;
 
 /// Config for persy service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -34,7 +35,42 @@ pub struct PersyConfig {
 
 impl crate::Configurator for PersyConfig {
     type Builder = PersyBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                map.entry("datafile".to_string())
+                    .or_insert_with(|| format!("/{path}"));
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         PersyBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_datafile_segment_and_index() {
+        let uri = OperatorUri::new(
+            "persy:///var/data/persy?segment=segment&index=index",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = PersyConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.datafile.as_deref(), Some("/var/data/persy"));
+        assert_eq!(cfg.segment.as_deref(), Some("segment"));
+        assert_eq!(cfg.index.as_deref(), Some("index"));
     }
 }

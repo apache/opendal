@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
@@ -49,8 +48,8 @@ pub struct GithubCore {
 }
 
 impl Debug for GithubCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubCore")
             .field("root", &self.root)
             .field("owner", &self.owner)
             .field("repo", &self.repo)
@@ -348,4 +347,9 @@ pub struct Entry {
     pub size: u64,
     #[serde(rename = "type")]
     pub type_field: String,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
+pub struct ContentResponse {
+    pub content: Entry,
 }

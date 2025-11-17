@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for swift service.
-pub(super) const SWIFT_SCHEME: &str = "swift";
+pub const SWIFT_SCHEME: &str = "swift";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::SwiftBuilder as Swift;
-
-mod config;
 pub use config::SwiftConfig;

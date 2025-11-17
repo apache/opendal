@@ -16,16 +16,16 @@
 // under the License.
 
 /// Default scheme for dropbox service.
-pub(super) const DROPBOX_SCHEME: &str = "dropbox";
+pub const DROPBOX_SCHEME: &str = "dropbox";
+
 mod backend;
+mod builder;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod builder;
 pub use builder::DropboxBuilder as Dropbox;
-
-mod config;
 pub use config::DropboxConfig;

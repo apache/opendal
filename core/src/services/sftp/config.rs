@@ -16,11 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::SftpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::SFTP_SCHEME;
+use super::backend::SftpBuilder;
 
 /// Config for Sftp Service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -42,7 +43,7 @@ pub struct SftpConfig {
 }
 
 impl Debug for SftpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SftpConfig")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
@@ -56,7 +57,7 @@ impl crate::Configurator for SftpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Sftp)
+                .with_context("service", SFTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();
@@ -83,7 +84,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "sftp://sftp.example.com/home/alice".parse().unwrap(),
+            "sftp://sftp.example.com/home/alice",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -96,7 +97,7 @@ mod tests {
     #[test]
     fn from_uri_applies_connection_overrides() {
         let uri = OperatorUri::new(
-            "sftp://host".parse().unwrap(),
+            "sftp://host",
             vec![
                 ("user".to_string(), "alice".to_string()),
                 ("key".to_string(), "/home/alice/.ssh/id_rsa".to_string()),

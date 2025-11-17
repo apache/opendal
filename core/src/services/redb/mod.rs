@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::RedbBuilder as Redb;
+/// Default scheme for redb service.
+pub const REDB_SCHEME: &str = "redb";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::RedbBuilder as Redb;
 pub use config::RedbConfig;

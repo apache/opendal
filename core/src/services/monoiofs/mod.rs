@@ -16,14 +16,14 @@
 // under the License.
 
 /// Default scheme for monoiofs service.
-pub(super) const MONOIOFS_SCHEME: &str = "monoiofs";
+pub const MONOIOFS_SCHEME: &str = "monoiofs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::MonoiofsBuilder as Monoiofs;
-
-mod config;
 pub use config::MonoiofsConfig;

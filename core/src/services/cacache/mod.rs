@@ -16,13 +16,13 @@
 // under the License.
 
 /// Default scheme for cacache service.
-pub(super) const CACACHE_SCHEME: &str = "cacache";
+pub const CACACHE_SCHEME: &str = "cacache";
+
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod writer;
 
 pub use backend::CacacheBuilder as Cacache;
-
-mod config;
 pub use config::CacacheConfig;

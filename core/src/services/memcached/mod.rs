@@ -15,10 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod binary;
+/// Default scheme for memcached service.
+pub const MEMCACHED_SCHEME: &str = "memcached";
 
 mod backend;
-pub use backend::MemcachedBuilder as Memcached;
-
+mod binary;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::MemcachedBuilder as Memcached;
 pub use config::MemcachedConfig;

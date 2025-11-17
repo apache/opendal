@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for dbfs service.
-pub(super) const DBFS_SCHEME: &str = "dbfs";
+pub const DBFS_SCHEME: &str = "dbfs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::DbfsBuilder as Dbfs;
-
-mod config;
 pub use config::DbfsConfig;

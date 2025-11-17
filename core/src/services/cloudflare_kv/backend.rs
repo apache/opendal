@@ -16,23 +16,22 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::CLOUDFLARE_KV_SCHEME;
-use crate::ErrorKind;
-use crate::raw::*;
-use crate::services::CloudflareKvConfig;
-use crate::services::cloudflare_kv::core::CloudflareKvCore;
-use crate::services::cloudflare_kv::delete::CloudflareKvDeleter;
-use crate::services::cloudflare_kv::error::parse_error;
-use crate::services::cloudflare_kv::lister::CloudflareKvLister;
-use crate::services::cloudflare_kv::model::*;
-use crate::services::cloudflare_kv::writer::CloudflareWriter;
-use crate::*;
 use bytes::Buf;
 use http::StatusCode;
+
+use super::CLOUDFLARE_KV_SCHEME;
+use super::config::CloudflareKvConfig;
+use super::core::CloudflareKvCore;
+use super::deleter::CloudflareKvDeleter;
+use super::error::parse_error;
+use super::lister::CloudflareKvLister;
+use super::model::*;
+use super::writer::CloudflareWriter;
+use crate::raw::*;
+use crate::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
@@ -40,14 +39,15 @@ pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
 
     /// The HTTP client used to communicate with CloudFlare.
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CloudFlareKvBuilder")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudflareKvBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -142,7 +142,7 @@ impl Builder for CloudflareKvBuilder {
                 .as_str(),
         );
 
-        Ok(CloudflareKvAccessor {
+        Ok(CloudflareKvBackend {
             core: Arc::new(CloudflareKvCore {
                 api_token,
                 account_id,
@@ -197,17 +197,17 @@ impl Builder for CloudflareKvBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct CloudflareKvAccessor {
-    core: std::sync::Arc<CloudflareKvCore>,
+pub struct CloudflareKvBackend {
+    core: Arc<CloudflareKvCore>,
 }
 
-impl Access for CloudflareKvAccessor {
+impl Access for CloudflareKvBackend {
     type Reader = Buffer;
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
 
-    fn info(&self) -> std::sync::Arc<AccessorInfo> {
+    fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
     }
 

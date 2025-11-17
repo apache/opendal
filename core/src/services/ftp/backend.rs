@@ -16,8 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -31,29 +29,21 @@ use suppaftp::types::Response;
 use tokio::sync::OnceCell;
 
 use super::FTP_SCHEME;
+use super::config::FtpConfig;
 use super::core::FtpCore;
-use super::delete::FtpDeleter;
+use super::deleter::FtpDeleter;
 use super::err::parse_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
 use crate::raw::*;
-use crate::services::FtpConfig;
 use crate::*;
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct FtpBuilder {
     pub(super) config: FtpConfig,
-}
-
-impl Debug for FtpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FtpBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
 }
 
 impl FtpBuilder {
@@ -199,8 +189,8 @@ pub struct FtpBackend {
 }
 
 impl Debug for FtpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend").finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FtpBackend").finish()
     }
 }
 
@@ -384,7 +374,7 @@ mod build_test {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "ftp://example.com/public/data".parse().unwrap(),
+            "ftp://example.com/public/data",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -397,7 +387,7 @@ mod build_test {
     #[test]
     fn from_uri_applies_credentials_from_query() {
         let uri = OperatorUri::new(
-            "ftp://example.com/data".parse().unwrap(),
+            "ftp://example.com/data",
             vec![
                 ("user".to_string(), "alice".to_string()),
                 ("password".to_string(), "secret".to_string()),

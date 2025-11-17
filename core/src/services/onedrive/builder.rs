@@ -15,23 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
-use crate::Scheme;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::raw::Timestamp;
-use crate::raw::normalize_root;
-use crate::services::OnedriveConfig;
+use super::config::OnedriveConfig;
+use crate::raw::*;
 use crate::*;
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
@@ -39,14 +34,16 @@ use crate::*;
 #[derive(Default)]
 pub struct OnedriveBuilder {
     pub(super) config: OnedriveConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
     pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnedriveBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -189,7 +186,7 @@ impl Builder for OnedriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Onedrive)
+                    .with_context("service", ONEDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -203,14 +200,14 @@ impl Builder for OnedriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Onedrive));
+                .with_context("service", ONEDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Onedrive));
+                .with_context("service", ONEDRIVE_SCHEME));
             }
         };
 

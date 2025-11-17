@@ -16,14 +16,15 @@
 // under the License.
 
 /// Default scheme for hdfs service.
-pub(super) const HDFS_SCHEME: &str = "hdfs";
-mod delete;
+pub const HDFS_SCHEME: &str = "hdfs";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod lister;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::HdfsBuilder as Hdfs;
-
-mod config;
 pub use config::HdfsConfig;

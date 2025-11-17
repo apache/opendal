@@ -15,25 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use log::debug;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
+
+use log::debug;
 use tokio::sync::Mutex;
 
 use super::GDRIVE_SCHEME;
 use super::backend::GdriveBackend;
+use super::config::GdriveConfig;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
-use crate::Scheme;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::raw::PathCacher;
-use crate::raw::Timestamp;
-use crate::raw::normalize_root;
-use crate::services::GdriveConfig;
+use crate::raw::*;
 use crate::*;
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
@@ -47,10 +41,10 @@ pub struct GdriveBuilder {
 }
 
 impl Debug for GdriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -170,14 +164,14 @@ impl Builder for GdriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -189,14 +183,14 @@ impl Builder for GdriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Gdrive));
+                .with_context("service", GDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Gdrive));
+                .with_context("service", GDRIVE_SCHEME));
             }
         };
 

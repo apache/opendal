@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::EtcdBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::EtcdBuilder;
 
 /// Config for Etcd services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -60,35 +60,59 @@ pub struct EtcdConfig {
 }
 
 impl Debug for EtcdConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("EtcdConfig");
-
-        ds.field("root", &self.root);
-        if let Some(endpoints) = self.endpoints.clone() {
-            ds.field("endpoints", &endpoints);
-        }
-        if let Some(username) = self.username.clone() {
-            ds.field("username", &username);
-        }
-        if self.password.is_some() {
-            ds.field("password", &"<redacted>");
-        }
-        if let Some(ca_path) = self.ca_path.clone() {
-            ds.field("ca_path", &ca_path);
-        }
-        if let Some(cert_path) = self.cert_path.clone() {
-            ds.field("cert_path", &cert_path);
-        }
-        if let Some(key_path) = self.key_path.clone() {
-            ds.field("key_path", &key_path);
-        }
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EtcdConfig")
+            .field("root", &self.root)
+            .field("endpoints", &self.endpoints)
+            .field("username", &self.username)
+            .field("ca_path", &self.ca_path)
+            .field("cert_path", &self.cert_path)
+            .field("key_path", &self.key_path)
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for EtcdConfig {
     type Builder = EtcdBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("endpoints".to_string())
+                .or_insert_with(|| format!("http://{authority}"));
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         EtcdBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoints_and_root() {
+        let uri = OperatorUri::new(
+            "etcd://127.0.0.1:2379/app/config",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = EtcdConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoints.as_deref(), Some("http://127.0.0.1:2379"));
+        assert_eq!(cfg.root.as_deref(), Some("app/config"));
     }
 }

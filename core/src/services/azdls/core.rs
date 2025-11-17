@@ -15,9 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::HeaderName;
@@ -54,7 +52,7 @@ pub struct AzdlsCore {
 }
 
 impl Debug for AzdlsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AzdlsCore")
             .field("filesystem", &self.filesystem)
             .field("root", &self.root)

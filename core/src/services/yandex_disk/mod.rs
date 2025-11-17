@@ -15,16 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for yandex_disk service.
-pub(super) const YANDEX_DISK_SCHEME: &str = "yandex_disk";
+/// Default scheme for yandex-disk service.
+pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::YandexDiskBuilder as YandexDisk;
-
-mod config;
 pub use config::YandexDiskConfig;

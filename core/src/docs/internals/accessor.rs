@@ -119,7 +119,7 @@
 //!
 //! ## Scheme
 //!
-//! First of all, let's pick a good [`Scheme`] for our duck service. The
+//! First of all, let's pick a good scheme for our duck service. The
 //! scheme should be unique and easy to understand. Normally we should
 //! use its formal name.
 //!
@@ -128,12 +128,10 @@
 //! vendors that provide s3-like RESTful APIs, and our s3 service is
 //! implemented to support all of them, not just AWS S3.
 //!
-//! Obviously, we can use `duck` as scheme, let's add a new variant in [`Scheme`], and implement all required functions like `Scheme::from_str` and `Scheme::into_static`:
+//! Obviously, we can use `duck` as scheme, let's add a new constant string:
 //!
 //! ```ignore
-//! pub enum Scheme {
-//!     Duck,
-//! }
+//! pub const DUCK_SCHEME: &str = "duck";
 //! ```
 //!
 //! ## Builder
@@ -273,7 +271,7 @@
 //!
 //!     fn info(&self) -> Arc<AccessorInfo> {
 //!         let am = AccessorInfo::default();
-//!         am.set_scheme("duck")
+//!         am.set_scheme(DUCK_SCHEME)
 //!             .set_root(&self.root)
 //!             .set_native_capability(
 //!                 Capability {
@@ -301,6 +299,5 @@
 //! [`Operation`]: crate::raw::Operation
 //! [`Capability`]: crate::Capability
 //! [`AccessorInfo`]: crate::raw::AccessorInfo
-//! [`Scheme`]: crate::Scheme
 //! [`Builder`]: crate::Builder
 //! [`Configurator`]: crate::Configurator

@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::MongodbBuilder as Mongodb;
+/// Default scheme for mongodb service.
+pub const MONGODB_SCHEME: &str = "mongodb";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::MongodbBuilder as Mongodb;
 pub use config::MongodbConfig;

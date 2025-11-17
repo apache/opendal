@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -24,14 +23,14 @@ use http::StatusCode;
 use log::debug;
 
 use super::UPYUN_SCHEME;
+use super::config::UpyunConfig;
 use super::core::*;
-use super::delete::UpyunDeleter;
+use super::deleter::UpyunDeleter;
 use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
 use crate::raw::*;
-use crate::services::UpyunConfig;
 use crate::*;
 
 /// [upyun](https://www.upyun.com/products/file-storage) services support.
@@ -45,11 +44,10 @@ pub struct UpyunBuilder {
 }
 
 impl Debug for UpyunBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("UpyunBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -130,7 +128,7 @@ impl Builder for UpyunBuilder {
         if self.config.bucket.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "bucket is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun));
+                .with_context("service", UPYUN_SCHEME));
         }
 
         debug!("backend use bucket {}", &self.config.bucket);
@@ -139,14 +137,14 @@ impl Builder for UpyunBuilder {
             Some(operator) => Ok(operator.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "operator is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun)),
+                .with_context("service", UPYUN_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Upyun)),
+                .with_context("service", UPYUN_SCHEME)),
         }?;
 
         let signer = UpyunSigner {

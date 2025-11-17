@@ -17,14 +17,14 @@
 
 /// Default scheme for azblob service.
 pub const AZBLOB_SCHEME: &str = "azblob";
+
+mod backend;
+mod config;
 pub(crate) mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 pub(crate) mod writer;
 
-mod backend;
 pub use backend::AzblobBuilder as Azblob;
-
-mod config;
 pub use config::AzblobConfig;

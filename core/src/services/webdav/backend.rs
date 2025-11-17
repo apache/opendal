@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -25,13 +24,13 @@ use http::StatusCode;
 use log::debug;
 
 use super::WEBDAV_SCHEME;
+use super::config::WebdavConfig;
 use super::core::*;
-use super::delete::WebdavDeleter;
+use super::deleter::WebdavDeleter;
 use super::error::parse_error;
 use super::lister::WebdavLister;
 use super::writer::WebdavWriter;
 use crate::raw::*;
-use crate::services::WebdavConfig;
 use crate::*;
 
 /// [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
@@ -45,12 +44,10 @@ pub struct WebdavBuilder {
 }
 
 impl Debug for WebdavBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebdavBuilder");
-
-        d.field("config", &self.config);
-
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebdavBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -133,14 +130,14 @@ impl Builder for WebdavBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Webdav));
+                    .with_context("service", WEBDAV_SCHEME));
             }
         };
         // Some services might return the path with suffix `/remote.php/webdav/`, we need to trim them.
         let server_path = http::Uri::from_str(endpoint)
             .map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                    .with_context("service", Scheme::Webdav)
+                    .with_context("service", WEBDAV_SCHEME)
                     .set_source(err)
             })?
             .path()
@@ -208,17 +205,9 @@ impl Builder for WebdavBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for http.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WebdavBackend {
     core: Arc<WebdavCore>,
-}
-
-impl Debug for WebdavBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WebdavBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for WebdavBackend {

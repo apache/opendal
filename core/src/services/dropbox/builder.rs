@@ -16,16 +16,16 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
+
 use tokio::sync::Mutex;
 
 use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;
+use super::config::DropboxConfig;
 use super::core::DropboxCore;
 use super::core::DropboxSigner;
 use crate::raw::*;
-use crate::services::DropboxConfig;
 use crate::*;
 
 /// [Dropbox](https://www.dropbox.com/) backend support.
@@ -39,10 +39,10 @@ pub struct DropboxBuilder {
 }
 
 impl Debug for DropboxBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Builder")
-            .field("root", &self.config.root)
-            .finish()
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -130,14 +130,14 @@ impl Builder for DropboxBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Dropbox)
+                    .with_context("service", DROPBOX_SCHEME)
                 })?;
 
                 DropboxSigner {
@@ -152,14 +152,14 @@ impl Builder for DropboxBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token can not be set at the same time",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Dropbox));
+                .with_context("service", DROPBOX_SCHEME));
             }
         };
 

@@ -16,11 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::PcloudBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::PCLOUD_SCHEME;
+use super::backend::PcloudBuilder;
 
 /// Config for Pcloud services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -31,7 +32,7 @@ pub struct PcloudConfig {
     ///
     /// All operations will happen under this root.
     pub root: Option<String>,
-    ///pCloud  endpoint address.
+    /// pCloud endpoint address.
     pub endpoint: String,
     /// pCloud username.
     pub username: Option<String>,
@@ -40,19 +41,35 @@ pub struct PcloudConfig {
 }
 
 impl Debug for PcloudConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
-
-        ds.field("root", &self.root);
-        ds.field("endpoint", &self.endpoint);
-        ds.field("username", &self.username);
-
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudConfig")
+            .field("root", &self.root)
+            .field("endpoint", &self.endpoint)
+            .field("username", &self.username)
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", PCLOUD_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -60,5 +77,33 @@ impl crate::Configurator for PcloudConfig {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_and_root() {
+        let uri = OperatorUri::new(
+            "pcloud://api.pcloud.com/drive/photos",
+            vec![("username".to_string(), "alice".to_string())],
+        )
+        .unwrap();
+
+        let cfg = PcloudConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint, "https://api.pcloud.com".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("drive/photos"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+    }
+
+    #[test]
+    fn from_uri_requires_authority() {
+        let uri = OperatorUri::new("pcloud:///drive", Vec::<(String, String)>::new()).unwrap();
+
+        assert!(PcloudConfig::from_uri(&uri).is_err());
     }
 }

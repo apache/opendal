@@ -17,15 +17,14 @@
 
 /// Default scheme for b2 service.
 pub const B2_SCHEME: &str = "b2";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::B2Builder as B2;
-
-mod config;
-
 pub use config::B2Config;

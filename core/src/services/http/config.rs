@@ -16,11 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::HttpBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::HTTP_SCHEME;
+use super::backend::HttpBuilder;
 
 /// Config for Http service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -40,12 +41,11 @@ pub struct HttpConfig {
 }
 
 impl Debug for HttpConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HttpConfig");
-        de.field("endpoint", &self.endpoint);
-        de.field("root", &self.root);
-
-        de.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpConfig")
+            .field("endpoint", &self.endpoint)
+            .field("root", &self.root)
+            .finish_non_exhaustive()
     }
 }
 
@@ -55,7 +55,7 @@ impl crate::Configurator for HttpConfig {
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let authority = uri.authority().ok_or_else(|| {
             crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", crate::Scheme::Http)
+                .with_context("service", HTTP_SCHEME)
         })?;
 
         let mut map = uri.options().clone();
@@ -89,7 +89,7 @@ mod tests {
     #[test]
     fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "http://example.com/static/assets".parse().unwrap(),
+            "http://example.com/static/assets",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn from_uri_preserves_query_options() {
         let uri = OperatorUri::new(
-            "http://cdn.example.com/data?token=abc123".parse().unwrap(),
+            "http://cdn.example.com/data?token=abc123",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -115,7 +115,7 @@ mod tests {
     #[test]
     fn from_uri_ignores_endpoint_override() {
         let uri = OperatorUri::new(
-            "http://example.com/data".parse().unwrap(),
+            "http://example.com/data",
             vec![(
                 "endpoint".to_string(),
                 "https://cdn.example.com".to_string(),

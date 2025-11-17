@@ -16,16 +16,15 @@
 // under the License.
 
 /// Default scheme for azfile service.
-pub(super) const AZFILE_SCHEME: &str = "azfile";
+pub const AZFILE_SCHEME: &str = "azfile";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::AzfileBuilder as Azfile;
-
-mod config;
-
 pub use config::AzfileConfig;

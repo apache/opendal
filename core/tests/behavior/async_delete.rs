@@ -17,7 +17,6 @@
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use log::warn;
 use opendal::raw::Access;
 use opendal::raw::OpDelete;
 
@@ -80,14 +79,6 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
 /// Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
-
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, _) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
@@ -142,7 +133,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     }
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
 

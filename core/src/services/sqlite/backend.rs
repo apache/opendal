@@ -15,39 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::pin::Pin;
 use std::str::FromStr;
-use std::task::Context;
-use std::task::Poll;
+use std::sync::Arc;
 
-use futures::Stream;
-use futures::StreamExt;
-use futures::stream::BoxStream;
-use ouroboros::self_referencing;
-use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
+use super::SQLITE_SCHEME;
+use super::config::SqliteConfig;
+use super::core::SqliteCore;
+use super::deleter::SqliteDeleter;
+use super::writer::SqliteWriter;
+use crate::raw::oio;
 use crate::raw::*;
-use crate::services::SqliteConfig;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SqliteBuilder {
     pub(super) config: SqliteConfig,
-}
-
-impl Debug for SqliteBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("SqliteBuilder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
 }
 
 impl SqliteBuilder {
@@ -124,13 +110,13 @@ impl Builder for SqliteBuilder {
                     ErrorKind::ConfigInvalid,
                     "connection_string is required but not set",
                 )
-                .with_context("service", Scheme::Sqlite));
+                .with_context("service", SQLITE_SCHEME));
             }
         };
 
         let config = SqliteConnectOptions::from_str(&conn).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "connection_string is invalid")
-                .with_context("service", Scheme::Sqlite)
+                .with_context("service", SQLITE_SCHEME)
                 .set_source(err)
         })?;
 
@@ -138,7 +124,7 @@ impl Builder for SqliteBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
-                    .with_context("service", Scheme::Sqlite));
+                    .with_context("service", SQLITE_SCHEME));
             }
         };
 
@@ -151,7 +137,7 @@ impl Builder for SqliteBuilder {
 
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
-        Ok(SqliteBackend::new(Adapter {
+        Ok(SqliteBackend::new(SqliteCore {
             pool: OnceCell::new(),
             config,
             table,
@@ -162,144 +148,7 @@ impl Builder for SqliteBuilder {
     }
 }
 
-pub type SqliteBackend = kv::Backend<Adapter>;
-
-#[derive(Debug, Clone)]
-pub struct Adapter {
-    pool: OnceCell<SqlitePool>,
-    config: SqliteConnectOptions,
-
-    table: String,
-    key_field: String,
-    value_field: String,
-}
-
-impl Adapter {
-    async fn get_client(&self) -> Result<&SqlitePool> {
-        self.pool
-            .get_or_try_init(|| async {
-                let pool = SqlitePool::connect_with(self.config.clone())
-                    .await
-                    .map_err(parse_sqlite_error)?;
-                Ok(pool)
-            })
-            .await
-    }
-}
-
-#[self_referencing]
-pub struct SqliteScanner {
-    pool: SqlitePool,
-    query: String,
-
-    #[borrows(pool, query)]
-    #[covariant]
-    stream: BoxStream<'this, Result<String>>,
-}
-
-impl Stream for SqliteScanner {
-    type Item = Result<String>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.with_stream_mut(|s| s.poll_next_unpin(cx))
-    }
-}
-
-unsafe impl Sync for SqliteScanner {}
-
-impl kv::Scan for SqliteScanner {
-    async fn next(&mut self) -> Result<Option<String>> {
-        <Self as StreamExt>::next(self).await.transpose()
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = SqliteScanner;
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Sqlite,
-            &self.table,
-            Capability {
-                read: true,
-                write: true,
-                delete: true,
-                list: true,
-                shared: false,
-                ..Default::default()
-            },
-        )
-    }
-
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        let pool = self.get_client().await?;
-
-        let value: Option<Vec<u8>> = sqlx::query_scalar(&format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` = $1 LIMIT 1",
-            self.value_field, self.table, self.key_field
-        ))
-        .bind(path)
-        .fetch_optional(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
-
-        Ok(value.map(Buffer::from))
-    }
-
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        let pool = self.get_client().await?;
-
-        sqlx::query(&format!(
-            "INSERT OR REPLACE INTO `{}` (`{}`, `{}`) VALUES ($1, $2)",
-            self.table, self.key_field, self.value_field,
-        ))
-        .bind(path)
-        .bind(value.to_vec())
-        .execute(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
-
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        let pool = self.get_client().await?;
-
-        sqlx::query(&format!(
-            "DELETE FROM `{}` WHERE `{}` = $1",
-            self.table, self.key_field
-        ))
-        .bind(path)
-        .execute(pool)
-        .await
-        .map_err(parse_sqlite_error)?;
-
-        Ok(())
-    }
-
-    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let pool = self.get_client().await?;
-        let stream = SqliteScannerBuilder {
-            pool: pool.clone(),
-            query: format!(
-                "SELECT `{}` FROM `{}` WHERE `{}` LIKE $1",
-                self.key_field, self.table, self.key_field
-            ),
-            stream_builder: |pool, query| {
-                sqlx::query_scalar(query)
-                    .bind(format!("{path}%"))
-                    .fetch(pool)
-                    .map(|v| v.map_err(parse_sqlite_error))
-                    .boxed()
-            },
-        }
-        .build();
-
-        Ok(stream)
-    }
-}
-
-fn parse_sqlite_error(err: sqlx::Error) -> Error {
+pub fn parse_sqlite_error(err: sqlx::Error) -> Error {
     let is_temporary = matches!(
         &err,
         sqlx::Error::Database(db_err) if db_err.code().is_some_and(|c| c == "5" || c == "6")
@@ -316,4 +165,197 @@ fn parse_sqlite_error(err: sqlx::Error) -> Error {
         error = error.set_temporary();
     }
     error
+}
+
+/// SqliteBackend implements Access trait directly
+#[derive(Debug, Clone)]
+pub struct SqliteBackend {
+    core: Arc<SqliteCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
+}
+
+impl SqliteBackend {
+    fn new(core: SqliteCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(SQLITE_SCHEME);
+        info.set_name(&core.table);
+        info.set_root("/");
+        info.set_native_capability(Capability {
+            read: true,
+            write: true,
+            create_dir: true,
+            delete: true,
+            stat: true,
+            write_can_empty: true,
+            list: false,
+            shared: false,
+            ..Default::default()
+        });
+
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
+        }
+    }
+
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
+    }
+}
+
+impl Access for SqliteBackend {
+    type Reader = Buffer;
+    type Writer = SqliteWriter;
+    type Lister = ();
+    type Deleter = oio::OneShotDeleter<SqliteDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p).await?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::from_path(&p)).with_content_length(bs.len() as u64),
+                )),
+                None => {
+                    // Check if this might be a directory by looking for keys with this prefix
+                    let dir_path = if p.ends_with('/') {
+                        p.clone()
+                    } else {
+                        format!("{}/", p)
+                    };
+                    let count: i64 = sqlx::query_scalar(&format!(
+                        "SELECT COUNT(*) FROM `{}` WHERE `{}` LIKE $1 LIMIT 1",
+                        self.core.table, self.core.key_field
+                    ))
+                    .bind(format!("{}%", dir_path))
+                    .fetch_one(self.core.get_client().await?)
+                    .await
+                    .map_err(crate::services::sqlite::backend::parse_sqlite_error)?;
+
+                    if count > 0 {
+                        // Directory exists (has children)
+                        Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    } else {
+                        Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"))
+                    }
+                }
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+
+        let range = args.range();
+        let buffer = if range.is_full() {
+            // Full read - use GET
+            match self.core.get(&p).await? {
+                Some(bs) => bs,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            }
+        } else {
+            // Range read - use GETRANGE
+            let start = range.offset() as isize;
+            let limit = match range.size() {
+                Some(size) => size as isize,
+                None => -1, // Sqlite uses -1 for end of string
+            };
+
+            match self.core.get_range(&p, start, limit).await? {
+                Some(bs) => bs,
+                None => return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite")),
+            }
+        };
+
+        Ok((RpRead::new(), buffer))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        Ok((RpWrite::new(), SqliteWriter::new(self.core.clone(), &p)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(SqliteDeleter::new(self.core.clone(), self.root.clone())),
+        ))
+    }
+
+    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        let p = build_abs_path(&self.root, path);
+
+        // Ensure path ends with '/' for directory marker
+        let dir_path = if p.ends_with('/') {
+            p
+        } else {
+            format!("{}/", p)
+        };
+
+        // Store directory marker with empty content
+        self.core.set(&dir_path, Buffer::new()).await?;
+
+        Ok(RpCreateDir::default())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use sqlx::SqlitePool;
+
+    async fn build_client() -> OnceCell<SqlitePool> {
+        let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
+        let pool = SqlitePool::connect_with(config).await.unwrap();
+        OnceCell::new_with(Some(pool))
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_accessor_creation() {
+        let core = SqliteCore {
+            pool: build_client().await,
+            config: Default::default(),
+            table: "test".to_string(),
+            key_field: "key".to_string(),
+            value_field: "value".to_string(),
+        };
+
+        let accessor = SqliteBackend::new(core);
+
+        // Verify basic properties
+        assert_eq!(accessor.root, "/");
+        assert_eq!(accessor.info.scheme(), SQLITE_SCHEME);
+        assert!(accessor.info.native_capability().read);
+        assert!(accessor.info.native_capability().write);
+        assert!(accessor.info.native_capability().delete);
+        assert!(accessor.info.native_capability().stat);
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_accessor_with_root() {
+        let core = SqliteCore {
+            pool: build_client().await,
+            config: Default::default(),
+            table: "test".to_string(),
+            key_field: "key".to_string(),
+            value_field: "value".to_string(),
+        };
+
+        let accessor = SqliteBackend::new(core).with_normalized_root("/test/".to_string());
+
+        assert_eq!(accessor.root, "/test/");
+        assert_eq!(accessor.info.root(), "/test/".into());
+    }
 }

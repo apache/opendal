@@ -440,7 +440,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -473,7 +473,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -490,7 +490,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_with_chunk() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -507,7 +507,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_with_concurrent() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -529,7 +529,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reader_read_into() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         let path = "test_file";
 
         let content = gen_random_bytes();

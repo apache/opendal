@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use mini_moka::sync::Cache;
 
@@ -37,7 +36,7 @@ pub struct MiniMokaCore {
 }
 
 impl Debug for MiniMokaCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MiniMokaCore")
             .field("size", &self.cache.weighted_size())
             .field("count", &self.cache.entry_count())

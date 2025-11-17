@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -25,17 +24,17 @@ use log::debug;
 use tokio::sync::RwLock;
 
 use super::SEAFILE_SCHEME;
+use super::config::SeafileConfig;
 use super::core::SeafileCore;
 use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
-use super::delete::SeafileDeleter;
+use super::deleter::SeafileDeleter;
 use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
 use crate::raw::*;
-use crate::services::SeafileConfig;
 use crate::*;
 
 /// [seafile](https://www.seafile.com) services support.
@@ -49,11 +48,10 @@ pub struct SeafileBuilder {
 }
 
 impl Debug for SeafileBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SeafileBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SeafileBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -147,7 +145,7 @@ impl Builder for SeafileBuilder {
         if self.config.repo_name.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "repo_name is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Seafile));
+                .with_context("service", SEAFILE_SCHEME));
         }
 
         debug!("backend use repo_name {}", &self.config.repo_name);
@@ -156,21 +154,21 @@ impl Builder for SeafileBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Seafile)),
+                .with_context("service", SEAFILE_SCHEME)),
         }?;
 
         let username = match &self.config.username {
             Some(username) => Ok(username.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "username is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Seafile)),
+                .with_context("service", SEAFILE_SCHEME)),
         }?;
 
         let password = match &self.config.password {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Seafile)),
+                .with_context("service", SEAFILE_SCHEME)),
         }?;
 
         Ok(SeafileBackend {

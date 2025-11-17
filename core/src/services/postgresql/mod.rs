@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::PostgresqlBuilder as Postgresql;
+/// Default scheme for postgresql service.
+pub const POSTGRESQL_SCHEME: &str = "postgresql";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::PostgresqlBuilder as Postgresql;
 pub use config::PostgresqlConfig;

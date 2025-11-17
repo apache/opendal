@@ -17,15 +17,15 @@
 
 /// Default scheme for fs service.
 pub const FS_SCHEME: &str = "fs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod reader;
 mod writer;
 
-mod backend;
 pub use backend::FsBuilder as Fs;
-
-mod config;
 pub use config::FsConfig;

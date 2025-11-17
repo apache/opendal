@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/// Default scheme for opfs service.
+pub const OPFS_SCHEME: &str = "opfs";
+
 mod backend;
-mod core;
-
 mod config;
-
+mod core;
 mod error;
-
 mod utils;

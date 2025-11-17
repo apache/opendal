@@ -16,13 +16,13 @@
 // under the License.
 
 /// Default scheme for redis service.
-pub(super) const REDIS_SCHEME: &str = "redis";
+pub const REDIS_SCHEME: &str = "redis";
+
 mod backend;
+mod config;
 mod core;
 mod delete;
 mod writer;
 
 pub use backend::RedisBuilder as Redis;
-
-mod config;
 pub use config::RedisConfig;

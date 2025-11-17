@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,14 +24,14 @@ use http::StatusCode;
 use log::debug;
 
 use super::YANDEX_DISK_SCHEME;
+use super::config::YandexDiskConfig;
 use super::core::*;
-use super::delete::YandexDiskDeleter;
+use super::deleter::YandexDiskDeleter;
 use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
 use crate::raw::*;
-use crate::services::YandexDiskConfig;
 use crate::*;
 
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
@@ -46,11 +45,10 @@ pub struct YandexDiskBuilder {
 }
 
 impl Debug for YandexDiskBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("YandexDiskBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("YandexDiskBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -107,7 +105,7 @@ impl Builder for YandexDiskBuilder {
             return Err(
                 Error::new(ErrorKind::ConfigInvalid, "access_token is empty")
                     .with_operation("Builder::build")
-                    .with_context("service", Scheme::YandexDisk),
+                    .with_context("service", YANDEX_DISK_SCHEME),
             );
         }
 

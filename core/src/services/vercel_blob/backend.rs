@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -28,7 +27,7 @@ use super::VERCEL_BLOB_SCHEME;
 use super::core::Blob;
 use super::core::VercelBlobCore;
 use super::core::parse_blob;
-use super::delete::VercelBlobDeleter;
+use super::deleter::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
@@ -48,11 +47,10 @@ pub struct VercelBlobBuilder {
 }
 
 impl Debug for VercelBlobBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("VercelBlobBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelBlobBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -109,7 +107,7 @@ impl Builder for VercelBlobBuilder {
         let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::VercelBlob));
+                .with_context("service", VERCEL_BLOB_SCHEME));
         };
 
         Ok(VercelBlobBackend {

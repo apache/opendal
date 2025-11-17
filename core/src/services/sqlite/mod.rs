@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SqliteBuilder as Sqlite;
+/// Default scheme for sqlite service.
+pub const SQLITE_SCHEME: &str = "sqlite";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::SqliteBuilder as Sqlite;
 pub use config::SqliteConfig;

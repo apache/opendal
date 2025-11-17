@@ -16,17 +16,16 @@
 // under the License.
 
 /// Default scheme for moka service.
-pub(super) const MOKA_SCHEME: &str = "moka";
+pub const MOKA_SCHEME: &str = "moka";
+
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod lister;
 mod writer;
 
 pub use backend::MokaBuilder as Moka;
 pub use backend::MokaCacheBuilder;
-
-pub use core::MokaValue;
-
-mod config;
 pub use config::MokaConfig;
+pub use core::MokaValue;

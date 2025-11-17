@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use etcd_client::Certificate;
@@ -26,29 +24,20 @@ use etcd_client::TlsOptions;
 use tokio::sync::OnceCell;
 
 use super::ETCD_SCHEME;
+use super::config::EtcdConfig;
 use super::core::EtcdCore;
 use super::core::constants::DEFAULT_ETCD_ENDPOINTS;
 use super::deleter::EtcdDeleter;
 use super::lister::EtcdLister;
 use super::writer::EtcdWriter;
 use crate::raw::*;
-use crate::services::EtcdConfig;
 use crate::*;
 
 /// [Etcd](https://etcd.io/) services support.
 #[doc = include_str!("docs.md")]
-#[derive(Clone, Default)]
+#[derive(Debug, Default)]
 pub struct EtcdBuilder {
     pub(super) config: EtcdConfig,
-}
-
-impl Debug for EtcdBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
 }
 
 impl EtcdBuilder {
@@ -177,7 +166,7 @@ impl Builder for EtcdBuilder {
             options,
         };
 
-        Ok(EtcdAccessor::new(core, &root))
+        Ok(EtcdBackend::new(core, &root))
     }
 }
 
@@ -189,12 +178,12 @@ impl EtcdBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct EtcdAccessor {
+pub struct EtcdBackend {
     core: Arc<EtcdCore>,
     info: Arc<AccessorInfo>,
 }
 
-impl EtcdAccessor {
+impl EtcdBackend {
     fn new(core: EtcdCore, root: &str) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(ETCD_SCHEME);
@@ -222,7 +211,7 @@ impl EtcdAccessor {
     }
 }
 
-impl Access for EtcdAccessor {
+impl Access for EtcdBackend {
     type Reader = Buffer;
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;

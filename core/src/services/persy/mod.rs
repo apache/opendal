@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::PersyBuilder as Persy;
+/// Default scheme for persy service.
+pub const PERSY_SCHEME: &str = "persy";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::PersyBuilder as Persy;
 pub use config::PersyConfig;

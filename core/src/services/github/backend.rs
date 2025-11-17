@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,15 +24,15 @@ use http::StatusCode;
 use log::debug;
 
 use super::GITHUB_SCHEME;
+use super::config::GithubConfig;
 use super::core::Entry;
 use super::core::GithubCore;
-use super::delete::GithubDeleter;
+use super::deleter::GithubDeleter;
 use super::error::parse_error;
 use super::lister::GithubLister;
 use super::writer::GithubWriter;
 use super::writer::GithubWriters;
 use crate::raw::*;
-use crate::services::GithubConfig;
 use crate::*;
 
 /// [github contents](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#create-or-update-file-contents) services support.
@@ -47,11 +46,10 @@ pub struct GithubBuilder {
 }
 
 impl Debug for GithubBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("GithubBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -121,7 +119,7 @@ impl Builder for GithubBuilder {
         if self.config.owner.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "owner is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use owner {}", &self.config.owner);
@@ -130,7 +128,7 @@ impl Builder for GithubBuilder {
         if self.config.repo.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "repo is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Github));
+                .with_context("service", GITHUB_SCHEME));
         }
 
         debug!("backend use repo {}", &self.config.repo);

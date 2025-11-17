@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use super::backend::MemoryBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MemoryBuilder;
 
 /// Config for memory.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -57,11 +56,8 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_root() {
-        let uri = OperatorUri::new(
-            "memory://localhost/path/to/root".parse().unwrap(),
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        let uri =
+            OperatorUri::new("memory:///path/to/root", Vec::<(String, String)>::new()).unwrap();
         let cfg = MemoryConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }

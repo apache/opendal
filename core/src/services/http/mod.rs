@@ -16,12 +16,12 @@
 // under the License.
 
 /// Default scheme for http service.
-pub(super) const HTTP_SCHEME: &str = "http";
-mod error;
+pub const HTTP_SCHEME: &str = "http";
 
 mod backend;
-mod core;
-pub use backend::HttpBuilder as Http;
-
 mod config;
+mod core;
+mod error;
+
+pub use backend::HttpBuilder as Http;
 pub use config::HttpConfig;

@@ -15,8 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SledBuilder as Sled;
+/// Default scheme for sled service.
+pub const SLED_SCHEME: &str = "sled";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod lister;
+mod writer;
+
+pub use backend::SledBuilder as Sled;
 pub use config::SledConfig;

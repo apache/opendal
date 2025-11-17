@@ -17,15 +17,15 @@
 
 /// Default scheme for gcs service.
 pub const GCS_SCHEME: &str = "gcs";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod uri;
 mod writer;
 
-mod backend;
 pub use backend::GcsBuilder as Gcs;
-
-mod config;
 pub use config::GcsConfig;

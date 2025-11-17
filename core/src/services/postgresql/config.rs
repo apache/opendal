@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::backend::PostgresqlBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::PostgresqlBuilder;
 
 /// Config for PostgreSQL services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,24 +51,75 @@ pub struct PostgresqlConfig {
 }
 
 impl Debug for PostgresqlConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("PostgresqlConfig");
-
-        if self.connection_string.is_some() {
-            d.field("connection_string", &"<redacted>");
-        }
-
-        d.field("root", &self.root)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostgresqlConfig")
+            .field("root", &self.root)
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for PostgresqlConfig {
     type Builder = PostgresqlBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("postgresql://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let (table_segment, rest) = match path.split_once('/') {
+                    Some((table, remainder)) => (table, Some(remainder)),
+                    None => (path, None),
+                };
+
+                if !table_segment.is_empty() {
+                    map.entry("table".to_string())
+                        .or_insert_with(|| table_segment.to_string());
+                }
+
+                if let Some(root) = rest {
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
     fn into_builder(self) -> Self::Builder {
         PostgresqlBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_string_table_and_root() {
+        let uri = OperatorUri::new(
+            "postgresql://db.example.com:5432/kv/cache",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = PostgresqlConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("postgresql://db.example.com:5432")
+        );
+        assert_eq!(cfg.table.as_deref(), Some("kv"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

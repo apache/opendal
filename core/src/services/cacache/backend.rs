@@ -15,20 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::services::CacacheConfig;
-use crate::*;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::CACACHE_SCHEME;
+use super::config::CacacheConfig;
 use super::core::CacacheCore;
-use super::delete::CacacheDeleter;
+use super::deleter::CacacheDeleter;
 use super::writer::CacacheWriter;
+use crate::raw::*;
+use crate::*;
 
 /// cacache service support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct CacacheBuilder {
     pub(super) config: CacacheConfig,
 }
@@ -47,7 +46,7 @@ impl Builder for CacacheBuilder {
     fn build(self) -> Result<impl Access> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Cacache)
+                .with_context("service", CACACHE_SCHEME)
         })?;
 
         let core = CacacheCore {
@@ -69,7 +68,7 @@ impl Builder for CacacheBuilder {
             ..Default::default()
         });
 
-        Ok(CacacheAccessor {
+        Ok(CacacheBackend {
             core: Arc::new(core),
             info: Arc::new(info),
         })
@@ -78,12 +77,12 @@ impl Builder for CacacheBuilder {
 
 /// Backend for cacache services.
 #[derive(Debug, Clone)]
-pub struct CacacheAccessor {
+pub struct CacacheBackend {
     core: Arc<CacacheCore>,
     info: Arc<AccessorInfo>,
 }
 
-impl Access for CacacheAccessor {
+impl Access for CacacheBackend {
     type Reader = Buffer;
     type Writer = CacacheWriter;
     type Lister = ();

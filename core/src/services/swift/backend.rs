@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
@@ -25,7 +24,7 @@ use log::debug;
 
 use super::SWIFT_SCHEME;
 use super::core::*;
-use super::delete::SwfitDeleter;
+use super::deleter::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
@@ -37,17 +36,9 @@ use crate::*;
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).
 #[doc = include_str!("docs.md")]
 #[doc = include_str!("compatible_services.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct SwiftBuilder {
     pub(super) config: SwiftConfig,
-}
-
-impl Debug for SwiftBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SwiftBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
 }
 
 impl SwiftBuilder {

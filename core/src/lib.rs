@@ -183,7 +183,6 @@ mod tests {
         assert_eq!(360, size_of::<Entry>());
         assert_eq!(336, size_of::<Metadata>());
         assert_eq!(1, size_of::<EntryMode>());
-        assert_eq!(24, size_of::<Scheme>());
     }
 
     trait AssertSendSync: Send + Sync {}

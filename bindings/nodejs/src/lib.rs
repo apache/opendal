@@ -31,7 +31,10 @@ use opendal::options::{
     DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
 };
 
+use crate::layer::Layer;
+
 mod capability;
+mod layer;
 mod options;
 
 #[napi]
@@ -635,6 +638,93 @@ impl Operator {
         Ok(l.into_iter().map(Entry).collect())
     }
 
+    /// Create a lister to list entries at given path.
+    ///
+    /// This function returns a Lister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/");
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub async fn lister(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Lister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .lister_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
+
+        Ok(Lister(l))
+    }
+
+    /// Create a lister to list entries at given path synchronously.
+    ///
+    /// This function returns a BlockingLister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/");
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub fn lister_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<BlockingLister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .blocking_op
+            .lister_options(&path, options)
+            .map_err(format_napi_error)?;
+
+        Ok(BlockingLister(l))
+    }
+
     /// Get a presigned request for read.
     ///
     /// Unit of `expires` is seconds.
@@ -1052,16 +1142,6 @@ impl PresignedRequest {
     }
 }
 
-pub trait NodeLayer: Send + Sync {
-    fn layer(&self, op: opendal::Operator) -> opendal::Operator;
-}
-
-/// A public layer wrapper
-#[napi]
-pub struct Layer {
-    inner: Box<dyn NodeLayer>,
-}
-
 #[napi]
 impl Operator {
     /// Add a layer to this operator.
@@ -1076,126 +1156,6 @@ impl Operator {
             async_op,
             blocking_op,
         })
-    }
-}
-
-impl NodeLayer for opendal::layers::RetryLayer {
-    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
-        op.layer(self.clone())
-    }
-}
-
-/// Retry layer
-///
-/// Add retry for temporary failed operations.
-///
-/// # Notes
-///
-/// This layer will retry failed operations when [`Error::is_temporary`]
-/// returns true.
-/// If the operation still failed, this layer will set error to
-/// `Persistent` which means error has been retried.
-///
-/// `write` and `blocking_write` don't support retry so far,
-/// visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
-///
-/// # Examples
-///
-/// ```javascript
-/// const op = new Operator("file", { root: "/tmp" })
-///
-/// const retry = new RetryLayer();
-/// retry.max_times = 3;
-/// retry.jitter = true;
-///
-/// op.layer(retry.build());
-/// ```
-#[derive(Default)]
-#[napi]
-pub struct RetryLayer {
-    jitter: bool,
-    max_times: Option<u32>,
-    factor: Option<f64>,
-    max_delay: Option<f64>,
-    min_delay: Option<f64>,
-}
-
-#[napi]
-impl RetryLayer {
-    #[napi(constructor)]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set jitter of current backoff.
-    ///
-    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)`
-    /// to current delay.
-    #[napi(setter)]
-    pub fn jitter(&mut self, v: bool) {
-        self.jitter = v;
-    }
-
-    /// Set max_times of current backoff.
-    ///
-    /// Backoff will return `None` if max times are reached.
-    #[napi(setter)]
-    pub fn max_times(&mut self, v: u32) {
-        self.max_times = Some(v);
-    }
-
-    /// Set factor of current backoff.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the input factor is smaller than `1.0`.
-    #[napi(setter)]
-    pub fn factor(&mut self, v: f64) {
-        self.factor = Some(v);
-    }
-
-    /// Set max_delay of current backoff.
-    ///
-    /// Delay will not increase if the current delay is larger than max_delay.
-    ///
-    /// # Notes
-    ///
-    /// - The unit of max_delay is millisecond.
-    #[napi(setter)]
-    pub fn max_delay(&mut self, v: f64) {
-        self.max_delay = Some(v);
-    }
-
-    /// Set min_delay of current backoff.
-    ///
-    /// # Notes
-    ///
-    /// - The unit of min_delay is millisecond.
-    #[napi(setter)]
-    pub fn min_delay(&mut self, v: f64) {
-        self.min_delay = Some(v);
-    }
-
-    #[napi]
-    pub fn build(&self) -> External<Layer> {
-        let mut l = opendal::layers::RetryLayer::default();
-        if self.jitter {
-            l = l.with_jitter();
-        }
-        if let Some(max_times) = self.max_times {
-            l = l.with_max_times(max_times as usize);
-        }
-        if let Some(factor) = self.factor {
-            l = l.with_factor(factor as f32);
-        }
-        if let Some(max_delay) = self.max_delay {
-            l = l.with_max_delay(Duration::from_millis(max_delay as u64));
-        }
-        if let Some(min_delay) = self.min_delay {
-            l = l.with_min_delay(Duration::from_millis(min_delay as u64));
-        }
-
-        External::new(Layer { inner: Box::new(l) })
     }
 }
 

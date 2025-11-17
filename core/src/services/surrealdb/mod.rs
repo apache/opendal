@@ -15,8 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod backend;
-pub use backend::SurrealdbBuilder as Surrealdb;
+/// Default scheme for surrealdb service.
+pub const SURREALDB_SCHEME: &str = "surrealdb";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::SurrealdbBuilder as Surrealdb;
 pub use config::SurrealdbConfig;

@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -26,7 +24,7 @@ use serde::Deserialize;
 
 use super::DBFS_SCHEME;
 use super::core::DbfsCore;
-use super::delete::DbfsDeleter;
+use super::deleter::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
@@ -36,19 +34,9 @@ use crate::*;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct DbfsBuilder {
     pub(super) config: DbfsConfig,
-}
-
-impl Debug for DbfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("DbfsBuilder");
-
-        ds.field("config", &self.config);
-
-        ds.finish()
-    }
 }
 
 impl DbfsBuilder {
@@ -103,7 +91,7 @@ impl Builder for DbfsBuilder {
             Some(endpoint) => Ok(endpoint.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Dbfs)),
+                .with_context("service", DBFS_SCHEME)),
         }?;
         debug!("backend use endpoint: {}", &endpoint);
 

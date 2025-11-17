@@ -16,15 +16,15 @@
 // under the License.
 
 /// Default scheme for koofr service.
-pub(super) const KOOFR_SCHEME: &str = "koofr";
+pub const KOOFR_SCHEME: &str = "koofr";
+
+mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
 
-mod backend;
 pub use backend::KoofrBuilder as Koofr;
-
-mod config;
 pub use config::KoofrConfig;

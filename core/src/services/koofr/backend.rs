@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -27,16 +26,16 @@ use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
 use super::KOOFR_SCHEME;
+use super::config::KoofrConfig;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
-use super::delete::KoofrDeleter;
+use super::deleter::KoofrDeleter;
 use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
 use crate::raw::*;
-use crate::services::KoofrConfig;
 use crate::*;
 
 /// [Koofr](https://app.koofr.net/) services support.
@@ -50,11 +49,10 @@ pub struct KoofrBuilder {
 }
 
 impl Debug for KoofrBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("KoofrBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KoofrBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -137,7 +135,7 @@ impl Builder for KoofrBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -145,7 +143,7 @@ impl Builder for KoofrBuilder {
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use email {}", &self.config.email);
@@ -154,7 +152,7 @@ impl Builder for KoofrBuilder {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr)),
+                .with_context("service", KOOFR_SCHEME)),
         }?;
 
         let signer = Arc::new(Mutex::new(KoofrSigner::default()));

@@ -16,11 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
-use super::builder::VercelArtifactsBuilder;
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::builder::VercelArtifactsBuilder;
 
 /// Config for Vercel Cache support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -32,15 +32,18 @@ pub struct VercelArtifactsConfig {
 }
 
 impl Debug for VercelArtifactsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VercelArtifactsConfig")
-            .field("access_token", &"<redacted>")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
 impl crate::Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        Self::from_iter(uri.options().clone())
+    }
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
@@ -48,5 +51,24 @@ impl crate::Configurator for VercelArtifactsConfig {
             config: self,
             http_client: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_loads_access_token() {
+        let uri = OperatorUri::new(
+            "vercel-artifacts://cache",
+            vec![("access_token".to_string(), "token123".to_string())],
+        )
+        .unwrap();
+
+        let cfg = VercelArtifactsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.access_token.as_deref(), Some("token123"));
     }
 }

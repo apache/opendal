@@ -15,16 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-pub(super) const CLOUDFLARE_KV_SCHEME: &str = "cloudflare_kv";
-mod error;
+/// Default scheme for cloudflare-kv service.
+pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
 
 mod backend;
+mod config;
 mod core;
-mod delete;
+mod deleter;
+mod error;
 mod lister;
 mod model;
 mod writer;
-pub use backend::CloudflareKvBuilder as CloudflareKv;
 
-mod config;
+pub use backend::CloudflareKvBuilder as CloudflareKv;
 pub use config::CloudflareKvConfig;

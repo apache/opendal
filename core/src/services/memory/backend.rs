@@ -19,18 +19,18 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::MEMORY_SCHEME;
+use super::config::MemoryConfig;
 use super::core::*;
-use super::delete::MemoryDeleter;
+use super::deleter::MemoryDeleter;
 use super::lister::MemoryLister;
 use super::writer::MemoryWriter;
 use crate::raw::oio;
 use crate::raw::*;
-use crate::services::MemoryConfig;
 use crate::*;
 
 /// In memory service support. (BTreeMap Based)
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct MemoryBuilder {
     pub(super) config: MemoryConfig,
 }
@@ -50,19 +50,19 @@ impl Builder for MemoryBuilder {
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
         let core = MemoryCore::new();
-        Ok(MemoryAccessor::new(core).with_normalized_root(root))
+        Ok(MemoryBackend::new(core).with_normalized_root(root))
     }
 }
 
-/// MemoryAccessor implements Access trait directly
+/// MemoryBackend implements Access trait directly
 #[derive(Debug, Clone)]
-pub struct MemoryAccessor {
+pub struct MemoryBackend {
     core: Arc<MemoryCore>,
     root: String,
     info: Arc<AccessorInfo>,
 }
 
-impl MemoryAccessor {
+impl MemoryBackend {
     fn new(core: MemoryCore) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(MEMORY_SCHEME);
@@ -98,7 +98,7 @@ impl MemoryAccessor {
     }
 }
 
-impl Access for MemoryAccessor {
+impl Access for MemoryBackend {
     type Reader = Buffer;
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;

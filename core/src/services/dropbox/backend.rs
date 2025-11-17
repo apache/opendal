@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -23,7 +22,7 @@ use http::Response;
 use http::StatusCode;
 
 use super::core::*;
-use super::delete::DropboxDeleter;
+use super::deleter::DropboxDeleter;
 use super::error::*;
 use super::lister::DropboxLister;
 use super::writer::DropboxWriter;

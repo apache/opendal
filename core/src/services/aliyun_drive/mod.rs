@@ -15,17 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for aliyun_drive service.
-pub(super) const ALIYUN_DRIVE_SCHEME: &str = "aliyun_drive";
-mod core;
+/// Default scheme for aliyun-drive service.
+pub const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 
 mod backend;
-mod delete;
+mod config;
+mod core;
+mod deleter;
 mod error;
 mod lister;
 mod writer;
+
 pub use backend::AliyunDriveBuilder as AliyunDrive;
-
-mod config;
-
 pub use config::AliyunDriveConfig;

@@ -147,21 +147,6 @@ impl TimeoutLayer {
         self.io_timeout = timeout;
         self
     }
-
-    /// Set speed for TimeoutLayer with given value.
-    ///
-    /// # Notes
-    ///
-    /// The speed should be the lower bound of the IO speed. Set this value too
-    /// large could result in all write operations failing.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if speed is 0.
-    #[deprecated(note = "with speed is not supported anymore, please use with_io_timeout instead")]
-    pub fn with_speed(self, _: u64) -> Self {
-        self
-    }
 }
 
 impl<A: Access> Layer<A> for TimeoutLayer {

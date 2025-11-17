@@ -15,9 +15,9 @@ bitflags@2.10.0	X								X
 block-buffer@0.10.4	X								X			
 block-padding@0.3.3	X								X			
 bumpalo@3.19.0	X								X			
-bytes@1.10.1									X			
+bytes@1.11.0									X			
 cbc@0.1.2	X								X			
-cc@1.2.45	X								X			
+cc@1.2.46	X								X			
 cexpr@0.6.0	X								X			
 cfg-if@1.0.4	X								X			
 chrono@0.4.42	X								X			
@@ -28,7 +28,7 @@ core-foundation-sys@0.8.7	X								X
 cpufeatures@0.2.17	X								X			
 crc32c@0.6.8	X								X			
 crossbeam-utils@0.8.21	X								X			
-crypto-common@0.1.6	X								X			
+crypto-common@0.1.7	X								X			
 dashmap@6.1.0									X			
 der@0.7.10	X								X			
 deranged@0.5.5	X								X			
@@ -37,9 +37,9 @@ displaydoc@0.2.5	X								X
 either@1.15.0	X								X			
 equivalent@1.0.2	X								X			
 fastrand@2.3.0	X								X			
-find-msvc-tools@0.1.4	X								X			
+find-msvc-tools@0.1.5	X								X			
 fnv@1.0.7	X								X			
-foldhash@0.1.5												X
+foldhash@0.2.0												X
 form_urlencoded@1.2.2	X								X			
 futures@0.3.31	X								X			
 futures-channel@0.3.31	X								X			
@@ -50,15 +50,15 @@ futures-sink@0.3.31	X								X
 futures-task@0.3.31	X								X			
 futures-timer@3.0.3	X								X			
 futures-util@0.3.31	X								X			
-generic-array@0.14.9									X			
+generic-array@0.14.7									X			
 getrandom@0.2.16	X								X			
 getrandom@0.3.4	X								X			
 ghac@0.2.0	X											
 glob@0.3.3	X								X			
 gloo-timers@0.3.0	X								X			
-governor@0.10.1									X			
+governor@0.10.2									X			
 hashbrown@0.14.5	X								X			
-hashbrown@0.15.5	X								X			
+hashbrown@0.16.0	X								X			
 hex@0.4.3	X								X			
 hmac@0.12.1	X								X			
 home@0.5.11	X								X			
@@ -66,9 +66,9 @@ http@1.3.1	X								X
 http-body@1.0.1									X			
 http-body-util@0.1.3									X			
 httparse@1.10.1	X								X			
-hyper@1.7.0									X			
+hyper@1.8.1									X			
 hyper-rustls@0.27.7	X						X		X			
-hyper-util@0.1.17									X			
+hyper-util@0.1.18									X			
 iana-time-zone@0.1.64	X								X			
 iana-time-zone-haiku@0.1.2	X								X			
 icu_collections@2.1.1										X		
@@ -108,7 +108,7 @@ mio@1.1.0									X
 nom@7.1.3									X			
 nonzero_ext@0.3.0	X											
 num-bigint@0.4.6	X								X			
-num-bigint-dig@0.8.5	X								X			
+num-bigint-dig@0.8.6	X								X			
 num-conv@0.1.0	X								X			
 num-integer@0.1.46	X								X			
 num-iter@0.1.45	X								X			
@@ -137,7 +137,7 @@ prost@0.13.5	X
 prost-derive@0.13.5	X											
 quanta@0.12.6									X			
 quick-xml@0.37.5									X			
-quick-xml@0.38.3									X			
+quick-xml@0.38.4									X			
 quote@1.0.42	X								X			
 r-efi@5.3.0	X							X	X			
 rand@0.8.5	X								X			
@@ -158,7 +158,7 @@ regex-syntax@0.8.8	X								X
 reqsign@0.16.5	X											
 reqwest@0.12.24	X								X			
 ring@0.17.14	X						X					
-rsa@0.9.8	X								X			
+rsa@0.9.9	X								X			
 rustc-hash@1.1.0	X								X			
 rustc_version@0.4.1	X								X			
 rustls@0.23.35	X						X		X			

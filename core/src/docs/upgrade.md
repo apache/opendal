@@ -1,3 +1,33 @@
+# Upgrade to v0.55
+
+## Public API
+
+### Timestamp types now come from `jiff`
+
+All public metadata APIs that previously exposed `chrono::DateTime<Utc>` now use `jiff::Timestamp`. For example, `Metadata::last_modified()` and related setters return/accept `Timestamp` values (`core/src/types/metadata.rs`). Update downstream crates to depend on `jiff` if they manipulate these timestamps or convert them to other formats.
+
+### Scheme handling is string-based
+
+`OperatorInfo::scheme()` now returns `&'static str` instead of `Scheme`, and `Operator::via_iter` accepts `impl AsRef<str>` (typically the `services::*_SCHEME` constants). Additionally, the deprecated constructors `Operator::from_map` and `Operator::via_map` have been removed. Migrate any code that relied on the enum variants or the removed constructors to the new string-based constants and `from_iter`/`via_iter`.
+
+### List APIs only support `versions`
+
+`OpList::with_version()`/`version()` and `Capability::list_with_version` have been removed after a long deprecation cycle. Use `with_versions()`/`versions()` on `OpList` and read `Capability::list_with_versions` instead.
+
+### `S3Builder::security_token` removed
+
+`S3Builder` no longer exposes the deprecated `security_token()` helper. Use `session_token()` exclusively when configuring temporary credentials.
+
+### KV-style services no longer pretend to support `list`
+
+Services that never returned meaningful results for `Operator::list` (such as D1, FoundationDB, GridFS, Memcached, MongoDB, MySQL, Persy, PostgreSQL, Redb, Redis, SurrealDB, TiKV, etc.) now rely on the default `Unsupported` implementation. Those features will be implemented later.
+
+## Raw API
+
+### Deprecated KV adapters removed
+
+The legacy `opendal::raw::adapters::{kv, typed_kv}` modules have been deleted. Services should directly implement `Access` instead of depending on the adapters. Remove the corresponding imports and shim layers from any out-of-tree services.
+
 # Upgrade to v0.54
 
 ## Public API

@@ -152,7 +152,7 @@ services-pcloud = [
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
-services-redis = ["opendal/services-redis", "opendal/services-redis-native-tls"]
+services-redis = ["opendal/services-redis"]
 services-rocksdb = [
   "opendal/services-rocksdb",
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?

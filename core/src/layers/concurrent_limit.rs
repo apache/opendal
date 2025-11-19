@@ -20,14 +20,46 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::future::BoxFuture;
 use futures::Stream;
 use futures::StreamExt;
 use std::any::Any;
+use std::future::Future;
 use tokio::sync::Semaphore;
 
 use crate::raw::*;
 use crate::*;
+
+/// ConcurrencySemaphore abstracts a semaphore-like concurrency primitive
+/// that yields an owned permit released on drop. It mirrors RetryLayer's
+/// interceptor pattern by serving as a generic extension point for the layer.
+pub trait ConcurrencySemaphore: Send + Sync + Any + Clone + 'static {
+    /// The owned permit type associated with the semaphore. Dropping it
+    /// must release the permit back to the semaphore.
+    type Permit: Send + Sync + 'static;
+
+    /// Acquire an owned permit asynchronously.
+    fn acquire(&self) -> impl Future<Output = Self::Permit> + MaybeSend;
+}
+
+/// An adapter for `tokio::sync::Semaphore` that implements
+/// `ConcurrencySemaphore`.
+#[derive(Clone)]
+pub struct TokioSemaphore(Arc<Semaphore>);
+
+impl TokioSemaphore {
+    fn new(inner: Arc<Semaphore>) -> Self {
+        Self(inner)
+    }
+}
+
+impl ConcurrencySemaphore for TokioSemaphore {
+    type Permit = tokio::sync::OwnedSemaphorePermit;
+
+    async fn acquire(&self) -> Self::Permit {
+        let sem = self.0.clone();
+        sem.acquire_owned().await.expect("semaphore must be valid")
+    }
+}
 
 /// Add concurrent request limit.
 ///
@@ -88,44 +120,6 @@ use crate::*;
 /// Ok(())
 /// # }
 /// ```
-/// ConcurrencySemaphore abstracts a semaphore-like concurrency primitive
-/// that yields an owned permit released on drop. It mirrors RetryLayer's
-/// interceptor pattern by serving as a generic extension point for the layer.
-pub trait ConcurrencySemaphore: Send + Sync + Any + Clone + 'static {
-    /// The owned permit type associated with the semaphore. Dropping it
-    /// must release the permit back to the semaphore.
-    type Permit: Send + Sync + 'static;
-
-    /// Acquire an owned permit asynchronously.
-    fn acquire_owned(&self) -> BoxFuture<'static, Self::Permit>;
-}
-
-/// An adapter for `tokio::sync::Semaphore` that implements
-/// `ConcurrencySemaphore`.
-#[derive(Clone)]
-pub struct TokioSemaphore(Arc<Semaphore>);
-
-impl TokioSemaphore {
-    fn new(inner: Arc<Semaphore>) -> Self {
-        Self(inner)
-    }
-
-    #[cfg(test)]
-    fn inner(&self) -> &Arc<Semaphore> {
-        &self.0
-    }
-}
-
-impl ConcurrencySemaphore for TokioSemaphore {
-    type Permit = tokio::sync::OwnedSemaphorePermit;
-
-    fn acquire_owned(&self) -> BoxFuture<'static, Self::Permit> {
-        let sem = self.0.clone();
-        Box::pin(async move { sem.acquire_owned().await.expect("semaphore must be valid") })
-    }
-}
-
-/// Add concurrent request limit.
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer<S: ConcurrencySemaphore = TokioSemaphore> {
     operation_semaphore: Arc<S>,
@@ -225,7 +219,7 @@ where
             return self.inner.fetch(req).await;
         };
 
-        let permit = semaphore.acquire_owned().await;
+        let permit = semaphore.acquire().await;
 
         let resp = self.inner.fetch(req).await?;
         let (parts, body) = resp.into_parts();
@@ -288,13 +282,13 @@ where
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let _permit = self.semaphore.acquire_owned().await;
+        let _permit = self.semaphore.acquire().await;
 
         self.inner.create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let permit = self.semaphore.acquire_owned().await;
+        let permit = self.semaphore.acquire().await;
 
         self.inner
             .read(path, args)
@@ -303,7 +297,7 @@ where
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let permit = self.semaphore.acquire_owned().await;
+        let permit = self.semaphore.acquire().await;
 
         self.inner
             .write(path, args)
@@ -312,13 +306,13 @@ where
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let _permit = self.semaphore.acquire_owned().await;
+        let _permit = self.semaphore.acquire().await;
 
         self.inner.stat(path, args).await
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let permit = self.semaphore.acquire_owned().await;
+        let permit = self.semaphore.acquire().await;
 
         self.inner
             .delete()
@@ -327,7 +321,7 @@ where
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let permit = self.semaphore.acquire_owned().await;
+        let permit = self.semaphore.acquire().await;
 
         self.inner
             .list(path, args)
@@ -393,35 +387,15 @@ impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services;
     use crate::Operator;
+    use crate::services;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::time::timeout;
 
     use futures::channel::oneshot;
-    use std::any::Any as StdAny;
     use std::collections::VecDeque;
     use std::sync::Mutex as StdMutex;
-    use tokio::sync::Semaphore as TokioSemaphoreInner;
-
-    #[derive(Clone)]
-    struct TestSemaphore {
-        inner: Arc<TokioSemaphoreInner>,
-    }
-
-    impl ConcurrencySemaphore for TestSemaphore {
-        type Permit = tokio::sync::OwnedSemaphorePermit;
-        fn acquire_owned(&self) -> BoxFuture<'static, Self::Permit> {
-            let inner = self.inner.clone();
-            Box::pin(async move {
-                inner
-                    .acquire_owned()
-                    .await
-                    .expect("semaphore must be valid")
-            })
-        }
-    }
 
     // A minimal non-tokio semaphore for testing the trait abstraction.
     #[derive(Clone)]
@@ -457,34 +431,33 @@ mod tests {
     }
     impl ConcurrencySemaphore for SimpleSemaphore {
         type Permit = SimplePermit;
-        fn acquire_owned(&self) -> BoxFuture<'static, Self::Permit> {
-            let state = self.state.clone();
-            Box::pin(async move {
-                loop {
-                    // fast path
-                    if let Some(permit) = {
-                        let mut st = state.lock().unwrap();
-                        if st.available > 0 {
-                            st.available -= 1;
-                            Some(())
-                        } else {
-                            None
-                        }
-                    } {
-                        let _ = permit; // consumed
-                        return SimplePermit(state.clone());
-                    }
 
-                    // slow path: park and wait for a drop
-                    let (tx, rx) = oneshot::channel();
-                    {
-                        let mut st = state.lock().unwrap();
-                        st.waiters.push_back(tx);
+        async fn acquire(&self) -> Self::Permit {
+            let state = self.state.clone();
+            loop {
+                // fast path
+                let acquired = {
+                    let mut st = state.lock().unwrap();
+                    if st.available > 0 {
+                        st.available -= 1;
+                        true
+                    } else {
+                        false
                     }
-                    let _ = rx.await;
-                    // loop to try acquire again
+                };
+                if acquired {
+                    return SimplePermit(state.clone());
                 }
-            })
+
+                // slow path: park and wait for a drop
+                let (tx, rx) = oneshot::channel();
+                {
+                    let mut st = state.lock().unwrap();
+                    st.waiters.push_back(tx);
+                }
+                let _ = rx.await;
+                // loop to try acquire again
+            }
         }
     }
 

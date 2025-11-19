@@ -16,17 +16,12 @@
 // under the License.
 
 /// Default scheme for http service.
-#[cfg(feature = "services-http")]
-pub(super) const DEFAULT_SCHEME: &str = "http";
-#[cfg(feature = "services-http")]
+pub const HTTP_SCHEME: &str = "http";
+
+mod backend;
+mod config;
+mod core;
 mod error;
 
-#[cfg(feature = "services-http")]
-mod backend;
-#[cfg(feature = "services-http")]
-mod core;
-#[cfg(feature = "services-http")]
 pub use backend::HttpBuilder as Http;
-
-mod config;
 pub use config::HttpConfig;

@@ -20,11 +20,10 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
-use chrono::DateTime;
-use futures::channel::mpsc;
-use futures::channel::oneshot;
 use futures::SinkExt;
 use futures::StreamExt;
+use futures::channel::mpsc;
+use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;
@@ -171,12 +170,9 @@ impl oio::Write for MonoiofsWriter {
         };
         let meta = Metadata::new(mode)
             .with_content_length(file_meta.len())
-            .with_last_modified(
-                file_meta
-                    .modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
+            .with_last_modified(Timestamp::try_from(
+                file_meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(meta)
     }
 

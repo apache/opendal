@@ -57,7 +57,7 @@ impl oio::List for FtpLister {
             Metadata::new(EntryMode::Unknown)
         };
         meta.set_content_length(de.size() as u64);
-        meta.set_last_modified(de.modified().into());
+        meta.set_last_modified(Timestamp::try_from(de.modified())?);
 
         let entry = if de.is_file() {
             oio::Entry::new(&path, meta)

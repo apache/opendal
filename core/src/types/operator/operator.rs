@@ -599,7 +599,6 @@ impl Operator {
     /// # use opendal::Result;
     /// # use opendal::Operator;
     /// # use futures::TryStreamExt;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader("path/to/file").await?;
     /// // Read the first 10 bytes of the file
@@ -624,7 +623,6 @@ impl Operator {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader_with("path/to/file").version("version_id").await?;
     /// // Read the first 10 bytes of the file

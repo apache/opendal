@@ -15,25 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for aliyun_drive service.
-#[cfg(feature = "services-aliyun-drive")]
-pub(super) const DEFAULT_SCHEME: &str = "aliyun_drive";
-#[cfg(feature = "services-aliyun-drive")]
-mod core;
+/// Default scheme for aliyun-drive service.
+pub const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 
-#[cfg(feature = "services-aliyun-drive")]
 mod backend;
-#[cfg(feature = "services-aliyun-drive")]
-mod delete;
-#[cfg(feature = "services-aliyun-drive")]
-mod error;
-#[cfg(feature = "services-aliyun-drive")]
-mod lister;
-#[cfg(feature = "services-aliyun-drive")]
-mod writer;
-#[cfg(feature = "services-aliyun-drive")]
-pub use backend::AliyunDriveBuilder as AliyunDrive;
-
 mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
+pub use backend::AliyunDriveBuilder as AliyunDrive;
 pub use config::AliyunDriveConfig;

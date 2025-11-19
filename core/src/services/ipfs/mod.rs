@@ -16,19 +16,13 @@
 // under the License.
 
 /// Default scheme for ipfs service.
-#[cfg(feature = "services-ipfs")]
-pub(super) const DEFAULT_SCHEME: &str = "ipfs";
-#[cfg(feature = "services-ipfs")]
+pub const IPFS_SCHEME: &str = "ipfs";
+
+mod backend;
+mod config;
+mod core;
 mod error;
-#[cfg(feature = "services-ipfs")]
 mod ipld;
 
-#[cfg(feature = "services-ipfs")]
-mod backend;
-#[cfg(feature = "services-ipfs")]
 pub use backend::IpfsBuilder as Ipfs;
-#[cfg(feature = "services-ipfs")]
-mod core;
-
-mod config;
 pub use config::IpfsConfig;

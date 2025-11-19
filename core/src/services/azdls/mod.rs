@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for azdls service.
-#[cfg(feature = "services-azdls")]
-pub(super) const DEFAULT_SCHEME: &str = "azdls";
-#[cfg(feature = "services-azdls")]
+pub const AZDLS_SCHEME: &str = "azdls";
+
 mod backend;
-#[cfg(feature = "services-azdls")]
+mod config;
 mod core;
-#[cfg(feature = "services-azdls")]
-mod delete;
-#[cfg(feature = "services-azdls")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-azdls")]
 mod lister;
-#[cfg(feature = "services-azdls")]
 mod writer;
 
-#[cfg(feature = "services-azdls")]
 pub use backend::AzdlsBuilder as Azdls;
-
-mod config;
 pub use config::AzdlsConfig;

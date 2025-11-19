@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
-use std::str;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,7 +23,7 @@ use http::StatusCode;
 use serde::Deserialize;
 
 use super::core::IpmfsCore;
-use super::delete::IpmfsDeleter;
+use super::deleter::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
@@ -34,17 +32,9 @@ use crate::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
 #[doc = include_str!("docs.md")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IpmfsBackend {
     pub core: Arc<IpmfsCore>,
-}
-
-impl fmt::Debug for IpmfsBackend {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("IpmfsBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for IpmfsBackend {

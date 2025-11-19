@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::HDFS_SCHEME;
+use super::backend::HdfsBuilder;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
 ///
@@ -43,7 +45,7 @@ pub struct HdfsConfig {
 }
 
 impl Debug for HdfsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsConfig")
             .field("root", &self.root)
             .field("name_node", &self.name_node)
@@ -55,5 +57,51 @@ impl Debug for HdfsConfig {
             .field("enable_append", &self.enable_append)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for HdfsConfig {
+    type Builder = HdfsBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", HDFS_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        HdfsBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_name_node_and_root() {
+        let uri = OperatorUri::new(
+            "hdfs://cluster.local:8020/user/data",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = HdfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name_node.as_deref(), Some("hdfs://cluster.local:8020"));
+        assert_eq!(cfg.root.as_deref(), Some("user/data"));
     }
 }

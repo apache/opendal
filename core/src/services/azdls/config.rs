@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::AZDLS_SCHEME;
+use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -59,31 +61,107 @@ pub struct AzdlsConfig {
 }
 
 impl Debug for AzdlsConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("AzdlsConfig");
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AzdlsConfig")
+            .field("root", &self.root)
+            .field("filesystem", &self.filesystem)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
+    }
+}
 
-        ds.field("root", &self.root);
-        ds.field("filesystem", &self.filesystem);
-        ds.field("endpoint", &self.endpoint);
+impl crate::Configurator for AzdlsConfig {
+    type Builder = AzdlsBuilder;
 
-        if self.account_name.is_some() {
-            ds.field("account_name", &"<redacted>");
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", AZDLS_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("endpoint".to_string(), format!("https://{authority}"));
+
+        if let Some(host) = uri.name() {
+            if let Some(account) = host.split('.').next() {
+                if !account.is_empty() {
+                    map.entry("account_name".to_string())
+                        .or_insert_with(|| account.to_string());
+                }
+            }
         }
-        if self.account_key.is_some() {
-            ds.field("account_key", &"<redacted>");
+
+        if let Some(root) = uri.root() {
+            if let Some((filesystem, rest)) = root.split_once('/') {
+                if filesystem.is_empty() {
+                    return Err(crate::Error::new(
+                        crate::ErrorKind::ConfigInvalid,
+                        "filesystem is required in uri path",
+                    )
+                    .with_context("service", AZDLS_SCHEME));
+                }
+                map.insert("filesystem".to_string(), filesystem.to_string());
+                if !rest.is_empty() {
+                    map.insert("root".to_string(), rest.to_string());
+                }
+            } else if !root.is_empty() {
+                map.insert("filesystem".to_string(), root.to_string());
+            }
         }
-        if self.client_secret.is_some() {
-            ds.field("client_secret", &"<redacted>");
+
+        if !map.contains_key("filesystem") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "filesystem is required",
+            )
+            .with_context("service", AZDLS_SCHEME));
         }
-        if self.tenant_id.is_some() {
-            ds.field("tenant_id", &"<redacted>");
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AzdlsBuilder {
+            config: self,
+            http_client: None,
         }
-        if self.client_id.is_some() {
-            ds.field("client_id", &"<redacted>");
-        }
-        if self.sas_token.is_some() {
-            ds.field("sas_token", &"<redacted>");
-        }
-        ds.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_endpoint_filesystem_root_and_account() {
+        let uri = OperatorUri::new(
+            "azdls://account.dfs.core.windows.net/fs/data/2024",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = AzdlsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("https://account.dfs.core.windows.net")
+        );
+        assert_eq!(cfg.filesystem, "fs".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("data/2024"));
+        assert_eq!(cfg.account_name.as_deref(), Some("account"));
+    }
+
+    #[test]
+    fn from_uri_accepts_filesystem_from_query() {
+        let uri = OperatorUri::new(
+            "azdls://account.dfs.core.windows.net",
+            vec![("filesystem".to_string(), "logs".to_string())],
+        )
+        .unwrap();
+
+        let cfg = AzdlsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.filesystem, "logs".to_string());
     }
 }

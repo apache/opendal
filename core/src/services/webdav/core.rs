@@ -16,16 +16,14 @@
 // under the License.
 
 use std::collections::VecDeque;
-use std::fmt;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -78,7 +76,7 @@ pub struct WebdavCore {
 }
 
 impl Debug for WebdavCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebdavCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
@@ -428,7 +426,7 @@ pub fn parse_propstat(propstat: &Propstat) -> Result<Metadata> {
     }
 
     // https://www.rfc-editor.org/rfc/rfc4918#section-14.18
-    m.set_last_modified(parse_datetime_from_rfc2822(getlastmodified)?);
+    m.set_last_modified(Timestamp::parse_rfc2822(getlastmodified)?);
 
     // the storage services have returned all the properties
     Ok(m)

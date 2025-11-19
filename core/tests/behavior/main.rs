@@ -34,8 +34,8 @@ mod async_write;
 // External dependencies
 use libtest_mimic::Arguments;
 use libtest_mimic::Trial;
-use opendal::raw::tests::init_test_service;
 use opendal::raw::tests::TEST_RUNTIME;
+use opendal::raw::tests::init_test_service;
 use opendal::*;
 
 pub static TEST_FIXTURE: Fixture = Fixture::new();
@@ -72,7 +72,8 @@ fn main() -> anyhow::Result<()> {
     let conclusion = libtest_mimic::run(&args, tests);
 
     // Cleanup the fixtures.
-    TEST_RUNTIME.block_on(TEST_FIXTURE.cleanup(op));
+    TEST_RUNTIME.block_on(TEST_FIXTURE.cleanup(op.clone()));
+    drop(op);
 
     conclusion.exit()
 }

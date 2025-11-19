@@ -16,46 +16,34 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::HTTP_SCHEME;
+use super::config::HttpConfig;
 use super::core::HttpCore;
 use super::error::parse_error;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::HttpConfig;
 use crate::*;
-impl Configurator for HttpConfig {
-    type Builder = HttpBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        HttpBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct HttpBuilder {
-    config: HttpConfig,
+    pub(super) config: HttpConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for HttpBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("HttpBuilder");
-
-        de.field("config", &self.config).finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -138,7 +126,7 @@ impl Builder for HttpBuilder {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                    .with_context("service", Scheme::Http))
+                    .with_context("service", HTTP_SCHEME));
             }
         };
 
@@ -157,7 +145,7 @@ impl Builder for HttpBuilder {
         }
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(HTTP_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -198,17 +186,9 @@ impl Builder for HttpBuilder {
 }
 
 /// Backend is used to serve `Accessor` support for http.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct HttpBackend {
     core: Arc<HttpCore>,
-}
-
-impl Debug for HttpBackend {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HttpBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for HttpBackend {
@@ -276,7 +256,7 @@ impl Access for HttpBackend {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     "Http doesn't support presigned write",
-                ))
+                ));
             }
         };
 

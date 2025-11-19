@@ -16,27 +16,17 @@
 // under the License.
 
 /// Default scheme for sftp service.
-#[cfg(feature = "services-sftp")]
-pub(super) const DEFAULT_SCHEME: &str = "sftp";
-#[cfg(feature = "services-sftp")]
-mod delete;
-#[cfg(feature = "services-sftp")]
+pub const SFTP_SCHEME: &str = "sftp";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod error;
-#[cfg(feature = "services-sftp")]
 mod lister;
-#[cfg(feature = "services-sftp")]
 mod reader;
-#[cfg(feature = "services-sftp")]
 mod utils;
-#[cfg(feature = "services-sftp")]
 mod writer;
 
-#[cfg(feature = "services-sftp")]
-mod backend;
-#[cfg(feature = "services-sftp")]
 pub use backend::SftpBuilder as Sftp;
-#[cfg(feature = "services-sftp")]
-mod core;
-
-mod config;
 pub use config::SftpConfig;

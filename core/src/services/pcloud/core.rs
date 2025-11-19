@@ -16,18 +16,17 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use serde::Deserialize;
 
-use super::error::parse_error;
 use super::error::PcloudError;
+use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
@@ -46,8 +45,8 @@ pub struct PcloudCore {
 }
 
 impl Debug for PcloudCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("username", &self.username)
@@ -404,7 +403,7 @@ pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
         md.set_content_length(size);
     }
 
-    md.set_last_modified(parse_datetime_from_rfc2822(&content.modified)?);
+    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
     Ok(md)
 }
@@ -420,7 +419,7 @@ pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
         md.set_content_length(size);
     }
 
-    md.set_last_modified(parse_datetime_from_rfc2822(&content.modified)?);
+    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
     Ok(md)
 }

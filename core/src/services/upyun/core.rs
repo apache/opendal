@@ -16,16 +16,15 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
 use hmac::Hmac;
 use hmac::Mac;
-use http::header;
 use http::HeaderMap;
 use http::Request;
 use http::Response;
+use http::header;
 use md5::Digest;
 use serde::Deserialize;
 use sha1::Sha1;
@@ -69,8 +68,8 @@ pub struct UpyunCore {
 }
 
 impl Debug for UpyunCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunCore")
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("operator", &self.operator)
@@ -86,9 +85,7 @@ impl UpyunCore {
 
     pub fn sign(&self, req: &mut Request<Buffer>) -> Result<()> {
         // get rfc1123 date
-        let date = chrono::Utc::now()
-            .format("%a, %d %b %Y %H:%M:%S GMT")
-            .to_string();
+        let date = Timestamp::now().format_http_date();
         let authorization =
             self.signer
                 .authorization(&date, req.method().as_str(), req.uri().path());
@@ -456,7 +453,7 @@ impl UpyunSigner {
         mac.update(sign.as_bytes());
         let sign_str = mac.finalize().into_bytes();
 
-        let sign = base64::engine::general_purpose::STANDARD.encode(sign_str.as_slice());
+        let sign = base64::engine::general_purpose::STANDARD.encode(sign_str);
         format!("UPYUN {}:{}", self.operator, sign)
     }
 }

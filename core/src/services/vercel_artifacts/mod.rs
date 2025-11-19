@@ -15,22 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for vercel_artifacts service.
-#[cfg(feature = "services-vercel-artifacts")]
-pub(super) const DEFAULT_SCHEME: &str = "vercel_artifacts";
-#[cfg(feature = "services-vercel-artifacts")]
+/// Default scheme for vercel-artifacts service.
+pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
+
 mod backend;
-#[cfg(feature = "services-vercel-artifacts")]
+mod builder;
+mod config;
 mod core;
-#[cfg(feature = "services-vercel-artifacts")]
 mod error;
-#[cfg(feature = "services-vercel-artifacts")]
 mod writer;
 
-#[cfg(feature = "services-vercel-artifacts")]
-mod builder;
-#[cfg(feature = "services-vercel-artifacts")]
 pub use builder::VercelArtifactsBuilder as VercelArtifacts;
-
-mod config;
 pub use config::VercelArtifactsConfig;

@@ -16,17 +16,16 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use base64::Engine;
 use bytes::Buf;
 use bytes::Bytes;
-use http::header;
-use http::request;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::request;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,8 +48,8 @@ pub struct GithubCore {
 }
 
 impl Debug for GithubCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubCore")
             .field("root", &self.root)
             .field("owner", &self.owner)
             .field("repo", &self.repo)
@@ -174,7 +173,7 @@ impl GithubCore {
         let req = self.sign(req)?;
 
         let mut req_body = CreateOrUpdateContentsRequest {
-            message: format!("Write {} at {} via opendal", path, chrono::Local::now()),
+            message: format!("Write {} at {} via opendal", path, Timestamp::now()),
             content: base64::engine::general_purpose::STANDARD.encode(bs.to_bytes()),
             sha: None,
         };
@@ -222,7 +221,7 @@ impl GithubCore {
         let req = self.sign(req)?;
 
         let req_body = DeleteContentsRequest {
-            message: format!("Delete {} at {} via opendal", path, chrono::Local::now()),
+            message: format!("Delete {} at {} via opendal", path, Timestamp::now()),
             sha,
         };
 

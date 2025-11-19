@@ -87,35 +87,8 @@ updates:
           - "rand"
           - "getrandom"
 
-  - package-ecosystem: "cargo"
-    directory: "/bin/oay"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "monthly"
-    cooldown:
-      semver-patch-days: 90 # maximum 90 days
-      include:
-        - "*"
 
-  - package-ecosystem: "cargo"
-    directory: "/bin/ofs"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "monthly"
-    cooldown:
-      semver-patch-days: 90
-      include:
-        - "*"
 
-  - package-ecosystem: "cargo"
-    directory: "/bin/oli"
-    open-pull-requests-limit: 1
-    schedule:
-      interval: "monthly"
-    cooldown:
-      semver-patch-days: 90
-      include:
-        - "*"
 
   - package-ecosystem: "cargo"
     directory: "/integrations/dav-server"
@@ -193,6 +166,15 @@ updates:
     open-pull-requests-limit: 1
     schedule:
       interval: "monthly"
+    groups:
+      docusaur:
+        patterns:
+          - "@docusaurus/core"
+          - "@docusaurus/plugin-client-redirects"
+          - "@docusaurus/preset-classic"
+      others:
+        patterns:
+          - "*"
     cooldown:
       semver-patch-days: 90
       include:

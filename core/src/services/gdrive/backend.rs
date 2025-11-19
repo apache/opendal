@@ -19,13 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::Utc;
 use http::Response;
 use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
-use super::delete::GdriveDeleter;
+use super::deleter::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
@@ -77,7 +76,7 @@ impl Access for GdriveBackend {
             })?);
         }
         if let Some(v) = gdrive_file.modified_time {
-            meta = meta.with_last_modified(v.parse::<chrono::DateTime<Utc>>().map_err(|e| {
+            meta = meta.with_last_modified(v.parse::<Timestamp>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
             })?);
         }

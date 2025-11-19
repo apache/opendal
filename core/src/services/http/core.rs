@@ -16,14 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
+use http::Request;
+use http::Response;
 use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use http::Request;
-use http::Response;
 
 use crate::raw::*;
 use crate::*;
@@ -38,11 +37,11 @@ pub struct HttpCore {
 }
 
 impl Debug for HttpCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

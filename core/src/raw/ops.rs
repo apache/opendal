@@ -19,14 +19,10 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use std::collections::HashMap;
-use std::time::Duration;
-
-use chrono::DateTime;
-use chrono::Utc;
-
 use crate::options;
 use crate::raw::*;
+use std::collections::HashMap;
+use std::time::Duration;
 
 /// Args for `create` operation.
 ///
@@ -186,22 +182,9 @@ impl OpList {
     }
 
     /// Change the version of this list operation
-    #[deprecated(since = "0.51.1", note = "use with_versions instead")]
-    pub fn with_version(mut self, version: bool) -> Self {
-        self.versions = version;
-        self
-    }
-
-    /// Change the version of this list operation
     pub fn with_versions(mut self, versions: bool) -> Self {
         self.versions = versions;
         self
-    }
-
-    /// Get the version of this list operation
-    #[deprecated(since = "0.51.1", note = "use versions instead")]
-    pub fn version(&self) -> bool {
-        self.versions
     }
 
     /// Get the version of this list operation
@@ -312,8 +295,8 @@ pub struct OpRead {
     range: BytesRange,
     if_match: Option<String>,
     if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -399,24 +382,24 @@ impl OpRead {
     }
 
     /// Set the If-Modified-Since of the option
-    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_modified_since(mut self, v: Timestamp) -> Self {
         self.if_modified_since = Some(v);
         self
     }
 
     /// Get If-Modified-Since from option
-    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_modified_since(&self) -> Option<Timestamp> {
         self.if_modified_since
     }
 
     /// Set the If-Unmodified-Since of the option
-    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_unmodified_since(mut self, v: Timestamp) -> Self {
         self.if_unmodified_since = Some(v);
         self
     }
 
     /// Get If-Unmodified-Since from option
-    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_unmodified_since(&self) -> Option<Timestamp> {
         self.if_unmodified_since
     }
 
@@ -562,8 +545,8 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
 pub struct OpStat {
     if_match: Option<String>,
     if_none_match: Option<String>,
-    if_modified_since: Option<DateTime<Utc>>,
-    if_unmodified_since: Option<DateTime<Utc>>,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
     override_content_type: Option<String>,
     override_cache_control: Option<String>,
     override_content_disposition: Option<String>,
@@ -599,24 +582,24 @@ impl OpStat {
     }
 
     /// Set the If-Modified-Since of the option
-    pub fn with_if_modified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_modified_since(mut self, v: Timestamp) -> Self {
         self.if_modified_since = Some(v);
         self
     }
 
     /// Get If-Modified-Since from option
-    pub fn if_modified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_modified_since(&self) -> Option<Timestamp> {
         self.if_modified_since
     }
 
     /// Set the If-Unmodified-Since of the option
-    pub fn with_if_unmodified_since(mut self, v: DateTime<Utc>) -> Self {
+    pub fn with_if_unmodified_since(mut self, v: Timestamp) -> Self {
         self.if_unmodified_since = Some(v);
         self
     }
 
     /// Get If-Unmodified-Since from option
-    pub fn if_unmodified_since(&self) -> Option<DateTime<Utc>> {
+    pub fn if_unmodified_since(&self) -> Option<Timestamp> {
         self.if_unmodified_since
     }
 

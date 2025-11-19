@@ -16,15 +16,10 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::time::Duration;
 
 use bb8::RunError;
 use bytes::Bytes;
-use redis::aio::ConnectionLike;
-use redis::aio::ConnectionManager;
-use redis::cluster::ClusterClient;
-use redis::cluster_async::ClusterConnection;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -32,6 +27,10 @@ use redis::Pipeline;
 use redis::RedisError;
 use redis::RedisFuture;
 use redis::Value;
+use redis::aio::ConnectionLike;
+use redis::aio::ConnectionManager;
+use redis::cluster::ClusterClient;
+use redis::cluster_async::ClusterConnection;
 use tokio::sync::OnceCell;
 
 use crate::*;
@@ -120,13 +119,14 @@ pub struct RedisCore {
     pub cluster_client: Option<ClusterClient>,
     pub conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
     pub default_ttl: Option<Duration>,
+    pub connection_pool_max_size: Option<u32>,
 }
 
 impl Debug for RedisCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("RedisCore");
-        ds.field("addr", &self.addr);
-        ds.finish()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RedisCore")
+            .field("addr", &self.addr)
+            .finish_non_exhaustive()
     }
 }
 
@@ -136,6 +136,7 @@ impl RedisCore {
             .conn
             .get_or_try_init(|| async {
                 bb8::Pool::builder()
+                    .max_size(self.connection_pool_max_size.unwrap_or(10))
                     .build(self.get_redis_connection_manager())
                     .await
                     .map_err(|err| {

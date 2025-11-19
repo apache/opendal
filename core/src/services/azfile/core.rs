@@ -17,18 +17,17 @@
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use http::header::CONTENT_DISPOSITION;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
-use http::header::RANGE;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header::CONTENT_DISPOSITION;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
+use http::header::RANGE;
 use reqsign::AzureStorageCredential;
 use reqsign::AzureStorageLoader;
 use reqsign::AzureStorageSigner;
@@ -54,7 +53,7 @@ pub struct AzfileCore {
 }
 
 impl Debug for AzfileCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AzfileCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)

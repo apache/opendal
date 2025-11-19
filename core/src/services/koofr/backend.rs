@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -26,46 +25,34 @@ use log::debug;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+use super::KOOFR_SCHEME;
+use super::config::KoofrConfig;
 use super::core::File;
 use super::core::KoofrCore;
 use super::core::KoofrSigner;
-use super::delete::KoofrDeleter;
+use super::deleter::KoofrDeleter;
 use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::KoofrConfig;
 use crate::*;
-impl Configurator for KoofrConfig {
-    type Builder = KoofrBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        KoofrBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [Koofr](https://app.koofr.net/) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct KoofrBuilder {
-    config: KoofrConfig,
+    pub(super) config: KoofrConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for KoofrBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("KoofrBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KoofrBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -148,7 +135,7 @@ impl Builder for KoofrBuilder {
         if self.config.endpoint.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use endpoint {}", &self.config.endpoint);
@@ -156,7 +143,7 @@ impl Builder for KoofrBuilder {
         if self.config.email.is_empty() {
             return Err(Error::new(ErrorKind::ConfigInvalid, "email is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr));
+                .with_context("service", KOOFR_SCHEME));
         }
 
         debug!("backend use email {}", &self.config.email);
@@ -165,7 +152,7 @@ impl Builder for KoofrBuilder {
             Some(password) => Ok(password.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "password is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Koofr)),
+                .with_context("service", KOOFR_SCHEME)),
         }?;
 
         let signer = Arc::new(Mutex::new(KoofrSigner::default()));
@@ -174,7 +161,7 @@ impl Builder for KoofrBuilder {
             core: Arc::new(KoofrCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(KOOFR_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -265,7 +252,7 @@ impl Access for KoofrBackend {
 
                 md.set_content_length(file.size)
                     .set_content_type(&file.content_type)
-                    .set_last_modified(parse_datetime_from_from_timestamp_millis(file.modified)?);
+                    .set_last_modified(Timestamp::from_millisecond(file.modified)?);
 
                 Ok(RpStat::new(md))
             }

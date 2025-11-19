@@ -17,18 +17,16 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use chrono::Utc;
-
 use self::oio::Entry;
 use super::core::AliyunDriveCore;
 use super::core::AliyunDriveFileList;
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
+use bytes::Buf;
 
 pub struct AliyunDriveLister {
     core: Arc<AliyunDriveCore>,
@@ -69,13 +67,9 @@ impl oio::PageList for AliyunDriveLister {
             ctx.entries.push_back(Entry::new(
                 &parent.path,
                 Metadata::new(EntryMode::DIR).with_last_modified(
-                    parent
-                        .updated_at
-                        .parse::<chrono::DateTime<Utc>>()
-                        .map_err(|e| {
-                            Error::new(ErrorKind::Unexpected, "parse last modified time")
-                                .set_source(e)
-                        })?,
+                    parent.updated_at.parse::<Timestamp>().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                    })?,
                 ),
             ));
             None
@@ -109,9 +103,9 @@ impl oio::PageList for AliyunDriveLister {
                 (path, Metadata::new(EntryMode::FILE))
             };
 
-            md = md.with_last_modified(item.updated_at.parse::<chrono::DateTime<Utc>>().map_err(
-                |e| Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e),
-            )?);
+            md = md.with_last_modified(item.updated_at.parse::<Timestamp>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+            })?);
             if let Some(v) = item.size {
                 md = md.with_content_length(v);
             }

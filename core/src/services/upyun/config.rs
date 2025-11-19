@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::UpyunBuilder;
 
 /// Config for upyun services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -39,13 +40,56 @@ pub struct UpyunConfig {
 }
 
 impl Debug for UpyunConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UpyunConfig")
+            .field("root", &self.root)
+            .field("bucket", &self.bucket)
+            .field("operator", &self.operator)
+            .finish_non_exhaustive()
+    }
+}
 
-        ds.field("root", &self.root);
-        ds.field("bucket", &self.bucket);
-        ds.field("operator", &self.operator);
+impl crate::Configurator for UpyunConfig {
+    type Builder = UpyunBuilder;
 
-        ds.finish()
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(name) = uri.name() {
+            map.insert("bucket".to_string(), name.to_string());
+        }
+
+        if let Some(root) = uri.root() {
+            map.insert("root".to_string(), root.to_string());
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        UpyunBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new(
+            "upyun://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = UpyunConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
     }
 }

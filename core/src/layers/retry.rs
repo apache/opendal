@@ -75,7 +75,6 @@ use crate::*;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -99,7 +98,6 @@ use crate::*;
 /// # use opendal::Error;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// struct MyRetryInterceptor;
 ///
@@ -148,7 +146,6 @@ impl RetryLayer {
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
     /// use opendal::Operator;
-    /// use opendal::Scheme;
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
@@ -606,8 +603,8 @@ mod tests {
     use std::sync::Mutex;
 
     use bytes::Bytes;
-    use futures::stream;
     use futures::TryStreamExt;
+    use futures::stream;
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;

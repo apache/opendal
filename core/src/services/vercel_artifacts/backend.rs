@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use http::Response;
@@ -28,17 +27,9 @@ use crate::raw::*;
 use crate::*;
 
 #[doc = include_str!("docs.md")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VercelArtifactsBackend {
     pub core: Arc<VercelArtifactsCore>,
-}
-
-impl Debug for VercelArtifactsBackend {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("VercelArtifactsBackend")
-            .field("core", &self.core)
-            .finish()
-    }
 }
 
 impl Access for VercelArtifactsBackend {

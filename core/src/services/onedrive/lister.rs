@@ -21,9 +21,9 @@ use bytes::Buf;
 
 use super::core::OneDriveCore;
 use super::error::parse_error;
+use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
-use super::graph_model::GENERAL_SELECT_PARAM;
 use crate::raw::oio;
 use crate::raw::*;
 use crate::*;
@@ -126,8 +126,7 @@ impl oio::PageList for OneDriveLister {
             let mut meta = Metadata::new(entry_mode)
                 .with_etag(drive_item.e_tag)
                 .with_content_length(drive_item.size.max(0) as u64);
-            let last_modified =
-                parse_datetime_from_rfc3339(drive_item.last_modified_date_time.as_str())?;
+            let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
             meta.set_last_modified(last_modified);
 
             // When listing a directory with `$expand=versions`, OneDrive returns 400 "Operation not supported".

@@ -72,7 +72,7 @@ impl CloudflareKvLister {
             Metadata::new(EntryMode::FILE)
                 .with_etag(metadata.etag)
                 .with_content_length(metadata.content_length as u64)
-                .with_last_modified(parse_datetime_from_rfc3339(&metadata.last_modified)?)
+                .with_last_modified(metadata.last_modified.parse::<Timestamp>()?)
         };
 
         Ok(oio::Entry::new(&name, entry_metadata))

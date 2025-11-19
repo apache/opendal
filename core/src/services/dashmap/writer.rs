@@ -20,7 +20,7 @@ use std::time::SystemTime;
 
 use super::core::DashmapCore;
 use super::core::DashmapValue;
-use crate::raw::{oio, OpWrite};
+use crate::raw::{OpWrite, Timestamp, oio};
 use crate::*;
 
 pub struct DashmapWriter {
@@ -54,7 +54,7 @@ impl oio::Write for DashmapWriter {
         let entry_mode = EntryMode::from_path(&self.path);
         let mut meta = Metadata::new(entry_mode);
         meta.set_content_length(content.len() as u64);
-        meta.set_last_modified(SystemTime::now().into());
+        meta.set_last_modified(Timestamp::try_from(SystemTime::now())?);
 
         if let Some(v) = self.op.content_type() {
             meta.set_content_type(v);

@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
-use super::core::parse_file_info;
 use super::core::B2Core;
 use super::core::ListFileNamesResponse;
+use super::core::parse_file_info;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

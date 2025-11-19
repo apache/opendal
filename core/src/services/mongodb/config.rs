@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MongodbBuilder;
 
 /// Config for Mongodb service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -41,14 +42,80 @@ pub struct MongodbConfig {
 }
 
 impl Debug for MongodbConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MongodbConfig")
-            .field("connection_string", &self.connection_string)
             .field("database", &self.database)
             .field("collection", &self.collection)
             .field("root", &self.root)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .finish()
+            .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for MongodbConfig {
+    type Builder = MongodbBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("mongodb://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let mut segments = path.splitn(3, '/');
+                if let Some(db) = segments.next() {
+                    if !db.is_empty() {
+                        map.entry("database".to_string())
+                            .or_insert_with(|| db.to_string());
+                    }
+                }
+                if let Some(collection) = segments.next() {
+                    if !collection.is_empty() {
+                        map.entry("collection".to_string())
+                            .or_insert_with(|| collection.to_string());
+                    }
+                }
+                if let Some(rest) = segments.next() {
+                    if !rest.is_empty() {
+                        map.insert("root".to_string(), rest.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        MongodbBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_string_database_collection_and_root() {
+        let uri = OperatorUri::new(
+            "mongodb://mongo.internal:27017/analytics/events/session",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MongodbConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mongodb://mongo.internal:27017")
+        );
+        assert_eq!(cfg.database.as_deref(), Some("analytics"));
+        assert_eq!(cfg.collection.as_deref(), Some("events"));
+        assert_eq!(cfg.root.as_deref(), Some("session"));
     }
 }

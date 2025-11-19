@@ -20,11 +20,11 @@ name = "opendal-nodejs"
 publish = false
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
+rust-version = "1.85"
 
 [features]
 default = [
@@ -161,6 +161,7 @@ napi-derive = "3.2.2"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
+  "layers-throttle",
 ] }
 tokio = "1"
 

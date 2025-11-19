@@ -17,13 +17,12 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
-
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::*;
+use http::StatusCode;
 
 pub struct CloudflareWriter {
     core: Arc<CloudflareKvCore>,
@@ -40,7 +39,7 @@ impl oio::OneShotWrite for CloudflareWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let cf_kv_metadata = CfKvMetadata {
             etag: build_tmp_path_of(&self.path),
-            last_modified: chrono::Local::now().to_rfc3339(),
+            last_modified: Timestamp::now().to_string(),
             content_length: bs.len(),
             is_dir: self.path.ends_with('/'),
         };
@@ -56,8 +55,7 @@ impl oio::OneShotWrite for CloudflareWriter {
             StatusCode::OK => {
                 let mut metadata = Metadata::default();
                 metadata.set_etag(&cf_kv_metadata.etag);
-                metadata
-                    .set_last_modified(parse_datetime_from_rfc3339(&cf_kv_metadata.last_modified)?);
+                metadata.set_last_modified(cf_kv_metadata.last_modified.parse::<Timestamp>()?);
                 metadata.set_content_length(cf_kv_metadata.content_length as u64);
 
                 Ok(metadata)

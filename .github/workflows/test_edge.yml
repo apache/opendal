@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create disk image
         run: |
@@ -64,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -115,10 +115,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v8
         id: id-token
         with:
           script: return await core.getIDToken("sts.amazonaws.com")

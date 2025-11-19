@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
 use crate::Result;
+use crate::raw::*;
 
 /// A layer that can automatically set `Content-Type` based on the file extension in the path.
 ///
@@ -49,7 +49,6 @@ use crate::Result;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -145,9 +144,9 @@ mod tests {
     use futures::TryStreamExt;
 
     use super::*;
-    use crate::services::Memory;
     use crate::Metadata;
     use crate::Operator;
+    use crate::services::Memory;
 
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";

@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::HDFS_NATIVE_SCHEME;
+use super::backend::HdfsNativeBuilder;
 
 /// Config for HdfsNative services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -35,11 +37,57 @@ pub struct HdfsNativeConfig {
 }
 
 impl Debug for HdfsNativeConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HdfsNativeConfig")
             .field("root", &self.root)
             .field("name_node", &self.name_node)
             .field("enable_append", &self.enable_append)
             .finish_non_exhaustive()
+    }
+}
+
+impl crate::Configurator for HdfsNativeConfig {
+    type Builder = HdfsNativeBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let authority = uri.authority().ok_or_else(|| {
+            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
+                .with_context("service", HDFS_NATIVE_SCHEME)
+        })?;
+
+        let mut map = uri.options().clone();
+        map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        HdfsNativeBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_name_node_and_root() {
+        let uri = OperatorUri::new(
+            "hdfs-native://namenode:9000/user/project",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = HdfsNativeConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name_node.as_deref(), Some("hdfs://namenode:9000"));
+        assert_eq!(cfg.root.as_deref(), Some("user/project"));
     }
 }

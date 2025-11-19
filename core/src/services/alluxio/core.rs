@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -41,8 +40,8 @@ pub struct AlluxioCore {
 }
 
 impl Debug for AlluxioCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlluxioCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
@@ -359,7 +358,7 @@ impl TryFrom<FileInfo> for Metadata {
         };
         metadata
             .set_content_length(file_info.length)
-            .set_last_modified(parse_datetime_from_from_timestamp_millis(
+            .set_last_modified(Timestamp::from_millisecond(
                 file_info.last_modification_time_ms,
             )?);
         Ok(metadata)

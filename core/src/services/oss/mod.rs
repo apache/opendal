@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for oss service.
-#[cfg(feature = "services-oss")]
-pub(super) const DEFAULT_SCHEME: &str = "oss";
-#[cfg(feature = "services-oss")]
+pub const OSS_SCHEME: &str = "oss";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-oss")]
-mod delete;
-#[cfg(feature = "services-oss")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-oss")]
 mod lister;
-#[cfg(feature = "services-oss")]
 mod writer;
 
-#[cfg(feature = "services-oss")]
-mod backend;
-#[cfg(feature = "services-oss")]
 pub use backend::OssBuilder as Oss;
-
-mod config;
 pub use config::OssConfig;

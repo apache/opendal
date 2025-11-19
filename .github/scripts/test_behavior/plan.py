@@ -33,7 +33,7 @@ PROJECT_DIR = GITHUB_DIR.parent
 
 LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp"]
 
-BIN = ["ofs"]
+BIN = []
 
 INTEGRATIONS = ["object_store"]
 

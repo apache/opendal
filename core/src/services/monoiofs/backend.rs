@@ -20,30 +20,22 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
 use monoio::fs::OpenOptions;
 
-use super::core::MonoiofsCore;
+use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
-use super::delete::MonoiofsDeleter;
+use super::core::MonoiofsCore;
+use super::deleter::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
 use crate::raw::*;
-use crate::services::MonoiofsConfig;
 use crate::*;
-
-impl Configurator for MonoiofsConfig {
-    type Builder = MonoiofsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        MonoiofsBuilder { config: self }
-    }
-}
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]
-#[derive(Default, Debug)]
+#[derive(Debug, Default)]
 pub struct MonoiofsBuilder {
-    config: MonoiofsConfig,
+    pub(super) config: MonoiofsConfig,
 }
 
 impl MonoiofsBuilder {
@@ -126,11 +118,9 @@ impl Access for MonoiofsBackend {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
+            .with_last_modified(Timestamp::try_from(
+                meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(RpStat::new(m))
     }
 

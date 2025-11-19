@@ -20,8 +20,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use chrono::DateTime;
-
 use super::error::*;
 use crate::raw::*;
 use crate::*;
@@ -74,7 +72,6 @@ impl FsCore {
     pub async fn fs_stat(&self, path: &str) -> Result<Metadata> {
         let p = self.root.join(path.trim_end_matches('/'));
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
-
         let mode = if meta.is_dir() {
             EntryMode::DIR
         } else if meta.is_file() {
@@ -84,12 +81,9 @@ impl FsCore {
         };
         let m = Metadata::new(mode)
             .with_content_length(meta.len())
-            .with_last_modified(
-                meta.modified()
-                    .map(DateTime::from)
-                    .map_err(new_std_io_error)?,
-            );
-
+            .with_last_modified(Timestamp::try_from(
+                meta.modified().map_err(new_std_io_error)?,
+            )?);
         Ok(m)
     }
 
@@ -141,7 +135,10 @@ impl FsCore {
         path: &str,
     ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
         let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
-            return Err(Error::new(ErrorKind::Unexpected, "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug."));
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug.",
+            ));
         };
 
         let tmp_path = self
@@ -169,30 +166,14 @@ impl FsCore {
                 match e.kind() {
                     // Return empty list if the directory not found
                     std::io::ErrorKind::NotFound => Ok(None),
-                    // TODO: enable after our MSRV has been raised to 1.83
-                    //
                     // If the path is not a directory, return an empty list
                     //
                     // The path could be a file or a symbolic link in this case.
                     // Returning a NotADirectory error to the user isn't helpful; instead,
                     // providing an empty directory is a more user-friendly. In fact, the dir
                     // `path/` does not exist.
-                    // std::io::ErrorKind::NotADirectory => Ok((RpList::default(), None)),
-                    _ => {
-                        // TODO: remove this after we have MSRV 1.83
-                        #[cfg(unix)]
-                        if e.raw_os_error() == Some(20) {
-                            // On unix 20: Not a directory
-                            return Ok(None);
-                        }
-                        #[cfg(windows)]
-                        if e.raw_os_error() == Some(267) {
-                            // On windows 267: DIRECTORY
-                            return Ok(None);
-                        }
-
-                        Err(new_std_io_error(e))
-                    }
+                    std::io::ErrorKind::NotADirectory => Ok(None),
+                    _ => Err(new_std_io_error(e)),
                 }
             }
         }

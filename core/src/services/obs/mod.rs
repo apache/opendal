@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for obs service.
-#[cfg(feature = "services-obs")]
-pub(super) const DEFAULT_SCHEME: &str = "obs";
-#[cfg(feature = "services-obs")]
+pub const OBS_SCHEME: &str = "obs";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-obs")]
-mod delete;
-#[cfg(feature = "services-obs")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-obs")]
 mod lister;
-#[cfg(feature = "services-obs")]
 mod writer;
 
-#[cfg(feature = "services-obs")]
-mod backend;
-#[cfg(feature = "services-obs")]
 pub use backend::ObsBuilder as Obs;
-
-mod config;
 pub use config::ObsConfig;

@@ -16,26 +16,16 @@
 // under the License.
 
 /// Default scheme for webhdfs service.
-#[cfg(feature = "services-webhdfs")]
-pub(super) const DEFAULT_SCHEME: &str = "webhdfs";
-#[cfg(feature = "services-webhdfs")]
-mod delete;
-#[cfg(feature = "services-webhdfs")]
+pub const WEBHDFS_SCHEME: &str = "webhdfs";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod error;
-#[cfg(feature = "services-webhdfs")]
 mod lister;
-#[cfg(feature = "services-webhdfs")]
 mod message;
-#[cfg(feature = "services-webhdfs")]
 mod writer;
 
-#[cfg(feature = "services-webhdfs")]
-mod backend;
-#[cfg(feature = "services-webhdfs")]
 pub use backend::WebhdfsBuilder as Webhdfs;
-
-#[cfg(feature = "services-webhdfs")]
-mod core;
-
-mod config;
 pub use config::WebhdfsConfig;

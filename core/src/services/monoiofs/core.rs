@@ -23,12 +23,12 @@ use std::time::Duration;
 
 use flume::Receiver;
 use flume::Sender;
-use futures::channel::oneshot;
 use futures::Future;
+use futures::channel::oneshot;
 use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 
-use super::DEFAULT_SCHEME;
+use super::MONOIOFS_SCHEME;
 use crate::raw::*;
 use crate::*;
 pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
@@ -69,7 +69,7 @@ impl MonoiofsCore {
         Self {
             info: {
                 let am = AccessorInfo::default();
-                am.set_scheme(DEFAULT_SCHEME)
+                am.set_scheme(MONOIOFS_SCHEME)
                     .set_root(&root.to_string_lossy())
                     .set_native_capability(Capability {
                         stat: true,
@@ -221,9 +221,9 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use futures::StreamExt;
     use futures::channel::mpsc::UnboundedSender;
     use futures::channel::mpsc::{self};
-    use futures::StreamExt;
 
     use super::*;
 

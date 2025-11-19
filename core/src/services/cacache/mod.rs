@@ -16,19 +16,13 @@
 // under the License.
 
 /// Default scheme for cacache service.
-#[cfg(feature = "services-cacache")]
-pub(super) const DEFAULT_SCHEME: &str = "cacache";
-#[cfg(feature = "services-cacache")]
+pub const CACACHE_SCHEME: &str = "cacache";
+
 mod backend;
-#[cfg(feature = "services-cacache")]
+mod config;
 mod core;
-#[cfg(feature = "services-cacache")]
-mod delete;
-#[cfg(feature = "services-cacache")]
+mod deleter;
 mod writer;
 
-#[cfg(feature = "services-cacache")]
 pub use backend::CacacheBuilder as Cacache;
-
-mod config;
 pub use config::CacacheConfig;

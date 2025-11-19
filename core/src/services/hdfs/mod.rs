@@ -16,21 +16,15 @@
 // under the License.
 
 /// Default scheme for hdfs service.
-#[cfg(feature = "services-hdfs")]
-pub(super) const DEFAULT_SCHEME: &str = "hdfs";
-#[cfg(feature = "services-hdfs")]
-mod delete;
-#[cfg(feature = "services-hdfs")]
+pub const HDFS_SCHEME: &str = "hdfs";
+
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod lister;
-#[cfg(feature = "services-hdfs")]
 mod reader;
-#[cfg(feature = "services-hdfs")]
 mod writer;
 
-#[cfg(feature = "services-hdfs")]
-mod backend;
-#[cfg(feature = "services-hdfs")]
 pub use backend::HdfsBuilder as Hdfs;
-
-mod config;
 pub use config::HdfsConfig;

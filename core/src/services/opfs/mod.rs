@@ -15,16 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-opfs")]
+/// Default scheme for opfs service.
+pub const OPFS_SCHEME: &str = "opfs";
+
 mod backend;
-#[cfg(feature = "services-opfs")]
-mod core;
-
-#[cfg(feature = "services-opfs")]
 mod config;
-
-#[cfg(feature = "services-opfs")]
+mod core;
 mod error;
-
-#[cfg(feature = "services-opfs")]
 mod utils;

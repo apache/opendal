@@ -16,25 +16,16 @@
 // under the License.
 
 /// Default scheme for gcs service.
-#[cfg(feature = "services-gcs")]
-pub(super) const DEFAULT_SCHEME: &str = "gcs";
-#[cfg(feature = "services-gcs")]
+pub const GCS_SCHEME: &str = "gcs";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-gcs")]
-mod delete;
-#[cfg(feature = "services-gcs")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-gcs")]
 mod lister;
-#[cfg(feature = "services-gcs")]
 mod uri;
-#[cfg(feature = "services-gcs")]
 mod writer;
 
-#[cfg(feature = "services-gcs")]
-mod backend;
-#[cfg(feature = "services-gcs")]
 pub use backend::GcsBuilder as Gcs;
-
-mod config;
 pub use config::GcsConfig;

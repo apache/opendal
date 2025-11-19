@@ -19,12 +19,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
-use chrono::Utc;
-use http::header::HeaderValue;
-use http::header::{self};
 use http::Method;
 use http::Request;
 use http::Response;
+use http::header::HeaderValue;
+use http::header::{self};
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -145,14 +144,15 @@ impl AliyunDriveCore {
                 access_token,
                 expire_at,
             ) => {
-                if *expire_at < Utc::now().timestamp() || access_token.is_none() {
+                if *expire_at < Timestamp::now().into_inner().as_second() || access_token.is_none()
+                {
                     let res = self
                         .get_access_token(client_id, client_secret, refresh_token)
                         .await?;
                     let output: RefreshTokenResponse = serde_json::from_reader(res.reader())
                         .map_err(new_json_deserialize_error)?;
                     *access_token = Some(output.access_token);
-                    *expire_at = output.expires_in + Utc::now().timestamp();
+                    *expire_at = output.expires_in + Timestamp::now().into_inner().as_second();
                     *refresh_token = output.refresh_token;
                 }
                 access_token.clone()

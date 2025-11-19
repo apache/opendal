@@ -2,6 +2,8 @@
 
 [![](https://img.shields.io/badge/status-unreleased-red)](https://opendal.apache.org/bindings/php/)
 
+> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+
 ## Example
 
 ```php

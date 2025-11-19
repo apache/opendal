@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for compfs service.
-#[cfg(feature = "services-compfs")]
-pub(super) const DEFAULT_SCHEME: &str = "compfs";
-#[cfg(feature = "services-compfs")]
+pub const COMPFS_SCHEME: &str = "compfs";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-compfs")]
-mod delete;
-#[cfg(feature = "services-compfs")]
+mod deleter;
 mod lister;
-#[cfg(feature = "services-compfs")]
 mod reader;
-#[cfg(feature = "services-compfs")]
 mod writer;
 
-#[cfg(feature = "services-compfs")]
-mod backend;
-#[cfg(feature = "services-compfs")]
 pub use backend::CompfsBuilder as Compfs;
-
-mod config;
 pub use config::CompfsConfig;

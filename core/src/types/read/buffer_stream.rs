@@ -21,8 +21,8 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
-use futures::ready;
 use futures::Stream;
+use futures::ready;
 
 use crate::raw::oio::Read as _;
 use crate::raw::*;
@@ -228,7 +228,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
-        let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
+        let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
             "test".to_string(),
@@ -244,7 +244,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_buffer_stream() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),

@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::VercelBlobBuilder;
 
 /// Config for VercelBlob services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -35,11 +36,52 @@ pub struct VercelBlobConfig {
 }
 
 impl Debug for VercelBlobConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Config");
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelBlobConfig")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
 
-        ds.field("root", &self.root);
+impl crate::Configurator for VercelBlobConfig {
+    type Builder = VercelBlobBuilder;
 
-        ds.finish()
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        VercelBlobBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_root() {
+        let uri = OperatorUri::new(
+            "vercel-blob://project-assets/images",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = VercelBlobConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("images"));
     }
 }

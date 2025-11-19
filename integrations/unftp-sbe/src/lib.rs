@@ -26,14 +26,13 @@
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Operator;
-//! use opendal::Scheme;
 //! use opendal::services;
 //! use unftp_sbe_opendal::OpendalStorage;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create any service desired
-//!     let op = opendal::Operator::from_map::<services::S3>(
+//!     let op = opendal::Operator::from_iter::<services::S3>(
 //!         [
 //!             ("bucket".to_string(), "my_bucket".to_string()),
 //!             ("access_key".to_string(), "my_access_key".to_string()),
@@ -79,7 +78,7 @@ impl OpendalStorage {
     }
 }
 
-/// A wrapper around [`opendal::Metadata`] to implement [`libunftp::storage::Metadata`].
+/// A wrapper around [`opendal::Metadata`] to implement [`storage::Metadata`].
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct OpendalMetadata(opendal::Metadata);
 
@@ -101,9 +100,13 @@ impl storage::Metadata for OpendalMetadata {
     }
 
     fn modified(&self) -> storage::Result<std::time::SystemTime> {
-        self.0.last_modified().map(Into::into).ok_or_else(|| {
-            storage::Error::new(storage::ErrorKind::LocalError, "no last modified time")
-        })
+        match self.0.last_modified() {
+            Some(ts) => Ok(ts.into()),
+            None => Err(Error::new(
+                storage::ErrorKind::LocalError,
+                "no last modified time",
+            )),
+        }
     }
 
     fn gid(&self) -> u32 {
@@ -115,19 +118,19 @@ impl storage::Metadata for OpendalMetadata {
     }
 }
 
-fn convert_err(err: opendal::Error) -> storage::Error {
+fn convert_err(err: opendal::Error) -> Error {
     let kind = match err.kind() {
         opendal::ErrorKind::NotFound => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::AlreadyExists => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::PermissionDenied => storage::ErrorKind::PermissionDenied,
         _ => storage::ErrorKind::LocalError,
     };
-    storage::Error::new(kind, err)
+    Error::new(kind, err)
 }
 
 fn convert_path(path: &Path) -> storage::Result<&str> {
     path.to_str().ok_or_else(|| {
-        storage::Error::new(
+        Error::new(
             storage::ErrorKind::LocalError,
             "Path is not a valid UTF-8 string",
         )
@@ -270,7 +273,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
         match self.op.stat(convert_path(path.as_ref())?).await {
             Ok(_) => Ok(()),
-            Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(storage::Error::new(
+            Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
                 e,
             )),

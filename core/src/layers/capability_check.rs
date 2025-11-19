@@ -45,7 +45,6 @@ use crate::raw::*;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// use opendal::layers::CapabilityCheckLayer;

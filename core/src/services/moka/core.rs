@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use moka::future::Cache;
 
@@ -37,7 +36,7 @@ pub struct MokaCore {
 }
 
 impl Debug for MokaCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MokaCore")
             .field("size", &self.cache.weighted_size())
             .field("count", &self.cache.entry_count())

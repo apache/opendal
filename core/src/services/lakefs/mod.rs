@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for lakefs service.
-#[cfg(feature = "services-lakefs")]
-pub(super) const DEFAULT_SCHEME: &str = "lakefs";
-#[cfg(feature = "services-lakefs")]
+pub const LAKEFS_SCHEME: &str = "lakefs";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-lakefs")]
-mod delete;
-#[cfg(feature = "services-lakefs")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-lakefs")]
 mod lister;
-#[cfg(feature = "services-lakefs")]
 mod writer;
 
-#[cfg(feature = "services-lakefs")]
-mod backend;
-#[cfg(feature = "services-lakefs")]
 pub use backend::LakefsBuilder as Lakefs;
-
-mod config;
 pub use config::LakefsConfig;

@@ -21,7 +21,6 @@ use std::time::Duration;
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
-use log::warn;
 use reqwest::Url;
 use sha2::Digest;
 use sha2::Sha256;
@@ -288,14 +287,14 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
         .expect("write must succeed");
     let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
 
-    let since = last_modified_time - chrono::Duration::seconds(1);
+    let since = last_modified_time - Duration::from_secs(1);
     let reader = op.reader_with(&path).if_modified_since(since).await?;
     let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
 
     sleep(Duration::from_secs(1)).await;
 
-    let since = last_modified_time + chrono::Duration::seconds(1);
+    let since = last_modified_time + Duration::from_secs(1);
     let reader = op.reader_with(&path).if_modified_since(since).await?;
     let res = reader.read(..).await;
     assert!(res.is_err());
@@ -317,7 +316,7 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
         .expect("write must succeed");
     let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
 
-    let since = last_modified_time - chrono::Duration::seconds(1);
+    let since = last_modified_time - Duration::from_secs(1);
     let reader = op.reader_with(&path).if_unmodified_since(since).await?;
     let res = reader.read(..).await;
     assert!(res.is_err());
@@ -325,7 +324,7 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
 
     sleep(Duration::from_secs(1)).await;
 
-    let since = last_modified_time + chrono::Duration::seconds(1);
+    let since = last_modified_time + Duration::from_secs(1);
     let reader = op.reader_with(&path).if_unmodified_since(since).await?;
     let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
@@ -384,12 +383,6 @@ pub async fn test_read_with_dir_path(op: Operator) -> anyhow::Result<()> {
 
 /// Read file with special chars should succeed.
 pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!("ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved");
-        return Ok(());
-    }
-
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
@@ -563,7 +556,7 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
         .expect("write must succeed");
     let last_modified_time = op.stat(&path).await?.last_modified().unwrap();
 
-    let since = last_modified_time - chrono::Duration::seconds(1);
+    let since = last_modified_time - Duration::from_secs(1);
     let bs = op
         .read_with(&path)
         .if_modified_since(since)
@@ -573,7 +566,7 @@ pub async fn test_read_with_if_modified_since(op: Operator) -> anyhow::Result<()
 
     sleep(Duration::from_secs(1)).await;
 
-    let since = last_modified_time + chrono::Duration::seconds(1);
+    let since = last_modified_time + Duration::from_secs(1);
     let res = op.read_with(&path).if_modified_since(since).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
@@ -594,14 +587,14 @@ pub async fn test_read_with_if_unmodified_since(op: Operator) -> anyhow::Result<
         .expect("write must succeed");
     let last_modified = op.stat(&path).await?.last_modified().unwrap();
 
-    let since = last_modified - chrono::Duration::seconds(3600);
+    let since = last_modified - Duration::from_secs(3600);
     let res = op.read_with(&path).if_unmodified_since(since).await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     sleep(Duration::from_secs(1)).await;
 
-    let since = last_modified + chrono::Duration::seconds(1);
+    let since = last_modified + Duration::from_secs(1);
     let bs = op
         .read_with(&path)
         .if_unmodified_since(since)

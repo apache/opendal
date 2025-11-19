@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use divan::counter::BytesCount;
 use divan::Bencher;
-use opendal::raw::tests::init_test_service;
+use divan::counter::BytesCount;
 use opendal::raw::tests::TEST_RUNTIME;
+use opendal::raw::tests::init_test_service;
 use rand::prelude::*;
 use size::Size;
 

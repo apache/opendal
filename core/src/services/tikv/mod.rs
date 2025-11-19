@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "services-tikv")]
-mod backend;
-#[cfg(feature = "services-tikv")]
-pub use backend::TikvBuilder as Tikv;
+/// Default scheme for tikv service.
+pub const TIKV_SCHEME: &str = "tikv";
 
+mod backend;
 mod config;
+mod core;
+mod deleter;
+mod writer;
+
+pub use backend::TikvBuilder as Tikv;
 pub use config::TikvConfig;

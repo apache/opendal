@@ -18,9 +18,9 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::header;
 use http::Request;
 use http::Response;
+use http::header;
 
 use crate::raw::*;
 use crate::*;
@@ -32,9 +32,8 @@ pub struct VercelArtifactsCore {
 
 impl Debug for VercelArtifactsCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut de = f.debug_struct("VercelArtifactsCore");
-        de.field("access_token", &self.access_token);
-        de.finish()
+        f.debug_struct("VercelArtifactsCore")
+            .finish_non_exhaustive()
     }
 }
 

@@ -22,9 +22,9 @@ use std::task::Poll;
 
 use futures::Stream;
 use futures::StreamExt;
-use tracing::span;
 use tracing::Level;
 use tracing::Span;
+use tracing::span;
 
 use crate::raw::*;
 use crate::*;

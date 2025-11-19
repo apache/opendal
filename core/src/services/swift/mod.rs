@@ -16,23 +16,15 @@
 // under the License.
 
 /// Default scheme for swift service.
-#[cfg(feature = "services-swift")]
-pub(super) const DEFAULT_SCHEME: &str = "swift";
-#[cfg(feature = "services-swift")]
+pub const SWIFT_SCHEME: &str = "swift";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-swift")]
-mod delete;
-#[cfg(feature = "services-swift")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-swift")]
 mod lister;
-#[cfg(feature = "services-swift")]
 mod writer;
 
-#[cfg(feature = "services-swift")]
-mod backend;
-#[cfg(feature = "services-swift")]
 pub use backend::SwiftBuilder as Swift;
-
-mod config;
 pub use config::SwiftConfig;

@@ -42,11 +42,6 @@ impl CompfsWriter {
 }
 
 impl oio::Write for CompfsWriter {
-    /// FIXME
-    ///
-    /// the write_all doesn't work correctly if `bs` is non-contiguous.
-    ///
-    /// The IoBuf::buf_len() only returns the length of the current buffer.
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let Some(mut file) = self.file.clone() else {
             return Err(Error::new(ErrorKind::Unexpected, "file has closed"));
@@ -55,9 +50,7 @@ impl oio::Write for CompfsWriter {
         let pos = self
             .core
             .exec(move || async move {
-                for b in bs {
-                    buf_try!(@try file.write_all(b).await);
-                }
+                buf_try!(@try file.write_vectored_all(bs).await);
                 Ok(file.position())
             })
             .await?;

@@ -16,21 +16,14 @@
 // under the License.
 
 /// Default scheme for memory service.
-#[cfg(feature = "services-memory")]
 pub const MEMORY_SCHEME: &str = "memory";
-#[cfg(feature = "services-memory")]
+
 mod backend;
-#[cfg(feature = "services-memory")]
-pub use backend::MemoryBuilder as Memory;
-
 mod config;
-pub use config::MemoryConfig;
-
-#[cfg(feature = "services-memory")]
 mod core;
-#[cfg(feature = "services-memory")]
-mod delete;
-#[cfg(feature = "services-memory")]
+mod deleter;
 mod lister;
-#[cfg(feature = "services-memory")]
 mod writer;
+
+pub use backend::MemoryBuilder as Memory;
+pub use config::MemoryConfig;

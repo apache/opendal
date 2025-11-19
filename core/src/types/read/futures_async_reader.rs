@@ -20,9 +20,9 @@ use std::io::SeekFrom;
 use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use bytes::Buf;
 use futures::AsyncBufRead;
@@ -183,7 +183,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() -> Result<()> {
-        let acc = Operator::via_iter(Scheme::Memory, [])?.into_inner();
+        let acc = Operator::via_iter(services::MEMORY_SCHEME, [])?.into_inner();
         let ctx = Arc::new(ReadContext::new(
             acc,
             "test".to_string(),
@@ -199,7 +199,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_futures_async_read() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -230,7 +230,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_futures_async_read_with_concurrent() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
@@ -261,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_futures_async_buf_read() -> Result<()> {
-        let op = Operator::via_iter(Scheme::Memory, [])?;
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
             "test",
             Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),

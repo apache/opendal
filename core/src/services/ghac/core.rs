@@ -17,23 +17,22 @@
 
 use std::env;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use ::ghac::v1 as ghac_types;
 use bytes::Buf;
 use bytes::Bytes;
+use http::Request;
+use http::Response;
+use http::StatusCode;
+use http::Uri;
 use http::header::ACCEPT;
 use http::header::AUTHORIZATION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::{self};
-use http::Request;
-use http::Response;
-use http::StatusCode;
-use http::Uri;
 use prost::Message;
 use serde::Deserialize;
 use serde::Serialize;
@@ -89,7 +88,7 @@ pub struct GhacCore {
 }
 
 impl Debug for GhacCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GhacCore")
             .field("root", &self.root)
             .field("cache_url", &self.cache_url)

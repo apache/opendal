@@ -16,15 +16,14 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use serde::Deserialize;
 use tokio::sync::OnceCell;
 
@@ -45,11 +44,11 @@ pub struct WebhdfsCore {
 }
 
 impl Debug for WebhdfsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("WebhdfsCore")
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

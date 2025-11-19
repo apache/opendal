@@ -30,7 +30,7 @@ static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 /// # Safety
 ///
 /// Not yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_operator_construct(
     scheme: *const c_char,
 ) -> *const opendal::blocking::Operator {
@@ -38,8 +38,11 @@ pub unsafe extern "C" fn blocking_operator_construct(
         return std::ptr::null();
     }
 
-    let scheme = match opendal::Scheme::from_str(std::ffi::CStr::from_ptr(scheme).to_str().unwrap())
-    {
+    let scheme = match opendal::Scheme::from_str(
+        unsafe { std::ffi::CStr::from_ptr(scheme) }
+            .to_str()
+            .unwrap(),
+    ) {
         Ok(scheme) => scheme,
         Err(_) => return std::ptr::null(),
     };
@@ -70,28 +73,30 @@ pub unsafe extern "C" fn blocking_operator_construct(
 /// # Safety
 ///
 /// Not yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_operator_write(
     op: *const opendal::blocking::Operator,
     path: *const c_char,
     content: *const c_char,
 ) {
-    let op = &*(op);
-    let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
-    let content = std::ffi::CStr::from_ptr(content).to_str().unwrap();
+    let op = unsafe { &*op };
+    let path = unsafe { std::ffi::CStr::from_ptr(path) }.to_str().unwrap();
+    let content = unsafe { std::ffi::CStr::from_ptr(content) }
+        .to_str()
+        .unwrap();
     op.write(path, content.to_owned()).map(|_| ()).unwrap()
 }
 
 /// # Safety
 ///
 /// Not yet.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn blocking_operator_read(
     op: *const opendal::blocking::Operator,
     path: *const c_char,
 ) -> *const c_char {
-    let op = &*(op);
-    let path = std::ffi::CStr::from_ptr(path).to_str().unwrap();
+    let op = unsafe { &*op };
+    let path = unsafe { std::ffi::CStr::from_ptr(path) }.to_str().unwrap();
     let mut res = op.read(path).unwrap().to_vec();
     res.push(0);
     std::ffi::CString::from_vec_with_nul(res)

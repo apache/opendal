@@ -15,8 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use core::fmt::Debug;
-use std::fmt::Formatter;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -25,8 +24,10 @@ use http::StatusCode;
 use log::debug;
 use tokio::sync::OnceCell;
 
+use super::WEBHDFS_SCHEME;
+use super::config::WebhdfsConfig;
 use super::core::WebhdfsCore;
-use super::delete::WebhdfsDeleter;
+use super::deleter::WebhdfsDeleter;
 use super::error::parse_error;
 use super::lister::WebhdfsLister;
 use super::message::BooleanResp;
@@ -34,32 +35,16 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::WebhdfsConfig;
 use crate::*;
-const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
-impl Configurator for WebhdfsConfig {
-    type Builder = WebhdfsBuilder;
-    fn into_builder(self) -> Self::Builder {
-        WebhdfsBuilder { config: self }
-    }
-}
+const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 
 /// [WebHDFS](https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html)'s REST API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct WebhdfsBuilder {
-    config: WebhdfsConfig,
-}
-
-impl Debug for WebhdfsBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("WebhdfsBuilder");
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
-    }
+    pub(super) config: WebhdfsConfig,
 }
 
 impl WebhdfsBuilder {
@@ -180,7 +165,7 @@ impl Builder for WebhdfsBuilder {
         let auth = self.config.delegation.map(|dt| format!("delegation={dt}"));
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(WEBHDFS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -310,7 +295,7 @@ impl Access for WebhdfsBackend {
                     FileStatusType::Directory => Metadata::new(EntryMode::DIR),
                     FileStatusType::File => Metadata::new(EntryMode::FILE)
                         .with_content_length(file_status.length)
-                        .with_last_modified(parse_datetime_from_from_timestamp_millis(
+                        .with_last_modified(Timestamp::from_millisecond(
                             file_status.modification_time,
                         )?),
                 };

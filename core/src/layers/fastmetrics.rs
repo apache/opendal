@@ -25,10 +25,10 @@ use fastmetrics::metrics::family::Family;
 use fastmetrics::metrics::family::MetricFactory;
 use fastmetrics::metrics::gauge::Gauge;
 use fastmetrics::metrics::histogram::Histogram;
-use fastmetrics::registry::with_global_registry_mut;
 use fastmetrics::registry::Register;
 use fastmetrics::registry::Registry;
 use fastmetrics::registry::RegistryError;
+use fastmetrics::registry::with_global_registry_mut;
 
 use crate::layers::observe;
 use crate::raw::*;

@@ -50,7 +50,6 @@ use crate::*;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// use std::sync::Arc;
@@ -71,7 +70,6 @@ use crate::*;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
-/// # use opendal::Scheme;
 ///
 /// # fn main() -> Result<()> {
 /// use std::sync::Arc;

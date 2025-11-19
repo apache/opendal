@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,35 +22,20 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
+use super::HUGGINGFACE_SCHEME;
+use super::config::HuggingfaceConfig;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
 use super::lister::HuggingfaceLister;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
-use crate::services::HuggingfaceConfig;
 use crate::*;
-impl Configurator for HuggingfaceConfig {
-    type Builder = HuggingfaceBuilder;
-    fn into_builder(self) -> Self::Builder {
-        HuggingfaceBuilder { config: self }
-    }
-}
 
 /// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Debug, Default)]
 pub struct HuggingfaceBuilder {
-    config: HuggingfaceConfig,
-}
-
-impl Debug for HuggingfaceBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Builder");
-
-        ds.field("config", &self.config);
-        ds.finish()
-    }
+    pub(super) config: HuggingfaceConfig,
 }
 
 impl HuggingfaceBuilder {
@@ -123,6 +106,17 @@ impl HuggingfaceBuilder {
         }
         self
     }
+
+    /// configure the Hub base url. You might want to set this variable if your
+    /// organization is using a Private Hub https://huggingface.co/enterprise
+    ///
+    /// Default is "https://huggingface.co"
+    pub fn endpoint(mut self, endpoint: &str) -> Self {
+        if !endpoint.is_empty() {
+            self.config.endpoint = Some(endpoint.to_string());
+        }
+        self
+    }
 }
 
 impl Builder for HuggingfaceBuilder {
@@ -144,7 +138,7 @@ impl Builder for HuggingfaceBuilder {
                 format!("unknown repo_type: {repo_type}").as_str(),
             )
             .with_operation("Builder::build")
-            .with_context("service", Scheme::Huggingface)),
+            .with_context("service", HUGGINGFACE_SCHEME)),
             None => Ok(RepoType::Model),
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);
@@ -153,7 +147,7 @@ impl Builder for HuggingfaceBuilder {
             Some(repo_id) => Ok(repo_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::Huggingface)),
+                .with_context("service", HUGGINGFACE_SCHEME)),
         }?;
         debug!("backend use repo_id: {}", &repo_id);
 
@@ -168,21 +162,31 @@ impl Builder for HuggingfaceBuilder {
 
         let token = self.config.token.as_ref().cloned();
 
+        let endpoint = match &self.config.endpoint {
+            Some(endpoint) => endpoint.clone(),
+            None => {
+                // Try to read from HF_ENDPOINT env var which is used
+                // by the official huggingface clients.
+                if let Ok(env_endpoint) = std::env::var("HF_ENDPOINT") {
+                    env_endpoint
+                } else {
+                    "https://huggingface.co".to_string()
+                }
+            }
+        };
+        debug!("backend use endpoint: {}", &endpoint);
+
         Ok(HuggingfaceBackend {
             core: Arc::new(HuggingfaceCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(HUGGINGFACE_SCHEME)
                         .set_native_capability(Capability {
                             stat: true,
-
                             read: true,
-
                             list: true,
                             list_with_recursive: true,
-
                             shared: true,
-
                             ..Default::default()
                         });
                     am.into()
@@ -192,6 +196,7 @@ impl Builder for HuggingfaceBuilder {
                 revision,
                 root,
                 token,
+                endpoint,
             }),
         })
     }
@@ -234,9 +239,7 @@ impl Access for HuggingfaceBackend {
                 // NOTE: if the file is not found, the server will return 200 with an empty array
                 if let Some(status) = decoded_response.first() {
                     if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(parse_datetime_from_rfc3339(
-                            commit_info.date.as_str(),
-                        )?);
+                        meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
                     }
 
                     meta.set_content_length(status.size);

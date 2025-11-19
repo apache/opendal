@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::MemoryBuilder;
 
 /// Config for memory.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -27,4 +27,38 @@ use serde::Serialize;
 pub struct MemoryConfig {
     /// root of the backend.
     pub root: Option<String>,
+}
+
+impl crate::Configurator for MemoryConfig {
+    type Builder = MemoryBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+        if !map.contains_key("root") {
+            if let Some(root) = uri.root().filter(|v| !v.is_empty()) {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        MemoryBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_extracts_root() {
+        let uri =
+            OperatorUri::new("memory:///path/to/root", Vec::<(String, String)>::new()).unwrap();
+        let cfg = MemoryConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
 }

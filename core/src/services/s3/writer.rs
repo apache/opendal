@@ -23,9 +23,9 @@ use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 
 use super::core::*;
+use super::error::S3Error;
 use super::error::from_s3_error;
 use super::error::parse_error;
-use super::error::S3Error;
 use crate::raw::*;
 use crate::*;
 
@@ -171,6 +171,11 @@ impl oio::MultipartWrite for S3Writer {
                         part_number: p.part_number,
                         etag: p.etag.clone(),
                         checksum_crc32c: p.checksum.clone(),
+                    },
+                    ChecksumAlgorithm::Md5 => CompleteMultipartUploadRequestPart {
+                        part_number: p.part_number,
+                        etag: p.etag.clone(),
+                        ..Default::default()
                     },
                 },
             })

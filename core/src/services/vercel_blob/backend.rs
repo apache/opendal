@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -24,46 +23,34 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::core::parse_blob;
+use super::VERCEL_BLOB_SCHEME;
 use super::core::Blob;
 use super::core::VercelBlobCore;
-use super::delete::VercelBlobDeleter;
+use super::core::parse_blob;
+use super::deleter::VercelBlobDeleter;
 use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
-use super::DEFAULT_SCHEME;
 use crate::raw::*;
 use crate::services::VercelBlobConfig;
 use crate::*;
-impl Configurator for VercelBlobConfig {
-    type Builder = VercelBlobBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        VercelBlobBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [VercelBlob](https://vercel.com/docs/storage/vercel-blob) services support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct VercelBlobBuilder {
-    config: VercelBlobConfig,
+    pub(super) config: VercelBlobConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for VercelBlobBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("VercelBlobBuilder");
-
-        d.field("config", &self.config);
-        d.finish_non_exhaustive()
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VercelBlobBuilder")
+            .field("config", &self.config)
+            .finish_non_exhaustive()
     }
 }
 
@@ -120,14 +107,14 @@ impl Builder for VercelBlobBuilder {
         let Some(token) = self.config.token.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "token is empty")
                 .with_operation("Builder::build")
-                .with_context("service", Scheme::VercelBlob));
+                .with_context("service", VERCEL_BLOB_SCHEME));
         };
 
         Ok(VercelBlobBackend {
             core: Arc::new(VercelBlobCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(VERCEL_BLOB_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,

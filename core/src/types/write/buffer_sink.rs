@@ -16,9 +16,9 @@
 // under the License.
 
 use std::pin::Pin;
-use std::task::ready;
 use std::task::Context;
 use std::task::Poll;
+use std::task::ready;
 
 use bytes::Buf;
 
@@ -102,7 +102,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::Unexpected,
                         "state invalid: sink is closing",
-                    )))
+                    )));
                 }
             }
         }
@@ -170,7 +170,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() {
-        let op = Operator::via_iter(Scheme::Memory, []).unwrap();
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
 
         let acc = op.into_inner();
         let ctx = Arc::new(WriteContext::new(

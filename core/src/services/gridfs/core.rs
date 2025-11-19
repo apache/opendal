@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
@@ -26,17 +25,11 @@ use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 use tokio::sync::OnceCell;
 
-use crate::raw::adapters::kv;
-use crate::raw::new_std_io_error;
-use crate::Buffer;
-use crate::Capability;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::Scheme;
+use crate::raw::*;
+use crate::*;
 
 #[derive(Clone)]
-pub struct GridFsCore {
+pub struct GridfsCore {
     pub connection_string: String,
     pub database: String,
     pub bucket: String,
@@ -44,17 +37,17 @@ pub struct GridFsCore {
     pub bucket_instance: OnceCell<GridFsBucket>,
 }
 
-impl Debug for GridFsCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for GridfsCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GridfsCore")
             .field("database", &self.database)
             .field("bucket", &self.bucket)
             .field("chunk_size", &self.chunk_size)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
-impl GridFsCore {
+impl GridfsCore {
     async fn get_bucket(&self) -> Result<&GridFsBucket> {
         self.bucket_instance
             .get_or_try_init(|| async {
@@ -74,25 +67,8 @@ impl GridFsCore {
             })
             .await
     }
-}
 
-impl kv::Adapter for GridFsCore {
-    type Scanner = (); // Replace with the actual Scanner type.
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Gridfs,
-            &format!("{}/{}", self.database, self.bucket),
-            Capability {
-                read: true,
-                write: true,
-                shared: true,
-                ..Default::default()
-            },
-        )
-    }
-
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
+    pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
         let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {
@@ -112,7 +88,7 @@ impl kv::Adapter for GridFsCore {
         Ok(Some(Buffer::from(destination)))
     }
 
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let bucket = self.get_bucket().await?;
 
         // delete old file if exists
@@ -136,7 +112,7 @@ impl kv::Adapter for GridFsCore {
         Ok(())
     }
 
-    async fn delete(&self, path: &str) -> Result<()> {
+    pub async fn delete(&self, path: &str) -> Result<()> {
         let bucket = self.get_bucket().await?;
         let filter = doc! { "filename": path };
         let Some(doc) = bucket.find_one(filter).await.map_err(parse_mongodb_error)? else {

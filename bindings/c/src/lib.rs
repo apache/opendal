@@ -22,6 +22,8 @@
 // This crate is the C binding for the OpenDAL project.
 // Nearly all the functions exposed to C FFI are unsafe.
 #![allow(clippy::missing_safety_doc)]
+// Allow unknown cfgs like `cbindgen` used in cfg_attr for header generation.
+#![allow(unexpected_cfgs)]
 
 //! The Apache OpenDAL C binding.
 //!

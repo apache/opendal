@@ -15,21 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::default::Default;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Buf;
 use bytes::Bytes;
-use chrono::DateTime;
-use chrono::Utc;
-use http::header;
-use http::header::CONTENT_LENGTH;
-use http::header::CONTENT_TYPE;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
+use http::header::CONTENT_LENGTH;
+use http::header::CONTENT_TYPE;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
@@ -45,10 +42,10 @@ pub struct DropboxCore {
 }
 
 impl Debug for DropboxCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DropboxCore")
             .field("root", &self.root)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -64,7 +61,7 @@ impl DropboxCore {
         let mut signer = self.signer.lock().await;
 
         // Access token is valid, use it directly.
-        if !signer.access_token.is_empty() && signer.expires_in > Utc::now() {
+        if !signer.access_token.is_empty() && signer.expires_in > Timestamp::now() {
             let value = format!("Bearer {}", signer.access_token)
                 .parse()
                 .expect("token must be valid header value");
@@ -97,10 +94,8 @@ impl DropboxCore {
         signer.access_token.clone_from(&token.access_token);
 
         // Refresh it 2 minutes earlier.
-        signer.expires_in = Utc::now()
-            + chrono::TimeDelta::try_seconds(token.expires_in as i64)
-                .expect("expires_in must be valid seconds")
-            - chrono::TimeDelta::try_seconds(120).expect("120 must be valid seconds");
+        signer.expires_in =
+            Timestamp::now() + Duration::from_secs(token.expires_in) - Duration::from_secs(120);
 
         let value = format!("Bearer {}", token.access_token)
             .parse()
@@ -343,7 +338,7 @@ pub struct DropboxSigner {
     pub refresh_token: String,
 
     pub access_token: String,
-    pub expires_in: DateTime<Utc>,
+    pub expires_in: Timestamp,
 }
 
 impl Default for DropboxSigner {
@@ -354,7 +349,7 @@ impl Default for DropboxSigner {
             client_secret: String::new(),
 
             access_token: String::new(),
-            expires_in: DateTime::<Utc>::MIN_UTC,
+            expires_in: Timestamp::MIN,
         }
     }
 }
@@ -430,7 +425,7 @@ struct DropboxMetadataArgs {
 #[derive(Clone, Deserialize)]
 struct DropboxTokenResponse {
     access_token: String,
-    expires_in: usize,
+    expires_in: u64,
 }
 
 #[derive(Default, Debug, Deserialize)]

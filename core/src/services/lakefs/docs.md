@@ -7,16 +7,15 @@ Lakefs doesn't host official HTTP API docs. Detailed HTTP request API informatio
 
 This service can be used to:
 
+- [ ] create_dir
 - [x] stat
 - [x] read
 - [x] write
-- [ ] create_dir
 - [x] delete
+- [x] list
 - [x] copy
 - [ ] rename
-- [x] list
 - [ ] ~~presign~~
-- [ ] blocking
 
 ## Configurations
 

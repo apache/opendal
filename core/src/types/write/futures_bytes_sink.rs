@@ -85,7 +85,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_trait() {
-        let op = Operator::via_iter(Scheme::Memory, []).unwrap();
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
 
         let acc = op.into_inner();
         let ctx = Arc::new(WriteContext::new(

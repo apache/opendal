@@ -16,54 +16,35 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use chrono::DateTime;
-use chrono::Utc;
 use log::debug;
 use tokio::sync::Mutex;
 
+use super::GDRIVE_SCHEME;
 use super::backend::GdriveBackend;
+use super::config::GdriveConfig;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
-use super::DEFAULT_SCHEME;
-use crate::raw::normalize_root;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::raw::PathCacher;
-use crate::services::GdriveConfig;
-use crate::Scheme;
+use crate::raw::*;
 use crate::*;
-impl Configurator for GdriveConfig {
-    type Builder = GdriveBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        GdriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
 #[derive(Default)]
 #[doc = include_str!("docs.md")]
 pub struct GdriveBuilder {
-    config: GdriveConfig,
+    pub(super) config: GdriveConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for GdriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GdriveBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -142,7 +123,7 @@ impl Builder for GdriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(GDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 stat: true,
@@ -175,7 +156,7 @@ impl Builder for GdriveBuilder {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
                 // We will never expire user specified access token.
-                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+                signer.expires_in = Timestamp::MAX;
             }
             (None, Some(refresh_token)) => {
                 let client_id = self.config.client_id.ok_or_else(|| {
@@ -183,14 +164,14 @@ impl Builder for GdriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
                 let client_secret = self.config.client_secret.ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
                         "client_secret must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Gdrive)
+                    .with_context("service", GDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -202,14 +183,14 @@ impl Builder for GdriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Gdrive))
+                .with_context("service", GDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Gdrive))
+                .with_context("service", GDRIVE_SCHEME));
             }
         };
 

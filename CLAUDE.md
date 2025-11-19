@@ -103,9 +103,9 @@ Each service follows a consistent structure:
   - Generated code uses the `dev` crate for consistency
 
 ### Applications
-- **bin/oli**: CLI tool for data access (like s3cmd)
-- **bin/oay**: API gateway for HTTP access
-- **bin/ofs**: POSIX filesystem interface
+- oli: moved to a separate repository (see docs: https://opendal.apache.org/docs/40-apps/oli)
+- ofs: moved to a separate repository (see docs: https://opendal.apache.org/docs/40-apps/ofs)
+- oay: removed from this repository
 
 ### Integrations
 - **integrations/**: Ecosystem integrations (FUSE, WebDAV, object_store)
@@ -171,7 +171,7 @@ refactor(core): Simplify error handling
 4. Verify credentials and endpoint configuration
 
 ## Important Notes
-- Minimum Rust version: 1.82 (MSRV)
+- Minimum Rust version: 1.85 (MSRV)
 - All services implement the same `Accessor` trait
 - Use `just` for common development tasks
 - Check CI workflows for platform-specific requirements

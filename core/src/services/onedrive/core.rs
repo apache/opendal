@@ -16,18 +16,15 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Buf;
 use bytes::Bytes;
-use chrono::DateTime;
-use chrono::Utc;
-use http::header;
 use http::Request;
 use http::Response;
 use http::StatusCode;
+use http::header;
 use tokio::sync::Mutex;
 
 use super::error::parse_error;
@@ -42,7 +39,7 @@ pub struct OneDriveCore {
 }
 
 impl Debug for OneDriveCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OneDriveCore")
             .field("root", &self.root)
             .finish_non_exhaustive()
@@ -55,7 +52,8 @@ const SPECIAL_POSIX_ENTRIES: [&str; 3] = [".", "/", ""];
 // organizes a few core module functions
 impl OneDriveCore {
     // OneDrive personal's base URL. `me` is an alias that represents the user's "Drive".
-    pub(crate) const DRIVE_ROOT_URL: &str = "https://graph.microsoft.com/v1.0/me/drive/root";
+    pub(crate) const DRIVE_ROOT_URL: &'static str =
+        "https://graph.microsoft.com/v1.0/me/drive/root";
 
     /// Get a URL to an OneDrive item
     pub(crate) fn onedrive_item_url(&self, path: &str, build_absolute_path: bool) -> String {
@@ -213,7 +211,7 @@ impl OneDriveCore {
         }
 
         let last_modified = decoded_response.last_modified_date_time;
-        let date_utc_last_modified = parse_datetime_from_rfc3339(&last_modified)?;
+        let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
         meta.set_last_modified(date_utc_last_modified);
 
         Ok(meta)
@@ -608,7 +606,7 @@ pub struct OneDriveSigner {
     pub refresh_token: String,
 
     pub access_token: String,
-    pub expires_in: DateTime<Utc>,
+    pub expires_in: Timestamp,
 }
 
 // OneDrive is part of Graph API hence shares the same authentication and authorization processes.
@@ -629,7 +627,7 @@ impl OneDriveSigner {
             client_secret: "".to_string(),
             refresh_token: "".to_string(),
             access_token: "".to_string(),
-            expires_in: DateTime::<Utc>::MIN_UTC,
+            expires_in: Timestamp::MIN,
         }
     }
 
@@ -655,10 +653,8 @@ impl OneDriveSigner {
                         .map_err(new_json_deserialize_error)?;
                 self.access_token = data.access_token;
                 self.refresh_token = data.refresh_token;
-                self.expires_in = Utc::now()
-                    + chrono::TimeDelta::try_seconds(data.expires_in)
-                        .expect("expires_in must be valid seconds")
-                    - chrono::TimeDelta::minutes(2); // assumes 2 mins graceful transmission for implementation simplicity
+                self.expires_in = Timestamp::now() + Duration::from_secs(data.expires_in)
+                    - Duration::from_secs(120); // assumes 2 mins graceful transmission for implementation simplicity
                 Ok(())
             }
             _ => Err(parse_error(response)),
@@ -667,7 +663,7 @@ impl OneDriveSigner {
 
     /// Sign a request.
     pub async fn sign<T>(&mut self, request: &mut Request<T>) -> Result<()> {
-        if !self.access_token.is_empty() && self.expires_in > Utc::now() {
+        if !self.access_token.is_empty() && self.expires_in > Timestamp::now() {
             let value = format!("Bearer {}", self.access_token)
                 .parse()
                 .expect("access_token must be valid header value");

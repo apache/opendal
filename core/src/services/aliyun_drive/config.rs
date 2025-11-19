@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::AliyunDriveBuilder;
 
 /// Config for Aliyun Drive services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -61,12 +62,70 @@ pub struct AliyunDriveConfig {
 }
 
 impl Debug for AliyunDriveConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("AliyunDriveConfig");
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AliyunDriveConfig")
+            .field("root", &self.root)
+            .field("drive_type", &self.drive_type)
+            .finish_non_exhaustive()
+    }
+}
 
-        d.field("root", &self.root)
-            .field("drive_type", &self.drive_type);
+impl crate::Configurator for AliyunDriveConfig {
+    type Builder = AliyunDriveBuilder;
 
-        d.finish_non_exhaustive()
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(drive_type) = uri.name() {
+            if !drive_type.is_empty() {
+                map.insert("drive_type".to_string(), drive_type.to_string());
+            }
+        }
+
+        if let Some(root) = uri.root() {
+            if !root.is_empty() {
+                map.insert("root".to_string(), root.to_string());
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    #[allow(deprecated)]
+    fn into_builder(self) -> Self::Builder {
+        AliyunDriveBuilder {
+            config: self,
+            http_client: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_drive_type_and_root() {
+        let uri = OperatorUri::new(
+            "aliyun-drive://resource/library/photos",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = AliyunDriveConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.drive_type, "resource".to_string());
+        assert_eq!(cfg.root.as_deref(), Some("library/photos"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_drive_type() {
+        let uri =
+            OperatorUri::new("aliyun-drive:///documents", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = AliyunDriveConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.drive_type, String::default());
+        assert_eq!(cfg.root.as_deref(), Some("documents"));
     }
 }

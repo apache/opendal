@@ -16,24 +16,15 @@
 // under the License.
 
 /// Default scheme for cos service.
-#[cfg(feature = "services-cos")]
-pub(super) const DEFAULT_SCHEME: &str = "cos";
-#[cfg(feature = "services-cos")]
+pub const COS_SCHEME: &str = "cos";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-cos")]
-mod delete;
-#[cfg(feature = "services-cos")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-cos")]
 mod lister;
-#[cfg(feature = "services-cos")]
 mod writer;
 
-#[cfg(feature = "services-cos")]
-mod backend;
-#[cfg(feature = "services-cos")]
 pub use backend::CosBuilder as Cos;
-
-mod config;
-
 pub use config::CosConfig;

@@ -16,10 +16,11 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::SqliteBuilder;
 
 /// Config for Sqlite support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -56,15 +57,69 @@ pub struct SqliteConfig {
 }
 
 impl Debug for SqliteConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut d = f.debug_struct("SqliteConfig");
-
-        d.field("connection_string", &self.connection_string)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SqliteConfig")
             .field("table", &self.table)
             .field("key_field", &self.key_field)
             .field("value_field", &self.value_field)
-            .field("root", &self.root);
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
+}
 
-        d.finish_non_exhaustive()
+impl crate::Configurator for SqliteConfig {
+    type Builder = SqliteBuilder;
+
+    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+        let mut map = uri.options().clone();
+
+        if let Some(authority) = uri.authority() {
+            map.entry("connection_string".to_string())
+                .or_insert_with(|| format!("sqlite://{authority}"));
+        }
+
+        if let Some(path) = uri.root() {
+            if !path.is_empty() {
+                let (table, rest) = match path.split_once('/') {
+                    Some((table, remainder)) => (table, Some(remainder)),
+                    None => (path, None),
+                };
+
+                if !table.is_empty() {
+                    map.entry("table".to_string())
+                        .or_insert_with(|| table.to_string());
+                }
+
+                if let Some(root) = rest {
+                    if !root.is_empty() {
+                        map.insert("root".to_string(), root.to_string());
+                    }
+                }
+            }
+        }
+
+        Self::from_iter(map)
+    }
+
+    fn into_builder(self) -> Self::Builder {
+        SqliteBuilder { config: self }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Configurator;
+    use crate::types::OperatorUri;
+
+    #[test]
+    fn from_uri_sets_connection_string_table_and_root() {
+        let uri =
+            OperatorUri::new("sqlite://data.db/kv/cache", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = SqliteConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.connection_string.as_deref(), Some("sqlite://data.db"));
+        assert_eq!(cfg.table.as_deref(), Some("kv"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
     }
 }

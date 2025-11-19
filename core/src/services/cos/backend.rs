@@ -26,47 +26,34 @@ use reqsign::TencentCosConfig;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
+use super::COS_SCHEME;
+use super::config::CosConfig;
 use super::core::*;
-use super::delete::CosDeleter;
+use super::deleter::CosDeleter;
 use super::error::parse_error;
 use super::lister::CosLister;
 use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
-use super::DEFAULT_SCHEME;
-use crate::raw::oio::PageLister;
 use crate::raw::*;
-use crate::services::CosConfig;
 use crate::*;
-impl Configurator for CosConfig {
-    type Builder = CosBuilder;
-
-    #[allow(deprecated)]
-    fn into_builder(self) -> Self::Builder {
-        CosBuilder {
-            config: self,
-
-            http_client: None,
-        }
-    }
-}
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct CosBuilder {
-    config: CosConfig,
+    pub(super) config: CosConfig,
 
     #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    http_client: Option<HttpClient>,
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CosBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CosBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -176,7 +163,7 @@ impl Builder for CosBuilder {
             Some(bucket) => Ok(bucket.to_string()),
             None => Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", Scheme::Cos),
+                    .with_context("service", COS_SCHEME),
             ),
         }?;
         debug!("backend use bucket {}", &bucket);
@@ -184,12 +171,12 @@ impl Builder for CosBuilder {
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
-                    .with_context("service", Scheme::Cos)
+                    .with_context("service", COS_SCHEME)
                     .with_context("endpoint", endpoint)
                     .set_source(err)
             }),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_context("service", Scheme::Cos)),
+                .with_context("service", COS_SCHEME)),
         }?;
 
         let scheme = match uri.scheme_str() {
@@ -221,7 +208,7 @@ impl Builder for CosBuilder {
             core: Arc::new(CosCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(DEFAULT_SCHEME)
+                    am.set_scheme(COS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -383,13 +370,13 @@ impl Access for CosBackend {
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let l = if args.versions() || args.deleted() {
-            TwoWays::Two(PageLister::new(CosObjectVersionsLister::new(
+            TwoWays::Two(oio::PageLister::new(CosObjectVersionsLister::new(
                 self.core.clone(),
                 path,
                 args,
             )))
         } else {
-            TwoWays::One(PageLister::new(CosLister::new(
+            TwoWays::One(oio::PageLister::new(CosLister::new(
                 self.core.clone(),
                 path,
                 args.recursive(),

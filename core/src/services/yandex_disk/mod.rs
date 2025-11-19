@@ -15,24 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for yandex_disk service.
-#[cfg(feature = "services-yandex-disk")]
-pub(super) const DEFAULT_SCHEME: &str = "yandex_disk";
-#[cfg(feature = "services-yandex-disk")]
+/// Default scheme for yandex-disk service.
+pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
+
+mod backend;
+mod config;
 mod core;
-#[cfg(feature = "services-yandex-disk")]
-mod delete;
-#[cfg(feature = "services-yandex-disk")]
+mod deleter;
 mod error;
-#[cfg(feature = "services-yandex-disk")]
 mod lister;
-#[cfg(feature = "services-yandex-disk")]
 mod writer;
 
-#[cfg(feature = "services-yandex-disk")]
-mod backend;
-#[cfg(feature = "services-yandex-disk")]
 pub use backend::YandexDiskBuilder as YandexDisk;
-
-mod config;
 pub use config::YandexDiskConfig;

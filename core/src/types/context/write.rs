@@ -211,9 +211,9 @@ mod tests {
     use bytes::Bytes;
     use log::debug;
     use pretty_assertions::assert_eq;
-    use rand::thread_rng;
     use rand::Rng;
     use rand::RngCore;
+    use rand::thread_rng;
     use sha2::Digest;
     use sha2::Sha256;
     use tokio::sync::Mutex;

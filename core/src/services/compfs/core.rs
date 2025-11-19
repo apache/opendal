@@ -19,7 +19,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use compio::buf::IoBuf;
+use compio::buf::{IoBuf, IoBuffer, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
 
 use crate::raw::*;
@@ -81,52 +81,18 @@ impl CompfsCore {
     }
 }
 
-// TODO: impl IoVectoredBuf for Buffer
-// impl IoVectoredBuf for Buffer {
-//     fn as_dyn_bufs(&self) -> impl Iterator<Item = &dyn IoBuf> {}
-//
-//     fn owned_iter(self) -> Result<OwnedIter<impl OwnedIterator<Inner = Self>>, Self> {
-//         Ok(OwnedIter::new(BufferIter {
-//             current: self.current(),
-//             buf: self,
-//         }))
-//     }
-// }
-
-// #[derive(Debug, Clone)]
-// struct BufferIter {
-//     buf: Buffer,
-//     current: Bytes,
-// }
-
-// impl IntoInner for BufferIter {
-//     type Inner = Buffer;
-//
-//     fn into_inner(self) -> Self::Inner {
-//         self.buf
-//     }
-// }
-
-// impl OwnedIterator for BufferIter {
-//     fn next(mut self) -> Result<Self, Self::Inner> {
-//         let Some(current) = self.buf.next() else {
-//             return Err(self.buf);
-//         };
-//         self.current = current;
-//         Ok(self)
-//     }
-//
-//     fn current(&self) -> &dyn IoBuf {
-//         &self.current
-//     }
-// }
+impl IoVectoredBuf for Buffer {
+    unsafe fn iter_io_buffer(&self) -> impl Iterator<Item = IoBuffer> {
+        self.clone().map(|b| unsafe { b.as_io_buffer() })
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use bytes::Buf;
     use bytes::Bytes;
-    use rand::thread_rng;
     use rand::Rng;
+    use rand::thread_rng;
 
     use super::*;
 

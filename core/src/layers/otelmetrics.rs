@@ -17,11 +17,11 @@
 
 use std::time::Duration;
 
+use opentelemetry::KeyValue;
 use opentelemetry::metrics::Counter;
 use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
-use opentelemetry::KeyValue;
 
 use crate::layers::observe;
 use crate::raw::*;

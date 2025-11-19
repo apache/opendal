@@ -25,6 +25,33 @@ require "standard/rake"
 GEMSPEC = Gem::Specification.load("opendal.gemspec")
 CRATE_PACKAGE_NAME = "opendal-ruby"
 
+desc "Copy core files for compilation"
+task :copy_core do
+  core_dir = "../../core"
+  distributed_core_dir = "core"
+
+  puts "Copying core files from #{core_dir} to #{distributed_core_dir}..."
+  FileUtils.rm_rf(distributed_core_dir, secure: true)
+  system("cp", "-Lr", core_dir, distributed_core_dir) # resolves symbolic links to a copy
+
+  # Verify core files were copied
+  core_files_count = `git -C #{File.expand_path(core_dir, __dir__)} ls-files -z`.split("\x0").length
+  puts "Copied #{core_files_count} files from core directory"
+
+  # Patch Cargo.toml for source distribution
+  # When core files are copied locally, update Cargo.toml to reference the local copy
+  if File.directory?(distributed_core_dir)
+    cargo_toml = File.read("Cargo.toml")
+
+    # Only patch if we haven't already and we're using the relative path
+    if cargo_toml.include?('path = "../../core"')
+      puts "Patching Cargo.toml to use local core directory..."
+      cargo_toml.gsub!('path = "../../core"', 'path = "core"')
+      File.write("Cargo.toml", cargo_toml)
+    end
+  end
+end
+
 RbSys::ExtensionTask.new(CRATE_PACKAGE_NAME, GEMSPEC) do |ext|
   ext.name = "opendal_ruby"
   ext.ext_dir = "."
@@ -93,33 +120,14 @@ task :version do
   print GEMSPEC.version
 end
 
-desc "Resolve symlinks in core directory for gem packaging" # Read more in `.release-ruby.yml`
-task :resolve_symlinks do
-  puts "Changing symlinks in core directory to actual files for packaging..."
-  Dir.chdir("core") do # a symbolic link to OpenDAL core for packaging
-    Dir.glob("**/*", File::FNM_DOTMATCH).each do |file|
-      next unless File.symlink?(file)
-
-      link_target = File.readlink(file)
-      resolved_path = File.expand_path(link_target, File.dirname(file))
-
-      if File.exist?(resolved_path)
-        puts "Resolving symlink: #{file} -> #{link_target}"
-        File.delete(file)
-        FileUtils.cp(resolved_path, file)
-      end
-    end
-  end
-end
-
-# Hook into build task to resolve symlinks first
-Rake::Task["build"].enhance([:resolve_symlinks]) if Rake::Task.task_defined?("build")
+# Ensure core files are copied before compilation and packaging
+Rake::Task["build"].enhance(["copy_core"]) if Rake::Task.task_defined?("build")
 
 Rake::Task["release"].clear # clear the existing release task to allow override
 Rake::Task["release:rubygem_push"].clear if Rake::Task.task_defined?("release:rubygem_push")
 
 # overrides bundler's default rake release task
-# we removed build and git tagging steps. Read more in `.release-ruby.yml`
+# we removed build and git tagging steps. Read more in ``./.github/workflows/release-ruby.yml`
 # read more https://github.com/rubygems/rubygems/blob/master/bundler/lib/bundler/gem_helper.rb
 desc "Multi-arch release"
 task release: [

@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 
-use http::Uri;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::raw::*;
+use crate::types::OperatorUri;
 use crate::*;
 
 /// Builder is used to set up underlying services.
@@ -125,8 +124,8 @@ pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     /// Associated builder for this configuration.
     type Builder: Builder;
 
-    /// Build configuration from a URI plus merged options.
-    fn from_uri(_uri: &Uri, _options: &HashMap<String, String>) -> Result<Self> {
+    /// Build configuration from a parsed URI plus merged options.
+    fn from_uri(_uri: &OperatorUri) -> Result<Self> {
         Err(Error::new(ErrorKind::Unsupported, "uri is not supported"))
     }
 

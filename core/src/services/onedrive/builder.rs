@@ -16,48 +16,34 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use chrono::DateTime;
-use chrono::Utc;
 use log::debug;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
 use tokio::sync::Mutex;
 
+use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
-use super::DEFAULT_SCHEME;
-use crate::raw::normalize_root;
-use crate::raw::Access;
-use crate::raw::AccessorInfo;
-use crate::raw::HttpClient;
-use crate::services::OnedriveConfig;
-use crate::Scheme;
+use super::config::OnedriveConfig;
+use crate::raw::*;
 use crate::*;
-impl Configurator for OnedriveConfig {
-    type Builder = OnedriveBuilder;
-    fn into_builder(self) -> Self::Builder {
-        OnedriveBuilder {
-            config: self,
-            http_client: None,
-        }
-    }
-}
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OnedriveBuilder {
-    config: OnedriveConfig,
-    http_client: Option<HttpClient>,
+    pub(super) config: OnedriveConfig,
+
+    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
+    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OnedriveBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Backend")
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OnedriveBuilder")
             .field("config", &self.config)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -144,7 +130,7 @@ impl Builder for OnedriveBuilder {
         debug!("backend use root {root}");
 
         let info = AccessorInfo::default();
-        info.set_scheme(DEFAULT_SCHEME)
+        info.set_scheme(ONEDRIVE_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {
                 read: true,
@@ -192,7 +178,7 @@ impl Builder for OnedriveBuilder {
         match (self.config.access_token, self.config.refresh_token) {
             (Some(access_token), None) => {
                 signer.access_token = access_token;
-                signer.expires_in = DateTime::<Utc>::MAX_UTC;
+                signer.expires_in = Timestamp::MAX;
             }
             (None, Some(refresh_token)) => {
                 let client_id = self.config.client_id.ok_or_else(|| {
@@ -200,7 +186,7 @@ impl Builder for OnedriveBuilder {
                         ErrorKind::ConfigInvalid,
                         "client_id must be set when refresh_token is set",
                     )
-                    .with_context("service", Scheme::Onedrive)
+                    .with_context("service", ONEDRIVE_SCHEME)
                 })?;
 
                 signer.refresh_token = refresh_token;
@@ -214,14 +200,14 @@ impl Builder for OnedriveBuilder {
                     ErrorKind::ConfigInvalid,
                     "access_token and refresh_token cannot be set at the same time",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", ONEDRIVE_SCHEME));
             }
             (None, None) => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "access_token or refresh_token must be set",
                 )
-                .with_context("service", Scheme::Onedrive))
+                .with_context("service", ONEDRIVE_SCHEME));
             }
         };
 

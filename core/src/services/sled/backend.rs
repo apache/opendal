@@ -15,48 +15,37 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::str;
+use std::sync::Arc;
 
-use crate::raw::adapters::kv;
+use super::SLED_SCHEME;
+use super::config::SledConfig;
+use super::core::*;
+use super::deleter::SledDeleter;
+use super::lister::SledLister;
+use super::writer::SledWriter;
 use crate::raw::*;
-use crate::services::SledConfig;
-use crate::Builder;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Scheme;
 use crate::*;
 
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;
 
-impl Configurator for SledConfig {
-    type Builder = SledBuilder;
-    fn into_builder(self) -> Self::Builder {
-        SledBuilder { config: self }
-    }
-}
-
 /// Sled services support.
 #[doc = include_str!("docs.md")]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SledBuilder {
-    config: SledConfig,
-}
-
-impl Debug for SledBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SledBuilder")
-            .field("config", &self.config)
-            .finish()
-    }
+    pub(super) config: SledConfig,
 }
 
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
+        self
+    }
+
+    /// Set the tree for sled.
+    pub fn tree(mut self, tree: &str) -> Self {
+        self.config.tree = Some(tree.into());
         self
     }
 
@@ -70,12 +59,6 @@ impl SledBuilder {
 
         self
     }
-
-    /// Set the tree for sled.
-    pub fn tree(mut self, tree: &str) -> Self {
-        self.config.tree = Some(tree.into());
-        self
-    }
 }
 
 impl Builder for SledBuilder {
@@ -84,12 +67,12 @@ impl Builder for SledBuilder {
     fn build(self) -> Result<impl Access> {
         let datadir_path = self.config.datadir.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
         })?;
 
         let db = sled::open(&datadir_path).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open db")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
                 .with_context("datadir", datadir_path.clone())
                 .set_source(e)
         })?;
@@ -102,93 +85,116 @@ impl Builder for SledBuilder {
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
             Error::new(ErrorKind::ConfigInvalid, "open tree")
-                .with_context("service", Scheme::Sled)
+                .with_context("service", SLED_SCHEME)
                 .with_context("datadir", datadir_path.clone())
                 .with_context("tree", tree_name.clone())
                 .set_source(e)
         })?;
 
-        Ok(SledBackend::new(Adapter {
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+
+        Ok(SledBackend::new(SledCore {
             datadir: datadir_path,
             tree,
         })
-        .with_root(self.config.root.as_deref().unwrap_or("/")))
+        .with_normalized_root(root))
     }
 }
 
 /// Backend for sled services.
-pub type SledBackend = kv::Backend<Adapter>;
-
-#[derive(Clone)]
-pub struct Adapter {
-    datadir: String,
-    tree: sled::Tree,
+#[derive(Clone, Debug)]
+pub struct SledBackend {
+    core: Arc<SledCore>,
+    root: String,
+    info: Arc<AccessorInfo>,
 }
 
-impl Debug for Adapter {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut ds = f.debug_struct("Adapter");
-        ds.field("path", &self.datadir);
-        ds.finish()
-    }
-}
-
-impl kv::Adapter for Adapter {
-    type Scanner = kv::Scanner;
-
-    fn info(&self) -> kv::Info {
-        kv::Info::new(
-            Scheme::Sled,
-            &self.datadir,
-            Capability {
+impl SledBackend {
+    pub fn new(core: SledCore) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(SLED_SCHEME)
+            .set_name(&core.datadir)
+            .set_root("/")
+            .set_native_capability(Capability {
                 read: true,
+                stat: true,
                 write: true,
+                write_can_empty: true,
+                delete: true,
                 list: true,
+                list_with_recursive: true,
                 shared: false,
                 ..Default::default()
-            },
-        )
-    }
+            });
 
-    async fn get(&self, path: &str) -> Result<Option<Buffer>> {
-        Ok(self
-            .tree
-            .get(path)
-            .map_err(parse_error)?
-            .map(|v| Buffer::from(v.to_vec())))
-    }
-
-    async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        self.tree
-            .insert(path, value.to_vec())
-            .map_err(parse_error)?;
-        Ok(())
-    }
-
-    async fn delete(&self, path: &str) -> Result<()> {
-        self.tree.remove(path).map_err(parse_error)?;
-
-        Ok(())
-    }
-
-    async fn scan(&self, path: &str) -> Result<Self::Scanner> {
-        let it = self.tree.scan_prefix(path).keys();
-        let mut res = Vec::default();
-
-        for i in it {
-            let bs = i.map_err(parse_error)?.to_vec();
-            let v = String::from_utf8(bs).map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
-                    .set_source(err)
-            })?;
-
-            res.push(v);
+        Self {
+            core: Arc::new(core),
+            root: "/".to_string(),
+            info: Arc::new(info),
         }
+    }
 
-        Ok(Box::new(kv::ScanStdIter::new(res.into_iter().map(Ok))))
+    fn with_normalized_root(mut self, root: String) -> Self {
+        self.info.set_root(&root);
+        self.root = root;
+        self
     }
 }
 
-fn parse_error(err: sled::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "error from sled").set_source(err)
+impl Access for SledBackend {
+    type Reader = Buffer;
+    type Writer = SledWriter;
+    type Lister = oio::HierarchyLister<SledLister>;
+    type Deleter = oio::OneShotDeleter<SledDeleter>;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p == build_abs_path(&self.root, "") {
+            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        } else {
+            let bs = self.core.get(&p)?;
+            match bs {
+                Some(bs) => Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
+                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in sled")),
+            }
+        }
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let bs = match self.core.get(&p)? {
+            Some(bs) => bs,
+            None => {
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in sled"));
+            }
+        };
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+    }
+
+    async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let p = build_abs_path(&self.root, path);
+        let writer = SledWriter::new(self.core.clone(), p);
+        Ok((RpWrite::new(), writer))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = SledDeleter::new(self.core.clone(), self.root.clone());
+        Ok((RpDelete::default(), oio::OneShotDeleter::new(deleter)))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_abs_path(&self.root, path);
+        let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
+        Ok((
+            RpList::default(),
+            oio::HierarchyLister::new(lister, path, args.recursive()),
+        ))
+    }
 }

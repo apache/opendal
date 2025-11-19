@@ -17,10 +17,11 @@
 
 use std::collections::HashMap;
 
-use base64::engine::general_purpose;
 use base64::Engine;
-use chrono::DateTime;
-use chrono::Utc;
+use base64::engine::general_purpose;
+use http::HeaderMap;
+use http::HeaderName;
+use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
@@ -30,17 +31,14 @@ use http::header::CONTENT_TYPE;
 use http::header::ETAG;
 use http::header::LAST_MODIFIED;
 use http::header::LOCATION;
-use http::HeaderMap;
-use http::HeaderName;
-use http::HeaderValue;
 use md5::Digest;
 
-use crate::raw::*;
 use crate::EntryMode;
 use crate::Error;
 use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
+use crate::raw::*;
 
 /// Parse redirect location from header map
 ///
@@ -94,9 +92,9 @@ pub fn parse_content_range(headers: &HeaderMap) -> Result<Option<BytesContentRan
 }
 
 /// Parse last modified from header map.
-pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<DateTime<Utc>>> {
+pub fn parse_last_modified(headers: &HeaderMap) -> Result<Option<Timestamp>> {
     parse_header_to_str(headers, LAST_MODIFIED)?
-        .map(parse_datetime_from_rfc2822)
+        .map(Timestamp::parse_rfc2822)
         .transpose()
 }
 
@@ -219,6 +217,21 @@ pub fn parse_prefixed_headers(headers: &HeaderMap, prefix: &str) -> HashMap<Stri
 pub fn format_content_md5(bs: &[u8]) -> String {
     let mut hasher = md5::Md5::new();
     hasher.update(bs);
+
+    general_purpose::STANDARD.encode(hasher.finalize())
+}
+
+/// format content md5 header by given iter of bytes.
+pub fn format_content_md5_iter<I>(bs: I) -> String
+where
+    I: IntoIterator,
+    I::Item: AsRef<[u8]>,
+{
+    let mut hasher = md5::Md5::new();
+
+    for b in bs {
+        hasher.update(b.as_ref());
+    }
 
     general_purpose::STANDARD.encode(hasher.finalize())
 }

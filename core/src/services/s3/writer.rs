@@ -66,9 +66,10 @@ impl S3Writer {
 
 impl oio::MultipartWrite for S3Writer {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
-            .core
-            .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
+        let endpoint = self.core.endpoint().await?;
+        let mut req =
+            self.core
+                .s3_put_object_request(&endpoint, &self.path, Some(size), &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 
@@ -117,7 +118,9 @@ impl oio::MultipartWrite for S3Writer {
 
         let checksum = self.core.calculate_checksum(&body);
 
+        let endpoint = self.core.endpoint().await?;
         let mut req = self.core.s3_upload_part_request(
+            &endpoint,
             &self.path,
             upload_id,
             part_number,
@@ -247,9 +250,10 @@ impl oio::AppendWrite for S3Writer {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        let endpoint = self.core.endpoint().await?;
         let mut req = self
             .core
-            .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
+            .s3_append_object_request(&endpoint, &self.path, offset, size, &self.op, body)?;
 
         self.core.sign(&mut req).await?;
 

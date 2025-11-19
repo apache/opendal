@@ -64,11 +64,13 @@ def test_s3_region_auto_detect():
 
 
 def test_s3_region_auto_detect_failure():
+    op = opendal.Operator(
+        "s3",
+        bucket="definitely-not-a-real-bucket",
+        endpoint="https://no-such-endpoint.invalid",
+        disable_config_load="true",
+        allow_anonymous="true",
+    )
+
     with pytest.raises(opendal.exceptions.ConfigInvalid):
-        opendal.Operator(
-            "s3",
-            bucket="definitely-not-a-real-bucket",
-            endpoint="https://no-such-endpoint.invalid",
-            disable_config_load="true",
-            allow_anonymous="true",
-        )
+        op.stat("will-trigger-detection")

@@ -24,6 +24,7 @@ mod core;
 mod deleter;
 mod error;
 mod lister;
+mod region;
 mod writer;
 
 pub use backend::S3Builder as S3;

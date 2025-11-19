@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Write;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
@@ -90,7 +91,7 @@ pub struct S3Core {
     pub info: Arc<AccessorInfo>,
 
     pub bucket: String,
-    pub endpoint: String,
+    pub endpoint_state: EndpointState,
     pub root: String,
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_aws_kms_key_id: Option<HeaderValue>,
@@ -102,7 +103,6 @@ pub struct S3Core {
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
 
-    pub signer: AwsV4Signer,
     pub loader: Box<dyn AwsCredentialLoad>,
     pub credential_loaded: AtomicBool,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,

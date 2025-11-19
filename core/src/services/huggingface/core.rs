@@ -22,8 +22,8 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use super::backend::RepoType;
 use crate::raw::*;

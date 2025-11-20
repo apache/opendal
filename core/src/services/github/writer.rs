@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
 use super::core::GithubCore;
@@ -35,6 +36,22 @@ impl GithubWriter {
     pub fn new(core: Arc<GithubCore>, path: String) -> Self {
         GithubWriter { core, path }
     }
+
+    fn parse_metadata(content: &super::core::Entry) -> Result<Metadata> {
+        let mode = if content.type_field == "dir" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+
+        let mut meta = Metadata::new(mode);
+        if mode == EntryMode::FILE {
+            meta.set_content_length(content.size);
+            meta.set_etag(&content.sha);
+        }
+
+        Ok(meta)
+    }
 }
 
 impl oio::OneShotWrite for GithubWriter {
@@ -44,7 +61,13 @@ impl oio::OneShotWrite for GithubWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::CREATED => {
+                let body = resp.into_body();
+                let content_resp: super::core::ContentResponse =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+                let metadata = GithubWriter::parse_metadata(&content_resp.content)?;
+                Ok(metadata)
+            }
             _ => Err(parse_error(resp)),
         }
     }

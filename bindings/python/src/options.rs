@@ -110,6 +110,7 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             cache_control: opts.cache_control,
             content_encoding: opts.content_encoding,
             user_metadata: opts.user_metadata,
+            tags: None, // Tags not yet supported in Python bindings
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),

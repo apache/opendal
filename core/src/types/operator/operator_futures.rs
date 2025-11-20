@@ -282,7 +282,6 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.read_with("path/to/file").concurrent(8).await?;
     /// # Ok(())
@@ -300,7 +299,6 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.read_with("path/to/file").chunk(4 * 1024 * 1024).await?;
     /// # Ok(())
@@ -461,7 +459,6 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader_with("path/to/file").concurrent(8).await?;
     /// # Ok(())
@@ -479,7 +476,6 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
     ///     .reader_with("path/to/file")
@@ -510,7 +506,6 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// ```
     /// # use opendal::Result;
     /// # use opendal::Operator;
-    /// # use opendal::Scheme;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
     ///     .reader_with("path/to/file")

@@ -366,8 +366,8 @@ impl S3Builder {
     pub fn server_side_encryption_with_customer_key(mut self, algorithm: &str, key: &[u8]) -> Self {
         self.config.server_side_encryption_customer_algorithm = Some(algorithm.to_string());
         self.config.server_side_encryption_customer_key = Some(BASE64_STANDARD.encode(key));
-        self.config.server_side_encryption_customer_key_md5 =
-            Some(BASE64_STANDARD.encode(Md5::digest(key).as_slice()));
+        let key_md5 = Md5::digest(key);
+        self.config.server_side_encryption_customer_key_md5 = Some(BASE64_STANDARD.encode(key_md5));
         self
     }
 
@@ -381,12 +381,6 @@ impl S3Builder {
             self.config.session_token = Some(token.to_string());
         }
         self
-    }
-
-    /// Set temporary credential used in AWS S3 connections
-    #[deprecated(note = "Please use `session_token` instead")]
-    pub fn security_token(self, token: &str) -> Self {
-        self.session_token(token)
     }
 
     /// Disable config load so that opendal will not load config from

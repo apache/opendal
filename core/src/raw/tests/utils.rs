@@ -17,7 +17,6 @@
 
 use std::collections::HashMap;
 use std::env;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::*;
@@ -43,10 +42,11 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     } else {
         return Ok(None);
     };
-    let scheme = Scheme::from_str(&scheme).unwrap();
 
-    let scheme_key = String::from(scheme).replace('-', "_");
-    let prefix = format!("opendal_{scheme_key}_");
+    let prefix = {
+        let scheme_key = scheme.replace('-', "_");
+        format!("opendal_{scheme_key}_")
+    };
 
     let mut cfg = env::vars()
         .filter_map(|(k, v)| {
@@ -67,6 +67,8 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         cfg.insert("root".to_string(), root);
     }
 
+    // string-based scheme uses a hyphen ('-') as the connector
+    let scheme = scheme.replace('_', "-");
     let op = Operator::via_iter(scheme, cfg).expect("must succeed");
 
     #[cfg(feature = "layers-chaos")]

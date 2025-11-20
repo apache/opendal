@@ -233,3 +233,210 @@ impl ConcurrentLimitLayer {
         External::new(Layer { inner: Box::new(l) })
     }
 }
+
+impl NodeLayer for opendal::layers::TimeoutLayer {
+    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
+        op.layer(self.clone())
+    }
+}
+
+/// Timeout layer
+///
+/// Add timeout for every operation to avoid slow or unexpected hang operations.
+///
+/// # Notes
+///
+/// `TimeoutLayer` treats all operations in two kinds:
+///
+/// - Non IO Operation like `stat`, `delete` they operate on a single file. We control
+///   them by setting `timeout`.
+/// - IO Operation like `read`, `Reader::read` and `Writer::write`, they operate on data directly, we
+///   control them by setting `io_timeout`.
+///
+/// # Default
+///
+/// - timeout: 60 seconds
+/// - io_timeout: 10 seconds
+///
+/// # Examples
+///
+/// ```javascript
+/// const op = new Operator("fs", { root: "/tmp" })
+///
+/// const timeout = new TimeoutLayer();
+/// timeout.timeout = 10000;      // 10 seconds for non-IO ops (in milliseconds)
+/// timeout.ioTimeout = 3000;     // 3 seconds for IO ops (in milliseconds)
+///
+/// op.layer(timeout.build());
+/// ```
+#[derive(Default)]
+#[napi]
+pub struct TimeoutLayer {
+    timeout: Option<f64>,
+    io_timeout: Option<f64>,
+}
+
+#[napi]
+impl TimeoutLayer {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set timeout for non-IO operations (stat, delete, etc.)
+    ///
+    /// # Notes
+    ///
+    /// - The unit is millisecond.
+    /// - Default is 60000ms (60 seconds).
+    #[napi(setter)]
+    pub fn timeout(&mut self, v: f64) {
+        self.timeout = Some(v);
+    }
+
+    /// Set timeout for IO operations (read, write, etc.)
+    ///
+    /// # Notes
+    ///
+    /// - The unit is millisecond.
+    /// - Default is 10000ms (10 seconds).
+    #[napi(setter)]
+    pub fn io_timeout(&mut self, v: f64) {
+        self.io_timeout = Some(v);
+    }
+
+    #[napi]
+    pub fn build(&self) -> External<Layer> {
+        let mut l = opendal::layers::TimeoutLayer::default();
+
+        if let Some(timeout) = self.timeout {
+            l = l.with_timeout(Duration::from_millis(timeout as u64));
+        }
+        if let Some(io_timeout) = self.io_timeout {
+            l = l.with_io_timeout(Duration::from_millis(io_timeout as u64));
+        }
+
+        External::new(Layer { inner: Box::new(l) })
+    }
+}
+
+impl NodeLayer for opendal::layers::LoggingLayer {
+    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
+        op.layer(opendal::layers::LoggingLayer::default())
+    }
+}
+
+/// Logging layer
+///
+/// Add log for every operation.
+///
+/// # Logging
+///
+/// - OpenDAL will log in structural way.
+/// - Every operation will start with a `started` log entry.
+/// - Every operation will finish with the following status:
+///   - `succeeded`: the operation is successful, but might have more to take.
+///   - `finished`: the whole operation is finished.
+///   - `failed`: the operation returns an unexpected error.
+/// - The default log level while expected error happened is `Warn`.
+/// - The default log level while unexpected failure happened is `Error`.
+///
+/// # Examples
+///
+/// ```javascript
+/// const op = new Operator("fs", { root: "/tmp" })
+///
+/// const logging = new LoggingLayer();
+/// op.layer(logging.build());
+/// ```
+///
+/// # Output
+///
+/// To enable logging output, set the `RUST_LOG` environment variable:
+///
+/// ```shell
+/// RUST_LOG=debug node app.js
+/// ```
+#[napi]
+pub struct LoggingLayer;
+
+impl Default for LoggingLayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[napi]
+impl LoggingLayer {
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self
+    }
+
+    #[napi]
+    pub fn build(&self) -> External<Layer> {
+        let l = opendal::layers::LoggingLayer::default();
+        External::new(Layer { inner: Box::new(l) })
+    }
+}
+
+impl NodeLayer for opendal::layers::ThrottleLayer {
+    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
+        op.layer(self.clone())
+    }
+}
+
+/// Throttle layer
+///
+/// Add a bandwidth rate limiter to the underlying services.
+///
+/// # Throttle
+///
+/// There are several algorithms when it come to rate limiting techniques.
+/// This throttle layer uses Generic Cell Rate Algorithm (GCRA) provided by Governor.
+/// By setting the `bandwidth` and `burst`, we can control the byte flow rate of underlying services.
+///
+/// # Note
+///
+/// When setting the ThrottleLayer, always consider the largest possible operation size as the burst size,
+/// as **the burst size should be larger than any possible byte length to allow it to pass through**.
+///
+/// # Examples
+///
+/// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
+///
+/// ```javascript
+/// const op = new Operator("fs", { root: "/tmp" })
+///
+/// const throttle = new ThrottleLayer(10 * 1024, 10000 * 1024);
+/// op.layer(throttle.build());
+/// ```
+#[napi]
+pub struct ThrottleLayer {
+    bandwidth: u32,
+    burst: u32,
+}
+
+#[napi]
+impl ThrottleLayer {
+    /// Create a new `ThrottleLayer` with given bandwidth and burst.
+    ///
+    /// # Arguments
+    ///
+    /// - `bandwidth`: the maximum number of bytes allowed to pass through per second.
+    /// - `burst`: the maximum number of bytes allowed to pass through at once.
+    ///
+    /// # Notes
+    ///
+    /// Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+    #[napi(constructor)]
+    pub fn new(bandwidth: u32, burst: u32) -> Self {
+        Self { bandwidth, burst }
+    }
+
+    #[napi]
+    pub fn build(&self) -> External<Layer> {
+        let l = opendal::layers::ThrottleLayer::new(self.bandwidth, self.burst);
+        External::new(Layer { inner: Box::new(l) })
+    }
+}

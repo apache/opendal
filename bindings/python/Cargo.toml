@@ -25,7 +25,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
-version = "0.46.1"
+version = "0.47.0"
 
 [features]
 default = [
@@ -60,7 +60,6 @@ services-all = [
   'services-ftp',
   'services-gdrive',
   'services-gridfs',
-  'services-hdfs-native',
   'services-huggingface',
   'services-ipfs',
   'services-koofr',
@@ -75,7 +74,6 @@ services-all = [
   'services-redb',
   'services-redis',
   'services-seafile',
-  'services-sftp',
   'services-sled',
   'services-sqlite',
   'services-swift',
@@ -153,7 +151,7 @@ services-pcloud = [
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
-services-redis = ["opendal/services-redis", "opendal/services-redis-native-tls"]
+services-redis = ["opendal/services-redis"]
 services-rocksdb = [
   "opendal/services-rocksdb",
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
@@ -181,6 +179,14 @@ services-yandex-disk = ["opendal/services-yandex-disk"]
 # we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
 abi3 = ["pyo3/abi3-py311"]
 
+# Conditionally include sftp only on non-windows targets
+[target.'cfg(not(windows))'.features]
+services-all = ["services-sftp"]
+
+# Conditionally include sftp only on non-windows targets
+[target.'cfg(not(target_arch = "arm"))'.features]
+services-all = ["services-hdfs-native"]
+
 [[bin]]
 doc = false
 name = "stub_gen"
@@ -202,20 +208,8 @@ opendal = { version = ">=0", path = "../../core", features = [
 ] }
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
-pyo3-stub-gen = { version = "0.16" }
+pyo3-stub-gen = { version = "0.17" }
 tokio = "1"
-
-[target.'cfg(unix)'.dependencies.opendal]
-features = [
-  "blocking",
-  "layers-mime-guess",
-  # Depend on "openssh" which depends on "tokio-pipe" that is unavailable on Windows.
-  #
-  # FIXME: waiting for https://github.com/NobodyXu/concurrent_arena/issues/25
-  # "services-sftp",
-]
-path = "../../core"
-version = ">=0"
 
 [profile.release]
 codegen-units = 1

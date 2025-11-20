@@ -28,7 +28,7 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
-version = "0.54.1"
+version = "0.55.0"
 
 [lints.clippy]
 unused_async = "warn"
@@ -348,7 +348,7 @@ suppaftp = { version = "6.3.0", default-features = false, features = [
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
 # for services-hdfs-native
-hdfs-native = { version = "0.12", optional = true }
+hdfs-native = { version = "0.13", optional = true }
 # for services-surrealdb
 surrealdb = { version = "2", optional = true, features = ["protocol-http"] }
 # for services-compfs

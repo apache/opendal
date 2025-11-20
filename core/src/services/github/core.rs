@@ -348,3 +348,8 @@ pub struct Entry {
     #[serde(rename = "type")]
     pub type_field: String,
 }
+
+#[derive(Default, Debug, Clone, Deserialize)]
+pub struct ContentResponse {
+    pub content: Entry,
+}

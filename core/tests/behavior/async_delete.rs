@@ -133,7 +133,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     }
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
 

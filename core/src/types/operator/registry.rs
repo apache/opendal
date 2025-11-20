@@ -104,5 +104,6 @@ fn register_builtin_services(registry: &OperatorRegistry) {
 /// Factory adapter that builds an operator from a configurator type.
 fn factory<C: Configurator>(uri: &OperatorUri) -> Result<Operator> {
     let cfg = C::from_uri(uri)?;
-    Ok(Operator::from_config(cfg)?.finish())
+    let builder = Operator::from_config(cfg)?;
+    Ok(builder.finish())
 }

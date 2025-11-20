@@ -138,3 +138,4 @@ jobs:
           OPENDAL_S3_BUCKET: opendal-testing
           OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
           OPENDAL_S3_REGION: ap-northeast-1
+          RUST_LOG: debug

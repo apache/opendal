@@ -20,6 +20,7 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::SeafileCore;
+use super::core::parse_file_detail;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -48,7 +49,12 @@ impl oio::OneShotWrite for SeafileWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => {
+                // Seafile upload API doesn't return file metadata in response,
+                // so we need to fetch it via file_detail API
+                let file_detail = self.core.file_detail(&self.path).await?;
+                parse_file_detail(file_detail)
+            }
             _ => Err(parse_error(resp)),
         }
     }

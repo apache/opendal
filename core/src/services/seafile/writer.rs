@@ -50,8 +50,6 @@ impl oio::OneShotWrite for SeafileWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                // Seafile upload API doesn't return file metadata in response,
-                // so we need to fetch it via file_detail API
                 let file_detail = self.core.file_detail(&self.path).await?;
                 parse_file_detail(file_detail)
             }

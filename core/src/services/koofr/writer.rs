@@ -17,8 +17,10 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use http::StatusCode;
 
+use super::core::File;
 use super::core::KoofrCore;
 use super::error::parse_error;
 use crate::raw::*;
@@ -35,6 +37,21 @@ impl KoofrWriter {
     pub fn new(core: Arc<KoofrCore>, path: String) -> Self {
         KoofrWriter { core, path }
     }
+
+    fn parse_metadata(file: &File) -> Result<Metadata> {
+        let mode = if file.ty == "dir" {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+
+        let mut meta = Metadata::new(mode);
+        meta.set_content_length(file.size);
+        meta.set_content_type(&file.content_type);
+        meta.set_last_modified(Timestamp::from_millisecond(file.modified)?);
+
+        Ok(meta)
+    }
 }
 
 impl oio::OneShotWrite for KoofrWriter {
@@ -46,7 +63,13 @@ impl oio::OneShotWrite for KoofrWriter {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::CREATED => {
+                let body = resp.into_body();
+                let file: File =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+                let metadata = Self::parse_metadata(&file)?;
+                Ok(metadata)
+            }
             _ => Err(parse_error(resp)),
         }
     }

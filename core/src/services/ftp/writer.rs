@@ -15,10 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::str::FromStr;
+
 use bb8::PooledConnection;
 use bytes::Buf;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
+use suppaftp::list::File;
 
 use super::core::Manager;
 use super::err::parse_error;
@@ -37,11 +40,6 @@ pub struct FtpWriter {
 /// We only have `&mut self` for FtpWrite.
 unsafe impl Sync for FtpWriter {}
 
-/// # TODO
-///
-/// Writer is not implemented correctly.
-///
-/// After we can use data stream, we should return it directly.
 impl FtpWriter {
     pub fn new(
         ftp_stream: PooledConnection<'static, Manager>,
@@ -110,7 +108,37 @@ impl oio::Write for FtpWriter {
             }
         }
 
-        Ok(Metadata::default())
+        let (parent, basename) = (
+            get_parent(&self.target_path),
+            get_basename(&self.target_path),
+        );
+        let pathname = if parent == "/" { None } else { Some(parent) };
+
+        let resp = self.ftp_stream.list(pathname).await.map_err(parse_error)?;
+
+        let file = resp
+            .into_iter()
+            .filter_map(|file_str| File::from_str(file_str.as_str()).ok())
+            .find(|f| f.name() == basename.trim_end_matches('/'));
+
+        match file {
+            Some(file) => {
+                let mode = if file.is_file() {
+                    EntryMode::FILE
+                } else if file.is_directory() {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::Unknown
+                };
+
+                let mut meta = Metadata::new(mode);
+                meta.set_content_length(file.size() as u64);
+                meta.set_last_modified(Timestamp::try_from(file.modified())?);
+
+                Ok(meta)
+            }
+            None => Ok(Metadata::default()),
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

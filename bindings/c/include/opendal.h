@@ -88,6 +88,36 @@ typedef enum opendal_code {
 } opendal_code;
 
 /**
+ * Status returned by non-blocking future polling.
+ */
+typedef enum opendal_future_status {
+  /**
+   * Future is still pending.
+   */
+  OPENDAL_FUTURE_PENDING = 0,
+  /**
+   * Future is ready and output has been written to the provided out param.
+   */
+  OPENDAL_FUTURE_READY = 1,
+  /**
+   * Future completed with an error state (e.g., channel closed).
+   */
+  OPENDAL_FUTURE_ERROR = 2,
+  /**
+   * Future was cancelled.
+   */
+  OPENDAL_FUTURE_CANCELED = 3,
+} opendal_future_status;
+
+typedef struct Option_JoinHandle Option_JoinHandle;
+
+typedef struct Option_Receiver_Result Option_Receiver_Result;
+
+typedef struct Option_Receiver_Result_Buffer Option_Receiver_Result_Buffer;
+
+typedef struct Option_Receiver_Result_Metadata Option_Receiver_Result_Metadata;
+
+/**
  * \brief opendal_bytes carries raw-bytes with its length
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type
@@ -224,6 +254,10 @@ typedef struct opendal_operator {
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
+  /**
+   * Shared async operator handle for reuse (Arc clone internally).
+   */
+  void *async_inner;
 } opendal_operator;
 
 /**
@@ -423,6 +457,113 @@ typedef struct opendal_result_list {
    */
   struct opendal_error *error;
 } opendal_result_list;
+
+/**
+ * \brief Represents an asynchronous OpenDAL Operator.
+ *
+ * This operator interacts with storage services using non-blocking APIs.
+ * Use `opendal_async_operator_new` to construct and `opendal_async_operator_free` to release.
+ */
+typedef struct opendal_async_operator {
+  /**
+   * Internal pointer to the Rust async Operator.
+   */
+  void *inner;
+} opendal_async_operator;
+
+/**
+ * Future handle for asynchronous stat operations.
+ */
+typedef struct opendal_future_stat {
+  /**
+   * Pointer to an owned JoinHandle wrapped in Option for safe extraction.
+   */
+  struct Option_JoinHandle *handle;
+  /**
+   * Receiver for the stat result.
+   */
+  struct Option_Receiver_Result_Metadata *rx;
+} opendal_future_stat;
+
+/**
+ * Result type for creating an asynchronous stat future.
+ */
+typedef struct opendal_result_future_stat {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_stat *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_stat;
+
+/**
+ * Future handle for asynchronous read operations.
+ */
+typedef struct opendal_future_read {
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result_Buffer *rx;
+} opendal_future_read;
+
+/**
+ * Result type for creating an asynchronous read future.
+ */
+typedef struct opendal_result_future_read {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_read *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_read;
+
+/**
+ * Future handle for asynchronous write operations.
+ */
+typedef struct opendal_future_write {
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result_Metadata *rx;
+} opendal_future_write;
+
+/**
+ * Result type for creating an asynchronous write future.
+ */
+typedef struct opendal_result_future_write {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_write *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_write;
+
+/**
+ * Future handle for asynchronous delete operations.
+ */
+typedef struct opendal_future_delete {
+  struct Option_JoinHandle *handle;
+  struct Option_Receiver_Result *rx;
+} opendal_future_delete;
+
+/**
+ * Result type for creating an asynchronous delete future.
+ */
+typedef struct opendal_result_future_delete {
+  /**
+   * The future handle. Null when creation fails.
+   */
+  struct opendal_future_delete *future;
+  /**
+   * The error information. Null on success.
+   */
+  struct opendal_error *error;
+} opendal_result_future_delete;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1318,6 +1459,126 @@ struct opendal_error *opendal_operator_copy(const struct opendal_operator *op,
                                             const char *dest);
 
 struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
+
+/**
+ * \brief Constructs a new asynchronous OpenDAL Operator.
+ *
+ * @param scheme The storage service scheme (e.g., "s3", "fs").
+ * @param options Configuration options for the service. Can be NULL.
+ * @return Result containing the new operator or an error.
+ *
+ * \see opendal_operator_options
+ * \see opendal_result_operator_new (reused for simplicity, but contains async op)
+ *
+ * # Safety
+ *
+ * `scheme` must be a valid, null-terminated C string.
+ * `options` must be a valid pointer or NULL.
+ */
+struct opendal_result_operator_new opendal_async_operator_new(const char *scheme,
+                                                              const struct opendal_operator_options *options);
+
+/**
+ * \brief Creates an asynchronous operator that shares the same backend as an existing blocking operator.
+ */
+struct opendal_result_operator_new opendal_async_operator_from_operator(const struct opendal_operator *op);
+
+/**
+ * \brief Frees an asynchronous OpenDAL Operator.
+ *
+ * # Safety
+ *
+ * `op` must be a valid pointer previously returned by `opendal_async_operator_new`.
+ * Calling with NULL does nothing.
+ */
+void opendal_async_operator_free(const struct opendal_async_operator *op);
+
+/**
+ * \brief Asynchronously gets metadata of a path using a callback.
+ *
+ * @param op A valid pointer to `opendal_async_operator`.
+ * @param path The path to the object or directory.
+ *
+ * # Safety
+ * `op` must be a valid `opendal_async_operator`.
+ * `path` must be a valid, null-terminated C string.
+ * \brief Asynchronously gets metadata of a path, returning a future handle.
+ *
+ * The returned future can be awaited via `opendal_future_stat_await` to obtain the
+ * resulting metadata or error, mirroring Rust's `async/await` ergonomics.
+ */
+struct opendal_result_future_stat opendal_async_operator_stat(const struct opendal_async_operator *op,
+                                                              const char *path);
+
+struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat *future);
+
+enum opendal_future_status opendal_future_stat_poll(struct opendal_future_stat *future,
+                                                    struct opendal_result_stat *out);
+
+bool opendal_future_stat_is_ready(const struct opendal_future_stat *future);
+
+/**
+ * \brief Cancel and free a stat future without awaiting it.
+ */
+void opendal_future_stat_free(struct opendal_future_stat *future);
+
+/**
+ * \brief Asynchronously reads data from a path.
+ *
+ * The returned future can be awaited via `opendal_future_read_await` to obtain
+ * the resulting bytes or error.
+ */
+struct opendal_result_future_read opendal_async_operator_read(const struct opendal_async_operator *op,
+                                                              const char *path);
+
+struct opendal_result_read opendal_future_read_await(struct opendal_future_read *future);
+
+enum opendal_future_status opendal_future_read_poll(struct opendal_future_read *future,
+                                                    struct opendal_result_read *out);
+
+bool opendal_future_read_is_ready(const struct opendal_future_read *future);
+
+/**
+ * \brief Cancel and free a read future without awaiting it.
+ */
+void opendal_future_read_free(struct opendal_future_read *future);
+
+/**
+ * \brief Asynchronously writes data to a path.
+ */
+struct opendal_result_future_write opendal_async_operator_write(const struct opendal_async_operator *op,
+                                                                const char *path,
+                                                                const struct opendal_bytes *bytes);
+
+struct opendal_error *opendal_future_write_await(struct opendal_future_write *future);
+
+enum opendal_future_status opendal_future_write_poll(struct opendal_future_write *future,
+                                                     struct opendal_error **error_out);
+
+bool opendal_future_write_is_ready(const struct opendal_future_write *future);
+
+/**
+ * \brief Cancel and free a write future without awaiting it.
+ */
+void opendal_future_write_free(struct opendal_future_write *future);
+
+/**
+ * \brief Asynchronously deletes the specified path.
+ */
+struct opendal_result_future_delete opendal_async_operator_delete(const struct opendal_async_operator *op,
+                                                                  const char *path);
+
+struct opendal_error *opendal_future_delete_await(struct opendal_future_delete *future);
+
+enum opendal_future_status opendal_future_delete_poll(struct opendal_future_delete *future,
+                                                      struct opendal_error **error_out);
+
+bool opendal_future_delete_is_ready(const struct opendal_future_delete *future);
+
+/**
+ * \brief Cancel and free a delete future without awaiting it.
+ */
+void opendal_future_delete_free(struct opendal_future_delete *future);
 
 /**
  * \brief Get information of underlying accessor.

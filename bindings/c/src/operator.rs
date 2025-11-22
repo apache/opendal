@@ -25,7 +25,7 @@ use ::opendal as core;
 
 use super::*;
 
-static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+pub(crate) static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -48,6 +48,8 @@ pub struct opendal_operator {
     /// The pointer to the opendal::blocking::Operator in the Rust code.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
+    /// Shared async operator handle for reuse (Arc clone internally).
+    async_inner: *mut c_void,
 }
 
 impl opendal_operator {
@@ -55,6 +57,10 @@ impl opendal_operator {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
         unsafe { &*(self.inner as *mut core::blocking::Operator) }
+    }
+
+    pub(crate) fn async_ref(&self) -> &core::Operator {
+        unsafe { &*(self.async_inner as *mut core::Operator) }
     }
 }
 
@@ -79,6 +85,7 @@ impl opendal_operator {
         unsafe {
             if !ptr.is_null() {
                 drop(Box::from_raw((*ptr).inner as *mut core::blocking::Operator));
+                drop(Box::from_raw((*ptr).async_inner as *mut core::Operator));
                 drop(Box::from_raw(ptr as *mut opendal_operator));
             }
         }
@@ -88,14 +95,14 @@ impl opendal_operator {
 fn build_operator(
     schema: core::Scheme,
     map: HashMap<String, String>,
-) -> core::Result<core::blocking::Operator> {
+) -> core::Result<(core::blocking::Operator, core::Operator)> {
     let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
 
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
     let _guard = runtime.enter();
-    let op = core::blocking::Operator::new(op)?;
-    Ok(op)
+    let blocking = core::blocking::Operator::new(op.clone())?;
+    Ok((blocking, op))
 }
 
 /// \brief Construct an operator based on `scheme` and `options`
@@ -162,9 +169,10 @@ pub unsafe extern "C" fn opendal_operator_new(
     }
 
     match build_operator(scheme, map) {
-        Ok(op) => opendal_result_operator_new {
+        Ok((blocking, async_op)) => opendal_result_operator_new {
             op: Box::into_raw(Box::new(opendal_operator {
-                inner: Box::into_raw(Box::new(op)) as _,
+                inner: Box::into_raw(Box::new(blocking)) as _,
+                async_inner: Box::into_raw(Box::new(async_op)) as _,
             })),
             error: std::ptr::null_mut(),
         },

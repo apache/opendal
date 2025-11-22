@@ -22,7 +22,8 @@ use serde::Serialize;
 
 use super::backend::S3Builder;
 
-/// Config for Aws S3 and compatible services (including minio, digitalocean space, Tencent Cloud Object Storage(COS) and so on) support.
+/// Config for Aws S3 and compatible services (including minio, digitalocean space,
+/// Tencent Cloud Object Storage(COS) and so on) support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
@@ -109,7 +110,7 @@ pub struct S3Config {
     /// Disable load credential from ec2 metadata.
     ///
     /// This option is used to disable the default behavior of opendal
-    /// to load credential from ec2 metadata, a.k.a, IMDSv2
+    /// to load credential from ec2 metadata, a.k.a., IMDSv2
     pub disable_ec2_metadata: bool,
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
@@ -202,7 +203,7 @@ pub struct S3Config {
     pub checksum_algorithm: Option<String>,
     /// Disable write with if match so that opendal will not send write request with if match headers.
     ///
-    /// For example, Ceph RADOS S3 doesn't support write with if match.
+    /// For example, Ceph RADOS S3 doesn't support write with if matched.
     pub disable_write_with_if_match: bool,
 
     /// Enable write with append so that opendal will send write request with append headers.
@@ -250,15 +251,16 @@ impl crate::Configurator for S3Config {
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
-            customized_credential_load: None,
-
             http_client: None,
+            credential_providers: None,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
     use super::*;
     use crate::Configurator;
     use crate::types::OperatorUri;
@@ -356,13 +358,25 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {
+        let uri = OperatorUri::new("s3://example-bucket/path/to/root", iter::empty()).unwrap();
+        let cfg = S3Config::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket, "example-bucket");
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
+
+    #[test]
+    fn from_uri_extracts_endpoint() {
         let uri = OperatorUri::new(
-            "s3://example-bucket/path/to/root",
-            Vec::<(String, String)>::new(),
+            "s3://example-bucket/path/to/root?endpoint=https%3A%2F%2Fcustom-s3-endpoint.com",
+            iter::empty(),
         )
         .unwrap();
         let cfg = S3Config::from_uri(&uri).unwrap();
         assert_eq!(cfg.bucket, "example-bucket");
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("https://custom-s3-endpoint.com")
+        );
     }
 }

@@ -9,7 +9,7 @@ bitflags@2.10.0	X							X
 block-buffer@0.10.4	X							X				
 bumpalo@3.19.0	X							X				
 bytes@1.11.0								X				
-cc@1.2.46	X							X				
+cc@1.2.47	X							X				
 cfg-if@1.0.4	X							X				
 cpufeatures@0.2.17	X							X				
 crypto-common@0.1.7	X							X				

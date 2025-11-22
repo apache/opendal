@@ -7,14 +7,14 @@ bitflags@2.10.0	X							X
 block-buffer@0.10.4	X							X			
 bumpalo@3.19.0	X							X			
 bytes@1.11.0								X			
-cc@1.2.46	X							X			
+cc@1.2.47	X							X			
 cfg-if@1.0.4	X							X			
 codespan-reporting@0.13.1	X										
 crypto-common@0.1.7	X							X			
-cxx@1.0.188	X							X			
-cxx-build@1.0.188	X							X			
-cxxbridge-flags@1.0.188	X							X			
-cxxbridge-macro@1.0.188	X							X			
+cxx@1.0.189	X							X			
+cxx-build@1.0.189	X							X			
+cxxbridge-flags@1.0.189	X							X			
+cxxbridge-macro@1.0.189	X							X			
 digest@0.10.7	X							X			
 displaydoc@0.2.5	X							X			
 equivalent@1.0.2	X							X			
@@ -36,7 +36,7 @@ generic-array@0.14.7								X
 getrandom@0.2.16	X							X			
 getrandom@0.3.4	X							X			
 gloo-timers@0.3.0	X							X			
-hashbrown@0.16.0	X							X			
+hashbrown@0.16.1	X							X			
 http@1.3.1	X							X			
 http-body@1.0.1								X			
 http-body-util@0.1.3								X			
@@ -53,7 +53,7 @@ icu_properties_data@2.1.1									X
 icu_provider@2.1.1									X		
 idna@1.1.0	X							X			
 idna_adapter@1.2.1	X							X			
-indexmap@2.12.0	X							X			
+indexmap@2.12.1	X							X			
 ipnet@2.11.0	X							X			
 iri-string@0.7.9	X							X			
 itoa@1.0.15	X							X			

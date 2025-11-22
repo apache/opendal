@@ -23,13 +23,15 @@ camino@1.2.1		X									X
 cargo-platform@0.1.9		X									X			
 cargo_metadata@0.14.2											X			
 cbc@0.1.2		X									X			
-cc@1.2.46		X									X			
+cc@1.2.47		X									X			
 cexpr@0.6.0		X									X			
 cfg-if@1.0.4		X									X			
 chrono@0.4.42		X									X			
 cipher@0.4.4		X									X			
 clang-sys@1.8.1		X												
 const-oid@0.9.6		X									X			
+const-random@0.1.18		X									X			
+const-random-macro@0.1.16		X									X			
 constant_time_eq@0.1.5							X							
 core-foundation@0.9.4		X									X			
 core-foundation-sys@0.8.7		X									X			
@@ -37,6 +39,7 @@ cpufeatures@0.2.17		X									X
 crc32c@0.6.8		X									X			
 crc32fast@1.5.0		X									X			
 crossbeam-utils@0.8.21		X									X			
+crunchy@0.2.4											X			
 crypto-common@0.1.7		X									X			
 darling@0.14.4											X			
 darling_core@0.14.4											X			
@@ -45,6 +48,7 @@ der@0.7.10		X									X
 deranged@0.5.5		X									X			
 digest@0.10.7		X									X			
 displaydoc@0.2.5		X									X			
+dlv-list@0.5.2		X									X			
 either@1.15.0		X									X			
 errno@0.3.14		X									X			
 error-chain@0.12.4		X									X			
@@ -71,6 +75,7 @@ getrandom@0.3.4		X									X
 ghac@0.2.0		X												
 glob@0.3.3		X									X			
 gloo-timers@0.3.0		X									X			
+hashbrown@0.14.5		X									X			
 hex@0.4.3		X									X			
 hmac@0.12.1		X									X			
 home@0.5.11		X									X			
@@ -134,6 +139,7 @@ openssl@0.10.75		X
 openssl-macros@0.1.1		X									X			
 openssl-probe@0.1.6		X									X			
 openssl-sys@0.9.111											X			
+ordered-multimap@0.7.3											X			
 parking_lot@0.12.5		X									X			
 parking_lot_core@0.9.12		X									X			
 password-hash@0.4.2		X									X			
@@ -159,7 +165,6 @@ proc-macro2@1.0.103		X									X
 prost@0.13.5		X												
 prost-derive@0.13.5		X												
 pulldown-cmark@0.9.6											X			
-quick-xml@0.37.5											X			
 quick-xml@0.38.4											X			
 quote@1.0.42		X									X			
 r-efi@5.3.0		X								X	X			
@@ -171,9 +176,14 @@ regex@1.12.2		X									X
 regex-automata@0.4.13		X									X			
 regex-syntax@0.8.8		X									X			
 reqsign@0.16.5		X												
+reqsign-aws-v4@2.0.1		X												
+reqsign-core@2.0.1		X												
+reqsign-file-read-tokio@2.0.1		X												
+reqsign-http-send-reqwest@2.0.1		X												
 reqwest@0.12.24		X									X			
 ring@0.17.14		X							X					
 rsa@0.9.9		X									X			
+rust-ini@0.21.3											X			
 rustc-hash@1.1.0		X									X			
 rustc_version@0.4.1		X									X			
 rustix@0.38.44		X	X								X			
@@ -222,6 +232,7 @@ thiserror-impl@2.0.17		X									X
 time@0.3.44		X									X			
 time-core@0.1.6		X									X			
 time-macros@0.2.24		X									X			
+tiny-keccak@2.0.2							X							
 tinystr@0.8.2												X		
 tokio@1.48.0											X			
 tokio-macros@2.6.0											X			
@@ -290,7 +301,7 @@ wit-bindgen@0.46.0		X	X								X
 writeable@0.6.2												X		
 yoke@0.8.1												X		
 yoke-derive@0.8.1												X		
-zerocopy@0.8.27		X		X							X			
+zerocopy@0.8.28		X		X							X			
 zerofrom@0.1.6												X		
 zerofrom-derive@0.1.6												X		
 zeroize@1.8.2		X									X			

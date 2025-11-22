@@ -1,4 +1,4 @@
-crate	Apache-2.0	Apache-2.0 WITH LLVM-exception	BSD-2-Clause	BSD-3-Clause	BSL-1.0	CC0-1.0	CDLA-Permissive-2.0	ISC	LGPL-2.1-or-later	LGPL-3.0-only	MIT	Unicode-3.0	Unicode-DFS-2016	Unlicense
+crate	Apache-2.0	Apache-2.0 WITH LLVM-exception	BSD-2-Clause	BSD-3-Clause	BSL-1.0	CC0-1.0	CDLA-Permissive-2.0	ISC	LGPL-2.1-or-later	LGPL-3.0	MIT	Unicode-3.0	Unicode-DFS-2016	Unlicense
 aes@0.8.4	X										X			
 ahash@0.8.12	X										X			
 android_system_properties@0.1.5	X										X			
@@ -15,11 +15,13 @@ block-padding@0.3.3	X										X
 bumpalo@3.19.0	X										X			
 bytes@1.11.0											X			
 cbc@0.1.2	X										X			
-cc@1.2.46	X										X			
+cc@1.2.47	X										X			
 cfg-if@1.0.4	X										X			
 chrono@0.4.42	X										X			
 cipher@0.4.4	X										X			
 const-oid@0.9.6	X										X			
+const-random@0.1.18	X										X			
+const-random-macro@0.1.16	X										X			
 core-foundation-sys@0.8.7	X										X			
 cpufeatures@0.2.17	X										X			
 crc32c@0.6.8	X										X			
@@ -32,6 +34,7 @@ derive_more-impl@1.0.0											X
 dict_derive@0.6.0	X													
 digest@0.10.7	X										X			
 displaydoc@0.2.5	X										X			
+dlv-list@0.5.2	X										X			
 either@1.15.0	X										X			
 equivalent@1.0.2	X										X			
 fastrand@2.3.0	X										X			
@@ -54,7 +57,7 @@ getrandom@0.3.4	X										X
 ghac@0.2.0	X													
 gloo-timers@0.3.0	X										X			
 hashbrown@0.14.5	X										X			
-hashbrown@0.16.0	X										X			
+hashbrown@0.16.1	X										X			
 heck@0.5.0	X										X			
 hex@0.4.3	X										X			
 hmac@0.12.1	X										X			
@@ -77,7 +80,7 @@ icu_properties_data@2.1.1												X
 icu_provider@2.1.1												X		
 idna@1.1.0	X										X			
 idna_adapter@1.2.1	X										X			
-indexmap@2.12.0	X										X			
+indexmap@2.12.1	X										X			
 indoc@2.0.7	X										X			
 inout@0.1.4	X										X			
 inventory@0.3.21	X										X			
@@ -124,6 +127,7 @@ once_cell@1.21.3	X										X
 opendal@0.55.0	X													
 opendal-python@0.47.0	X													
 ordered-float@5.1.0											X			
+ordered-multimap@0.7.3											X			
 paste@1.0.15	X										X			
 pbkdf2@0.12.2	X										X			
 pem@3.0.6											X			
@@ -155,7 +159,6 @@ pyo3-macros-backend@0.26.0	X										X
 pyo3-stub-gen@0.17.1	X										X			
 pyo3-stub-gen-derive@0.17.1	X										X			
 python3-dll-a@0.2.14											X			
-quick-xml@0.37.5											X			
 quick-xml@0.38.4											X			
 quote@1.0.42	X										X			
 r-efi@5.3.0	X								X		X			
@@ -164,9 +167,14 @@ rand_chacha@0.3.1	X										X
 rand_core@0.6.4	X										X			
 rawpointer@0.2.1	X										X			
 reqsign@0.16.5	X													
+reqsign-aws-v4@2.0.1	X													
+reqsign-core@2.0.1	X													
+reqsign-file-read-tokio@2.0.1	X													
+reqsign-http-send-reqwest@2.0.1	X													
 reqwest@0.12.24	X										X			
 ring@0.17.14	X							X						
 rsa@0.9.9	X										X			
+rust-ini@0.21.3											X			
 rustc-hash@1.1.0	X										X			
 rustc-hash@2.1.1	X										X			
 rustc_version@0.4.1	X										X			
@@ -291,7 +299,7 @@ wit-bindgen@0.46.0	X	X									X
 writeable@0.6.2												X		
 yoke@0.8.1												X		
 yoke-derive@0.8.1												X		
-zerocopy@0.8.27	X		X								X			
+zerocopy@0.8.28	X		X								X			
 zerofrom@0.1.6												X		
 zerofrom-derive@0.1.6												X		
 zeroize@1.8.2	X										X			

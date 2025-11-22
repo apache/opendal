@@ -464,7 +464,7 @@ typedef struct opendal_async_operator {
   /**
    * Internal pointer to the Rust async Operator.
    */
-  Operator *inner;
+  void *inner;
 } opendal_async_operator;
 
 /**
@@ -771,14 +771,6 @@ typedef struct opendal_result_writer_write {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
-
-extern const enum opendal_future_status OPENDAL_FUTURE_PENDING;
-
-extern const enum opendal_future_status OPENDAL_FUTURE_READY;
-
-extern const enum opendal_future_status OPENDAL_FUTURE_ERROR;
-
-extern const enum opendal_future_status OPENDAL_FUTURE_CANCELED;
 
 /**
  * \brief Frees the opendal_error, ok to call on NULL
@@ -1511,6 +1503,11 @@ struct opendal_result_future_stat opendal_async_operator_stat(const struct opend
 
 struct opendal_result_stat opendal_future_stat_await(struct opendal_future_stat *future);
 
+enum opendal_future_status opendal_future_stat_poll(struct opendal_future_stat *future,
+                                                    struct opendal_result_stat *out);
+
+bool opendal_future_stat_is_ready(const struct opendal_future_stat *future);
+
 /**
  * \brief Cancel and free a stat future without awaiting it.
  */
@@ -1527,6 +1524,11 @@ struct opendal_result_future_read opendal_async_operator_read(const struct opend
 
 struct opendal_result_read opendal_future_read_await(struct opendal_future_read *future);
 
+enum opendal_future_status opendal_future_read_poll(struct opendal_future_read *future,
+                                                    struct opendal_result_read *out);
+
+bool opendal_future_read_is_ready(const struct opendal_future_read *future);
+
 /**
  * \brief Cancel and free a read future without awaiting it.
  */
@@ -1541,6 +1543,11 @@ struct opendal_result_future_write opendal_async_operator_write(const struct ope
 
 struct opendal_error *opendal_future_write_await(struct opendal_future_write *future);
 
+enum opendal_future_status opendal_future_write_poll(struct opendal_future_write *future,
+                                                     struct opendal_error **error_out);
+
+bool opendal_future_write_is_ready(const struct opendal_future_write *future);
+
 /**
  * \brief Cancel and free a write future without awaiting it.
  */
@@ -1553,6 +1560,11 @@ struct opendal_result_future_delete opendal_async_operator_delete(const struct o
                                                                   const char *path);
 
 struct opendal_error *opendal_future_delete_await(struct opendal_future_delete *future);
+
+enum opendal_future_status opendal_future_delete_poll(struct opendal_future_delete *future,
+                                                      struct opendal_error **error_out);
+
+bool opendal_future_delete_is_ready(const struct opendal_future_delete *future);
 
 /**
  * \brief Cancel and free a delete future without awaiting it.

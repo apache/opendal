@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::ffi::c_void;
 use std::os::raw::c_char;
 use std::str::FromStr;
 use tokio::sync::oneshot;
@@ -34,6 +35,7 @@ use crate::types::opendal_operator_options; // Keep this
 
 /// Status returned by non-blocking future polling.
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub enum opendal_future_status {
     /// Future is still pending.
     OPENDAL_FUTURE_PENDING = 0,
@@ -45,22 +47,9 @@ pub enum opendal_future_status {
     OPENDAL_FUTURE_CANCELED = 3,
 }
 
-#[no_mangle]
-pub static OPENDAL_FUTURE_PENDING: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_PENDING;
-#[no_mangle]
-pub static OPENDAL_FUTURE_READY: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_READY;
-#[no_mangle]
-pub static OPENDAL_FUTURE_ERROR: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_ERROR;
-#[no_mangle]
-pub static OPENDAL_FUTURE_CANCELED: opendal_future_status = opendal_future_status::OPENDAL_FUTURE_CANCELED;
-
 macro_rules! impl_poll_result {
-    ($fn_name:ident, $future_ty:ty, $out_ty:ty, $ok_ctor:expr, $err_ctor:expr) => {
-        #[no_mangle]
-        pub unsafe extern "C" fn $fn_name(
-            future: *mut $future_ty,
-            out: *mut $out_ty,
-        ) -> opendal_future_status {
+    ($fn_impl:ident, $future_ty:ty, $out_ty:ty, $ok_ctor:expr, $err_ctor:expr) => {
+        unsafe fn $fn_impl(future: *mut $future_ty, out: *mut $out_ty) -> opendal_future_status {
             if future.is_null() || out.is_null() {
                 return opendal_future_status::OPENDAL_FUTURE_ERROR;
             }
@@ -82,7 +71,7 @@ macro_rules! impl_poll_result {
                         let mut handle_box = Box::from_raw(future.handle);
                         future.handle = std::ptr::null_mut();
                         if let Some(handle) = (*handle_box).take() {
-                            let _ = handle;
+                            drop(handle);
                         }
                     }
 
@@ -96,7 +85,7 @@ macro_rules! impl_poll_result {
                         let mut handle_box = Box::from_raw(future.handle);
                         future.handle = std::ptr::null_mut();
                         if let Some(handle) = (*handle_box).take() {
-                            let _ = handle;
+                            drop(handle);
                         }
                     }
                     let out_ref = &mut *out;
@@ -114,9 +103,8 @@ macro_rules! impl_poll_result {
 }
 
 macro_rules! impl_poll_error_only {
-    ($fn_name:ident, $future_ty:ty) => {
-        #[no_mangle]
-        pub unsafe extern "C" fn $fn_name(
+    ($fn_impl:ident, $future_ty:ty) => {
+        unsafe fn $fn_impl(
             future: *mut $future_ty,
             error_out: *mut *mut opendal_error,
         ) -> opendal_future_status {
@@ -141,7 +129,7 @@ macro_rules! impl_poll_error_only {
                         let mut handle_box = Box::from_raw(future.handle);
                         future.handle = std::ptr::null_mut();
                         if let Some(handle) = (*handle_box).take() {
-                            let _ = handle;
+                            drop(handle);
                         }
                     }
                     *error_out = std::ptr::null_mut();
@@ -153,7 +141,7 @@ macro_rules! impl_poll_error_only {
                         let mut handle_box = Box::from_raw(future.handle);
                         future.handle = std::ptr::null_mut();
                         if let Some(handle) = (*handle_box).take() {
-                            let _ = handle;
+                            drop(handle);
                         }
                     }
                     *error_out = opendal_error::new(err);
@@ -170,9 +158,8 @@ macro_rules! impl_poll_error_only {
 }
 
 macro_rules! impl_is_ready_fn {
-    ($fn_name:ident, $future_ty:ty) => {
-        #[no_mangle]
-        pub unsafe extern "C" fn $fn_name(future: *const $future_ty) -> bool {
+    ($fn_impl:ident, $future_ty:ty) => {
+        unsafe fn $fn_impl(future: *const $future_ty) -> bool {
             if future.is_null() {
                 return false;
             }
@@ -222,13 +209,13 @@ macro_rules! impl_await_result {
                 }
             };
 
-            let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
+            let recv_result = crate::operator::RUNTIME.block_on(rx);
 
             if !future.handle.is_null() {
                 let mut handle_box = Box::from_raw(future.handle);
                 future.handle = std::ptr::null_mut();
                 if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
+                    drop(handle);
                 }
             }
 
@@ -275,13 +262,13 @@ macro_rules! impl_await_error_only {
                 }
             };
 
-            let recv_result = crate::operator::RUNTIME.block_on(async { rx.await });
+            let recv_result = crate::operator::RUNTIME.block_on(rx);
 
             if !future.handle.is_null() {
                 let mut handle_box = Box::from_raw(future.handle);
                 future.handle = std::ptr::null_mut();
                 if let Some(handle) = (*handle_box).take() {
-                    let _ = handle;
+                    drop(handle);
                 }
             }
 
@@ -386,7 +373,7 @@ unsafe impl Send for opendal_result_future_delete {}
 #[repr(C)]
 pub struct opendal_async_operator {
     /// Internal pointer to the Rust async Operator.
-    inner: *mut core::Operator,
+    inner: *mut c_void,
 }
 
 impl opendal_async_operator {
@@ -398,7 +385,7 @@ impl opendal_async_operator {
     /// and that the lifetime of the returned reference does not exceed the lifetime
     /// of the `opendal_async_operator`.
     pub(crate) unsafe fn as_ref(&self) -> &core::Operator {
-        &*self.inner
+        &*(self.inner as *mut core::Operator)
     }
 }
 
@@ -459,7 +446,7 @@ pub unsafe extern "C" fn opendal_async_operator_new(
             op = op.layer(core::layers::RetryLayer::new());
 
             let async_op = Box::into_raw(Box::new(opendal_async_operator {
-                inner: Box::into_raw(Box::new(op)),
+                inner: Box::into_raw(Box::new(op)) as *mut c_void,
             }));
 
             // We reuse opendal_result_operator_new, but the `op` field now points
@@ -486,7 +473,7 @@ pub unsafe extern "C" fn opendal_async_operator_new(
 pub unsafe extern "C" fn opendal_async_operator_free(op: *const opendal_async_operator) {
     if !op.is_null() {
         // Drop the inner Operator
-        drop(Box::from_raw((*op).inner));
+        drop(Box::from_raw((*op).inner as *mut core::Operator));
         // Drop the container struct itself
         drop(Box::from_raw(op as *mut opendal_async_operator));
     }
@@ -583,7 +570,7 @@ pub unsafe extern "C" fn opendal_future_stat_await(
 }
 
 impl_poll_result!(
-    opendal_future_stat_poll,
+    opendal_future_stat_poll_impl,
     opendal_future_stat,
     opendal_result_stat,
     |metadata| opendal_result_stat {
@@ -596,7 +583,20 @@ impl_poll_result!(
     }
 );
 
-impl_is_ready_fn!(opendal_future_stat_is_ready, opendal_future_stat);
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_stat_poll(
+    future: *mut opendal_future_stat,
+    out: *mut opendal_result_stat,
+) -> opendal_future_status {
+    opendal_future_stat_poll_impl(future, out)
+}
+
+impl_is_ready_fn!(opendal_future_stat_is_ready_impl, opendal_future_stat);
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_stat_is_ready(future: *const opendal_future_stat) -> bool {
+    opendal_future_stat_is_ready_impl(future)
+}
 
 /// \brief Cancel and free a stat future without awaiting it.
 #[no_mangle]
@@ -702,7 +702,7 @@ pub unsafe extern "C" fn opendal_future_read_await(
 }
 
 impl_poll_result!(
-    opendal_future_read_poll,
+    opendal_future_read_poll_impl,
     opendal_future_read,
     opendal_result_read,
     |buffer| opendal_result_read {
@@ -715,7 +715,20 @@ impl_poll_result!(
     }
 );
 
-impl_is_ready_fn!(opendal_future_read_is_ready, opendal_future_read);
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_read_poll(
+    future: *mut opendal_future_read,
+    out: *mut opendal_result_read,
+) -> opendal_future_status {
+    opendal_future_read_poll_impl(future, out)
+}
+
+impl_is_ready_fn!(opendal_future_read_is_ready_impl, opendal_future_read);
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_read_is_ready(future: *const opendal_future_read) -> bool {
+    opendal_future_read_is_ready_impl(future)
+}
 
 /// \brief Cancel and free a read future without awaiting it.
 #[no_mangle]
@@ -816,9 +829,24 @@ pub unsafe extern "C" fn opendal_future_write_await(
     opendal_future_write_await_impl(future)
 }
 
-impl_poll_error_only!(opendal_future_write_poll, opendal_future_write);
+impl_poll_error_only!(opendal_future_write_poll_impl, opendal_future_write);
 
-impl_is_ready_fn!(opendal_future_write_is_ready, opendal_future_write);
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_write_poll(
+    future: *mut opendal_future_write,
+    error_out: *mut *mut opendal_error,
+) -> opendal_future_status {
+    opendal_future_write_poll_impl(future, error_out)
+}
+
+impl_is_ready_fn!(opendal_future_write_is_ready_impl, opendal_future_write);
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_write_is_ready(
+    future: *const opendal_future_write,
+) -> bool {
+    opendal_future_write_is_ready_impl(future)
+}
 
 /// \brief Cancel and free a write future without awaiting it.
 #[no_mangle]
@@ -908,9 +936,24 @@ pub unsafe extern "C" fn opendal_future_delete_await(
     opendal_future_delete_await_impl(future)
 }
 
-impl_poll_error_only!(opendal_future_delete_poll, opendal_future_delete);
+impl_poll_error_only!(opendal_future_delete_poll_impl, opendal_future_delete);
 
-impl_is_ready_fn!(opendal_future_delete_is_ready, opendal_future_delete);
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_delete_poll(
+    future: *mut opendal_future_delete,
+    error_out: *mut *mut opendal_error,
+) -> opendal_future_status {
+    opendal_future_delete_poll_impl(future, error_out)
+}
+
+impl_is_ready_fn!(opendal_future_delete_is_ready_impl, opendal_future_delete);
+
+#[no_mangle]
+pub unsafe extern "C" fn opendal_future_delete_is_ready(
+    future: *const opendal_future_delete,
+) -> bool {
+    opendal_future_delete_is_ready_impl(future)
+}
 
 /// \brief Cancel and free a delete future without awaiting it.
 #[no_mangle]

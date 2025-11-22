@@ -124,13 +124,15 @@ int main(void)
     const opendal_async_operator* op = (const opendal_async_operator*)r.op;
 
     const char* msg = "hello poll";
-    opendal_bytes data = {.data = (uint8_t*)msg, .len = strlen(msg), .capacity = strlen(msg)};
+    opendal_bytes data = { .data = (uint8_t*)msg, .len = strlen(msg), .capacity = strlen(msg) };
     opendal_result_future_write wf = opendal_async_operator_write(op, "poll.txt", &data);
     opendal_error* werr = opendal_future_write_await(wf.future);
-    if (werr) { opendal_error_free(werr); }
+    if (werr) {
+        opendal_error_free(werr);
+    }
 
     opendal_result_future_read rf = opendal_async_operator_read(op, "poll.txt");
-    opendal_result_read rd = {0};
+    opendal_result_read rd = { 0 };
     while (1) {
         opendal_future_status st = opendal_future_read_poll(rf.future, &rd);
         if (st == OPENDAL_FUTURE_PENDING) {
@@ -152,7 +154,8 @@ int main(void)
 
     opendal_result_future_delete df = opendal_async_operator_delete(op, "poll.txt");
     opendal_error* derr = opendal_future_delete_await(df.future);
-    if (derr) opendal_error_free(derr);
+    if (derr)
+        opendal_error_free(derr);
 
     opendal_async_operator_free(op);
 

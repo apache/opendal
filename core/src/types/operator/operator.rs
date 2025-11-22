@@ -849,29 +849,7 @@ impl Operator {
         }
 
         let (args, opts) = opts.into();
-        
-        // If chunk is configured and buffer exceeds chunk size, split into chunks.
-        // This ensures WriteGenerator receives properly sized chunks instead of
-        // writing everything at once in non-exact mode.
-        if opts.chunk().is_some() {
-            let context = WriteContext::new(acc.clone(), path.clone(), args.clone(), opts.clone());
-            let (actual_chunk_size, _) = context.calculate_chunk_size();
-            
-            if let Some(chunk_size) = actual_chunk_size {
-                if bs.len() > chunk_size {
-                    let mut w = Writer::new(context).await?;
-                    let mut offset = 0;
-                    while offset < bs.len() {
-                        let end = (offset + chunk_size).min(bs.len());
-                        let chunk = bs.slice(offset..end);
-                        w.write(chunk).await?;
-                        offset = end;
-                    }
-                    return w.close().await;
-                }
-            }
-        }
-        
+
         let context = WriteContext::new(acc, path, args, opts);
         let mut w = Writer::new(context).await?;
         w.write(bs).await?;

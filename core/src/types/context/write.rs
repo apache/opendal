@@ -549,7 +549,7 @@ mod tests {
         }
 
         // Verify we got the expected number of writes
-        let expected_writes = (large_buffer_size + chunk_size - 1) / chunk_size; // ceil division
+        let expected_writes = large_buffer_size.div_ceil(chunk_size);
         assert_eq!(
             write_sizes.len(),
             expected_writes,

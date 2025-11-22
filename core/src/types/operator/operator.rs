@@ -849,6 +849,7 @@ impl Operator {
         }
 
         let (args, opts) = opts.into();
+
         let context = WriteContext::new(acc, path, args, opts);
         let mut w = Writer::new(context).await?;
         w.write(bs).await?;

@@ -1,0 +1,92 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Read Returns Metadata"><title>opendal::docs::rfcs::rfc_5871_read_returns_metadata - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (be0ade2b6 2025-10-11)" data-channel="nightly" data-search-js="search-8d3311b9.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js"><script src="../../../../static.files/storage-e2aeef58.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module rfc_5871_read_returns_metadata</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.55.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module rfc_<wbr>5871_<wbr>read_<wbr>returns_<wbr>metadata</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#summary" title="Summary">Summary</a></li><li><a href="#motivation" title="Motivation">Motivation</a></li><li><a href="#guide-level-explanation" title="Guide-level explanation">Guide-level explanation</a></li><li><a href="#reference-level-explanation" title="Reference-level explanation">Reference-level explanation</a><ul><li><a href="#changes-to-reader-api" title="Changes to `Reader` API">Changes to <code>Reader</code> API</a></li><li><a href="#changes-to-struct-rawrpread" title="Changes to struct `raw::RpRead`">Changes to struct <code>raw::RpRead</code></a></li><li><a href="#implementation-details" title="Implementation Details">Implementation Details</a></li></ul></li><li><a href="#drawbacks" title="Drawbacks">Drawbacks</a></li><li><a href="#rationale-and-alternatives" title="Rationale and alternatives">Rationale and alternatives</a></li><li><a href="#prior-art" title="Prior art">Prior art</a></li><li><a href="#unresolved-questions" title="Unresolved questions">Unresolved questions</a></li><li><a href="#future-possibilities" title="Future possibilities">Future possibilities</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>rfcs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">rfcs</a></div><h1>Module <span>rfc_<wbr>5871_<wbr>read_<wbr>returns_<wbr>metadata</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal/docs/rfcs/mod.rs.html#266">Source</a> </span></div><span class="item-info"><div class="stab portability">Available on <strong><code>docsrs</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Read Returns Metadata</p>
+<ul>
+<li>Proposal Name: <code>read_returns_metadata</code></li>
+<li>Start Date: 2025-03-24</li>
+<li>RFC PR: <a href="https://github.com/apache/opendal/pull/5871">apache/opendal#5871</a></li>
+<li>Tracking Issue: <a href="https://github.com/apache/opendal/issues/5872">apache/opendal#5872</a></li>
+</ul>
+<h2 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h2>
+<p>Enhance read operations by returning metadata along with data in read operations.</p>
+<h2 id="motivation"><a class="doc-anchor" href="#motivation">§</a>Motivation</h2>
+<p>Currently, read operations (<code>read</code>, <code>read_with</code>, <code>reader</code>, <code>reader_with</code>) only return the data content. Users who need metadata
+during reads (like <code>Content-Type</code>, <code>ETag</code>, <code>version_id</code>, etc.) must make an additional <code>stat()</code> call. This is inefficient and
+can lead to race conditions if the file is modified between the read and stat operations.</p>
+<p>Many storage services (like S3, GCS, Azure Blob) return metadata in their read responses. For example, S3’s GetObject API returns
+important metadata like <code>ContentType</code>, <code>ETag</code>, <code>VersionId</code>, <code>LastModified</code>, etc. We should expose this information to users
+directly during read operations.</p>
+<h2 id="guide-level-explanation"><a class="doc-anchor" href="#guide-level-explanation">§</a>Guide-level explanation</h2>
+<p>For <code>reader</code> API, we will introduce a new method <code>metadata()</code> that returns metadata:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Before
+</span><span class="kw">let </span>data = op.reader(<span class="string">"path/to/file"</span>).<span class="kw">await</span><span class="question-mark">?</span>.read(..).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>meta = op.stat(<span class="string">"path/to/file"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">if let </span><span class="prelude-val">Some</span>(etag) = meta.etag() {
+    <span class="macro">println!</span>(<span class="string">"ETag: {}"</span>, etag);
+}
+
+<span class="comment">// After
+</span><span class="kw">let </span>reader = op.reader(<span class="string">"path/to/file"</span>).<span class="kw">await</span><span class="question-mark">?</span>;
+<span class="kw">let </span>meta = reader.metadata();
+<span class="kw">if let </span><span class="prelude-val">Some</span>(etag) = meta.etag() {
+    <span class="macro">println!</span>(<span class="string">"ETag: {}"</span>, etag);
+}
+<span class="kw">let </span>data = reader.read(..).<span class="kw">await</span><span class="question-mark">?</span>;</code></pre></div>
+<p>The new API will be provided alongside existing functionality, allowing users to continue using current <code>reader</code> methods without modification.</p>
+<p>For backward compatibility and to minimize migration costs, We won’t change the existing <code>read</code> API. Anyone who wants
+to obtain metadata during reading can use the new reader operations instead.</p>
+<h2 id="reference-level-explanation"><a class="doc-anchor" href="#reference-level-explanation">§</a>Reference-level explanation</h2><h3 id="changes-to-reader-api"><a class="doc-anchor" href="#changes-to-reader-api">§</a>Changes to <code>Reader</code> API</h3>
+<p>The <code>impl Reader</code> will be modified to include a new function <code>metadata()</code> that returns metadata.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>Reader {
+    <span class="comment">// Existing fields...
+    
+    </span><span class="kw">fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Metadata {}
+}</code></pre></div><h3 id="changes-to-struct-rawrpread"><a class="doc-anchor" href="#changes-to-struct-rawrpread">§</a>Changes to struct <code>raw::RpRead</code></h3>
+<p>The <code>raw::RpRead</code> struct will be modified to include a new field <code>metadata</code> that stores the metadata returned by the read operation.
+Existing fields will be evaluated and potentially removed if they become redundant.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub struct </span>RpRead {
+    <span class="comment">// New field to store metadata 
+    </span>metadata: Metadata,
+}</code></pre></div><h3 id="implementation-details"><a class="doc-anchor" href="#implementation-details">§</a>Implementation Details</h3>
+<p>For services that return metadata in their read responses:</p>
+<ul>
+<li>The metadata will be captured from the service response.</li>
+<li>All available fields (content_type, etag, version_id, last_modified, etc.) will be populated</li>
+</ul>
+<p>For services that don’t return metadata in read responses:</p>
+<ul>
+<li>We’ll make an additional <code>stat</code> call to fetch the metadata and populate the <code>metadata</code> field in <code>raw::RpRead</code>.</li>
+</ul>
+<p>Special considerations:</p>
+<ul>
+<li>We should always return total object size in the metadata, even if it’s not part of the read response</li>
+<li>For range reads, the metadata should reflect the full object’s properties (like total size) rather than the range</li>
+<li>For versioned objects, the metadata should include version information if available</li>
+</ul>
+<h2 id="drawbacks"><a class="doc-anchor" href="#drawbacks">§</a>Drawbacks</h2>
+<ul>
+<li>Additional memory overhead for storing metadata during reads</li>
+<li>Potential complexity in handling metadata for range reads</li>
+</ul>
+<h2 id="rationale-and-alternatives"><a class="doc-anchor" href="#rationale-and-alternatives">§</a>Rationale and alternatives</h2>
+<ul>
+<li>Maintains full backward compatibility with existing read operations</li>
+<li>Improves performance by avoiding additional stat calls</li>
+<li>Aligns with common storage service APIs (S3, GCS, Azure)</li>
+</ul>
+<h2 id="prior-art"><a class="doc-anchor" href="#prior-art">§</a>Prior art</h2>
+<p>Similar patterns exist in other storage SDKs:</p>
+<ul>
+<li><code>object_store</code> crate returns metadata in <code>GetResult</code> after calling <code>get_opts</code></li>
+<li>AWS S3 SDK returns comprehensive metadata in <code>GetObjectOutput</code></li>
+<li>Azure Blob SDK returns properties and metadata in <code>DownloadResponse</code></li>
+</ul>
+<h2 id="unresolved-questions"><a class="doc-anchor" href="#unresolved-questions">§</a>Unresolved questions</h2>
+<p>None</p>
+<h2 id="future-possibilities"><a class="doc-anchor" href="#future-possibilities">§</a>Future possibilities</h2>
+<ul>
+<li>Once we return metadata during reader initialization, we can optimize <code>ReadContext::parse_into_range</code> by using the
+<code>content_length</code> from <code>metadata</code> directly, eliminating the need for an additional <code>stat</code> call</li>
+</ul>
+</div></details></section></div></main></body></html>

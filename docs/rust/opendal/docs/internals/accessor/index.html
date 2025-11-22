@@ -1,0 +1,234 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="The internal implementation details of `Access`."><title>opendal::docs::internals::accessor - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0-nightly (be0ade2b6 2025-10-11)" data-channel="nightly" data-search-js="search-8d3311b9.js" data-stringdex-js="stringdex-828709d0.js" data-settings-js="settings-c38705f0.js"><script src="../../../../static.files/storage-e2aeef58.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module accessor</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/external/71c0d8847d34b7f8ce3fd204c652c6f9.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.55.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module accessor</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#introduction" title="Introduction">Introduction</a><ul><li><a href="#trait-bound" title="Trait Bound">Trait Bound</a></li><li><a href="#associated-type" title="Associated Type">Associated Type</a></li><li><a href="#api-style" title="API Style">API Style</a></li></ul></li><li><a href="#tutorial" title="Tutorial">Tutorial</a><ul><li><a href="#scheme" title="Scheme">Scheme</a></li><li><a href="#builder" title="Builder">Builder</a></li><li><a href="#backend" title="Backend">Backend</a></li></ul></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>internals</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">internals</a></div><h1>Module <span>accessor</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../../../src/opendal/docs/internals/accessor.rs.html#18-303">Source</a> </span></div><span class="item-info"><div class="stab portability">Available on <strong><code>docsrs</code></strong> only.</div></span><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>The internal implementation details of <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a>.</p>
+<p><a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> is the core trait of OpenDAL’s raw API. We operate
+underlying storage services via APIs provided by <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a>.</p>
+<h2 id="introduction"><a class="doc-anchor" href="#introduction">§</a>Introduction</h2>
+<p><a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> can be split in the following parts:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="comment">//                  &lt;----------Trait Bound--------------&gt;
+</span><span class="kw">pub trait </span>Access: Send + Sync + Debug + Unpin + <span class="lifetime">'static </span>{
+    <span class="kw">type </span>Reader: oio::Read;                    <span class="comment">// --+
+    </span><span class="kw">type </span>Writer: oio::Write;                   <span class="comment">//   +--&gt; Associated Type
+    </span><span class="kw">type </span>Lister: oio::List;                    <span class="comment">//   +
+    </span><span class="kw">type </span>Deleter: oio::Delete;                 <span class="comment">// --+
+
+    // APIs
+    </span><span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt;;
+    <span class="kw">fn </span>create_dir(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        path: <span class="kw-2">&amp;</span>str,
+        args: OpCreateDir,
+    ) -&gt; <span class="kw">impl </span>core::future::Future&lt;Output = <span class="prelude-ty">Result</span>&lt;RpCreateDir&gt;&gt; + MaybeSend;
+}</code></pre></div>
+<p>Let’s go deep into <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> line by line.</p>
+<h3 id="trait-bound"><a class="doc-anchor" href="#trait-bound">§</a>Trait Bound</h3>
+<p>First we will read the declare of <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> trait:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub trait </span>Access: Send + Sync + Debug + Unpin + <span class="lifetime">'static </span>{}</code></pre></div>
+<p>There are many trait boundings here. For now, <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> requires the following bound:</p>
+<ul>
+<li><a href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send"><code>Send</code></a>: Allow user to send between threads without extra wrapper.</li>
+<li><a href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync"><code>Sync</code></a>: Allow user to sync between threads without extra lock.</li>
+<li><a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug"><code>Debug</code></a>: Allow users to print underlying debug information of accessor.</li>
+<li><a href="https://doc.rust-lang.org/nightly/core/marker/trait.Unpin.html" title="trait core::marker::Unpin"><code>Unpin</code></a>: Make sure <code>Access</code> can be safely moved after being pinned, so users don’t need to <code>Pin&lt;Box&lt;A&gt;&gt;</code>.</li>
+<li><code>'static</code>: Make sure <code>Access</code> is not a short-time reference, allow users to use <code>Access</code> in closures and futures without playing with lifetime.</li>
+</ul>
+<p>Implementer of <code>Access</code> should take care of the following things:</p>
+<ul>
+<li>Implement <code>Debug</code> for backend, but don’t leak credentials.</li>
+<li>Make sure the backend is <code>Send</code> and <code>Sync</code>, wrap the internal struct with <code>Arc&lt;Mutex&lt;T&gt;&gt;</code> if necessary.</li>
+</ul>
+<h3 id="associated-type"><a class="doc-anchor" href="#associated-type">§</a>Associated Type</h3>
+<p>The first block of <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> trait is our associated types. We
+require implementers to specify the type to be returned, thus avoiding
+the additional overhead of dynamic dispatch.</p>
+<p><a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> has four associated types so far:</p>
+<ul>
+<li><code>Reader</code>: reader returned by <code>read</code> operation.</li>
+<li><code>Writer</code>: writer returned by <code>write</code> operation.</li>
+<li><code>Lister</code>: lister returned by <code>list</code> operation.</li>
+<li><code>Deleter</code>: deleter returned by <code>delete</code> operation.</li>
+</ul>
+<p>Implementer of <code>Access</code> should take care the following things:</p>
+<ul>
+<li>OpenDAL will erase those type at the final stage of Operator building. Please don’t return dynamic trait object like <code>oio::Reader</code>.</li>
+<li>Use <code>()</code> as type if the operation is not supported.</li>
+</ul>
+<h3 id="api-style"><a class="doc-anchor" href="#api-style">§</a>API Style</h3>
+<p>Every API of <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> follows the same style:</p>
+<ul>
+<li>All APIs have a unique <a href="../../../raw/enum.Operation.html" title="enum opendal::raw::Operation"><code>Operation</code></a> and <a href="../../../struct.Capability.html" title="struct opendal::Capability"><code>Capability</code></a></li>
+<li>All APIs are orthogonal and do not overlap with each other</li>
+<li>Most APIs accept <code>path</code> and <code>OpXxx</code>, and returns <code>RpXxx</code>.</li>
+<li>Most APIs have <code>async</code> and <code>blocking</code> variants, they share the same semantics but may have different underlying implementations.</li>
+</ul>
+<p><a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> can declare their capabilities via <a href="../../../raw/struct.AccessorInfo.html" title="struct opendal::raw::AccessorInfo"><code>AccessorInfo</code></a>’s <code>set_native_capability</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>Access <span class="kw">for </span>MyBackend {
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
+        <span class="kw">let </span>am = AccessorInfo::default();
+        am.set_native_capability(
+            Capability {
+                read: <span class="bool-val">true</span>,
+                write: <span class="bool-val">true</span>,
+                ..Default::default()
+        });
+
+        am.into()
+    }
+}</code></pre></div>
+<p>Now that you have mastered <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a>, let’s go and implement our own backend!</p>
+<h2 id="tutorial"><a class="doc-anchor" href="#tutorial">§</a>Tutorial</h2>
+<p>This tutorial implements a <code>duck</code> storage service that sends API
+requests to a super-powered duck. Gagaga!</p>
+<h3 id="scheme"><a class="doc-anchor" href="#scheme">§</a>Scheme</h3>
+<p>First of all, let’s pick a good scheme for our duck service. The
+scheme should be unique and easy to understand. Normally we should
+use its formal name.</p>
+<p>For example, we will use <code>s3</code> for AWS S3 Compatible Storage Service
+instead of <code>aws</code> or <code>awss3</code>. This is because there are many storage
+vendors that provide s3-like RESTful APIs, and our s3 service is
+implemented to support all of them, not just AWS S3.</p>
+<p>Obviously, we can use <code>duck</code> as scheme, let’s add a new constant string:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">pub const </span>DUCK_SCHEME: <span class="kw-2">&amp;</span>str = <span class="string">"duck"</span>;</code></pre></div><h3 id="builder"><a class="doc-anchor" href="#builder">§</a>Builder</h3>
+<p>Then we can implement a builder for the duck service. The <a href="../../../trait.Builder.html" title="trait opendal::Builder"><code>Builder</code></a>
+will provide APIs for users to configure, and they will create an
+instance of a particular service.</p>
+<p>Let’s create a <code>backend</code> mod under <code>services/duck</code> directory, and adding the following code.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span><span class="kw">crate</span>::raw::<span class="kw-2">*</span>;
+<span class="kw">use crate</span>::<span class="kw-2">*</span>;
+
+<span class="doccomment">/// Duck Storage Service support. Gagaga!
+///
+/// # Capabilities
+///
+/// This service can be used to:
+///
+/// - [x] read
+/// - [ ] write
+/// - [ ] list
+/// - [ ] presign
+///
+/// # Configuration
+///
+/// - `root`: Set the work dir for backend.
+///
+/// ## Via Builder
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use anyhow::Result;
+/// use opendal::services::Duck;
+/// use opendal::Operator;
+///
+/// #[tokio::main]
+/// async fn main() -&gt; Result&lt;()&gt; {
+///     // Create Duck backend builder.
+///     let mut builder = DuckBuilder::default();
+///     // Set the root for duck, all operations will happen under this root.
+///     //
+///     // NOTE: the root must be absolute path.
+///     builder.root("/path/to/dir");
+///
+///     let op: Operator = Operator::new(builder)?.finish();
+///
+///     Ok(())
+/// }
+/// ```
+</span><span class="attr">#[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
+#[non_exhaustive]
+</span><span class="kw">pub struct </span>DuckConfig {
+    <span class="kw">pub </span>root: <span class="prelude-ty">Option</span>&lt;String&gt;,
+}
+
+<span class="attr">#[derive(Default, Clone)]
+</span><span class="kw">pub struct </span>DuckBuilder {
+    config: DuckConfig,
+}</code></pre></div>
+<p>Now let’s implement the required APIs for <code>DuckConfig</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>Configurator <span class="kw">for </span>DuckConfig {
+    <span class="kw">type </span>Builder = DuckBuilder;
+
+    <span class="kw">fn </span>into_builder(<span class="self">self</span>) -&gt; <span class="self">Self</span>::Builder {
+        DuckBuilder { config: <span class="self">self </span>}
+    }
+}</code></pre></div>
+<p>Note that <code>DuckBuilder</code> is part of our public API, so it needs to be
+documented. And any changes you make will directly affect users, so
+please take it seriously. Otherwise, you will be hunted down by many
+angry ducks.</p>
+<p>Then, we can implement required APIs for <code>DuckBuilder</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">impl </span>DuckBuilder {
+    <span class="doccomment">/// Set root of this backend.
+    ///
+    /// All operations will happen under this root.
+    </span><span class="kw">pub fn </span>root(<span class="kw-2">&amp;mut </span><span class="self">self</span>, root: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+        <span class="self">self</span>.config.root = <span class="kw">if </span>root.is_empty() {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(root.to_string())
+        };
+
+        <span class="self">self
+    </span>}
+}
+
+<span class="kw">impl </span>Builder <span class="kw">for </span>DuckBuilder {
+    <span class="kw">type </span>Config = DuckConfig;
+
+    <span class="kw">fn </span>build(<span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>Access&gt;  {
+        <span class="macro">debug!</span>(<span class="string">"backend build started: {:?}"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>);
+
+        <span class="kw">let </span>root = normalize_root(<span class="kw-2">&amp;</span><span class="self">self</span>.config.root.clone().unwrap_or_default());
+        <span class="macro">debug!</span>(<span class="string">"backend use root {}"</span>, <span class="kw-2">&amp;</span>root);
+
+        <span class="prelude-val">Ok</span>(DuckBackend { root })
+    }
+}</code></pre></div>
+<p><code>DuckBuilder</code> is ready now, let’s try to play with real ducks!</p>
+<h3 id="backend"><a class="doc-anchor" href="#backend">§</a>Backend</h3>
+<p>I’m sure you can see it already: <code>DuckBuilder</code> will build a
+<code>DuckBackend</code> that implements <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a>. The backend is what we used
+to communicate with the super-powered ducks!</p>
+<p>Let’s keep adding more code under <code>backend.rs</code>:</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="doccomment">/// Duck storage service backend
+</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>DuckBackend {
+    root: String,
+}
+
+<span class="kw">impl </span>Access <span class="kw">for </span>DuckBackend {
+    <span class="kw">type </span>Reader = DuckReader;
+    <span class="kw">type </span>Writer = ();
+    <span class="kw">type </span>Lister = ();
+    <span class="kw">type </span>Deleter = ();
+
+    <span class="kw">fn </span>info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;AccessorInfo&gt; {
+        <span class="kw">let </span>am = AccessorInfo::default();
+        am.set_scheme(DUCK_SCHEME)
+            .set_root(<span class="kw-2">&amp;</span><span class="self">self</span>.root)
+            .set_native_capability(
+                Capability {
+                    read: <span class="bool-val">true</span>,
+                    ..Default::default()
+            });
+
+        am.into()
+    }
+
+    <span class="kw">async fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str, args: OpRead) -&gt; <span class="prelude-ty">Result</span>&lt;(RpRead, <span class="self">Self</span>::Reader)&gt; {
+        <span class="macro">gagaga!</span>()
+    }
+}</code></pre></div>
+<p>Congratulations, we have implemented an <a href="../../../raw/trait.Access.html" title="trait opendal::raw::Access"><code>Access</code></a> that can talk to
+Super Power Ducks!</p>
+<p>What!? There are no Super Power Ducks? So sad, but never mind, we have
+really powerful storage services <a href="https://github.com/apache/opendal/issues/5">here</a>. Welcome to pick one to implement. I promise you won’t
+have to <code>gagaga!()</code> this time.</p>
+</div></details></section></div></main></body></html>

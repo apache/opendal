@@ -14,7 +14,7 @@ block-padding@0.3.3	X									X
 bumpalo@3.19.0	X									X		
 bytes@1.11.0										X		
 cbc@0.1.2	X									X		
-cc@1.2.46	X									X		
+cc@1.2.47	X									X		
 cfg-if@1.0.4	X									X		
 chrono@0.4.42	X									X		
 cipher@0.4.4	X									X		
@@ -234,7 +234,7 @@ wit-bindgen@0.46.0	X	X								X
 writeable@0.6.2											X	
 yoke@0.8.1											X	
 yoke-derive@0.8.1											X	
-zerocopy@0.8.27	X		X							X		
+zerocopy@0.8.28	X		X							X		
 zerofrom@0.1.6											X	
 zerofrom-derive@0.1.6											X	
 zeroize@1.8.2	X									X		

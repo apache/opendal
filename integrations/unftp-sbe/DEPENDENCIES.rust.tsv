@@ -8,21 +8,18 @@ asn1-rs-impl@0.2.0	X								X
 async-trait@0.1.89	X								X					
 atomic-waker@1.1.2	X								X					
 autocfg@1.5.0	X								X					
-aws-lc-rs@1.15.0	X						X							
-aws-lc-sys@0.33.0	X						X					X		
+aws-lc-rs@1.15.1	X						X							
+aws-lc-sys@0.34.0	X						X					X		
 backon@1.6.0	X													
 base64@0.22.1	X								X					
-bindgen@0.72.1			X											
 bitflags@2.10.0	X								X					
 block-buffer@0.10.4	X								X					
 bumpalo@3.19.0	X								X					
 bytes@1.11.0									X					
-cc@1.2.46	X								X					
-cexpr@0.6.0	X								X					
+cc@1.2.47	X								X					
 cfg-if@1.0.4	X								X					
 cfg_aliases@0.2.1									X					
 chrono@0.4.42	X								X					
-clang-sys@1.8.1	X													
 cmake@0.1.54	X								X					
 const-oid@0.9.6	X								X					
 const-random@0.1.18	X								X					
@@ -46,7 +43,6 @@ displaydoc@0.2.5	X								X
 dlv-list@0.5.2	X								X					
 doc-comment@0.3.4									X					
 dunce@1.0.5	X				X					X				
-either@1.15.0	X								X					
 equivalent@1.0.2	X								X					
 erased-serde@0.3.31	X								X					
 fastrand@2.3.0	X								X					
@@ -65,7 +61,6 @@ futures-util@0.3.31	X								X
 generic-array@0.14.7									X					
 getrandom@0.2.16	X								X					
 getrandom@0.3.4	X								X					
-glob@0.3.3	X								X					
 gloo-timers@0.3.0	X								X					
 hashbrown@0.14.5	X								X					
 hex@0.4.3	X								X					
@@ -90,7 +85,6 @@ idna@1.1.0	X								X
 idna_adapter@1.2.1	X								X					
 ipnet@2.11.0	X								X					
 iri-string@0.7.9	X								X					
-itertools@0.13.0	X								X					
 itoa@1.0.15	X								X					
 jiff@0.2.16									X					X
 jiff-tzdb@0.1.4									X					X
@@ -99,7 +93,6 @@ jobserver@0.1.34	X								X
 js-sys@0.3.82	X								X					
 lazy_static@1.5.0	X								X					
 libc@0.2.177	X								X					
-libloading@0.8.9							X							
 libunftp@0.21.0	X													
 litemap@0.8.1													X	
 lock_api@0.4.14	X								X					
@@ -128,7 +121,6 @@ portable-atomic@1.11.1	X								X
 portable-atomic-util@0.2.4	X								X					
 potential_utf@0.1.4													X	
 powerfmt@0.2.0	X								X					
-prettyplease@0.2.37	X								X					
 proc-macro2@1.0.103	X								X					
 prometheus@0.14.0	X													
 proxy-protocol@0.5.0	X								X					
@@ -136,9 +128,6 @@ quick-xml@0.38.4									X
 quote@1.0.42	X								X					
 r-efi@5.3.0	X							X	X					
 redox_syscall@0.5.18									X					
-regex@1.12.2	X								X					
-regex-automata@0.4.13	X								X					
-regex-syntax@0.8.8	X								X					
 reqsign-aws-v4@2.0.1	X													
 reqsign-core@2.0.1	X													
 reqsign-file-read-tokio@2.0.1	X													
@@ -146,7 +135,6 @@ reqsign-http-send-reqwest@2.0.1	X
 reqwest@0.12.24	X								X					
 ring@0.17.14	X						X							
 rust-ini@0.21.3									X					
-rustc-hash@2.1.1	X								X					
 rustc_version@0.4.1	X								X					
 rusticata-macros@4.1.0	X								X					
 rustls@0.23.35	X						X		X					

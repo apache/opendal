@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use ::opendal as od;
@@ -46,10 +45,10 @@ impl UserData for ODMetadata {}
 
 fn operator_new<'a>(
     lua: &'a Lua,
-    (schema, option): (String, LuaTable<'a>),
+    (scheme, option): (String, LuaTable<'a>),
 ) -> LuaResult<LuaTable<'a>> {
-    if schema.is_empty() {
-        return Err(LuaError::external("schema is empty"));
+    if scheme.is_empty() {
+        return Err(LuaError::external("scheme is empty"));
     }
 
     let mut map = HashMap::<String, String>::default();
@@ -58,12 +57,7 @@ fn operator_new<'a>(
         map.insert(key, value);
     }
 
-    let od_schema = match od::Scheme::from_str(&schema) {
-        Ok(s) => s,
-        Err(e) => return Err(LuaError::external(e)),
-    };
-
-    let op = match od::Operator::via_iter(od_schema, map) {
+    let op = match od::Operator::via_iter(scheme, map) {
         Ok(o) => o,
         Err(e) => return Err(LuaError::external(e)),
     };

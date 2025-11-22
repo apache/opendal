@@ -97,7 +97,9 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 	test := os.Getenv("OPENDAL_TEST")
 	var scheme opendal.Scheme
 	for _, s := range schemes {
-		if s.Name() != test {
+		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
+		normalizedSchemeName := strings.ReplaceAll(test, "_", "-")
+		if s.Name() != test && s.Name() != normalizedSchemeName {
 			continue
 		}
 		err = s.LoadOnce()

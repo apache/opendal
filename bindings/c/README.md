@@ -128,31 +128,64 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 ## Async APIs
 
-The C binding also exposes a small asynchronous API surface, mirroring Rust's `async` operator. Each async call returns a future handle that you can await or cancel.
+OpenDAL’s C binding mirrors the Rust async operator, but keeps all runtime management on the Rust side so C callers never need to embed Tokio. The design is intentionally future/await centric:
 
-- Create an async operator with `opendal_async_operator_new` (cast the returned `op` field to `opendal_async_operator`).
-- Start operations with `opendal_async_operator_stat`, `opendal_async_operator_write`, `opendal_async_operator_read`, and `opendal_async_operator_delete`.
-- Await results using the matching `opendal_future_*_await` helpers, or abort early with `opendal_future_*_free`.
-- For non-blocking event-loop style, poll with `opendal_future_*_poll` which returns `opendal_future_status` (`PENDING`, `READY`, `ERROR`, `CANCELED`) without blocking the thread; call `*_await` once `READY` to consume the result, or keep polling.
+- `opendal_async_operator_new` builds an async operator that internally holds a clone of the core `Operator` plus a handle to OpenDAL’s shared Tokio runtime.
+- Each async method (`*_stat`, `*_write`, `*_read`, `*_delete`) immediately returns an opaque `opendal_future_*` handle. Creating the future is non-blocking—the runtime schedules the real work on its thread pool.
+- You stay in control of when to pull the result. Call `opendal_future_*_await` to block the current thread until the operation finishes, or `opendal_future_*_poll` to integrate with your own event loop without blocking.
+- If you abandon an operation, call `opendal_future_*_free` to cancel it. This aborts the underlying task and drops any pending output safely.
+
+Because futures carry ownership of the eventual metadata/error objects, the `*_await` helpers always transfer heap allocations using the same conventions as the blocking API (free metadata with `opendal_metadata_free`, free errors with `opendal_error_free`, etc.).
+
+### Usage example
+
+Below is a full async stat sequence that starts the request, performs other work, then awaits the result. The same pattern applies to read/write/delete by swapping the function names.
 
 ```c
-opendal_result_operator_new res = opendal_async_operator_new("memory", NULL);
-const opendal_async_operator* op = (const opendal_async_operator*)res.op;
+#include "opendal.h"
+#include <stdio.h>
+#include <unistd.h>
 
-opendal_bytes data = { .data = (uint8_t*)"hello", .len = 5, .capacity = 5 };
-opendal_error* write_err = opendal_future_write_await(
-    opendal_async_operator_write(op, "hello.txt", &data).future);
+static void sleep_ms(unsigned int ms) { usleep(ms * 1000); }
 
-opendal_result_read read_out = opendal_future_read_await(
-    opendal_async_operator_read(op, "hello.txt").future);
-printf("read %zu bytes: %.*s\n", read_out.data.len, (int)read_out.data.len, read_out.data.data);
-opendal_bytes_free(&read_out.data);
+int main(void) {
+    opendal_result_operator_new res = opendal_async_operator_new("memory", NULL);
+    if (res.error) {
+        fprintf(stderr, "create async op failed: %d\n", res.error->code);
+        opendal_error_free(res.error);
+        return 1;
+    }
+    const opendal_async_operator* op = (const opendal_async_operator*)res.op;
 
-opendal_future_delete_await(opendal_async_operator_delete(op, "hello.txt").future);
-opendal_async_operator_free(op);
+    opendal_result_future_stat fut = opendal_async_operator_stat(op, "missing.txt");
+    if (fut.error) {
+        fprintf(stderr, "stat future failed: %d\n", fut.error->code);
+        opendal_error_free(fut.error);
+        opendal_async_operator_free(op);
+        return 1;
+    }
+
+    printf("stat scheduled, doing other work...\n");
+    sleep_ms(500); // keep UI/event loop responsive while I/O runs
+
+    opendal_result_stat out = opendal_future_stat_await(fut.future);
+    if (out.error) {
+        printf("stat failed as expected: %d\n", out.error->code);
+        opendal_error_free(out.error);
+    } else {
+        printf("stat succeeded, size=%llu\n",
+               (unsigned long long)opendal_metadata_content_length(out.meta));
+        opendal_metadata_free(out.meta);
+    }
+
+    opendal_async_operator_free(op);
+    return 0;
+}
 ```
 
-See `tests/async_stat_test.cpp` for more complete usage with GoogleTest.
+Need non-blocking integration with your own loop? Call `opendal_future_stat_poll(fut.future, &out)` inside your loop. It returns `OPENDAL_FUTURE_PENDING` until the result is ready; once it reports `OPENDAL_FUTURE_READY`, call `opendal_future_stat_await` exactly once to consume the output.
+
+See `examples/async_stat.c` for a narrated walkthrough and `tests/async_stat_test.cpp` for GoogleTest-based assertions that cover both success and error paths.
 
 ## Documentation
 

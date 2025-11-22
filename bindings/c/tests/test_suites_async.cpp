@@ -43,7 +43,8 @@ static void poll_until_ready(opendal_future_status (*poll_fn)(void*, void*),
 
 static void test_async_stat_await(opendal_test_context* ctx)
 {
-    opendal_result_operator_new async_res = opendal_async_operator_new(ctx->config->scheme, ctx->config->options);
+    opendal_result_operator_new async_res =
+        opendal_async_operator_from_operator(ctx->config->operator_instance);
     OPENDAL_ASSERT_NO_ERROR(async_res.error, "Async operator creation should succeed");
     OPENDAL_ASSERT_NOT_NULL(async_res.op, "Async operator pointer must not be NULL");
     const opendal_async_operator* async_op = (const opendal_async_operator*)async_res.op;
@@ -105,7 +106,8 @@ static opendal_future_status poll_stat_ready(struct opendal_future_stat* future,
 
 static void test_async_stat_poll_not_found(opendal_test_context* ctx)
 {
-    opendal_result_operator_new async_res = opendal_async_operator_new(ctx->config->scheme, ctx->config->options);
+    opendal_result_operator_new async_res =
+        opendal_async_operator_from_operator(ctx->config->operator_instance);
     OPENDAL_ASSERT_NO_ERROR(async_res.error, "Async operator creation should succeed");
     OPENDAL_ASSERT_NOT_NULL(async_res.op, "Async operator pointer must not be NULL");
     const opendal_async_operator* async_op = (const opendal_async_operator*)async_res.op;
@@ -141,7 +143,8 @@ static opendal_future_status poll_write_ready(struct opendal_future_write* futur
 
 static void test_async_read_write_poll(opendal_test_context* ctx)
 {
-    opendal_result_operator_new async_res = opendal_async_operator_new(ctx->config->scheme, ctx->config->options);
+    opendal_result_operator_new async_res =
+        opendal_async_operator_from_operator(ctx->config->operator_instance);
     OPENDAL_ASSERT_NO_ERROR(async_res.error, "Async operator creation should succeed");
     OPENDAL_ASSERT_NOT_NULL(async_res.op, "Async operator pointer must not be NULL");
     const opendal_async_operator* async_op = (const opendal_async_operator*)async_res.op;

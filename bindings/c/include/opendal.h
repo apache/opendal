@@ -254,6 +254,10 @@ typedef struct opendal_operator {
    * Only touch this on judging whether it is NULL.
    */
   void *inner;
+  /**
+   * Shared async operator handle for reuse (Arc clone internally).
+   */
+  void *async_inner;
 } opendal_operator;
 
 /**
@@ -1473,6 +1477,11 @@ struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
  */
 struct opendal_result_operator_new opendal_async_operator_new(const char *scheme,
                                                               const struct opendal_operator_options *options);
+
+/**
+ * \brief Creates an asynchronous operator that shares the same backend as an existing blocking operator.
+ */
+struct opendal_result_operator_new opendal_async_operator_from_operator(const struct opendal_operator *op);
 
 /**
  * \brief Frees an asynchronous OpenDAL Operator.

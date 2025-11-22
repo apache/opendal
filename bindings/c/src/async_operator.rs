@@ -463,6 +463,32 @@ pub unsafe extern "C" fn opendal_async_operator_new(
     }
 }
 
+/// \brief Creates an asynchronous operator that shares the same backend as an existing blocking operator.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_async_operator_from_operator(
+    op: *const opendal_operator,
+) -> opendal_result_operator_new {
+    if op.is_null() {
+        return opendal_result_operator_new {
+            op: std::ptr::null_mut(),
+            error: opendal_error::new(core::Error::new(
+                core::ErrorKind::Unexpected,
+                "opendal_operator is null",
+            )),
+        };
+    }
+
+    let base = (*op).async_ref().clone();
+    let async_op = Box::into_raw(Box::new(opendal_async_operator {
+        inner: Box::into_raw(Box::new(base)) as *mut c_void,
+    }));
+
+    opendal_result_operator_new {
+        op: async_op as *mut opendal_operator,
+        error: std::ptr::null_mut(),
+    }
+}
+
 /// \brief Frees an asynchronous OpenDAL Operator.
 ///
 /// # Safety

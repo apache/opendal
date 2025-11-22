@@ -30,7 +30,6 @@ opendal_test_config* opendal_test_config_new()
     opendal_test_config* config = (opendal_test_config*)malloc(sizeof(opendal_test_config));
     if (!config)
         return NULL;
-
     // Read environment variables for configuration
     const char* scheme = getenv("OPENDAL_TEST");
     if (!scheme) {

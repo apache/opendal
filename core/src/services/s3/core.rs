@@ -264,7 +264,7 @@ impl S3Core {
         checksum: &str,
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
-            req = req.header(checksum_algorithm.to_header_name(), checksum);
+            req = req.header(checksum_algorithm.header_name(), checksum);
         }
         req
     }
@@ -1240,7 +1240,7 @@ impl ChecksumAlgorithm {
             Self::Md5 => format_content_md5_iter(body.clone()),
         }
     }
-    pub fn to_header_name(&self) -> HeaderName {
+    pub fn header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
             Self::Crc64Nvme => HeaderName::from_static("x-amz-checksum-crc64nvme"),

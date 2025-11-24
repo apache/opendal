@@ -16,7 +16,6 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use ::opendal as od;
@@ -39,8 +38,7 @@ pub struct Operator(od::blocking::Operator);
 
 #[php_impl(rename_methods = "none")]
 impl Operator {
-    pub fn __construct(scheme_str: String, config: HashMap<String, String>) -> PhpResult<Self> {
-        let scheme = od::Scheme::from_str(&scheme_str).map_err(format_php_err)?;
+    pub fn __construct(scheme: String, config: HashMap<String, String>) -> PhpResult<Self> {
         let op = od::Operator::via_iter(scheme, config).map_err(format_php_err)?;
 
         let handle = RUNTIME.handle();

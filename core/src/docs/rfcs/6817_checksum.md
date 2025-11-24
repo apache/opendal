@@ -77,7 +77,9 @@ use opendal::{ChecksumAlgo, Operator, Result};
 async fn main() -> Result<()> {
     let mut builder = services::Memory::default();
 
-    // Prefer CRC64-NVMe, fall back to Sha256. Enforce=true: if backend lacks support, compute locally; any mismatch errors out.
+    // Prefer CRC64-NVMe, fall back to Sha256. 
+    // Enforce=true: if backend lacks support, compute locally; 
+    // any mismatch errors out.
     let op = Operator::new(builder)?
         .layer(ChecksumLayer::new().preferred(vec![ChecksumAlgo::Crc64Nvme, ChecksumAlgo::Sha256]).enforce(true))
         .finish();

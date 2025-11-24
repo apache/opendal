@@ -224,7 +224,7 @@ impl ConcurrentLimitLayer {
     #[napi]
     pub fn build(&self) -> External<Layer> {
         let permits = self.permits;
-        let mut l = opendal::layers::ConcurrentLimitLayer::new(permits as usize);
+        let mut l = opendal::layers::ConcurrentLimitLayer::with_permits(permits as usize);
 
         if let Some(http_permits) = self.http_permits {
             l = l.with_http_concurrent_limit(http_permits as usize);

@@ -25,6 +25,7 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Bytes;
 use constants::X_AMZ_META_PREFIX;
+use crc_fast::{CrcAlgorithm, Digest};
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -254,16 +255,8 @@ impl S3Core {
         req
     }
     pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
-        match self.checksum_algorithm {
-            None => None,
-            Some(ChecksumAlgorithm::Crc32c) => {
-                let mut crc = 0u32;
-                body.clone()
-                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
-                Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
-            }
-            Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
-        }
+        self.checksum_algorithm
+            .map(|algorithm| algorithm.calculate(body))
     }
     pub fn insert_checksum_header(
         &self,
@@ -1079,6 +1072,8 @@ pub struct CompleteMultipartUploadRequestPart {
     pub etag: String,
     #[serde(rename = "ChecksumCRC32C", skip_serializing_if = "Option::is_none")]
     pub checksum_crc32c: Option<String>,
+    #[serde(rename = "ChecksumCRC64NVME", skip_serializing_if = "Option::is_none")]
+    pub checksum_crc64nvme: Option<String>,
 }
 
 /// Output of `CompleteMultipartUpload` operation
@@ -1220,15 +1215,35 @@ pub struct ListObjectVersionsOutputDeleteMarker {
     pub last_modified: String,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChecksumAlgorithm {
     Crc32c,
+    Crc64Nvme,
     /// Mapping to the `Content-MD5` header from S3.
     Md5,
 }
 impl ChecksumAlgorithm {
+    pub fn calculate(&self, body: &Buffer) -> String {
+        match self {
+            Self::Crc32c => {
+                let mut crc = 0u32;
+                body.clone()
+                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
+                BASE64_STANDARD.encode(crc.to_be_bytes())
+            }
+            Self::Crc64Nvme => {
+                let mut digest = Digest::new(CrcAlgorithm::Crc64Nvme);
+                body.clone().for_each(|b| digest.update(&b));
+                let checksum = digest.finalize();
+                BASE64_STANDARD.encode(checksum.to_be_bytes())
+            }
+            Self::Md5 => format_content_md5_iter(body.clone()),
+        }
+    }
     pub fn to_header_name(&self) -> HeaderName {
         match self {
             Self::Crc32c => HeaderName::from_static("x-amz-checksum-crc32c"),
+            Self::Crc64Nvme => HeaderName::from_static("x-amz-checksum-crc64nvme"),
             Self::Md5 => HeaderName::from_static("content-md5"),
         }
     }
@@ -1240,6 +1255,7 @@ impl Display for ChecksumAlgorithm {
             "{}",
             match self {
                 Self::Crc32c => "CRC32C",
+                Self::Crc64Nvme => "CRC64NVME",
                 Self::Md5 => "MD5",
             }
         )
@@ -1252,6 +1268,14 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_calculate_crc64nvme_checksum() {
+        let body = Buffer::from("123456789");
+        let checksum = ChecksumAlgorithm::Crc64Nvme.calculate(&body);
+
+        assert_eq!(checksum, "rosUhgp5mIg=");
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

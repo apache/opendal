@@ -560,6 +560,7 @@ impl S3Builder {
     ///
     /// Available options:
     /// - "crc32c"
+    /// - "crc64nvme"
     pub fn checksum_algorithm(mut self, checksum_algorithm: &str) -> Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 
@@ -770,6 +771,7 @@ impl Builder for S3Builder {
 
         let checksum_algorithm = match config.checksum_algorithm.as_deref() {
             Some("crc32c") => Some(ChecksumAlgorithm::Crc32c),
+            Some("crc64nvme") => Some(ChecksumAlgorithm::Crc64Nvme),
             Some("md5") => Some(ChecksumAlgorithm::Md5),
             None => None,
             v => {

@@ -167,6 +167,13 @@ impl oio::MultipartWrite for S3Writer {
                         part_number: p.part_number,
                         etag: p.etag.clone(),
                         checksum_crc32c: p.checksum.clone(),
+                        ..Default::default()
+                    },
+                    ChecksumAlgorithm::Crc64Nvme => CompleteMultipartUploadRequestPart {
+                        part_number: p.part_number,
+                        etag: p.etag.clone(),
+                        checksum_crc64nvme: p.checksum.clone(),
+                        ..Default::default()
                     },
                     ChecksumAlgorithm::Md5 => CompleteMultipartUploadRequestPart {
                         part_number: p.part_number,

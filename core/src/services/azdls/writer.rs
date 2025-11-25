@@ -32,25 +32,18 @@ pub type AzdlsWriters = TwoWays<oio::PositionWriter<AzdlsWriter>, oio::AppendWri
 #[derive(Clone)]
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
-    op: OpWrite,
     path: String,
 }
 
 impl AzdlsWriter {
-    pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
-        Self { core, op, path }
-    }
-
-    async fn ensure_created(&self) -> Result<()> {
-        let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
-
+    pub async fn create(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Result<Self> {
+        let resp = core.azdls_create(&path, FILE, &op).await?;
         match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => Ok(()),
-            StatusCode::CONFLICT => {
-                Err(parse_error(resp).with_operation("Backend::azdls_create_request"))
-            }
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
+            StatusCode::CREATED | StatusCode::OK => {}
+            _ => return Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
         }
+
+        Ok(Self { core, path })
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -74,10 +67,6 @@ impl AzdlsWriter {
 
 impl oio::PositionWrite for AzdlsWriter {
     async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
-        if offset == 0 {
-            self.ensure_created().await?;
-        }
-
         let size = buf.len() as u64;
         let resp = self
             .core
@@ -123,10 +112,6 @@ impl oio::AppendWrite for AzdlsWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        if offset == 0 {
-            self.ensure_created().await?;
-        }
-
         // append + flush in a single request to minimize roundtrips for append mode.
         let resp = self
             .core

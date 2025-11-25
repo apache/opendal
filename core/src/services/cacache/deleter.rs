@@ -17,10 +17,9 @@
 
 use std::sync::Arc;
 
+use super::core::CacacheCore;
 use crate::raw::*;
 use crate::*;
-
-use super::core::CacacheCore;
 
 pub struct CacacheDeleter {
     core: Arc<CacacheCore>,

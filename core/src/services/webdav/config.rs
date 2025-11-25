@@ -102,13 +102,10 @@ mod tests {
 
     #[test]
     fn from_uri_ignores_endpoint_override() {
-        let uri = OperatorUri::new(
-            "webdav://dav.internal/data",
-            vec![(
-                "endpoint".to_string(),
-                "http://dav.internal:8080".to_string(),
-            )],
-        )
+        let uri = OperatorUri::new("webdav://dav.internal/data", vec![(
+            "endpoint".to_string(),
+            "http://dav.internal:8080".to_string(),
+        )])
         .unwrap();
 
         let cfg = WebdavConfig::from_uri(&uri).unwrap();
@@ -117,10 +114,10 @@ mod tests {
 
     #[test]
     fn from_uri_propagates_disable_copy() {
-        let uri = OperatorUri::new(
-            "webdav://dav.example.com",
-            vec![("disable_copy".to_string(), "true".to_string())],
-        )
+        let uri = OperatorUri::new("webdav://dav.example.com", vec![(
+            "disable_copy".to_string(),
+            "true".to_string(),
+        )])
         .unwrap();
 
         let cfg = WebdavConfig::from_uri(&uri).unwrap();

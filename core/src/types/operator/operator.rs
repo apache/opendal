@@ -46,8 +46,8 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal::services::Memory;
 /// use opendal::Operator;
+/// use opendal::services::Memory;
 /// async fn test() -> Result<()> {
 ///     // Build an `Operator` to start operating the storage.
 ///     let _: Operator = Operator::new(Memory::default())?.finish();
@@ -69,9 +69,9 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
+/// use opendal::Operator;
 /// use opendal::layers::RetryLayer;
 /// use opendal::services::Memory;
-/// use opendal::Operator;
 /// async fn test() -> Result<()> {
 ///     let op: Operator = Operator::new(Memory::default())?.finish();
 ///
@@ -102,11 +102,11 @@ use crate::*;
 /// into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 ///
 /// ```no_run
+/// use opendal::Operator;
+/// use opendal::Result;
 /// use opendal::layers::LoggingLayer;
 /// use opendal::options;
 /// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -372,8 +372,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// # use opendal::Operator;
-    /// use opendal::options;
     /// use opendal::ErrorKind;
+    /// use opendal::options;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
     /// let res = op
@@ -1134,7 +1134,8 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut opts = CopyOptions::default();
     /// opts.if_not_exists = true;
-    /// op.copy_options("path/to/file", "path/to/file2", opts).await?;
+    /// op.copy_options("path/to/file", "path/to/file2", opts)
+    ///     .await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1577,9 +1578,9 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::options;
     /// use opendal::EntryMode;
     /// use opendal::Operator;
+    /// use opendal::options;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_options("path/to/prefix", options::ListOptions {
@@ -1705,9 +1706,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// use futures::TryStreamExt;
-    /// use opendal::options;
     /// use opendal::EntryMode;
     /// use opendal::Operator;
+    /// use opendal::options;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op
     ///     .lister_options("path/to/dir/", options::ListOptions {

@@ -22,11 +22,10 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::File;
 use web_sys::FileSystemWritableFileStream;
 
-use crate::Error;
-use crate::Result;
-
 use super::error::*;
 use super::utils::*;
+use crate::Error;
+use crate::Result;
 
 #[derive(Default, Debug)]
 pub struct OpfsCore {}

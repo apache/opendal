@@ -19,9 +19,10 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::*;
 use bytes::Bytes;
-use fastpool::{ManageObject, ObjectStatus, bounded};
+use fastpool::ManageObject;
+use fastpool::ObjectStatus;
+use fastpool::bounded;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -33,6 +34,8 @@ use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
+
+use crate::*;
 
 #[derive(Clone)]
 pub enum RedisConnection {

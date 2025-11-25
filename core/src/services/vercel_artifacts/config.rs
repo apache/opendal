@@ -62,10 +62,10 @@ mod tests {
 
     #[test]
     fn from_uri_loads_access_token() {
-        let uri = OperatorUri::new(
-            "vercel-artifacts://cache",
-            vec![("access_token".to_string(), "token123".to_string())],
-        )
+        let uri = OperatorUri::new("vercel-artifacts://cache", vec![(
+            "access_token".to_string(),
+            "token123".to_string(),
+        )])
         .unwrap();
 
         let cfg = VercelArtifactsConfig::from_uri(&uri).unwrap();

@@ -78,9 +78,11 @@ impl MokaBuilder {
     ///         .eviction_listener(|k: Arc<String>, v: MokaValue, cause: RemovalCause| {
     ///             debug!(
     ///                 "moka cache eviction listener, key = {}, value = {:?}, cause = {:?}",
-    ///                 k.as_str(), v.content.to_vec(), cause
+    ///                 k.as_str(),
+    ///                 v.content.to_vec(),
+    ///                 cause
     ///             );
-    ///         })
+    ///         }),
     /// );
     /// ```
     pub fn new(builder: MokaCacheBuilder<String, MokaValue>) -> Self {

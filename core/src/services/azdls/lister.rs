@@ -150,16 +150,13 @@ mod tests {
         let out: Output = de::from_slice(&bs).expect("must success");
         println!("{out:?}");
 
-        assert_eq!(
-            out.paths[0],
-            Path {
-                content_length: "1977097".to_string(),
-                etag: "0x8DACF9B0061305F".to_string(),
-                is_directory: "".to_string(),
-                last_modified: "Sat, 26 Nov 2022 10:43:05 GMT".to_string(),
-                name: "c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725"
-                    .to_string()
-            }
-        );
+        assert_eq!(out.paths[0], Path {
+            content_length: "1977097".to_string(),
+            etag: "0x8DACF9B0061305F".to_string(),
+            is_directory: "".to_string(),
+            last_modified: "Sat, 26 Nov 2022 10:43:05 GMT".to_string(),
+            name: "c3b3ef48-7783-4946-81bc-dc07e1728878/d4ea21d7-a533-4011-8b1f-d0e566d63725"
+                .to_string()
+        });
     }
 }

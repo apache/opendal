@@ -167,10 +167,10 @@ mod tests {
 
     #[test]
     fn from_uri_respects_branch_override_and_sets_root() {
-        let uri = OperatorUri::new(
-            "lakefs://api.example.com/sample/content",
-            vec![("branch".to_string(), "develop".to_string())],
-        )
+        let uri = OperatorUri::new("lakefs://api.example.com/sample/content", vec![(
+            "branch".to_string(),
+            "develop".to_string(),
+        )])
         .unwrap();
 
         let cfg = LakefsConfig::from_uri(&uri).unwrap();

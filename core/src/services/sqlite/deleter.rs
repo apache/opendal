@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{OpDelete, build_abs_path, oio};
+use crate::raw::OpDelete;
+use crate::raw::build_abs_path;
+use crate::raw::oio;
 use crate::services::sqlite::core::SqliteCore;
 
 pub struct SqliteDeleter {

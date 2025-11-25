@@ -17,7 +17,8 @@
 
 use wasm_bindgen::JsValue;
 
-use crate::{Error, ErrorKind};
+use crate::Error;
+use crate::ErrorKind;
 
 pub(crate) fn parse_js_error(msg: JsValue) -> Error {
     Error::new(

@@ -280,30 +280,21 @@ mod tests {
             .map_err(new_json_deserialize_error)?;
 
         assert_eq!(out.len(), 3);
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::FileInfo {
-                bytes: 147,
-                hash: "5e6b5b70b0426b1cc1968003e1afa5ad".to_string(),
-                name: "test.txt".to_string(),
-                last_modified: "2023-11-01T03:00:23.147480".to_string(),
-                content_type: Some("text/plain".to_string()),
-            }
-        );
+        assert_eq!(out.pop().unwrap(), ListOpResponse::FileInfo {
+            bytes: 147,
+            hash: "5e6b5b70b0426b1cc1968003e1afa5ad".to_string(),
+            name: "test.txt".to_string(),
+            last_modified: "2023-11-01T03:00:23.147480".to_string(),
+            content_type: Some("text/plain".to_string()),
+        });
 
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::Subdir {
-                subdir: "fruit/".to_string()
-            }
-        );
+        assert_eq!(out.pop().unwrap(), ListOpResponse::Subdir {
+            subdir: "fruit/".to_string()
+        });
 
-        assert_eq!(
-            out.pop().unwrap(),
-            ListOpResponse::Subdir {
-                subdir: "animals/".to_string()
-            }
-        );
+        assert_eq!(out.pop().unwrap(), ListOpResponse::Subdir {
+            subdir: "animals/".to_string()
+        });
 
         Ok(())
     }

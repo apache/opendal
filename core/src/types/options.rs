@@ -17,8 +17,10 @@
 
 //! Options module provides options definitions for operations.
 
-use crate::raw::{BytesRange, Timestamp};
 use std::collections::HashMap;
+
+use crate::raw::BytesRange;
+use crate::raw::Timestamp;
 
 /// Options for delete operations.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]

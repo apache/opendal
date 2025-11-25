@@ -25,7 +25,8 @@ mod deleter;
 mod lister;
 mod writer;
 
+pub use core::MokaValue;
+
 pub use backend::MokaBuilder as Moka;
 pub use backend::MokaCacheBuilder;
 pub use config::MokaConfig;
-pub use core::MokaValue;

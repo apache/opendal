@@ -56,13 +56,10 @@ fn bench_vs_fs(c: &mut Criterion) {
         let path = prepare();
         b.iter(|| {
             let _ = op
-                .read_options(
-                    &path,
-                    options::ReadOptions {
-                        range: (0..16 * 1024 * 1024).into(),
-                        ..Default::default()
-                    },
-                )
+                .read_options(&path, options::ReadOptions {
+                    range: (0..16 * 1024 * 1024).into(),
+                    ..Default::default()
+                })
                 .unwrap();
         });
     });

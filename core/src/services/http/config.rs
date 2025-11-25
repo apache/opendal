@@ -114,13 +114,10 @@ mod tests {
 
     #[test]
     fn from_uri_ignores_endpoint_override() {
-        let uri = OperatorUri::new(
-            "http://example.com/data",
-            vec![(
-                "endpoint".to_string(),
-                "https://cdn.example.com".to_string(),
-            )],
-        )
+        let uri = OperatorUri::new("http://example.com/data", vec![(
+            "endpoint".to_string(),
+            "https://cdn.example.com".to_string(),
+        )])
         .unwrap();
         let cfg = HttpConfig::from_uri(&uri).unwrap();
 

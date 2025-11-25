@@ -18,7 +18,9 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -33,8 +35,9 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use opendal::layers::TailCutLayer;
 /// use std::time::Duration;
+///
+/// use opendal::layers::TailCutLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;
@@ -176,8 +179,9 @@ impl TailCutLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::layers::TailCutLayer;
     /// use std::time::Duration;
+    ///
+    /// use opendal::layers::TailCutLayer;
     /// # use opendal::services;
     /// # use opendal::Operator;
     /// # use opendal::Result;
@@ -237,8 +241,9 @@ struct TailCutConfig {
 /// # Examples
 ///
 /// ```no_run
-/// use opendal::layers::TailCutLayer;
 /// use std::time::Duration;
+///
+/// use opendal::layers::TailCutLayer;
 /// # use opendal::services;
 /// # use opendal::Operator;
 /// # use opendal::Result;

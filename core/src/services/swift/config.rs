@@ -115,10 +115,10 @@ mod tests {
 
     #[test]
     fn from_uri_accepts_container_from_query() {
-        let uri = OperatorUri::new(
-            "swift://swift.example.com",
-            vec![("container".to_string(), "logs".to_string())],
-        )
+        let uri = OperatorUri::new("swift://swift.example.com", vec![(
+            "container".to_string(),
+            "logs".to_string(),
+        )])
         .unwrap();
 
         let cfg = SwiftConfig::from_uri(&uri).unwrap();

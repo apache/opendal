@@ -88,10 +88,10 @@ mod tests {
 
     #[test]
     fn from_uri_sets_endpoint_and_root() {
-        let uri = OperatorUri::new(
-            "pcloud://api.pcloud.com/drive/photos",
-            vec![("username".to_string(), "alice".to_string())],
-        )
+        let uri = OperatorUri::new("pcloud://api.pcloud.com/drive/photos", vec![(
+            "username".to_string(),
+            "alice".to_string(),
+        )])
         .unwrap();
 
         let cfg = PcloudConfig::from_uri(&uri).unwrap();

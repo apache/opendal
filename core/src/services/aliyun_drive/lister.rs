@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+
 use self::oio::Entry;
 use super::core::AliyunDriveCore;
 use super::core::AliyunDriveFileList;
@@ -26,7 +28,6 @@ use crate::ErrorKind;
 use crate::Metadata;
 use crate::Result;
 use crate::raw::*;
-use bytes::Buf;
 
 pub struct AliyunDriveLister {
     core: Arc<AliyunDriveCore>,

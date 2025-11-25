@@ -149,7 +149,8 @@ impl AzfileBuilder {
     /// use opendal::Builder;
     /// use opendal::services::Azfile;
     ///
-    /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
+    /// let conn_str =
+    ///     "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
     ///
     /// let mut config = Azfile::from_connection_string(&conn_str)
     ///     .unwrap()

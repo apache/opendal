@@ -79,8 +79,8 @@
 //!
 //! ```no_run
 //! # use opendal::Result;
-//! use opendal::services::S3;
 //! use opendal::Operator;
+//! use opendal::services::S3;
 //!
 //! # fn test() -> Result<()> {
 //! let mut builder = S3::default();
@@ -117,8 +117,8 @@
 //!
 //! ```no_run
 //! # use opendal::Result;
-//! use opendal::services::S3;
 //! use opendal::Operator;
+//! use opendal::services::S3;
 //!
 //! # async fn test() -> Result<()> {
 //! let mut builder = S3::default();

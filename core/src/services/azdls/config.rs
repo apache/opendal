@@ -155,10 +155,10 @@ mod tests {
 
     #[test]
     fn from_uri_accepts_filesystem_from_query() {
-        let uri = OperatorUri::new(
-            "azdls://account.dfs.core.windows.net",
-            vec![("filesystem".to_string(), "logs".to_string())],
-        )
+        let uri = OperatorUri::new("azdls://account.dfs.core.windows.net", vec![(
+            "filesystem".to_string(),
+            "logs".to_string(),
+        )])
         .unwrap();
 
         let cfg = AzdlsConfig::from_uri(&uri).unwrap();

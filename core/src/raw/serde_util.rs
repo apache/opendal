@@ -375,31 +375,28 @@ mod tests {
             .collect();
 
         let output = TestConfig::deserialize(ConfigDeserializer::new(map)).unwrap();
-        assert_eq!(
-            output,
-            TestConfig {
-                bool_value: true,
-                bool_option_value_none: None,
-                bool_option_value_some: Some(false),
-                bool_value_with_on: true,
-                bool_value_with_off: false,
-                string_value: "hello".to_string(),
-                string_option_value_none: None,
-                string_option_value_some: Some("hello".to_string()),
-                u8_value: 8,
-                u16_value: 16,
-                u32_value: 32,
-                u64_value: 64,
-                i8_value: -8,
-                i16_value: 16,
-                i32_value: -32,
-                i64_value: 64,
-                vec_value: vec!["hello".to_string()],
-                vec_value_two: vec!["hello".to_string(), "world".to_string()],
-                vec_none: None,
-                vec_empty: vec![],
-            }
-        );
+        assert_eq!(output, TestConfig {
+            bool_value: true,
+            bool_option_value_none: None,
+            bool_option_value_some: Some(false),
+            bool_value_with_on: true,
+            bool_value_with_off: false,
+            string_value: "hello".to_string(),
+            string_option_value_none: None,
+            string_option_value_some: Some("hello".to_string()),
+            u8_value: 8,
+            u16_value: 16,
+            u32_value: 32,
+            u64_value: 64,
+            i8_value: -8,
+            i16_value: 16,
+            i32_value: -32,
+            i64_value: 64,
+            vec_value: vec!["hello".to_string()],
+            vec_value_two: vec!["hello".to_string(), "world".to_string()],
+            vec_none: None,
+            vec_empty: vec![],
+        });
     }
 
     #[test]
@@ -412,12 +409,9 @@ mod tests {
             .collect();
 
         let output = TestConfig::deserialize(ConfigDeserializer::new(map)).unwrap();
-        assert_eq!(
-            output,
-            TestConfig {
-                bool_value: true,
-                ..TestConfig::default()
-            }
-        );
+        assert_eq!(output, TestConfig {
+            bool_value: true,
+            ..TestConfig::default()
+        });
     }
 }

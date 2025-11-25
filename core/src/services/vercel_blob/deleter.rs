@@ -19,7 +19,8 @@ use std::sync::Arc;
 
 use super::core::VercelBlobCore;
 use crate::Result;
-use crate::raw::{OpDelete, oio};
+use crate::raw::OpDelete;
+use crate::raw::oio;
 
 pub struct VercelBlobDeleter {
     core: Arc<VercelBlobCore>,

@@ -143,9 +143,9 @@ impl RetryLayer {
     ///
     /// ```no_run
     /// use anyhow::Result;
+    /// use opendal::Operator;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
-    /// use opendal::Operator;
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
@@ -160,9 +160,9 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
+    /// use opendal::Operator;
     /// use opendal::layers::RetryLayer;
     /// use opendal::services;
-    /// use opendal::Operator;
     ///
     /// fn notify(_err: &opendal::Error, _dur: std::time::Duration) {}
     ///
@@ -660,24 +660,18 @@ mod tests {
         }
 
         async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((
-                RpRead::new(),
-                MockReader {
-                    buf: Bytes::from("Hello, World!").into(),
-                    range: args.range(),
-                    attempt: self.attempt.clone(),
-                },
-            ))
+            Ok((RpRead::new(), MockReader {
+                buf: Bytes::from("Hello, World!").into(),
+                range: args.range(),
+                attempt: self.attempt.clone(),
+            }))
         }
 
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-            Ok((
-                RpDelete::default(),
-                MockDeleter {
-                    size: 0,
-                    attempt: self.attempt.clone(),
-                },
-            ))
+            Ok((RpDelete::default(), MockDeleter {
+                size: 0,
+                attempt: self.attempt.clone(),
+            }))
         }
 
         async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

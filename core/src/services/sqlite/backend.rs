@@ -313,8 +313,9 @@ impl Access for SqliteBackend {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use sqlx::SqlitePool;
+
+    use super::*;
 
     async fn build_client() -> OnceCell<SqlitePool> {
         let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();

@@ -23,4 +23,3 @@ reorder_imports = true
 # imports_granularity = "Item"
 # overflow_delimited_expr = true
 # trailing_comma = "Vertical"
-# where_single_line = true

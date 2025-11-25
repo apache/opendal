@@ -96,14 +96,11 @@ mod tests {
 
     #[test]
     fn from_uri_applies_connection_overrides() {
-        let uri = OperatorUri::new(
-            "sftp://host",
-            vec![
-                ("user".to_string(), "alice".to_string()),
-                ("key".to_string(), "/home/alice/.ssh/id_rsa".to_string()),
-                ("known_hosts_strategy".to_string(), "accept".to_string()),
-            ],
-        )
+        let uri = OperatorUri::new("sftp://host", vec![
+            ("user".to_string(), "alice".to_string()),
+            ("key".to_string(), "/home/alice/.ssh/id_rsa".to_string()),
+            ("known_hosts_strategy".to_string(), "accept".to_string()),
+        ])
         .unwrap();
 
         let cfg = SftpConfig::from_uri(&uri).unwrap();

@@ -68,9 +68,9 @@ use crate::*;
 /// Deleter can be used as a Sink for file deletion:
 ///
 /// ```rust
-/// use futures::stream;
 /// use futures::Sink;
 /// use futures::SinkExt;
+/// use futures::stream;
 /// use opendal::Operator;
 /// use opendal::Result;
 ///

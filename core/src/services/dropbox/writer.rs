@@ -20,7 +20,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::{DropboxCore, DropboxMetadataResponse};
+use super::core::DropboxCore;
+use super::core::DropboxMetadataResponse;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;

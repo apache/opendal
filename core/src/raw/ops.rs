@@ -19,10 +19,11 @@
 //!
 //! By using ops, users can add more context for operation.
 
-use crate::options;
-use crate::raw::*;
 use std::collections::HashMap;
 use std::time::Duration;
+
+use crate::options;
+use crate::raw::*;
 
 /// Args for `create` operation.
 ///

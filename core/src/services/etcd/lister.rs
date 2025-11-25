@@ -19,8 +19,10 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use super::core::EtcdCore;
+use crate::raw::build_abs_path;
+use crate::raw::build_rel_path;
+use crate::raw::oio;
 use crate::raw::oio::Entry;
-use crate::raw::{build_abs_path, build_rel_path, oio};
 use crate::*;
 
 pub struct EtcdLister {

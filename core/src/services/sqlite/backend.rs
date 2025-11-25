@@ -319,7 +319,7 @@ mod test {
     async fn build_client() -> OnceCell<SqlitePool> {
         let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
         let pool = SqlitePool::connect_with(config).await.unwrap();
-        OnceCell::new_with(Some(pool))
+        OnceCell::from_value(pool)
     }
 
     #[tokio::test]

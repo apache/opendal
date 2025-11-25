@@ -21,12 +21,12 @@ use std::sync::Arc;
 
 use http::Uri;
 use log::debug;
+use mea::once::OnceCell;
 use services::ftp::core::Manager;
 use suppaftp::FtpError;
 use suppaftp::Status;
 use suppaftp::list::File;
 use suppaftp::types::Response;
-use tokio::sync::OnceCell;
 
 use super::FTP_SCHEME;
 use super::config::FtpConfig;

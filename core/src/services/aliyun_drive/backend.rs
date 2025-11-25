@@ -22,7 +22,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::Mutex;
+use mea::mutex::Mutex;
 
 use super::ALIYUN_DRIVE_SCHEME;
 use super::config::AliyunDriveConfig;

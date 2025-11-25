@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::TIKV_SCHEME;
 use super::config::TikvConfig;

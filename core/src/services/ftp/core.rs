@@ -21,6 +21,7 @@ use bb8::Pool;
 use bb8::PooledConnection;
 use bb8::RunError;
 use futures_rustls::TlsConnector;
+use mea::once::OnceCell;
 use raw::Operation;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
@@ -29,7 +30,6 @@ use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
-use tokio::sync::OnceCell;
 
 use super::err::parse_error;
 use crate::raw::AccessorInfo;
@@ -46,7 +46,7 @@ impl FtpCore {
         let pool = self
             .pool
             .get_or_try_init(|| async {
-                bb8::Pool::builder()
+                Pool::builder()
                     .max_size(64)
                     .build(self.manager.clone())
                     .await

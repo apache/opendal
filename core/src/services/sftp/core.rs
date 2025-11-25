@@ -23,11 +23,11 @@ use std::sync::Arc;
 use bb8::PooledConnection;
 use bb8::RunError;
 use log::debug;
+use mea::once::OnceCell;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
-use tokio::sync::OnceCell;
 
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;

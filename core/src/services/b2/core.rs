@@ -24,9 +24,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use mea::rwlock::RwLock;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::sync::RwLock;
 
 use self::constants::X_BZ_CONTENT_SHA1;
 use self::constants::X_BZ_FILE_NAME;

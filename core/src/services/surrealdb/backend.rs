@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::SURREALDB_SCHEME;
 use super::config::SurrealdbConfig;

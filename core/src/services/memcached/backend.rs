@@ -18,7 +18,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::MEMCACHED_SCHEME;
 use super::config::MemcachedConfig;

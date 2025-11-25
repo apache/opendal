@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use bb8::RunError;
 use bytes::Bytes;
+use mea::once::OnceCell;
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -31,7 +32,6 @@ use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use tokio::sync::OnceCell;
 
 use crate::*;
 

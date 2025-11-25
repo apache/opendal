@@ -23,8 +23,8 @@ use std::task::Poll;
 
 use futures::Stream;
 use futures::StreamExt;
-use tokio::sync::OwnedSemaphorePermit;
-use tokio::sync::Semaphore;
+use mea::semaphore::OwnedSemaphorePermit;
+use mea::semaphore::Semaphore;
 
 use crate::raw::*;
 use crate::*;
@@ -139,10 +139,7 @@ impl HttpFetch for ConcurrentLimitHttpFetcher {
             return self.inner.fetch(req).await;
         };
 
-        let permit = semaphore
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
+        let permit = semaphore.acquire_owned(1).await;
 
         let resp = self.inner.fetch(req).await?;
         let (parts, body) = resp.into_parts();
@@ -191,22 +188,13 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
+        let _permit = self.semaphore.acquire(1).await;
 
         self.inner.create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
+        let permit = self.semaphore.clone().acquire_owned(1).await;
 
         self.inner
             .read(path, args)
@@ -215,12 +203,7 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
+        let permit = self.semaphore.clone().acquire_owned(1).await;
 
         self.inner
             .write(path, args)
@@ -229,22 +212,13 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let _permit = self
-            .semaphore
-            .acquire()
-            .await
-            .expect("semaphore must be valid");
+        let _permit = self.semaphore.acquire(1).await;
 
         self.inner.stat(path, args).await
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
+        let permit = self.semaphore.clone().acquire_owned(1).await;
 
         self.inner
             .delete()
@@ -253,12 +227,7 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("semaphore must be valid");
+        let permit = self.semaphore.clone().acquire_owned(1).await;
 
         self.inner
             .list(path, args)

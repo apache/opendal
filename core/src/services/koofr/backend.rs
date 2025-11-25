@@ -22,8 +22,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::Mutex;
-use tokio::sync::OnceCell;
+use mea::mutex::Mutex;
+use mea::once::OnceCell;
 
 use super::KOOFR_SCHEME;
 use super::config::KoofrConfig;

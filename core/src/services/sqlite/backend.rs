@@ -18,8 +18,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use mea::once::OnceCell;
 use sqlx::sqlite::SqliteConnectOptions;
-use tokio::sync::OnceCell;
 
 use super::SQLITE_SCHEME;
 use super::config::SqliteConfig;

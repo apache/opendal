@@ -20,13 +20,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use http::Uri;
+use mea::once::OnceCell;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::cluster::ClusterClientBuilder;
-use tokio::sync::OnceCell;
 
 use super::REDIS_SCHEME;
 use super::config::RedisConfig;

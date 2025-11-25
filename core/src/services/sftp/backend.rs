@@ -21,9 +21,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use log::debug;
+use mea::once::OnceCell;
 use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
-use tokio::sync::OnceCell;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;

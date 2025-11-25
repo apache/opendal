@@ -18,8 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use mea::once::OnceCell;
 use sqlx::mysql::MySqlConnectOptions;
-use tokio::sync::OnceCell;
 
 use super::MYSQL_SCHEME;
 use super::config::MysqlConfig;

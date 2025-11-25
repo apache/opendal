@@ -27,9 +27,9 @@ use http::StatusCode;
 use http::header;
 use http::request;
 use mea::mutex::Mutex;
+use mea::once::OnceCell;
 use serde::Deserialize;
 use serde_json::json;
-use tokio::sync::OnceCell;
 
 use super::error::parse_error;
 use crate::raw::*;

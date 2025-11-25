@@ -23,7 +23,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use mea::mutex::Mutex;
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::KOOFR_SCHEME;
 use super::config::KoofrConfig;

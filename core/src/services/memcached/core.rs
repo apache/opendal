@@ -18,8 +18,8 @@
 use std::time::Duration;
 
 use bb8::RunError;
+use mea::once::OnceCell;
 use tokio::net::TcpStream;
-use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::*;
@@ -95,7 +95,7 @@ impl MemcachedCore {
                     .build(mgr)
                     .await
                     .map_err(|err| {
-                        Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
+                        Error::new(ErrorKind::ConfigInvalid, "connect to memcached failed")
                             .set_source(err)
                     })
             })

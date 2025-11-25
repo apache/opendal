@@ -17,11 +17,11 @@
 
 use std::fmt::Debug;
 
+use mea::once::OnceCell;
 use mongodb::bson::Binary;
 use mongodb::bson::Document;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
-use tokio::sync::OnceCell;
 
 use crate::*;
 

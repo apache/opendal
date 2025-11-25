@@ -17,11 +17,12 @@
 
 use std::fmt::Debug;
 
+use bb8::Pool;
 use bb8::PooledConnection;
 use bb8::RunError;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use crate::services::etcd::error::format_etcd_error;
 use crate::{Buffer, Error, ErrorKind, Result};
@@ -63,7 +64,7 @@ impl bb8::ManageConnection for Manager {
 pub struct EtcdCore {
     pub endpoints: Vec<String>,
     pub options: ConnectOptions,
-    pub client: OnceCell<bb8::Pool<Manager>>,
+    pub client: OnceCell<Pool<Manager>>,
 }
 
 impl Debug for EtcdCore {
@@ -80,7 +81,7 @@ impl EtcdCore {
         let client = self
             .client
             .get_or_try_init(|| async {
-                bb8::Pool::builder()
+                Pool::builder()
                     .max_size(64)
                     .build(Manager {
                         endpoints: self.endpoints.clone(),

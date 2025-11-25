@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use mea::once::OnceCell;
 use sqlx::PgPool;
 use sqlx::postgres::PgConnectOptions;
-use tokio::sync::OnceCell;
 
 use crate::*;
 
@@ -35,10 +35,9 @@ impl PostgresqlCore {
     async fn get_client(&self) -> Result<&PgPool> {
         self.pool
             .get_or_try_init(|| async {
-                let pool = PgPool::connect_with(self.config.clone())
+                PgPool::connect_with(self.config.clone())
                     .await
-                    .map_err(parse_postgres_error)?;
-                Ok(pool)
+                    .map_err(parse_postgres_error)
             })
             .await
     }

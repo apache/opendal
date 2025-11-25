@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use mea::once::OnceCell;
 use sqlx::MySqlPool;
 use sqlx::mysql::MySqlConnectOptions;
-use tokio::sync::OnceCell;
 
 use crate::*;
 
@@ -35,10 +35,9 @@ impl MysqlCore {
     async fn get_client(&self) -> Result<&MySqlPool> {
         self.pool
             .get_or_try_init(|| async {
-                let pool = MySqlPool::connect_with(self.config.clone())
+                MySqlPool::connect_with(self.config.clone())
                     .await
-                    .map_err(parse_mysql_error)?;
-                Ok(pool)
+                    .map_err(parse_mysql_error)
             })
             .await
     }

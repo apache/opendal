@@ -21,7 +21,7 @@ use etcd_client::Certificate;
 use etcd_client::ConnectOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::ETCD_SCHEME;
 use super::config::EtcdConfig;

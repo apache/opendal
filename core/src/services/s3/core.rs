@@ -1226,10 +1226,10 @@ impl ChecksumAlgorithm {
     pub fn calculate(&self, body: &Buffer) -> String {
         match self {
             Self::Crc32c => {
-                let mut crc = 0u32;
-                body.clone()
-                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
-                BASE64_STANDARD.encode(crc.to_be_bytes())
+                let mut digest = Digest::new(CrcAlgorithm::Crc32Iscsi);
+                body.clone().for_each(|b| digest.update(&b));
+                let checksum = digest.finalize() as u32;
+                BASE64_STANDARD.encode(checksum.to_be_bytes())
             }
             Self::Crc64Nvme => {
                 let mut digest = Digest::new(CrcAlgorithm::Crc64Nvme);

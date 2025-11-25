@@ -50,8 +50,12 @@ impl oio::OneShotWrite for SeafileWriter {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let file_detail = self.core.file_detail(&self.path).await?;
-                parse_file_detail(file_detail)
+                if self.path.ends_with('/') {
+                    Ok(Metadata::new(EntryMode::DIR))
+                } else {
+                    let file_detail = self.core.file_detail(&self.path).await?;
+                    parse_file_detail(file_detail)
+                }
             }
             _ => Err(parse_error(resp)),
         }

@@ -30,10 +30,7 @@ pub use info::OperatorInfo;
 pub mod operator_futures;
 
 mod registry;
-pub use registry::DEFAULT_OPERATOR_REGISTRY;
-pub use registry::OperatorFactory;
-pub use registry::OperatorRegistry;
+pub use registry::{DEFAULT_OPERATOR_REGISTRY, OperatorFactory, OperatorRegistry};
 
 mod uri;
-pub use uri::IntoOperatorUri;
-pub use uri::OperatorUri;
+pub use uri::{IntoOperatorUri, OperatorUri};

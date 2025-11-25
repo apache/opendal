@@ -860,11 +860,10 @@ mod tests {
             .map(|chunk| chunk.to_bytes())
             .collect::<Vec<Bytes>>();
 
-        assert_eq!(chunks, vec![
-            Bytes::from("abc"),
-            Bytes::from("def"),
-            Bytes::from("g")
-        ]);
+        assert_eq!(
+            chunks,
+            vec![Bytes::from("abc"), Bytes::from("def"), Bytes::from("g")]
+        );
 
         assert_eq!(Buffer::new().chunks(4).count(), 0);
     }
@@ -882,11 +881,10 @@ mod tests {
             .map(|chunk| chunk.to_bytes())
             .collect::<Vec<Bytes>>();
 
-        assert_eq!(chunks, vec![
-            Bytes::from("ab"),
-            Bytes::from("cd"),
-            Bytes::from("ef"),
-        ]);
+        assert_eq!(
+            chunks,
+            vec![Bytes::from("ab"), Bytes::from("cd"), Bytes::from("ef"),]
+        );
     }
 
     #[test]

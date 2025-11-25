@@ -135,10 +135,10 @@ mod tests {
 
     #[test]
     fn from_uri_accepts_share_from_query() {
-        let uri = OperatorUri::new("azfile://account.file.core.windows.net", vec![(
-            "share_name".to_string(),
-            "data".to_string(),
-        )])
+        let uri = OperatorUri::new(
+            "azfile://account.file.core.windows.net",
+            vec![("share_name".to_string(), "data".to_string())],
+        )
         .unwrap();
 
         let cfg = AzfileConfig::from_uri(&uri).unwrap();

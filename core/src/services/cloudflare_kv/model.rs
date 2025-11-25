@@ -17,8 +17,7 @@
 
 // use std::collections::HashMap;
 
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct CfKvResponse {

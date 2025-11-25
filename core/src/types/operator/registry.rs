@@ -16,17 +16,11 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::sync::LazyLock;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Operator;
-use crate::Result;
-use crate::types::IntoOperatorUri;
-use crate::types::OperatorUri;
-use crate::types::builder::Builder;
-use crate::types::builder::Configurator;
+use crate::types::builder::{Builder, Configurator};
+use crate::types::{IntoOperatorUri, OperatorUri};
+use crate::{Error, ErrorKind, Operator, Result};
 
 /// Factory signature used to construct [`Operator`] from a URI and extra options.
 pub type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;

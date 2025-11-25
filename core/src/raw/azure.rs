@@ -25,12 +25,9 @@ use std::collections::HashMap;
 
 use http::Uri;
 use http::response::Parts;
-use reqsign::AzureStorageConfig;
-use reqsign::AzureStorageCredential;
+use reqsign::{AzureStorageConfig, AzureStorageCredential};
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::{Error, ErrorKind, Result};
 
 /// Parses an [Azure connection string][1] into a configuration object.
 ///
@@ -332,10 +329,11 @@ mod tests {
     use http::Uri;
     use reqsign::AzureStorageConfig;
 
-    use super::AzureStorageService;
-    use super::azure_account_name_from_endpoint;
-    use super::azure_config_from_connection_string;
     use crate::raw::azure::censor_sas_uri;
+
+    use super::{
+        AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
+    };
 
     #[test]
     fn test_azure_config_from_connection_string() {

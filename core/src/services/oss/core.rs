@@ -1054,25 +1054,28 @@ mod tests {
         assert_eq!(out.next_continuation_token, Some("CgJiYw--".to_string()));
         assert!(out.common_prefixes.is_empty());
 
-        assert_eq!(out.contents, vec![
-            ListObjectsOutputContent {
-                key: "b/c".to_string(),
-                last_modified: "2020-05-18T05:45:54.000Z".to_string(),
-                etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                size: 25,
-            },
-            ListObjectsOutputContent {
-                key: "ba".to_string(),
-                last_modified: "2020-05-18T11:17:58.000Z".to_string(),
-                etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                size: 25,
-            },
-            ListObjectsOutputContent {
-                key: "bc".to_string(),
-                last_modified: "2020-05-18T05:45:59.000Z".to_string(),
-                etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
-                size: 25,
-            }
-        ])
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "b/c".to_string(),
+                    last_modified: "2020-05-18T05:45:54.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                },
+                ListObjectsOutputContent {
+                    key: "ba".to_string(),
+                    last_modified: "2020-05-18T11:17:58.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                },
+                ListObjectsOutputContent {
+                    key: "bc".to_string(),
+                    last_modified: "2020-05-18T05:45:59.000Z".to_string(),
+                    etag: "\"35A27C2B9EAEEB6F48FD7FB5861D****\"".to_string(),
+                    size: 25,
+                }
+            ]
+        )
     }
 }

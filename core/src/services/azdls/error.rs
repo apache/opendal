@@ -84,10 +84,13 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     if message.is_empty() {
         if let Some(v) = parts.headers.get("x-ms-error-code") {
             if let Ok(code) = v.to_str() {
-                message = format!("{:?}", AzdlsError {
-                    code: code.to_string(),
-                    ..Default::default()
-                })
+                message = format!(
+                    "{:?}",
+                    AzdlsError {
+                        code: code.to_string(),
+                        ..Default::default()
+                    }
+                )
             }
         }
     }

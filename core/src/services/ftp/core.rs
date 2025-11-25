@@ -15,14 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-use std::time::Duration;
-
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
+use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
 use raw::Operation;
+use std::sync::Arc;
+use std::time::Duration;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;

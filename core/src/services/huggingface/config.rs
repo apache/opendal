@@ -164,10 +164,10 @@ mod tests {
 
     #[test]
     fn from_uri_uses_existing_revision_and_sets_root() {
-        let uri = OperatorUri::new("huggingface://dataset/opendal/sample/data/train", vec![(
-            "revision".to_string(),
-            "dev".to_string(),
-        )])
+        let uri = OperatorUri::new(
+            "huggingface://dataset/opendal/sample/data/train",
+            vec![("revision".to_string(), "dev".to_string())],
+        )
         .unwrap();
 
         let cfg = HuggingfaceConfig::from_uri(&uri).unwrap();

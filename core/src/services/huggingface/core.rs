@@ -22,8 +22,7 @@ use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
-use percent_encoding::NON_ALPHANUMERIC;
-use percent_encoding::utf8_percent_encode;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
@@ -249,17 +248,13 @@ pub(super) struct HuggingfaceImport {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::Mutex;
-
     use bytes::Bytes;
-    use http::Request;
-    use http::Response;
-    use http::StatusCode;
 
     use super::*;
     use crate::raw::new_json_deserialize_error;
     use crate::types::Result;
+    use http::{Request, Response, StatusCode};
+    use std::sync::{Arc, Mutex};
 
     // Mock HTTP client that captures the request URL and headers
     #[derive(Clone)]

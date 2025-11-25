@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-
 use crate::raw::*;
 use crate::*;
+use std::collections::HashMap;
 
 /// Metadata contains all the information related to a specific path.
 ///

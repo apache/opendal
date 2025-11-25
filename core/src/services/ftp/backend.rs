@@ -382,10 +382,13 @@ mod build_test {
 
     #[test]
     fn from_uri_applies_credentials_from_query() {
-        let uri = OperatorUri::new("ftp://example.com/data", vec![
-            ("user".to_string(), "alice".to_string()),
-            ("password".to_string(), "secret".to_string()),
-        ])
+        let uri = OperatorUri::new(
+            "ftp://example.com/data",
+            vec![
+                ("user".to_string(), "alice".to_string()),
+                ("password".to_string(), "secret".to_string()),
+            ],
+        )
         .unwrap();
 
         let cfg = FtpConfig::from_uri(&uri).unwrap();

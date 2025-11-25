@@ -95,18 +95,24 @@ impl BytesRange {
 
     /// Convert bytes range into rust range.
     pub fn to_range(&self) -> impl RangeBounds<u64> {
-        (Bound::Included(self.0), match self.1 {
-            Some(size) => Bound::Excluded(self.0 + size),
-            None => Bound::Unbounded,
-        })
+        (
+            Bound::Included(self.0),
+            match self.1 {
+                Some(size) => Bound::Excluded(self.0 + size),
+                None => Bound::Unbounded,
+            },
+        )
     }
 
     /// Convert bytes range into rust range with usize.
     pub(crate) fn to_range_as_usize(self) -> impl RangeBounds<usize> {
-        (Bound::Included(self.0 as usize), match self.1 {
-            Some(size) => Bound::Excluded((self.0 + size) as usize),
-            None => Bound::Unbounded,
-        })
+        (
+            Bound::Included(self.0 as usize),
+            match self.1 {
+                Some(size) => Bound::Excluded((self.0 + size) as usize),
+                None => Bound::Unbounded,
+            },
+        )
     }
 }
 

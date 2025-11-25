@@ -739,9 +739,10 @@ mod tests {
                 .collect::<Vec<String>>(),
             ["obj002", "obj003"],
         );
-        assert_eq!(out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(), [
-            9, 10
-        ],);
+        assert_eq!(
+            out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
+            [9, 10],
+        );
         assert_eq!(
             out.common_prefixes
                 .iter()

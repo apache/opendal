@@ -17,8 +17,7 @@
 
 use etcd_client::Error as EtcdError;
 
-use crate::Error;
-use crate::ErrorKind;
+use crate::{Error, ErrorKind};
 
 pub fn format_etcd_error(e: EtcdError) -> Error {
     Error::new(ErrorKind::Unexpected, e.to_string().as_str())

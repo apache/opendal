@@ -75,10 +75,10 @@ mod tests {
 
     #[test]
     fn from_uri_sets_root_and_preserves_token() {
-        let uri = OperatorUri::new("yandex-disk://disk/root/path", vec![(
-            "access_token".to_string(),
-            "secret".to_string(),
-        )])
+        let uri = OperatorUri::new(
+            "yandex-disk://disk/root/path",
+            vec![("access_token".to_string(), "secret".to_string())],
+        )
         .unwrap();
 
         let cfg = YandexDiskConfig::from_uri(&uri).unwrap();

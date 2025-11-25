@@ -15,10 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::hash::BuildHasher;
-use std::hash::Hasher;
-
 use crate::*;
+use std::hash::{BuildHasher, Hasher};
 
 /// build_abs_path will build an absolute path with root.
 ///

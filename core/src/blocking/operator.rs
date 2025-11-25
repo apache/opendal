@@ -199,9 +199,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
+    /// use opendal::blocking;
     /// # use opendal::blocking::Operator;
     /// use opendal::ErrorKind;
-    /// use opendal::blocking;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test") {
@@ -598,9 +598,9 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// use opendal::EntryMode;
     /// use opendal::blocking;
     /// use opendal::blocking::Operator;
+    /// use opendal::EntryMode;
     /// #  fn test(op: blocking::Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/")?;
     /// for entry in entries {
@@ -656,9 +656,9 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
     /// use opendal::blocking;
     /// use opendal::blocking::Operator;
+    /// use opendal::EntryMode;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/")?;
     /// for de in ds {
@@ -701,9 +701,9 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::ErrorKind;
     /// use opendal::blocking;
     /// use opendal::blocking::Operator;
+    /// use opendal::ErrorKind;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.check()?;

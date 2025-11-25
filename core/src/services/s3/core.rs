@@ -1235,10 +1235,14 @@ impl ChecksumAlgorithm {
 }
 impl Display for ChecksumAlgorithm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Self::Crc32c => "CRC32C",
-            Self::Md5 => "MD5",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Crc32c => "CRC32C",
+                Self::Md5 => "MD5",
+            }
+        )
     }
 }
 
@@ -1493,20 +1497,23 @@ mod tests {
         assert!(!out.is_truncated.unwrap());
         assert!(out.next_marker.is_none());
         assert!(out.common_prefixes.is_empty());
-        assert_eq!(out.contents, vec![
-            ListObjectsOutputContent {
-                key: "my-image.jpg".to_string(),
-                size: 434234,
-                etag: Some("\"fba9dede5f27731c9771645a39863328\"".to_string()),
-                last_modified: "2009-10-12T17:50:30.000Z".to_string(),
-            },
-            ListObjectsOutputContent {
-                key: "my-third-image.jpg".to_string(),
-                size: 64994,
-                last_modified: "2009-10-12T17:50:30.000Z".to_string(),
-                etag: Some("\"1b2cf535f27731c974343645a3985328\"".to_string()),
-            },
-        ])
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "my-image.jpg".to_string(),
+                    size: 434234,
+                    etag: Some("\"fba9dede5f27731c9771645a39863328\"".to_string()),
+                    last_modified: "2009-10-12T17:50:30.000Z".to_string(),
+                },
+                ListObjectsOutputContent {
+                    key: "my-third-image.jpg".to_string(),
+                    size: 64994,
+                    last_modified: "2009-10-12T17:50:30.000Z".to_string(),
+                    etag: Some("\"1b2cf535f27731c974343645a3985328\"".to_string()),
+                },
+            ]
+        )
     }
 
     #[test]
@@ -1560,26 +1567,29 @@ mod tests {
                 .collect::<Vec<String>>(),
             vec!["photos/2006/February/", "photos/2006/January/"]
         );
-        assert_eq!(out.contents, vec![
-            ListObjectsOutputContent {
-                key: "photos/2006".to_string(),
-                size: 56,
-                etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
-                last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-            },
-            ListObjectsOutputContent {
-                key: "photos/2007".to_string(),
-                size: 100,
-                last_modified: "2016-04-30T23:51:29.000Z".to_string(),
-                etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
-            },
-            ListObjectsOutputContent {
-                key: "photos/2008".to_string(),
-                size: 42,
-                last_modified: "2016-05-30T23:51:29.000Z".to_string(),
-                etag: None,
-            },
-        ])
+        assert_eq!(
+            out.contents,
+            vec![
+                ListObjectsOutputContent {
+                    key: "photos/2006".to_string(),
+                    size: 56,
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                },
+                ListObjectsOutputContent {
+                    key: "photos/2007".to_string(),
+                    size: 100,
+                    last_modified: "2016-04-30T23:51:29.000Z".to_string(),
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_string()),
+                },
+                ListObjectsOutputContent {
+                    key: "photos/2008".to_string(),
+                    size: 42,
+                    last_modified: "2016-05-30T23:51:29.000Z".to_string(),
+                    etag: None,
+                },
+            ]
+        )
     }
 
     #[test]
@@ -1647,41 +1657,48 @@ mod tests {
             output.next_version_id_marker,
             Some("d-d309mfjFrUmoQ0DBsVqmcMV15OI.".to_owned())
         );
-        assert_eq!(output.common_prefixes, vec![
-            OutputCommonPrefix {
-                prefix: "photos/".to_owned()
-            },
-            OutputCommonPrefix {
-                prefix: "videos/".to_owned()
-            }
-        ]);
+        assert_eq!(
+            output.common_prefixes,
+            vec![
+                OutputCommonPrefix {
+                    prefix: "photos/".to_owned()
+                },
+                OutputCommonPrefix {
+                    prefix: "videos/".to_owned()
+                }
+            ]
+        );
 
-        assert_eq!(output.version, vec![
-            ListObjectVersionsOutputVersion {
-                key: "key3".to_owned(),
-                version_id: "8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.".to_owned(),
-                is_latest: true,
-                size: 217,
-                last_modified: "2009-12-09T00:18:23.000Z".to_owned(),
-                etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
-            },
-            ListObjectVersionsOutputVersion {
-                key: "key3".to_owned(),
-                version_id: "d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.".to_owned(),
-                is_latest: false,
-                size: 217,
-                last_modified: "2009-12-09T00:18:08.000Z".to_owned(),
-                etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
-            }
-        ]);
+        assert_eq!(
+            output.version,
+            vec![
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "8XECiENpj8pydEDJdd-_VRrvaGKAHOaGMNW7tg6UViI.".to_owned(),
+                    is_latest: true,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:23.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                },
+                ListObjectVersionsOutputVersion {
+                    key: "key3".to_owned(),
+                    version_id: "d-d309mfjFri40QYukDozqBt3UmoQ0DBsVqmcMV15OI.".to_owned(),
+                    is_latest: false,
+                    size: 217,
+                    last_modified: "2009-12-09T00:18:08.000Z".to_owned(),
+                    etag: Some("\"396fefef536d5ce46c7537ecf978a360\"".to_owned()),
+                }
+            ]
+        );
 
-        assert_eq!(output.delete_marker, vec![
-            ListObjectVersionsOutputDeleteMarker {
+        assert_eq!(
+            output.delete_marker,
+            vec![ListObjectVersionsOutputDeleteMarker {
                 key: "my-third-image.jpg".to_owned(),
                 version_id: "03jpff543dhffds434rfdsFDN943fdsFkdmqnh892".to_owned(),
                 is_latest: true,
                 last_modified: "2009-10-15T17:50:30.000Z".to_owned(),
-            },
-        ]);
+            },]
+        );
     }
 }

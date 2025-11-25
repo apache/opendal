@@ -19,9 +19,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use compio::buf::IoBuf;
-use compio::buf::IoBuffer;
-use compio::buf::IoVectoredBuf;
+use compio::buf::{IoBuf, IoBuffer, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
 
 use crate::raw::*;

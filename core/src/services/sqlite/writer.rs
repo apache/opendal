@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Buffer;
-use crate::EntryMode;
-use crate::Metadata;
 use crate::raw::oio;
 use crate::services::sqlite::core::SqliteCore;
+use crate::{Buffer, EntryMode, Metadata};
 
 pub struct SqliteWriter {
     core: std::sync::Arc<SqliteCore>,

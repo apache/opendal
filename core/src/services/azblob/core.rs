@@ -921,10 +921,9 @@ mod tests {
 
         let out: PutBlockListRequest =
             de::from_reader(Bytes::from(bs).reader()).expect("must success");
-        assert_eq!(out.latest, vec![
-            "1".to_string(),
-            "2".to_string(),
-            "3".to_string()
-        ]);
+        assert_eq!(
+            out.latest,
+            vec!["1".to_string(), "2".to_string(), "3".to_string()]
+        );
     }
 }

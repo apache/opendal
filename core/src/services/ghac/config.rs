@@ -111,10 +111,10 @@ mod tests {
 
     #[test]
     fn from_uri_respects_version_override() {
-        let uri = OperatorUri::new("ghac://cache.githubactions.io/cache-prefix", vec![(
-            "version".to_string(),
-            "v2".to_string(),
-        )])
+        let uri = OperatorUri::new(
+            "ghac://cache.githubactions.io/cache-prefix",
+            vec![("version".to_string(), "v2".to_string())],
+        )
         .unwrap();
 
         let cfg = GhacConfig::from_uri(&uri).unwrap();

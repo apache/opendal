@@ -21,9 +21,7 @@ use http::Uri;
 use percent_encoding::percent_decode_str;
 use url::Url;
 
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
+use crate::{Error, ErrorKind, Result};
 
 /// Parsed representation of an operator URI with normalized components.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -270,10 +268,10 @@ mod tests {
 
     #[test]
     fn into_operator_uri_merges_extra_options() {
-        let uri = ("s3://bucket/path?region=us-east-1", vec![
-            ("region", "override"),
-            ("endpoint", "https://custom"),
-        ])
+        let uri = (
+            "s3://bucket/path?region=us-east-1",
+            vec![("region", "override"), ("endpoint", "https://custom")],
+        )
             .into_operator_uri()
             .unwrap();
 

@@ -20,9 +20,7 @@ use std::time::SystemTime;
 
 use super::core::DashmapCore;
 use super::core::DashmapValue;
-use crate::raw::OpWrite;
-use crate::raw::Timestamp;
-use crate::raw::oio;
+use crate::raw::{OpWrite, Timestamp, oio};
 use crate::*;
 
 pub struct DashmapWriter {
@@ -71,10 +69,13 @@ impl oio::Write for DashmapWriter {
             meta.set_content_encoding(v);
         }
 
-        self.core.set(&self.path, DashmapValue {
-            metadata: meta.clone(),
-            content,
-        })?;
+        self.core.set(
+            &self.path,
+            DashmapValue {
+                metadata: meta.clone(),
+                content,
+            },
+        )?;
 
         Ok(meta)
     }

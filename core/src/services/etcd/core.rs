@@ -15,21 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::sync::Arc;
-use std::time::Duration;
-
+use crate::services::etcd::error::format_etcd_error;
+use crate::{Buffer, Error, ErrorKind, Result};
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
 use fastpool::ManageObject;
 use fastpool::ObjectStatus;
 use fastpool::bounded;
-
-use crate::Buffer;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Result;
-use crate::services::etcd::error::format_etcd_error;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub mod constants {
     pub const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
@@ -81,10 +76,13 @@ impl Debug for EtcdCore {
 
 impl EtcdCore {
     pub fn new(endpoints: Vec<String>, options: ConnectOptions) -> Self {
-        let client = bounded::Pool::new(bounded::PoolConfig::new(64), Manager {
-            endpoints: endpoints.clone(),
-            options: options.clone(),
-        });
+        let client = bounded::Pool::new(
+            bounded::PoolConfig::new(64),
+            Manager {
+                endpoints: endpoints.clone(),
+                options: options.clone(),
+            },
+        );
 
         Self {
             endpoints,

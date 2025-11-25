@@ -17,13 +17,12 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
-
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::services::cloudflare_kv::model::CfKvMetadata;
 use crate::*;
+use http::StatusCode;
 
 pub struct CloudflareWriter {
     core: Arc<CloudflareKvCore>,

@@ -96,10 +96,10 @@ mod tests {
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {
-        let uri = OperatorUri::new("b2://example-bucket/path/to/root", vec![(
-            "bucket_id".to_string(),
-            "bucket-id".to_string(),
-        )])
+        let uri = OperatorUri::new(
+            "b2://example-bucket/path/to/root",
+            vec![("bucket_id".to_string(), "bucket-id".to_string())],
+        )
         .unwrap();
 
         let cfg = B2Config::from_uri(&uri).unwrap();

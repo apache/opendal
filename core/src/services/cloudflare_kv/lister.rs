@@ -22,8 +22,7 @@ use bytes::Buf;
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
 use crate::raw::*;
-use crate::services::cloudflare_kv::model::CfKvListKey;
-use crate::services::cloudflare_kv::model::CfKvListResponse;
+use crate::services::cloudflare_kv::model::{CfKvListKey, CfKvListResponse};
 use crate::*;
 
 pub struct CloudflareKvLister {

@@ -17,18 +17,12 @@
 
 //! Time related utils.
 
-use std::fmt;
-use std::ops::Add;
-use std::ops::AddAssign;
-use std::ops::Sub;
-use std::ops::SubAssign;
-use std::str::FromStr;
-use std::time::Duration;
-use std::time::SystemTime;
-
-use jiff::SignedDuration;
-
 use crate::*;
+use jiff::SignedDuration;
+use std::fmt;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::str::FromStr;
+use std::time::{Duration, SystemTime};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

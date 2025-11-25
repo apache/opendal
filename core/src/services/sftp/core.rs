@@ -15,26 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
-
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
-use log::debug;
-use openssh::KnownHosts;
-use openssh::SessionBuilder;
-use openssh_sftp_client::Sftp;
-use openssh_sftp_client::SftpOptions;
-
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
 use crate::raw::*;
 use crate::*;
+use fastpool::{ManageObject, ObjectStatus, bounded};
+use log::debug;
+use openssh::KnownHosts;
+use openssh::SessionBuilder;
+use openssh_sftp_client::Sftp;
+use openssh_sftp_client::SftpOptions;
+use std::fmt::Debug;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub struct SftpCore {
     pub info: Arc<AccessorInfo>,
@@ -61,13 +57,16 @@ impl SftpCore {
         key: Option<String>,
         known_hosts_strategy: KnownHosts,
     ) -> Self {
-        let client = bounded::Pool::new(bounded::PoolConfig::new(64), Manager {
-            endpoint: endpoint.clone(),
-            root: root.clone(),
-            user,
-            key,
-            known_hosts_strategy,
-        });
+        let client = bounded::Pool::new(
+            bounded::PoolConfig::new(64),
+            Manager {
+                endpoint: endpoint.clone(),
+                root: root.clone(),
+                user,
+                key,
+                known_hosts_strategy,
+            },
+        );
 
         SftpCore {
             info,

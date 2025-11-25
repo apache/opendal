@@ -378,13 +378,17 @@ impl Access for AzdlsBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        if args.append() {
+            let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
+            return Ok((
+                RpWrite::default(),
+                AzdlsWriters::Two(oio::AppendWriter::new(w)),
+            ));
+        }
+
         let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzdlsWriters::Two(oio::AppendWriter::new(w))
-        } else {
-            AzdlsWriters::One(oio::OneShotWriter::new(w))
-        };
-        Ok((RpWrite::default(), w))
+        let w = oio::PositionWriter::new(self.info().clone(), w, args.concurrent());
+        Ok((RpWrite::default(), AzdlsWriters::One(w)))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

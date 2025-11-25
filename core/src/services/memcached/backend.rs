@@ -85,7 +85,7 @@ impl MemcachedBuilder {
     ///
     /// Will panic if `max_size` is 0.
     #[must_use]
-    pub fn connection_pool_max_size(mut self, max_size: u32) -> Self {
+    pub fn connection_pool_max_size(mut self, max_size: usize) -> Self {
         assert!(max_size > 0, "max_size must be greater than zero!");
         self.config.connection_pool_max_size = Some(max_size);
         self
@@ -144,23 +144,15 @@ impl Builder for MemcachedBuilder {
         };
         let endpoint = format!("{host}:{port}",);
 
-        let root = normalize_root(
-            self.config
-                .root
-                .clone()
-                .unwrap_or_else(|| "/".to_string())
-                .as_str(),
-        );
+        let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        let conn = OnceCell::new();
-        Ok(MemcachedBackend::new(MemcachedCore {
-            conn,
+        Ok(MemcachedBackend::new(MemcachedCore::new(
             endpoint,
-            username: self.config.username.clone(),
-            password: self.config.password.clone(),
-            default_ttl: self.config.default_ttl,
-            connection_pool_max_size: self.config.connection_pool_max_size,
-        })
+            self.config.username,
+            self.config.password,
+            self.config.default_ttl,
+            self.config.connection_pool_max_size,
+        ))
         .with_normalized_root(root))
     }
 }

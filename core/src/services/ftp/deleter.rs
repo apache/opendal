@@ -22,7 +22,7 @@ use suppaftp::Status;
 use suppaftp::types::Response;
 
 use super::core::FtpCore;
-use super::err::parse_error;
+use super::err::format_ftp_error;
 use crate::raw::*;
 use crate::*;
 
@@ -53,7 +53,7 @@ impl oio::OneShotDelete for FtpDeleter {
             }))
             | Ok(_) => (),
             Err(e) => {
-                return Err(parse_error(e));
+                return Err(format_ftp_error(e));
             }
         }
 

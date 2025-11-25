@@ -15,20 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bb8::PooledConnection;
 use bytes::Buf;
+use fastpool::bounded;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt;
 
 use super::core::Manager;
-use super::err::parse_error;
+use super::err::format_ftp_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct FtpWriter {
     target_path: String,
     tmp_path: Option<String>,
-    ftp_stream: PooledConnection<'static, Manager>,
+    ftp_stream: bounded::Object<Manager>,
     data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
 }
 
@@ -44,7 +44,7 @@ unsafe impl Sync for FtpWriter {}
 /// After we can use data stream, we should return it directly.
 impl FtpWriter {
     pub fn new(
-        ftp_stream: PooledConnection<'static, Manager>,
+        ftp_stream: bounded::Object<Manager>,
         target_path: String,
         tmp_path: Option<String>,
     ) -> Self {
@@ -70,7 +70,7 @@ impl oio::Write for FtpWriter {
                 self.ftp_stream
                     .append_with_stream(path)
                     .await
-                    .map_err(parse_error)?,
+                    .map_err(format_ftp_error)?,
             ));
         }
 
@@ -100,13 +100,13 @@ impl oio::Write for FtpWriter {
             self.ftp_stream
                 .finalize_put_stream(data_stream)
                 .await
-                .map_err(parse_error)?;
+                .map_err(format_ftp_error)?;
 
             if let Some(tmp_path) = &self.tmp_path {
                 self.ftp_stream
                     .rename(tmp_path, &self.target_path)
                     .await
-                    .map_err(parse_error)?;
+                    .map_err(format_ftp_error)?;
             }
         }
 

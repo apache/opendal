@@ -21,7 +21,6 @@ use etcd_client::Certificate;
 use etcd_client::ConnectOptions;
 use etcd_client::Identity;
 use etcd_client::TlsOptions;
-use mea::once::OnceCell;
 
 use super::ETCD_SCHEME;
 use super::config::EtcdConfig;
@@ -158,14 +157,7 @@ impl Builder for EtcdBuilder {
                 .as_str(),
         );
 
-        let client = OnceCell::new();
-
-        let core = EtcdCore {
-            endpoints,
-            client,
-            options,
-        };
-
+        let core = EtcdCore::new(endpoints, options);
         Ok(EtcdBackend::new(core, &root))
     }
 }

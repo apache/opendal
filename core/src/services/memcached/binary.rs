@@ -97,6 +97,7 @@ pub struct Response {
     value: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub struct Connection {
     io: BufReader<TcpStream>,
 }

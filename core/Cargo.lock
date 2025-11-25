@@ -1157,17 +1157,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
-name = "bb8"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "212d8b8e1a22743d9241575c6ba822cf9c8fef34771c86ab7e477a4fbfd254e5"
-dependencies = [
- "futures-util",
- "parking_lot 0.12.5",
- "tokio",
-]
-
-[[package]]
 name = "bcrypt"
 version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2883,6 +2872,16 @@ dependencies = [
  "itoa",
  "parking_lot 0.12.5",
  "paste",
+]
+
+[[package]]
+name = "fastpool"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6777b4743839a42fd32141d95d7adc4c98e3a1d5200a2598cf32ffd102c81e1"
+dependencies = [
+ "mea",
+ "scopeguard",
 ]
 
 [[package]]
@@ -5351,7 +5350,6 @@ dependencies = [
  "await-tree",
  "backon",
  "base64 0.22.1",
- "bb8",
  "bytes",
  "cacache",
  "compio",
@@ -5362,6 +5360,7 @@ dependencies = [
  "dotenvy",
  "etcd-client",
  "fastmetrics",
+ "fastpool",
  "fastrace",
  "fastrace-jaeger",
  "flume",

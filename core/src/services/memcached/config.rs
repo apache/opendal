@@ -46,7 +46,7 @@ pub struct MemcachedConfig {
     /// The maximum number of connections allowed.
     ///
     /// default is 10
-    pub connection_pool_max_size: Option<u32>,
+    pub connection_pool_max_size: Option<usize>,
 }
 
 impl Debug for MemcachedConfig {

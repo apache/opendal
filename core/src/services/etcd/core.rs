@@ -15,17 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use bb8::Pool;
-use bb8::PooledConnection;
-use bb8::RunError;
-use etcd_client::Client;
-use etcd_client::ConnectOptions;
-use mea::once::OnceCell;
-
 use crate::services::etcd::error::format_etcd_error;
 use crate::{Buffer, Error, ErrorKind, Result};
+use etcd_client::Client;
+use etcd_client::ConnectOptions;
+use fastpool::ManageObject;
+use fastpool::ObjectStatus;
+use fastpool::bounded;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Duration;
 
 pub mod constants {
     pub const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";
@@ -37,34 +36,33 @@ pub struct Manager {
     options: ConnectOptions,
 }
 
-impl bb8::ManageConnection for Manager {
-    type Connection = Client;
+impl ManageObject for Manager {
+    type Object = Client;
     type Error = Error;
 
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
-        let conn = Client::connect(self.endpoints.clone(), Some(self.options.clone()))
+    async fn create(&self) -> Result<Self::Object, Self::Error> {
+        Client::connect(self.endpoints.clone(), Some(self.options.clone()))
             .await
-            .map_err(format_etcd_error)?;
-
-        Ok(conn)
+            .map_err(format_etcd_error)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let _ = conn.status().await.map_err(format_etcd_error)?;
-        Ok(())
-    }
-
-    /// Always allow reuse conn.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+    async fn is_recyclable(
+        &self,
+        o: &mut Self::Object,
+        _: &ObjectStatus,
+    ) -> Result<(), Self::Error> {
+        match o.status().await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(format_etcd_error(err)),
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct EtcdCore {
-    pub endpoints: Vec<String>,
-    pub options: ConnectOptions,
-    pub client: OnceCell<Pool<Manager>>,
+    endpoints: Vec<String>,
+    options: ConnectOptions,
+    client: Arc<bounded::Pool<Manager>>,
 }
 
 impl Debug for EtcdCore {
@@ -77,26 +75,34 @@ impl Debug for EtcdCore {
 }
 
 impl EtcdCore {
-    pub async fn conn(&self) -> Result<PooledConnection<'static, Manager>> {
-        let client = self
-            .client
-            .get_or_try_init(|| async {
-                Pool::builder()
-                    .max_size(64)
-                    .build(Manager {
-                        endpoints: self.endpoints.clone(),
-                        options: self.options.clone(),
-                    })
-                    .await
-            })
-            .await?;
+    pub fn new(endpoints: Vec<String>, options: ConnectOptions) -> Self {
+        let client = bounded::Pool::new(
+            bounded::PoolConfig::new(64),
+            Manager {
+                endpoints: endpoints.clone(),
+                options: options.clone(),
+            },
+        );
 
-        client.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => err,
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+        Self {
+            endpoints,
+            options,
+            client,
+        }
+    }
+
+    pub async fn conn(&self) -> Result<bounded::Object<Manager>> {
+        let fut = self.client.get();
+
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                Err(Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary())
             }
-        })
+            result = fut => match result {
+                Ok(conn) => Ok(conn),
+                Err(err) => Err(err),
+            }
+        }
     }
 
     pub async fn has_prefix(&self, prefix: &str) -> Result<bool> {

@@ -20,7 +20,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use http::Uri;
-use mea::once::OnceCell;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
@@ -133,7 +132,7 @@ impl RedisBuilder {
     ///
     /// Will panic if `max_size` is 0.
     #[must_use]
-    pub fn connection_pool_max_size(mut self, max_size: u32) -> Self {
+    pub fn connection_pool_max_size(mut self, max_size: usize) -> Self {
         assert!(max_size > 0, "max_size must be greater than zero!");
         self.config.connection_pool_max_size = Some(max_size);
         self
@@ -166,16 +165,13 @@ impl Builder for RedisBuilder {
             }
             let client = client_builder.build().map_err(format_redis_error)?;
 
-            let conn = OnceCell::new();
-
-            Ok(RedisBackend::new(RedisCore {
-                addr: endpoints,
-                client: None,
-                cluster_client: Some(client),
-                conn,
-                default_ttl: self.config.default_ttl,
-                connection_pool_max_size: self.config.connection_pool_max_size,
-            })
+            Ok(RedisBackend::new(RedisCore::new(
+                endpoints,
+                None,
+                Some(client),
+                self.config.default_ttl,
+                self.config.connection_pool_max_size,
+            ))
             .with_normalized_root(root))
         } else {
             let endpoint = self
@@ -193,15 +189,13 @@ impl Builder for RedisBuilder {
                         .set_source(e)
                 })?;
 
-            let conn = OnceCell::new();
-            Ok(RedisBackend::new(RedisCore {
-                addr: endpoint,
-                client: Some(client),
-                cluster_client: None,
-                conn,
-                default_ttl: self.config.default_ttl,
-                connection_pool_max_size: self.config.connection_pool_max_size,
-            })
+            Ok(RedisBackend::new(RedisCore::new(
+                endpoint,
+                Some(client),
+                None,
+                self.config.default_ttl,
+                self.config.connection_pool_max_size,
+            ))
             .with_normalized_root(root))
         }
     }
@@ -277,7 +271,7 @@ impl RedisBackend {
     fn new(core: RedisCore) -> Self {
         let info = AccessorInfo::default();
         info.set_scheme(REDIS_SCHEME);
-        info.set_name(&core.addr);
+        info.set_name(core.addr());
         info.set_root("/");
         info.set_native_capability(Capability {
             read: true,

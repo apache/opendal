@@ -15,19 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bb8::PooledConnection;
 use bytes::BytesMut;
+use fastpool::bounded;
 use futures::AsyncRead;
 use futures::AsyncReadExt;
 
 use super::core::Manager;
-use super::err::parse_error;
+use super::err::format_ftp_error;
 use crate::raw::*;
 use crate::*;
 
 pub struct FtpReader {
     /// Keep the connection alive while data stream is alive.
-    _ftp_stream: PooledConnection<'static, Manager>,
+    _ftp_stream: bounded::Object<Manager>,
 
     data_stream: Box<dyn AsyncRead + Sync + Send + Unpin + 'static>,
     chunk: usize,
@@ -41,7 +41,7 @@ unsafe impl Sync for FtpReader {}
 
 impl FtpReader {
     pub async fn new(
-        mut ftp_stream: PooledConnection<'static, Manager>,
+        mut ftp_stream: bounded::Object<Manager>,
         path: String,
         args: OpRead,
     ) -> Result<Self> {
@@ -53,12 +53,12 @@ impl FtpReader {
             ftp_stream
                 .resume_transfer(offset as usize)
                 .await
-                .map_err(parse_error)?;
+                .map_err(format_ftp_error)?;
         }
         let ds = ftp_stream
             .retr_as_stream(path)
             .await
-            .map_err(parse_error)?
+            .map_err(format_ftp_error)?
             .take(size as _);
 
         Ok(Self {

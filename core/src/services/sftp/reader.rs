@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use bb8::PooledConnection;
 use bytes::BytesMut;
+use fastpool::bounded;
 use openssh_sftp_client::file::File;
 
 use super::core::Manager;
@@ -26,7 +26,7 @@ use crate::*;
 
 pub struct SftpReader {
     /// Keep the connection alive while data stream is alive.
-    _conn: PooledConnection<'static, Manager>,
+    _conn: bounded::Object<Manager>,
 
     file: File,
     chunk: usize,
@@ -36,7 +36,7 @@ pub struct SftpReader {
 }
 
 impl SftpReader {
-    pub fn new(conn: PooledConnection<'static, Manager>, file: File, size: Option<u64>) -> Self {
+    pub fn new(conn: bounded::Object<Manager>, file: File, size: Option<u64>) -> Self {
         Self {
             _conn: conn,
             file,

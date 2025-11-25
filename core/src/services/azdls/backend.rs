@@ -291,6 +291,7 @@ impl Builder for AzdlsBuilder {
 
                             write: true,
                             write_can_append: true,
+                            write_can_multi: true,
                             write_with_if_none_match: true,
                             write_with_if_not_exists: true,
 

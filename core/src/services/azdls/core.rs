@@ -207,24 +207,31 @@ impl AzdlsCore {
     }
 
     /// ref: https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/update
-    pub async fn azdls_update(
+    pub async fn azdls_append(
         &self,
         path: &str,
         size: Option<u64>,
         position: u64,
+        flush: bool,
+        close: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
-        // - close: Make this is the final action to this file.
-        // - flush: Flush the file directly.
-        let url = format!(
-            "{}/{}/{}?action=append&close=true&flush=true&position={}",
+        let mut url = format!(
+            "{}/{}/{}?action=append&position={}",
             self.endpoint,
             self.filesystem,
             percent_encode_path(&p),
             position
         );
+
+        if flush {
+            url.push_str("&flush=true");
+        }
+        if close {
+            url.push_str("&close=true");
+        }
 
         let mut req = Request::patch(&url);
 
@@ -235,6 +242,37 @@ impl AzdlsCore {
         let mut req = req
             .extension(Operation::Write)
             .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
+    /// Flush pending data appended by [`azdls_append`].
+    pub async fn azdls_flush(
+        &self,
+        path: &str,
+        position: u64,
+        close: bool,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let mut url = format!(
+            "{}/{}/{}?action=flush&position={}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&p),
+            position
+        );
+
+        if close {
+            url.push_str("&close=true");
+        }
+
+        let mut req = Request::patch(&url)
+            .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.sign(&mut req).await?;

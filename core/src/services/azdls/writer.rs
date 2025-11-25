@@ -26,18 +26,37 @@ use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
 
-pub type AzdlsWriters = TwoWays<oio::OneShotWriter<AzdlsWriter>, oio::AppendWriter<AzdlsWriter>>;
+/// Writer type for azdls: non-append uses PositionWriter, append uses AppendWriter.
+pub type AzdlsWriters = TwoWays<oio::PositionWriter<AzdlsWriter>, oio::AppendWriter<AzdlsWriter>>;
 
+#[derive(Clone)]
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
-
     op: OpWrite,
     path: String,
 }
 
 impl AzdlsWriter {
     pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
-        AzdlsWriter { core, op, path }
+        Self { core, op, path }
+    }
+
+    pub async fn create(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Result<Self> {
+        let writer = Self::new(core, op, path);
+        writer.create_if_needed().await?;
+        Ok(writer)
+    }
+
+    async fn create_if_needed(&self) -> Result<()> {
+        let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CONFLICT if self.op.if_not_exists() => {
+                Err(parse_error(resp).with_operation("Backend::azdls_create_request"))
+            }
+            StatusCode::CONFLICT => Ok(()),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -59,28 +78,38 @@ impl AzdlsWriter {
     }
 }
 
-impl oio::OneShotWrite for AzdlsWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::CREATED | StatusCode::OK => {}
-            _ => {
-                return Err(parse_error(resp).with_operation("Backend::azdls_create_request"));
-            }
-        }
-
+impl oio::PositionWrite for AzdlsWriter {
+    async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+        let size = buf.len() as u64;
         let resp = self
             .core
-            .azdls_update(&self.path, Some(bs.len() as u64), 0, bs)
+            .azdls_append(&self.path, Some(size), offset, false, false, buf)
             .await?;
 
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::ACCEPTED => Ok(Metadata::default()),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
+        match resp.status() {
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_append_request")),
         }
+    }
+
+    async fn close(&self, size: u64) -> Result<Metadata> {
+        // Flush accumulated appends once.
+        let resp = self.core.azdls_flush(&self.path, size, true).await?;
+
+        let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
+        meta.set_content_length(size);
+
+        match resp.status() {
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_flush_request")),
+        }
+    }
+
+    async fn abort(&self) -> Result<()> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Abort is not supported for azdls writer",
+        ))
     }
 }
 
@@ -100,19 +129,14 @@ impl oio::AppendWrite for AzdlsWriter {
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
         if offset == 0 {
-            let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
-            let status = resp.status();
-            match status {
-                StatusCode::CREATED | StatusCode::OK => {}
-                _ => {
-                    return Err(parse_error(resp).with_operation("Backend::azdls_create_request"));
-                }
-            }
+            // Only create when starting a new file; avoid 404 when appending to a non-existent path.
+            self.create_if_needed().await?;
         }
 
+        // append + flush in a single request to minimize roundtrips for append mode.
         let resp = self
             .core
-            .azdls_update(&self.path, Some(size), offset, body)
+            .azdls_append(&self.path, Some(size), offset, true, false, body)
             .await?;
 
         let mut meta = AzdlsWriter::parse_metadata(resp.headers())?;
@@ -120,10 +144,11 @@ impl oio::AppendWrite for AzdlsWriter {
         if let Some(md5) = md5 {
             meta.set_content_md5(md5);
         }
-        let status = resp.status();
-        match status {
+        meta.set_content_length(offset + size);
+
+        match resp.status() {
             StatusCode::OK | StatusCode::ACCEPTED => Ok(meta),
-            _ => Err(parse_error(resp).with_operation("Backend::azdls_update_request")),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_append_request")),
         }
     }
 }

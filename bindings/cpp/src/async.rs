@@ -17,6 +17,7 @@
 
 use anyhow::Result;
 use cxx_async::CxxAsyncException;
+use mea::mutex::Mutex;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
@@ -24,7 +25,6 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {

@@ -22,11 +22,11 @@ use bytes::Buf;
 use http::Method;
 use http::Request;
 use http::Response;
+use http::header;
 use http::header::HeaderValue;
-use http::header::{self};
+use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use crate::raw::*;

@@ -24,8 +24,8 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use mea::rwlock::RwLock;
 use serde::Deserialize;
-use tokio::sync::RwLock;
 
 use super::error::parse_error;
 use crate::raw::*;

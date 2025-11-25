@@ -25,7 +25,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use tokio::sync::Mutex;
+use mea::mutex::Mutex;
 
 use super::error::parse_error;
 use super::graph_model::*;

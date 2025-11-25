@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
+use mea::mutex::Mutex;
 use services::onedrive::core::OneDriveCore;
 use services::onedrive::core::OneDriveSigner;
-use tokio::sync::Mutex;
 
 use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;

@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
-use tokio::sync::Mutex;
+use mea::mutex::Mutex;
 
 use super::GDRIVE_SCHEME;
 use super::backend::GdriveBackend;

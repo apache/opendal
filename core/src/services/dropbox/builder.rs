@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
+use mea::mutex::Mutex;
 
 use super::DROPBOX_SCHEME;
 use super::backend::DropboxBackend;

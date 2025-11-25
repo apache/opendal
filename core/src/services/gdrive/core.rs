@@ -25,9 +25,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde_json::json;
-use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use crate::raw::*;

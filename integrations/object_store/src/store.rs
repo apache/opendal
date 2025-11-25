@@ -27,6 +27,7 @@ use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use mea::mutex::Mutex;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -45,7 +46,7 @@ use opendal::options::CopyOptions;
 use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::Notify;
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///

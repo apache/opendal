@@ -321,7 +321,7 @@ unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
 
 fn delete_reader(reader: ffi::ReaderPtr) {
     // Use blocking lock since this is called from C++ destructors
-    if let Ok(mut storage) = get_reader_storage().try_lock() {
+    if let Some(mut storage) = get_reader_storage().try_lock() {
         storage.remove(&reader.id);
     }
     // If we can't get the lock immediately, we'll just skip cleanup
@@ -330,7 +330,7 @@ fn delete_reader(reader: ffi::ReaderPtr) {
 
 fn delete_lister(lister: ffi::ListerPtr) {
     // Use blocking lock since this is called from C++ destructors
-    if let Ok(mut storage) = get_lister_storage().try_lock() {
+    if let Some(mut storage) = get_lister_storage().try_lock() {
         storage.remove(&lister.id);
     }
     // If we can't get the lock immediately, we'll just skip cleanup

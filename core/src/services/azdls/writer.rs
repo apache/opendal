@@ -32,18 +32,31 @@ pub type AzdlsWriters = TwoWays<oio::PositionWriter<AzdlsWriter>, oio::AppendWri
 #[derive(Clone)]
 pub struct AzdlsWriter {
     core: Arc<AzdlsCore>,
+    op: OpWrite,
     path: String,
 }
 
 impl AzdlsWriter {
-    pub async fn create(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Result<Self> {
-        let resp = core.azdls_create(&path, FILE, &op).await?;
-        match resp.status() {
-            StatusCode::CREATED | StatusCode::OK => {}
-            _ => return Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
-        }
+    pub fn new(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Self {
+        Self { core, op, path }
+    }
 
-        Ok(Self { core, path })
+    pub async fn create(core: Arc<AzdlsCore>, op: OpWrite, path: String) -> Result<Self> {
+        let writer = Self::new(core, op, path);
+        writer.create_if_needed().await?;
+        Ok(writer)
+    }
+
+    async fn create_if_needed(&self) -> Result<()> {
+        let resp = self.core.azdls_create(&self.path, FILE, &self.op).await?;
+        match resp.status() {
+            StatusCode::CREATED | StatusCode::OK => Ok(()),
+            StatusCode::CONFLICT if self.op.if_not_exists() => {
+                Err(parse_error(resp).with_operation("Backend::azdls_create_request"))
+            }
+            StatusCode::CONFLICT => Ok(()),
+            _ => Err(parse_error(resp).with_operation("Backend::azdls_create_request")),
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
@@ -112,6 +125,11 @@ impl oio::AppendWrite for AzdlsWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        if offset == 0 {
+            // Only create when starting a new file; avoid 404 when appending to a non-existent path.
+            self.create_if_needed().await?;
+        }
+
         // append + flush in a single request to minimize roundtrips for append mode.
         let resp = self
             .core

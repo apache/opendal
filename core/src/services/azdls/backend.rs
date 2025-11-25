@@ -380,7 +380,7 @@ impl Access for AzdlsBackend {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         if args.append() {
-            let w = AzdlsWriter::create(self.core.clone(), args.clone(), path.to_string()).await?;
+            let w = AzdlsWriter::new(self.core.clone(), args.clone(), path.to_string());
             return Ok((
                 RpWrite::default(),
                 AzdlsWriters::Two(oio::AppendWriter::new(w)),

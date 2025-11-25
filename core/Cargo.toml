@@ -47,7 +47,7 @@ rust-version = "1.85"
 version = "0.54.0"
 
 [features]
-default = ["reqwest/rustls-tls", "executors-tokio", "services-memory"]
+default = ["reqwest/rustls-tls", "executors-tokio", "services-memory", "glob"]
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]

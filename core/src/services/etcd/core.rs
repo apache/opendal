@@ -36,7 +36,7 @@ pub mod constants {
 }
 
 #[derive(Clone)]
-struct Manager {
+pub struct Manager {
     endpoints: Vec<String>,
     options: ConnectOptions,
 }

@@ -18,8 +18,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use mea::once::OnceCell;
-
 use super::MEMCACHED_SCHEME;
 use super::config::MemcachedConfig;
 use super::core::*;

@@ -106,7 +106,10 @@ impl oio::PositionWrite for AzdlsWriter {
     }
 
     async fn abort(&self) -> Result<()> {
-        Ok(())
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Abort is not supported for azdls writer",
+        ))
     }
 }
 

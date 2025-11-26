@@ -22,7 +22,7 @@ use crate::*;
 
 /// OneShotDelete is used to implement [`oio::Delete`] based on one shot operation.
 ///
-/// OneShotDeleter will perform delete operation while calling `flush`.
+/// OneShotDeleter will perform delete operation while calling `close`.
 pub trait OneShotDelete: Send + Sync + Unpin + 'static {
     /// delete_once delete one path at once.
     ///
@@ -63,17 +63,17 @@ impl<D> OneShotDeleter<D> {
 }
 
 impl<D: OneShotDelete> oio::Delete for OneShotDeleter<D> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.delete_inner(path.to_string(), args)
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         let Some((path, args)) = self.delete.clone() else {
-            return Ok(0);
+            return Ok(());
         };
 
         self.inner.delete_once(path, args).await?;
         self.delete = None;
-        Ok(1)
+        Ok(())
     }
 }

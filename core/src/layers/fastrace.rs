@@ -258,14 +258,13 @@ impl<R: oio::List> oio::List for FastraceWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for FastraceWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        let _g = self.span.set_local_parent();
-        let _span = LocalSpan::enter_with_local_parent(Operation::Delete.into_static());
-        self.inner.delete(path, args)
+    #[trace(enter_on_poll = true)]
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
     #[trace(enter_on_poll = true)]
-    async fn flush(&mut self) -> Result<usize> {
-        self.inner.flush().await
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }

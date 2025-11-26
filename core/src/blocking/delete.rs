@@ -62,11 +62,6 @@ impl Deleter {
         self.handle.block_on(self.inner.delete_try_iter(try_iter))
     }
 
-    /// Flush the deleter, returns the number of deleted paths.
-    pub fn flush(&mut self) -> Result<usize> {
-        self.handle.block_on(self.inner.flush())
-    }
-
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub fn close(&mut self) -> Result<()> {
         self.handle.block_on(self.inner.close())

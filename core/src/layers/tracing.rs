@@ -335,15 +335,15 @@ impl<R: oio::List> oio::List for TracingWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for TracingWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let _enter = self.span.enter();
 
-        self.inner.delete(path, args)
+        self.inner.delete(path, args).await
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         let _enter = self.span.enter();
 
-        self.inner.flush().await
+        self.inner.close().await
     }
 }

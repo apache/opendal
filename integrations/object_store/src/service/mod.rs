@@ -356,7 +356,7 @@ mod tests {
         deleter
             .delete(path, OpDelete::default())
             .expect("delete should succeed");
-        deleter.flush().await.expect("flush should succeed");
+        deleter.close().await.expect("close should succeed");
 
         // Verify file is deleted
         let result = backend.stat(path, OpStat::default()).await;

@@ -23,7 +23,7 @@ use crate::*;
 
 /// BatchDelete is used to implement [`oio::Delete`] based on batch delete operation.
 ///
-/// OneShotDeleter will perform delete operation while calling `flush`.
+/// OneShotDeleter will perform delete operation while calling `close`.
 pub trait BatchDelete: Send + Sync + Unpin + 'static {
     /// delete_once delete one path at once.
     ///
@@ -72,14 +72,14 @@ impl<D: BatchDelete> BatchDeleter<D> {
 }
 
 impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.buffer.insert((path.to_string(), args));
         Ok(())
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         if self.buffer.is_empty() {
-            return Ok(0);
+            return Ok(());
         }
         if self.buffer.len() == 1 {
             let (path, args) = self
@@ -90,7 +90,7 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
                 .clone();
             self.inner.delete_once(path, args).await?;
             self.buffer.clear();
-            return Ok(1);
+            return Ok(());
         }
 
         let batch = self.buffer.iter().cloned().collect();
@@ -106,7 +106,6 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
         );
 
         // Remove all succeeded operations from the buffer.
-        let deleted = result.succeeded.len();
         for i in result.succeeded {
             self.buffer.remove(&i);
         }
@@ -120,8 +119,6 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
             }
         }
 
-        // Return the number of succeeded operations to allow users to decide whether
-        // to retry or push more delete operations.
-        Ok(deleted)
+        Ok(())
     }
 }

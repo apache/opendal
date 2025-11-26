@@ -285,8 +285,8 @@ impl<T: oio::List> oio::List for ErrorContextWrapper<T> {
 }
 
 impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).map_err(|err| {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await.map_err(|err| {
             err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("path", path)
@@ -294,17 +294,11 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
         })
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        self.inner
-            .flush()
-            .await
-            .inspect(|&n| {
-                self.processed += n as u64;
-            })
-            .map_err(|err| {
-                err.with_operation(Operation::Delete)
-                    .with_context("service", self.scheme)
-                    .with_context("deleted", self.processed.to_string())
-            })
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.map_err(|err| {
+            err.with_operation(Operation::Delete)
+                .with_context("service", self.scheme)
+                .with_context("deleted", self.processed.to_string())
+        })
     }
 }

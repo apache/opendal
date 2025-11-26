@@ -28,7 +28,6 @@ use crate::*;
 #[derive(Debug, Clone)]
 pub struct SimulateLayer {
     list_recursive: bool,
-    list_start_after: bool,
     stat_dir: bool,
     create_dir: bool,
 }
@@ -37,7 +36,6 @@ impl Default for SimulateLayer {
     fn default() -> Self {
         Self {
             list_recursive: true,
-            list_start_after: true,
             stat_dir: true,
             create_dir: true,
         }
@@ -48,12 +46,6 @@ impl SimulateLayer {
     /// Enable or disable recursive list simulation. Default: true.
     pub fn with_list_recursive(mut self, enabled: bool) -> Self {
         self.list_recursive = enabled;
-        self
-    }
-
-    /// Enable or disable start_after simulation. Default: true.
-    pub fn with_list_start_after(mut self, enabled: bool) -> Self {
-        self.list_start_after = enabled;
         self
     }
 
@@ -76,9 +68,6 @@ impl<A: Access> Layer<A> for SimulateLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
         info.update_full_capability(|mut cap| {
-            if self.list_start_after && cap.list {
-                cap.list_with_start_after = true;
-            }
             if self.list_recursive && cap.list {
                 cap.list_with_recursive = true;
             }
@@ -171,29 +160,11 @@ impl<A: Access> SimulateAccessor<A> {
         &self,
         path: &str,
         args: OpList,
-    ) -> Result<(RpList, StartAfterLister<SimulateLister<A, A::Lister>>)> {
+    ) -> Result<(RpList, SimulateLister<A, A::Lister>)> {
         let cap = self.info.native_capability();
 
         let recursive = args.recursive();
-        let start_after = args.start_after().map(|v| v.to_string());
-        let simulate_start_after =
-            start_after.is_some() && self.config.list_start_after && !cap.list_with_start_after;
-
-        let mut forward = OpList::new().with_recursive(recursive);
-        if let Some(limit) = args.limit() {
-            forward = forward.with_limit(limit);
-        }
-        if args.versions() {
-            forward = forward.with_versions(true);
-        }
-        if args.deleted() {
-            forward = forward.with_deleted(true);
-        }
-        if !simulate_start_after {
-            if let Some(v) = args.start_after() {
-                forward = forward.with_start_after(v);
-            }
-        }
+        let forward = args;
 
         let (rp, lister) = match (
             recursive,
@@ -236,15 +207,6 @@ impl<A: Access> SimulateAccessor<A> {
             }
         };
 
-        let lister = StartAfterLister::new(
-            lister,
-            if simulate_start_after {
-                start_after
-            } else {
-                None
-            },
-        );
-
         Ok((rp, lister))
     }
 }
@@ -253,7 +215,7 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
     type Inner = A;
     type Reader = A::Reader;
     type Writer = A::Writer;
-    type Lister = StartAfterLister<SimulateLister<A, A::Lister>>;
+    type Lister = SimulateLister<A, A::Lister>;
     type Deleter = A::Deleter;
 
     fn inner(&self) -> &Self::Inner {
@@ -295,32 +257,3 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
 
 pub type SimulateLister<A, P> =
     FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
-
-pub struct StartAfterLister<L> {
-    inner: L,
-    start_after: Option<String>,
-}
-
-impl<L> StartAfterLister<L> {
-    pub fn new(inner: L, start_after: Option<String>) -> Self {
-        Self { inner, start_after }
-    }
-}
-
-impl<L: oio::List> oio::List for StartAfterLister<L> {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        loop {
-            let Some(entry) = self.inner.next().await? else {
-                return Ok(None);
-            };
-
-            if let Some(start_after) = self.start_after.as_deref() {
-                if entry.path() <= start_after {
-                    continue;
-                }
-            }
-
-            return Ok(Some(entry));
-        }
-    }
-}

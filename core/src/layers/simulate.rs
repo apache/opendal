@@ -299,16 +299,11 @@ pub type SimulateLister<A, P> =
 pub struct StartAfterLister<L> {
     inner: L,
     start_after: Option<String>,
-    skipped: bool,
 }
 
 impl<L> StartAfterLister<L> {
     pub fn new(inner: L, start_after: Option<String>) -> Self {
-        Self {
-            inner,
-            start_after,
-            skipped: false,
-        }
+        Self { inner, start_after }
     }
 }
 
@@ -320,10 +315,9 @@ impl<L: oio::List> oio::List for StartAfterLister<L> {
             };
 
             if let Some(start_after) = self.start_after.as_deref() {
-                if !self.skipped && entry.path() <= start_after {
+                if entry.path() <= start_after {
                     continue;
                 }
-                self.skipped = true;
             }
 
             return Ok(Some(entry));

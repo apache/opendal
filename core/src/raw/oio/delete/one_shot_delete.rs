@@ -37,43 +37,21 @@ pub trait OneShotDelete: Send + Sync + Unpin + 'static {
 /// OneShotDelete is used to implement [`oio::Delete`] based on one shot.
 pub struct OneShotDeleter<D> {
     inner: D,
-    delete: Option<(String, OpDelete)>,
 }
 
 impl<D> OneShotDeleter<D> {
     /// Create a new one shot deleter.
     pub fn new(inner: D) -> Self {
-        Self {
-            inner,
-            delete: None,
-        }
-    }
-
-    fn delete_inner(&mut self, path: String, args: OpDelete) -> Result<()> {
-        if self.delete.is_some() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "OneShotDeleter doesn't support batch delete",
-            ));
-        }
-
-        self.delete = Some((path, args));
-        Ok(())
+        Self { inner }
     }
 }
 
 impl<D: OneShotDelete> oio::Delete for OneShotDeleter<D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.delete_inner(path.to_string(), args)
+        self.inner.delete_once(path.to_string(), args).await
     }
 
     async fn close(&mut self) -> Result<()> {
-        let Some((path, args)) = self.delete.clone() else {
-            return Ok(());
-        };
-
-        self.inner.delete_once(path, args).await?;
-        self.delete = None;
         Ok(())
     }
 }

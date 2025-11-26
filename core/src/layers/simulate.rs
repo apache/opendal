@@ -68,9 +68,6 @@ impl<A: Access> Layer<A> for SimulateLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
         info.update_full_capability(|mut cap| {
-            if self.list_recursive && cap.list {
-                cap.list_with_recursive = true;
-            }
             if self.create_dir && cap.list && cap.write_can_empty {
                 cap.create_dir = true;
             }
@@ -136,7 +133,7 @@ impl<A: Access> SimulateAccessor<A> {
                 return Ok(RpStat::new(meta));
             }
 
-            if self.config.stat_dir {
+            if self.config.stat_dir && capability.list_with_recursive {
                 let (_, mut l) = self
                     .inner
                     .list(path, OpList::default().with_recursive(true).with_limit(1))

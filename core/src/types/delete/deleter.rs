@@ -99,6 +99,9 @@ impl Deleter {
         if let Some(version) = &input.version {
             op = op.with_version(version);
         }
+        if input.recursive {
+            op = op.with_recursive(true);
+        }
 
         self.deleter.delete_dyn(&input.path, op).await?;
         Ok(())

@@ -26,6 +26,8 @@ pub struct DeleteInput {
     pub path: String,
     /// The version of the path to delete.
     pub version: Option<String>,
+    /// Whether to perform recursive deletion.
+    pub recursive: bool,
 }
 
 /// IntoDeleteInput is a helper trait that makes it easier for users to play with `Deleter`.
@@ -46,6 +48,7 @@ impl IntoDeleteInput for &str {
     fn into_delete_input(self) -> DeleteInput {
         DeleteInput {
             path: self.to_string(),
+            recursive: false,
             ..Default::default()
         }
     }
@@ -56,6 +59,7 @@ impl IntoDeleteInput for String {
     fn into_delete_input(self) -> DeleteInput {
         DeleteInput {
             path: self,
+            recursive: false,
             ..Default::default()
         }
     }
@@ -69,6 +73,7 @@ impl IntoDeleteInput for (String, OpDelete) {
 
         let mut input = DeleteInput {
             path,
+            recursive: args.recursive(),
             ..Default::default()
         };
 
@@ -86,6 +91,7 @@ impl IntoDeleteInput for Entry {
 
         let mut input = DeleteInput {
             path,
+            recursive: false,
             ..Default::default()
         };
 

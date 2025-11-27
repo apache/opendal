@@ -41,7 +41,11 @@ pub trait Delete: Unpin + Send + Sync {
     /// # Notes
     /// This method just queues the delete request. The actual deletion will be
     /// performed when `close` is called.
-    fn delete<'a>(&'a mut self, path: &'a str, args: OpDelete) -> impl Future<Output = Result<()>> + MaybeSend + 'a;
+    fn delete<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a;
 
     /// Close the deleter and ensure all queued deletions are executed.
     fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
@@ -83,7 +87,11 @@ impl<T: Delete + ?Sized> DeleteDyn for T {
 }
 
 impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
-    fn delete<'a>(&'a mut self, path: &'a str, args: OpDelete) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
+    fn delete<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
         self.deref_mut().delete_dyn(path, args)
     }
 

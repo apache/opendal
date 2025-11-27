@@ -615,7 +615,6 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -821,24 +820,22 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
                         .set_temporary(),
                 ),
-                2 => {
+                2..=4 => {
                     self.size = self.size.saturating_sub(1);
-                    Ok(())
+                    Err(
+                        Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                            .set_temporary(),
+                    )
                 }
-                3 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
-                        .set_temporary(),
-                ),
-                4 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
-                        .set_temporary(),
-                ),
                 5 => {
-                    let s = mem::take(&mut self.size);
-                    if s == 0 {
-                        Err(Error::new(ErrorKind::Unexpected, "no progress"))
-                    } else {
+                    self.size = self.size.saturating_sub(1);
+                    if self.size == 0 {
                         Ok(())
+                    } else {
+                        Err(
+                            Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                                .set_temporary(),
+                        )
                     }
                 }
                 _ => unreachable!(),

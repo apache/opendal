@@ -234,17 +234,6 @@ impl<A: Access> SimulateAccessor<A> {
 
         let non_recursive = args.clone().with_recursive(false);
 
-        match self.inner().stat(path, OpStat::default()).await {
-            Ok(meta) => {
-                let meta = meta.into_metadata();
-                if !meta.mode().is_dir() {
-                    deleter.delete(path, non_recursive.clone()).await?;
-                }
-            }
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
-
         let (_rp, mut lister) = self
             .simulate_list(path, OpList::new().with_recursive(true))
             .await?;

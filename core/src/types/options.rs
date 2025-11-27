@@ -25,6 +25,12 @@ use std::collections::HashMap;
 pub struct DeleteOptions {
     /// The version of the file to delete.
     pub version: Option<String>,
+    /// Whether to delete the target recursively.
+    ///
+    /// - If `false`, behaves like the traditional single-object delete.
+    /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
+    ///   will be removed.
+    pub recursive: bool,
 }
 
 /// Options for list operations.

@@ -43,6 +43,7 @@ impl OpCreateDir {
 #[derive(Debug, Clone, Default, Eq, Hash, PartialEq)]
 pub struct OpDelete {
     version: Option<String>,
+    recursive: bool,
 }
 
 impl OpDelete {
@@ -59,9 +60,20 @@ impl OpDelete {
         self
     }
 
+    /// Change the recursive flag of this delete operation.
+    pub fn with_recursive(mut self, recursive: bool) -> Self {
+        self.recursive = recursive;
+        self
+    }
+
     /// Get the version of this delete operation.
     pub fn version(&self) -> Option<&str> {
         self.version.as_deref()
+    }
+
+    /// Whether this delete should remove objects recursively.
+    pub fn recursive(&self) -> bool {
+        self.recursive
     }
 }
 
@@ -69,6 +81,7 @@ impl From<options::DeleteOptions> for OpDelete {
     fn from(value: options::DeleteOptions) -> Self {
         Self {
             version: value.version,
+            recursive: value.recursive,
         }
     }
 }

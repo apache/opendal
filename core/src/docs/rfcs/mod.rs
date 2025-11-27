@@ -289,6 +289,6 @@ pub mod rfc_6707_capability_override_layer {}
 #[doc = include_str!("6817_checksum.md")]
 pub mod rfc_6817_checksum {}
 
-/// Services and layers split topology
-#[doc = include_str!("7000_services_layers_split.md")]
-pub mod rfc_7000_services_layers_split {}
+/// Core
+#[doc = include_str!("6828_core.md")]
+pub mod rfc_6828_core {}

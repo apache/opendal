@@ -234,6 +234,14 @@ impl<T> CheckWrapper<T> {
             ));
         }
 
+        if args.recursive() && !self.info.full_capability().delete_with_recursive {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Delete,
+                "recursive",
+            ));
+        }
+
         Ok(())
     }
 }

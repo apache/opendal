@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 
 use crate::raw::oio::FlatLister;
+use crate::raw::oio::List;
 use crate::raw::oio::PrefixLister;
 use crate::raw::*;
 use crate::*;
@@ -30,6 +31,7 @@ pub struct SimulateLayer {
     list_recursive: bool,
     stat_dir: bool,
     create_dir: bool,
+    delete_recursive: bool,
 }
 
 impl Default for SimulateLayer {
@@ -38,6 +40,7 @@ impl Default for SimulateLayer {
             list_recursive: true,
             stat_dir: true,
             create_dir: true,
+            delete_recursive: true,
         }
     }
 }
@@ -60,6 +63,12 @@ impl SimulateLayer {
         self.create_dir = enabled;
         self
     }
+
+    /// Enable or disable recursive delete simulation. Default: true.
+    pub fn with_delete_recursive(mut self, enabled: bool) -> Self {
+        self.delete_recursive = enabled;
+        self
+    }
 }
 
 impl<A: Access> Layer<A> for SimulateLayer {
@@ -70,6 +79,9 @@ impl<A: Access> Layer<A> for SimulateLayer {
         info.update_full_capability(|mut cap| {
             if self.create_dir && cap.list && cap.write_can_empty {
                 cap.create_dir = true;
+            }
+            if self.delete_recursive && cap.list && cap.delete {
+                cap.delete_with_recursive = true;
             }
             cap
         });
@@ -206,6 +218,37 @@ impl<A: Access> SimulateAccessor<A> {
 
         Ok((rp, lister))
     }
+
+    pub(crate) async fn simulate_delete_with_recursive<D: oio::Delete>(
+        &self,
+        deleter: &mut D,
+        path: &str,
+        args: OpDelete,
+    ) -> Result<()> {
+        if !self.info.full_capability().delete_with_recursive {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "recursive delete is not supported",
+            ));
+        }
+
+        let non_recursive = args.clone().with_recursive(false);
+
+        let (_rp, mut lister) = self
+            .simulate_list(path, OpList::new().with_recursive(true))
+            .await?;
+
+        while let Some(entry) = lister.next().await? {
+            let entry = entry.into_entry();
+            let mut entry_args = non_recursive.clone();
+            if let Some(version) = entry.metadata().version() {
+                entry_args = entry_args.with_version(version);
+            }
+            deleter.delete(entry.path(), entry_args).await?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<A: Access> LayeredAccess for SimulateAccessor<A> {
@@ -213,7 +256,7 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
     type Reader = A::Reader;
     type Writer = A::Writer;
     type Lister = SimulateLister<A, A::Lister>;
-    type Deleter = A::Deleter;
+    type Deleter = SimulateDeleter<A, A::Deleter>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -240,7 +283,14 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner().delete().await
+        let (rp, deleter) = self.inner().delete().await?;
+        let accessor = SimulateAccessor {
+            config: self.config.clone(),
+            info: self.info.clone(),
+            inner: self.inner.clone(),
+        };
+
+        Ok((rp, SimulateDeleter::new(accessor, deleter)))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -254,3 +304,32 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
 
 pub type SimulateLister<A, P> =
     FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
+
+/// Deleter wrapper that simulates recursive deletion.
+pub struct SimulateDeleter<A: Access, D> {
+    accessor: SimulateAccessor<A>,
+    deleter: D,
+}
+
+impl<A: Access, D> SimulateDeleter<A, D> {
+    pub fn new(accessor: SimulateAccessor<A>, deleter: D) -> Self {
+        Self { accessor, deleter }
+    }
+}
+
+impl<A: Access, D: oio::Delete> oio::Delete for SimulateDeleter<A, D> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        if args.recursive() && self.accessor.config.delete_recursive {
+            return self
+                .accessor
+                .simulate_delete_with_recursive(&mut self.deleter, path, args)
+                .await;
+        }
+
+        self.deleter.delete(path, args).await
+    }
+
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.deleter.close()
+    }
+}

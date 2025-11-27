@@ -935,9 +935,10 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
 }
 
 impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.inner
             .delete(path, args)
+            .await
             .inspect(|_| {
                 self.size += 1;
             })
@@ -949,8 +950,8 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             })
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        self.inner.flush().await.inspect_err(|err| {
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await.inspect_err(|err| {
             self.interceptor.observe(
                 self.labels.clone().with_error(err.kind()),
                 MetricValue::OperationErrorsTotal,

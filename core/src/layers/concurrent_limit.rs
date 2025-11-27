@@ -279,11 +279,11 @@ impl<R: oio::List> oio::List for ConcurrentLimitWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for ConcurrentLimitWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        self.inner.flush().await
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
     }
 }

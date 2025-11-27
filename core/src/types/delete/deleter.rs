@@ -83,38 +83,24 @@ use crate::*;
 /// ```
 pub struct Deleter {
     deleter: oio::Deleter,
-
-    max_size: usize,
-    cur_size: usize,
 }
 
 impl Deleter {
     pub(crate) async fn create(acc: Accessor) -> Result<Self> {
-        let max_size = acc.info().full_capability().delete_max_size.unwrap_or(1);
         let (_, deleter) = acc.delete().await?;
 
-        Ok(Self {
-            deleter,
-            max_size,
-            cur_size: 0,
-        })
+        Ok(Self { deleter })
     }
 
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
-        if self.cur_size >= self.max_size {
-            let deleted = self.deleter.flush_dyn().await?;
-            self.cur_size -= deleted;
-        }
-
         let input = input.into_delete_input();
         let mut op = OpDelete::default();
         if let Some(version) = &input.version {
             op = op.with_version(version);
         }
 
-        self.deleter.delete_dyn(&input.path, op)?;
-        self.cur_size += 1;
+        self.deleter.delete_dyn(&input.path, op).await?;
         Ok(())
     }
 
@@ -195,22 +181,9 @@ impl Deleter {
         Ok(())
     }
 
-    /// Flush the deleter, returns the number of deleted paths.
-    pub async fn flush(&mut self) -> Result<usize> {
-        let deleted = self.deleter.flush_dyn().await?;
-        self.cur_size -= deleted;
-        Ok(deleted)
-    }
-
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub async fn close(&mut self) -> Result<()> {
-        loop {
-            self.flush().await?;
-            if self.cur_size == 0 {
-                break;
-            }
-        }
-        Ok(())
+        self.deleter.close_dyn().await
     }
 
     /// Convert the deleter into a sink.

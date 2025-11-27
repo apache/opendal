@@ -44,6 +44,7 @@ impl HuggingfaceBuilder {
     /// Available values:
     /// - model
     /// - dataset
+    /// - datasets (alias for dataset)
     ///
     /// Currently, only models and datasets are supported.
     /// [Reference](https://huggingface.co/docs/hub/repositories)
@@ -128,7 +129,7 @@ impl Builder for HuggingfaceBuilder {
 
         let repo_type = match self.config.repo_type.as_deref() {
             Some("model") => Ok(RepoType::Model),
-            Some("dataset") => Ok(RepoType::Dataset),
+            Some("dataset") | Some("datasets") => Ok(RepoType::Dataset),
             Some("space") => Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "repo type \"space\" is unsupported",
@@ -289,4 +290,20 @@ impl Access for HuggingfaceBackend {
 pub enum RepoType {
     Model,
     Dataset,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_accepts_datasets_alias() {
+        let backend: HuggingfaceBackend = HuggingfaceBuilder::default()
+            .repo_id("org/repo")
+            .repo_type("datasets")
+            .build()
+            .expect("builder should accept datasets alias");
+
+        assert!(matches!(backend.core.repo_type, RepoType::Dataset));
+    }
 }

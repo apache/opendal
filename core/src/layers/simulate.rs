@@ -319,11 +319,19 @@ impl<A: Access, D> SimulateDeleter<A, D> {
 
 impl<A: Access, D: oio::Delete> oio::Delete for SimulateDeleter<A, D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        if args.recursive() && self.accessor.config.delete_recursive {
-            return self
-                .accessor
-                .simulate_delete_with_recursive(&mut self.deleter, path, args)
-                .await;
+        if args.recursive() {
+            let cap = self.accessor.info.native_capability();
+
+            if cap.delete_with_recursive {
+                return self.deleter.delete(path, args).await;
+            }
+
+            if self.accessor.config.delete_recursive {
+                return self
+                    .accessor
+                    .simulate_delete_with_recursive(&mut self.deleter, path, args)
+                    .await;
+            }
         }
 
         self.deleter.delete(path, args).await

@@ -39,6 +39,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_batch_delete,
             test_batch_delete_with_version
         ));
+        if cap.delete_with_recursive {
+            tests.extend(async_trials!(op, test_delete_with_recursive_basic));
+        }
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
             if !cap.create_dir {
@@ -272,6 +275,38 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
         .version(version.as_str())
         .await;
     assert!(ret.is_ok());
+
+    Ok(())
+}
+
+pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_recursive {
+        return Ok(());
+    }
+
+    let base = format!("delete_recursive_{}/", uuid::Uuid::new_v4());
+
+    let files = [
+        format!("{base}file.txt"),
+        format!("{base}dir1/file1.txt"),
+        format!("{base}dir1/dir2/file2.txt"),
+    ];
+
+    for path in &files {
+        op.write(path, "delete recursive").await?;
+    }
+
+    op.delete_with(&base).recursive(true).await?;
+
+    let mut l = op.lister_with(&base).recursive(true).await?;
+    assert!(
+        l.try_next().await?.is_none(),
+        "all entries should be removed"
+    );
+
+    for path in &files {
+        assert!(!op.exists(path).await?, "{path} should be removed");
+    }
 
     Ok(())
 }

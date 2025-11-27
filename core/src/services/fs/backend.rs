@@ -153,6 +153,7 @@ impl Builder for FsBuilder {
 
                             create_dir: true,
                             delete: true,
+                            delete_with_recursive: true,
 
                             list: true,
 

@@ -143,9 +143,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let max_batch = self.store.info().full_capability().delete_max_size;
-
-        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()), max_batch);
+        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()), Some(1000));
         Ok((RpDelete::default(), deleter))
     }
 
@@ -357,6 +355,7 @@ mod tests {
         let (_, mut deleter) = backend.delete().await.expect("delete should succeed");
         deleter
             .delete(path, OpDelete::default())
+            .await
             .expect("delete should succeed");
         deleter.close().await.expect("close should succeed");
 

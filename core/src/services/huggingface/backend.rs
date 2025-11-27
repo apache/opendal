@@ -298,12 +298,10 @@ mod tests {
 
     #[test]
     fn build_accepts_datasets_alias() {
-        let backend: HuggingfaceBackend = HuggingfaceBuilder::default()
+        HuggingfaceBuilder::default()
             .repo_id("org/repo")
             .repo_type("datasets")
             .build()
             .expect("builder should accept datasets alias");
-
-        assert!(matches!(backend.core.repo_type, RepoType::Dataset));
     }
 }

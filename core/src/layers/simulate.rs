@@ -165,7 +165,7 @@ impl<A: Access> SimulateAccessor<A> {
         self.inner.stat(path, args).await
     }
 
-    pub(crate) async fn simulate_list(
+    async fn simulate_list(
         &self,
         path: &str,
         args: OpList,

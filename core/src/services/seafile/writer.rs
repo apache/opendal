@@ -20,7 +20,6 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::SeafileCore;
-use super::core::parse_file_detail;
 use super::error::parse_error;
 use crate::raw::*;
 use crate::*;
@@ -53,8 +52,7 @@ impl oio::OneShotWrite for SeafileWriter {
                 if self.path.ends_with('/') {
                     Ok(Metadata::new(EntryMode::DIR))
                 } else {
-                    let file_detail = self.core.file_detail(&self.path).await?;
-                    parse_file_detail(file_detail)
+                    Ok(Metadata::default())
                 }
             }
             _ => Err(parse_error(resp)),

@@ -15,13 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
-
-use bb8::Pool;
-use bb8::PooledConnection;
-use bb8::RunError;
+use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
 use raw::Operation;
+use std::sync::Arc;
+use std::time::Duration;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
@@ -29,37 +27,38 @@ use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
 use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
-use tokio::sync::OnceCell;
 
-use super::err::parse_error;
+use super::err::format_ftp_error;
 use crate::raw::AccessorInfo;
 use crate::*;
 
 pub struct FtpCore {
-    pub info: Arc<AccessorInfo>,
-    pub manager: Manager,
-    pub pool: OnceCell<Pool<Manager>>,
+    info: Arc<AccessorInfo>,
+    pool: Arc<bounded::Pool<Manager>>,
 }
 
 impl FtpCore {
-    pub async fn ftp_connect(&self, _: Operation) -> Result<PooledConnection<'static, Manager>> {
-        let pool = self
-            .pool
-            .get_or_try_init(|| async {
-                bb8::Pool::builder()
-                    .max_size(64)
-                    .build(self.manager.clone())
-                    .await
-            })
-            .await
-            .map_err(parse_error)?;
+    pub fn new(info: Arc<AccessorInfo>, manager: Manager) -> Self {
+        let pool = bounded::Pool::new(bounded::PoolConfig::new(64), manager);
+        Self { info, pool }
+    }
 
-        pool.get_owned().await.map_err(|err| match err {
-            RunError::User(err) => parse_error(err),
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary()
+    pub fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    pub async fn ftp_connect(&self, _: Operation) -> Result<bounded::Object<Manager>> {
+        let fut = self.pool.get();
+
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                Err(Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary())
             }
-        })
+            result = fut => match result {
+                Ok(conn) => Ok(conn),
+                Err(err) => Err(format_ftp_error(err)),
+            }
+        }
     }
 }
 
@@ -72,11 +71,11 @@ pub struct Manager {
     pub enable_secure: bool,
 }
 
-impl bb8::ManageConnection for Manager {
-    type Connection = AsyncRustlsFtpStream;
+impl ManageObject for Manager {
+    type Object = AsyncRustlsFtpStream;
     type Error = FtpError;
 
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+    async fn create(&self) -> Result<Self::Object, Self::Error> {
         let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
@@ -123,14 +122,11 @@ impl bb8::ManageConnection for Manager {
         Ok(ftp_stream)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.noop().await
-    }
-
-    /// Don't allow reuse conn.
-    ///
-    /// We need to investigate why reuse conn will cause error.
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        true
+    async fn is_recyclable(
+        &self,
+        o: &mut Self::Object,
+        _: &ObjectStatus,
+    ) -> Result<(), Self::Error> {
+        o.noop().await
     }
 }

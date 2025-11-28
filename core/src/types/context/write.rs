@@ -210,13 +210,13 @@ mod tests {
     use bytes::BufMut;
     use bytes::Bytes;
     use log::debug;
+    use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::Rng;
     use rand::RngCore;
     use rand::thread_rng;
     use sha2::Digest;
     use sha2::Sha256;
-    use tokio::sync::Mutex;
 
     use super::*;
     use crate::raw::oio::Write;

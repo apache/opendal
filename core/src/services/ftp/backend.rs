@@ -26,13 +26,12 @@ use suppaftp::FtpError;
 use suppaftp::Status;
 use suppaftp::list::File;
 use suppaftp::types::Response;
-use tokio::sync::OnceCell;
 
 use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
 use super::deleter::FtpDeleter;
-use super::err::parse_error;
+use super::err::format_ftp_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
@@ -165,6 +164,7 @@ impl Builder for FtpBuilder {
 
                 ..Default::default()
             });
+
         let manager = Manager {
             endpoint: endpoint.clone(),
             root: root.clone(),
@@ -172,12 +172,8 @@ impl Builder for FtpBuilder {
             password: password.clone(),
             enable_secure,
         };
-        let core = Arc::new(FtpCore {
-            info: accessor_info.into(),
-            manager,
-            pool: OnceCell::new(),
-        });
 
+        let core = Arc::new(FtpCore::new(accessor_info.into(), manager.clone()));
         Ok(FtpBackend { core })
     }
 }
@@ -201,7 +197,7 @@ impl Access for FtpBackend {
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        self.core.info.clone()
+        self.core.info()
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
@@ -221,7 +217,7 @@ impl Access for FtpBackend {
                 }))
                 | Ok(()) => (),
                 Err(e) => {
-                    return Err(parse_error(e));
+                    return Err(format_ftp_error(e));
                 }
             }
         }
@@ -277,7 +273,7 @@ impl Access for FtpBackend {
                 }))
                 | Ok(()) => (),
                 Err(e) => {
-                    return Err(parse_error(e));
+                    return Err(format_ftp_error(e));
                 }
             }
         }
@@ -299,7 +295,7 @@ impl Access for FtpBackend {
         let mut ftp_stream = self.core.ftp_connect(Operation::List).await?;
 
         let pathname = if path == "/" { None } else { Some(path) };
-        let files = ftp_stream.list(pathname).await.map_err(parse_error)?;
+        let files = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
 
         Ok((
             RpList::default(),
@@ -316,7 +312,7 @@ impl FtpBackend {
 
         let pathname = if parent == "/" { None } else { Some(parent) };
 
-        let resp = ftp_stream.list(pathname).await.map_err(parse_error)?;
+        let resp = ftp_stream.list(pathname).await.map_err(format_ftp_error)?;
 
         // Get stat of file.
         let mut files = resp

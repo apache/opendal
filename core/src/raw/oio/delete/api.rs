@@ -39,35 +39,30 @@ pub trait Delete: Unpin + Send + Sync {
     /// - `Err(err)`: An error occurred and the deletion request was not queued
     ///
     /// # Notes
-    /// This method just queue the delete request. The actual deletion will be
-    /// performed when `flush` is called.
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()>;
+    /// This method just queues the delete request. The actual deletion will be
+    /// performed when `close` is called.
+    fn delete<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a;
 
-    /// Flushes the deletion queue to ensure queued deletions are executed
-    ///
-    /// # Returns
-    /// - `Ok(0)`: All queued deletions have been processed or the queue is empty.
-    /// - `Ok(count)`: The number of resources successfully deleted. Implementations should
-    ///   return an error if the queue is non-empty but no resources were deleted
-    /// - `Err(err)`: An error occurred while performing the deletions
-    ///
-    /// # Notes
-    /// - This method is asynchronous and will wait for queued deletions to complete
-    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend;
+    /// Close the deleter and ensure all queued deletions are executed.
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend;
 }
 
 impl Delete for () {
-    fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+    async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "output deleter doesn't support delete",
         ))
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         Err(Error::new(
             ErrorKind::Unsupported,
-            "output deleter doesn't support flush",
+            "output deleter doesn't support close",
         ))
     }
 }
@@ -75,28 +70,32 @@ impl Delete for () {
 /// The dyn version of [`Delete`]
 pub trait DeleteDyn: Unpin + Send + Sync {
     /// The dyn version of [`Delete::delete`]
-    fn delete_dyn(&mut self, path: &str, args: OpDelete) -> Result<()>;
+    fn delete_dyn<'a>(&'a mut self, path: &'a str, args: OpDelete) -> BoxedFuture<'a, Result<()>>;
 
-    /// The dyn version of [`Delete::flush`]
-    fn flush_dyn(&mut self) -> BoxedFuture<'_, Result<usize>>;
+    /// The dyn version of [`Delete::close`]
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<()>>;
 }
 
 impl<T: Delete + ?Sized> DeleteDyn for T {
-    fn delete_dyn(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        Delete::delete(self, path, args)
+    fn delete_dyn<'a>(&'a mut self, path: &'a str, args: OpDelete) -> BoxedFuture<'a, Result<()>> {
+        Box::pin(Delete::delete(self, path, args))
     }
 
-    fn flush_dyn(&mut self) -> BoxedFuture<'_, Result<usize>> {
-        Box::pin(self.flush())
+    fn close_dyn(&mut self) -> BoxedFuture<'_, Result<()>> {
+        Box::pin(self.close())
     }
 }
 
 impl<T: DeleteDyn + ?Sized> Delete for Box<T> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    fn delete<'a>(
+        &'a mut self,
+        path: &'a str,
+        args: OpDelete,
+    ) -> impl Future<Output = Result<()>> + MaybeSend + 'a {
         self.deref_mut().delete_dyn(path, args)
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        self.deref_mut().flush_dyn().await
+    async fn close(&mut self) -> Result<()> {
+        self.deref_mut().close_dyn().await
     }
 }

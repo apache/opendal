@@ -16,10 +16,12 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::time::Duration;
 
-use bb8::RunError;
+use crate::*;
 use bytes::Bytes;
+use fastpool::{ManageObject, ObjectStatus, bounded};
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -31,9 +33,6 @@ use redis::aio::ConnectionLike;
 use redis::aio::ConnectionManager;
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use tokio::sync::OnceCell;
-
-use crate::*;
 
 #[derive(Clone)]
 pub enum RedisConnection {
@@ -71,15 +70,15 @@ impl ConnectionLike for RedisConnection {
 
 #[derive(Clone)]
 pub struct RedisConnectionManager {
-    pub client: Option<Client>,
-    pub cluster_client: Option<ClusterClient>,
+    client: Option<Client>,
+    cluster_client: Option<ClusterClient>,
 }
 
-impl bb8::ManageConnection for RedisConnectionManager {
-    type Connection = RedisConnection;
+impl ManageObject for RedisConnectionManager {
+    type Object = RedisConnection;
     type Error = Error;
 
-    async fn connect(&self) -> Result<RedisConnection, Self::Error> {
+    async fn create(&self) -> Result<RedisConnection, Self::Error> {
         if let Some(client) = self.client.clone() {
             ConnectionManager::new(client.clone())
                 .await
@@ -96,30 +95,27 @@ impl bb8::ManageConnection for RedisConnectionManager {
         }
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        let pong: String = conn.ping().await.map_err(format_redis_error)?;
-
-        if pong == "PONG" {
-            Ok(())
-        } else {
-            Err(Error::new(ErrorKind::Unexpected, "PING ERROR"))
+    async fn is_recyclable(
+        &self,
+        o: &mut Self::Object,
+        _: &ObjectStatus,
+    ) -> Result<(), Self::Error> {
+        match o.ping::<String>().await {
+            Ok(ref pong) => match pong.as_bytes() {
+                b"PONG" => Ok(()),
+                _ => Err(Error::new(ErrorKind::Unexpected, "PING ERROR")),
+            },
+            Err(err) => Err(format_redis_error(err)),
         }
-    }
-
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
     }
 }
 
 /// RedisCore holds the Redis connection and configuration
 #[derive(Clone)]
 pub struct RedisCore {
-    pub addr: String,
-    pub client: Option<Client>,
-    pub cluster_client: Option<ClusterClient>,
-    pub conn: OnceCell<bb8::Pool<RedisConnectionManager>>,
-    pub default_ttl: Option<Duration>,
-    pub connection_pool_max_size: Option<u32>,
+    addr: String,
+    conn: Arc<bounded::Pool<RedisConnectionManager>>,
+    default_ttl: Option<Duration>,
 }
 
 impl Debug for RedisCore {
@@ -131,38 +127,43 @@ impl Debug for RedisCore {
 }
 
 impl RedisCore {
-    pub async fn conn(&self) -> Result<bb8::PooledConnection<'_, RedisConnectionManager>> {
-        let pool = self
-            .conn
-            .get_or_try_init(|| async {
-                bb8::Pool::builder()
-                    .max_size(self.connection_pool_max_size.unwrap_or(10))
-                    .build(self.get_redis_connection_manager())
-                    .await
-                    .map_err(|err| {
-                        Error::new(ErrorKind::ConfigInvalid, "connect to redis failed")
-                            .set_source(err)
-                    })
-            })
-            .await?;
-        pool.get().await.map_err(|err| match err {
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
-            }
-            RunError::User(err) => err,
-        })
+    pub fn new(
+        endpoint: String,
+        client: Option<Client>,
+        cluster_client: Option<ClusterClient>,
+        default_ttl: Option<Duration>,
+        connection_pool_max_size: Option<usize>,
+    ) -> Self {
+        let manager = RedisConnectionManager {
+            client,
+            cluster_client,
+        };
+        let pool = bounded::Pool::new(
+            bounded::PoolConfig::new(connection_pool_max_size.unwrap_or(10)),
+            manager,
+        );
+
+        Self {
+            addr: endpoint,
+            conn: pool,
+            default_ttl,
+        }
     }
 
-    pub fn get_redis_connection_manager(&self) -> RedisConnectionManager {
-        if let Some(_client) = self.client.clone() {
-            RedisConnectionManager {
-                client: self.client.clone(),
-                cluster_client: None,
+    pub fn addr(&self) -> &str {
+        &self.addr
+    }
+
+    pub async fn conn(&self) -> Result<bounded::Object<RedisConnectionManager>> {
+        let fut = self.conn.get();
+
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                Err(Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary())
             }
-        } else {
-            RedisConnectionManager {
-                client: None,
-                cluster_client: self.cluster_client.clone(),
+            result = fut => match result {
+                Ok(conn) => Ok(conn),
+                Err(err) => Err(err),
             }
         }
     }

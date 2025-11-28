@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::GRIDFS_SCHEME;
 use super::config::GridfsConfig;

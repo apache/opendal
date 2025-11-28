@@ -20,7 +20,6 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::time::Duration;
 
-use backon::BlockingRetryable;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use log::warn;
@@ -562,25 +561,43 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
 }
 
 impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        { || self.inner.as_mut().unwrap().delete(path, args.clone()) }
-            .retry(self.builder)
-            .when(|e| e.is_temporary())
-            .notify(|err, dur| {
-                self.notify.intercept(err, dur);
-            })
-            .call()
-            .map_err(|e| e.set_persistent())
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        use backon::RetryableWithContext;
+
+        let inner = self.take_inner()?;
+        let path = path.to_string();
+        let args_cloned = args.clone();
+
+        let (inner, res) = {
+            |mut p: P| {
+                let path = path.clone();
+                let args = args_cloned.clone();
+                async move {
+                    let res = p.delete(&path, args).await;
+                    (p, res)
+                }
+            }
+        }
+        .retry(self.builder)
+        .when(|e| e.is_temporary())
+        .context(inner)
+        .notify(|err, dur| {
+            self.notify.intercept(err, dur);
+        })
+        .await;
+
+        self.inner = Some(inner);
+        res.map_err(|e| e.set_persistent())
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
 
         let (inner, res) = {
             |mut p: P| async move {
-                let res = p.flush().await;
+                let res = p.close().await;
 
                 (p, res)
             }
@@ -598,7 +615,6 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
 
 #[cfg(test)]
 mod tests {
-    use std::mem;
     use std::sync::Arc;
     use std::sync::Mutex;
 
@@ -790,12 +806,12 @@ mod tests {
     }
 
     impl oio::Delete for MockDeleter {
-        fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
             self.size += 1;
             Ok(())
         }
 
-        async fn flush(&mut self) -> Result<usize> {
+        async fn close(&mut self) -> Result<()> {
             let mut attempt = self.attempt.lock().unwrap();
             *attempt += 1;
 
@@ -804,21 +820,23 @@ mod tests {
                     Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
                         .set_temporary(),
                 ),
-                2 => {
-                    self.size -= 1;
-                    Ok(1)
+                2..=4 => {
+                    self.size = self.size.saturating_sub(1);
+                    Err(
+                        Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                            .set_temporary(),
+                    )
                 }
-                3 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
-                        .set_temporary(),
-                ),
-                4 => Err(
-                    Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
-                        .set_temporary(),
-                ),
                 5 => {
-                    let s = mem::take(&mut self.size);
-                    Ok(s)
+                    self.size = self.size.saturating_sub(1);
+                    if self.size == 0 {
+                        Ok(())
+                    } else {
+                        Err(
+                            Error::new(ErrorKind::Unexpected, "retryable_error from deleter")
+                                .set_temporary(),
+                        )
+                    }
                 }
                 _ => unreachable!(),
             }

@@ -22,7 +22,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::RwLock;
+use mea::rwlock::RwLock;
 
 use super::B2_SCHEME;
 use super::config::B2Config;

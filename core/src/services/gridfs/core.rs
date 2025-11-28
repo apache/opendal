@@ -19,11 +19,11 @@ use std::fmt::Debug;
 
 use futures::AsyncReadExt;
 use futures::AsyncWriteExt;
+use mea::once::OnceCell;
 use mongodb::bson::doc;
 use mongodb::gridfs::GridFsBucket;
 use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
-use tokio::sync::OnceCell;
 
 use crate::raw::*;
 use crate::*;

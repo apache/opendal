@@ -23,7 +23,6 @@ use std::sync::Arc;
 use log::debug;
 use openssh::KnownHosts;
 use tokio::io::AsyncSeekExt;
-use tokio::sync::OnceCell;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
@@ -187,17 +186,14 @@ impl Builder for SftpBuilder {
                 ..Default::default()
             });
 
-        let accessor_info = Arc::new(info);
-        let core = Arc::new(SftpCore {
-            info: accessor_info,
+        let core = Arc::new(SftpCore::new(
+            Arc::new(info),
             endpoint,
             root,
             user,
-            key: self.config.key.clone(),
+            self.config.key.clone(),
             known_hosts_strategy,
-
-            client: OnceCell::new(),
-        });
+        ));
 
         debug!("sftp backend finished: {:?}", &self);
         Ok(SftpBackend { core })
@@ -319,11 +315,11 @@ impl Access for SftpBackend {
         let dir = match fs.open_dir(&file_path).await {
             Ok(dir) => dir,
             Err(e) => {
-                if is_not_found(&e) {
-                    return Ok((RpList::default(), None));
+                return if is_not_found(&e) {
+                    Ok((RpList::default(), None))
                 } else {
-                    return Err(parse_sftp_error(e));
-                }
+                    Err(parse_sftp_error(e))
+                };
             }
         }
         .read_dir();

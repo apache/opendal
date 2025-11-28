@@ -234,18 +234,26 @@ impl<T> CheckWrapper<T> {
             ));
         }
 
+        if args.recursive() && !self.info.full_capability().delete_with_recursive {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Delete,
+                "recursive",
+            ));
+        }
+
         Ok(())
     }
 }
 
 impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.check_delete(&args)?;
-        self.inner.delete(path, args)
+        self.inner.delete(path, args).await
     }
 
-    fn flush(&mut self) -> impl Future<Output = Result<usize>> + MaybeSend {
-        self.inner.flush()
+    fn close(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {
+        self.inner.close()
     }
 }
 
@@ -317,12 +325,12 @@ mod tests {
     struct MockDeleter;
 
     impl oio::Delete for MockDeleter {
-        fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
             Ok(())
         }
 
-        async fn flush(&mut self) -> Result<usize> {
-            Ok(1)
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
         }
     }
 

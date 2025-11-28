@@ -22,7 +22,7 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::OnceCell;
+use mea::once::OnceCell;
 
 use super::WEBHDFS_SCHEME;
 use super::config::WebhdfsConfig;

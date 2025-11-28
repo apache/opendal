@@ -143,7 +143,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()));
+        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()), Some(1000));
         Ok((RpDelete::default(), deleter))
     }
 
@@ -355,8 +355,9 @@ mod tests {
         let (_, mut deleter) = backend.delete().await.expect("delete should succeed");
         deleter
             .delete(path, OpDelete::default())
+            .await
             .expect("delete should succeed");
-        deleter.flush().await.expect("flush should succeed");
+        deleter.close().await.expect("close should succeed");
 
         // Verify file is deleted
         let result = backend.stat(path, OpStat::default()).await;

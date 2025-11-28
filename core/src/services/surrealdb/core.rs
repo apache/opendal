@@ -18,10 +18,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use mea::once::OnceCell;
 use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
-use tokio::sync::OnceCell;
 
 use crate::*;
 

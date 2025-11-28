@@ -15,19 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use fastpool::{ManageObject, ObjectStatus, bounded};
+use std::sync::Arc;
 use std::time::Duration;
-
-use bb8::RunError;
 use tokio::net::TcpStream;
-use tokio::sync::OnceCell;
 
 use super::binary;
 use crate::raw::*;
 use crate::*;
 
-/// A `bb8::ManageConnection` for `memcache_async::ascii::Protocol`.
-#[derive(Clone, Debug)]
-pub struct MemcacheConnectionManager {
+/// A connection manager for `memcache_async::ascii::Protocol`.
+#[derive(Clone)]
+struct MemcacheConnectionManager {
     address: String,
     username: Option<String>,
     password: Option<String>,
@@ -43,12 +42,12 @@ impl MemcacheConnectionManager {
     }
 }
 
-impl bb8::ManageConnection for MemcacheConnectionManager {
-    type Connection = binary::Connection;
+impl ManageObject for MemcacheConnectionManager {
+    type Object = binary::Connection;
     type Error = Error;
 
     /// TODO: Implement unix stream support.
-    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+    async fn create(&self) -> Result<Self::Object, Self::Error> {
         let conn = TcpStream::connect(&self.address)
             .await
             .map_err(new_std_io_error)?;
@@ -60,53 +59,52 @@ impl bb8::ManageConnection for MemcacheConnectionManager {
         Ok(conn)
     }
 
-    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
-        conn.version().await.map(|_| ())
-    }
-
-    fn has_broken(&self, _: &mut Self::Connection) -> bool {
-        false
+    async fn is_recyclable(
+        &self,
+        o: &mut Self::Object,
+        _: &ObjectStatus,
+    ) -> Result<(), Self::Error> {
+        match o.version().await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err),
+        }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct MemcachedCore {
-    pub conn: OnceCell<bb8::Pool<MemcacheConnectionManager>>,
-    pub endpoint: String,
-    pub username: Option<String>,
-    pub password: Option<String>,
-    pub default_ttl: Option<Duration>,
-    pub connection_pool_max_size: Option<u32>,
+    default_ttl: Option<Duration>,
+    conn: Arc<bounded::Pool<MemcacheConnectionManager>>,
 }
 
 impl MemcachedCore {
-    async fn conn(&self) -> Result<bb8::PooledConnection<'_, MemcacheConnectionManager>> {
-        let pool = self
-            .conn
-            .get_or_try_init(|| async {
-                let mgr = MemcacheConnectionManager::new(
-                    &self.endpoint,
-                    self.username.clone(),
-                    self.password.clone(),
-                );
+    pub fn new(
+        endpoint: String,
+        username: Option<String>,
+        password: Option<String>,
+        default_ttl: Option<Duration>,
+        connection_pool_max_size: Option<usize>,
+    ) -> Self {
+        let conn = bounded::Pool::new(
+            bounded::PoolConfig::new(connection_pool_max_size.unwrap_or(10)),
+            MemcacheConnectionManager::new(endpoint.as_str(), username, password),
+        );
 
-                bb8::Pool::builder()
-                    .max_size(self.connection_pool_max_size.unwrap_or(10))
-                    .build(mgr)
-                    .await
-                    .map_err(|err| {
-                        Error::new(ErrorKind::ConfigInvalid, "connect to memecached failed")
-                            .set_source(err)
-                    })
-            })
-            .await?;
+        Self { default_ttl, conn }
+    }
 
-        pool.get().await.map_err(|err| match err {
-            RunError::TimedOut => {
-                Error::new(ErrorKind::Unexpected, "get connection from pool failed").set_temporary()
+    async fn conn(&self) -> Result<bounded::Object<MemcacheConnectionManager>> {
+        let fut = self.conn.get();
+
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_secs(10)) => {
+                Err(Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary())
             }
-            RunError::User(err) => err,
-        })
+            result = fut => match result {
+                Ok(conn) => Ok(conn),
+                Err(err) => Err(err),
+            }
+        }
     }
 
     pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {

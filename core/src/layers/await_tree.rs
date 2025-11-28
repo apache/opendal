@@ -188,13 +188,13 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         self.inner
-            .flush()
+            .close()
             .instrument_await(format!("opendal::{}", Operation::Delete))
             .await
     }

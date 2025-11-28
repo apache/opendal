@@ -21,7 +21,7 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use tokio::sync::RwLock;
+use mea::rwlock::RwLock;
 
 use super::SEAFILE_SCHEME;
 use super::config::SeafileConfig;

@@ -1337,8 +1337,8 @@ impl Operator {
     async fn delete_inner(acc: Accessor, path: String, opts: options::DeleteOptions) -> Result<()> {
         let (_, mut deleter) = acc.delete_dyn().await?;
         let args = opts.into();
-        deleter.delete_dyn(&path, args)?;
-        deleter.flush_dyn().await?;
+        deleter.delete_dyn(&path, args).await?;
+        deleter.close_dyn().await?;
         Ok(())
     }
 

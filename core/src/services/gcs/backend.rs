@@ -429,7 +429,10 @@ impl Access for GcsBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::BatchDeleter::new(GcsDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(
+                GcsDeleter::new(self.core.clone()),
+                self.core.info.full_capability().delete_max_size,
+            ),
         ))
     }
 

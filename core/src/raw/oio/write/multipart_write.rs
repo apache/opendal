@@ -309,11 +309,11 @@ where
 mod tests {
     use std::time::Duration;
 
+    use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::Rng;
     use rand::RngCore;
     use rand::thread_rng;
-    use tokio::sync::Mutex;
     use tokio::time::sleep;
     use tokio::time::timeout;
 

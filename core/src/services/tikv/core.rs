@@ -17,9 +17,9 @@
 
 use std::fmt::Debug;
 
+use mea::once::OnceCell;
 use tikv_client::Config;
 use tikv_client::RawClient;
-use tokio::sync::OnceCell;
 
 use super::TIKV_SCHEME;
 use crate::*;
@@ -45,33 +45,32 @@ impl Debug for TikvCore {
 }
 
 impl TikvCore {
-    async fn get_connection(&self) -> Result<RawClient> {
-        if let Some(client) = self.client.get() {
-            return Ok(client.clone());
-        }
-        let client = if self.insecure {
-            RawClient::new(self.endpoints.clone())
-                .await
-                .map_err(parse_tikv_config_error)?
-        } else if self.ca_path.is_some() && self.key_path.is_some() && self.cert_path.is_some() {
-            let (ca_path, key_path, cert_path) = (
-                self.ca_path.clone().unwrap(),
-                self.key_path.clone().unwrap(),
-                self.cert_path.clone().unwrap(),
-            );
-            let config = Config::default().with_security(ca_path, cert_path, key_path);
-            RawClient::new_with_config(self.endpoints.clone(), config)
-                .await
-                .map_err(parse_tikv_config_error)?
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
-                    .with_context("service", TIKV_SCHEME)
-                    .with_context("endpoints", format!("{:?}", self.endpoints)),
-            );
-        };
-        self.client.set(client.clone()).ok();
-        Ok(client)
+    async fn get_connection(&self) -> Result<&RawClient> {
+        self.client
+            .get_or_try_init(|| async {
+                if self.insecure {
+                    return RawClient::new(self.endpoints.clone())
+                        .await
+                        .map_err(parse_tikv_config_error);
+                }
+
+                if let Some(ca_path) = self.ca_path.as_ref()
+                    && let Some(key_path) = self.key_path.as_ref()
+                    && let Some(cert_path) = self.cert_path.as_ref()
+                {
+                    let config = Config::default().with_security(ca_path, cert_path, key_path);
+                    return RawClient::new_with_config(self.endpoints.clone(), config)
+                        .await
+                        .map_err(parse_tikv_config_error);
+                }
+
+                Err(
+                    Error::new(ErrorKind::ConfigInvalid, "invalid configuration")
+                        .with_context("service", TIKV_SCHEME)
+                        .with_context("endpoints", format!("{:?}", self.endpoints)),
+                )
+            })
+            .await
     }
 
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {

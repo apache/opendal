@@ -17,6 +17,7 @@
 
 use anyhow::Result;
 use cxx_async::CxxAsyncException;
+use mea::mutex::Mutex;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
@@ -24,7 +25,6 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::Mutex;
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
@@ -321,7 +321,7 @@ unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
 
 fn delete_reader(reader: ffi::ReaderPtr) {
     // Use blocking lock since this is called from C++ destructors
-    if let Ok(mut storage) = get_reader_storage().try_lock() {
+    if let Some(mut storage) = get_reader_storage().try_lock() {
         storage.remove(&reader.id);
     }
     // If we can't get the lock immediately, we'll just skip cleanup
@@ -330,7 +330,7 @@ fn delete_reader(reader: ffi::ReaderPtr) {
 
 fn delete_lister(lister: ffi::ListerPtr) {
     // Use blocking lock since this is called from C++ destructors
-    if let Ok(mut storage) = get_lister_storage().try_lock() {
+    if let Some(mut storage) = get_lister_storage().try_lock() {
         storage.remove(&lister.id);
     }
     // If we can't get the lock immediately, we'll just skip cleanup

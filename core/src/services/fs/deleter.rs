@@ -32,15 +32,23 @@ impl FsDeleter {
 }
 
 impl oio::OneShotDelete for FsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let p = self.core.root.join(path.trim_end_matches('/'));
+
+        let recursive = args.recursive();
 
         let meta = tokio::fs::metadata(&p).await;
 
         match meta {
             Ok(meta) => {
                 if meta.is_dir() {
-                    tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
+                    if recursive {
+                        tokio::fs::remove_dir_all(&p)
+                            .await
+                            .map_err(new_std_io_error)?;
+                    } else {
+                        tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
+                    }
                 } else {
                     tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
                 }

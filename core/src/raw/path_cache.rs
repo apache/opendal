@@ -18,9 +18,9 @@
 use std::collections::VecDeque;
 
 use futures::Future;
+use mea::mutex::Mutex;
+use mea::mutex::MutexGuard;
 use moka::sync::Cache;
-use tokio::sync::Mutex;
-use tokio::sync::MutexGuard;
 
 use crate::raw::*;
 use crate::*;

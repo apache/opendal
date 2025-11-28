@@ -40,7 +40,7 @@ pub struct RedisConfig {
     /// The maximum number of connections allowed.
     ///
     /// default is 10
-    pub connection_pool_max_size: Option<u32>,
+    pub connection_pool_max_size: Option<usize>,
     /// the username to connect redis service.
     ///
     /// default is None

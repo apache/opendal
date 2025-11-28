@@ -1051,6 +1051,8 @@ export declare class Writer {
 
 export interface DeleteOptions {
   version?: string
+  /** Whether to delete recursively. */
+  recursive?: boolean
 }
 
 export declare const enum EntryMode {

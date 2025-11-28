@@ -27,9 +27,9 @@ use http::StatusCode;
 use http::header;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
+use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use super::error::parse_error;
 use crate::raw::*;

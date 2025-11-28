@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use mea::once::OnceCell;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::fmt::Debug;
-use tokio::sync::OnceCell;
 
 use crate::services::sqlite::backend::parse_sqlite_error;
 use crate::*;
@@ -37,10 +37,9 @@ impl SqliteCore {
     pub async fn get_client(&self) -> Result<&SqlitePool> {
         self.pool
             .get_or_try_init(|| async {
-                let pool = SqlitePool::connect_with(self.config.clone())
+                SqlitePool::connect_with(self.config.clone())
                     .await
-                    .map_err(parse_sqlite_error)?;
-                Ok(pool)
+                    .map_err(parse_sqlite_error)
             })
             .await
     }

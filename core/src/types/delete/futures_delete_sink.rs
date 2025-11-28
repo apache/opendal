@@ -35,7 +35,6 @@ pub struct FuturesDeleteSink<T: IntoDeleteInput> {
 enum State {
     Idle(Option<Deleter>),
     Delete(BoxedStaticFuture<(Deleter, Result<()>)>),
-    Flush(BoxedStaticFuture<(Deleter, Result<usize>)>),
     Close(BoxedStaticFuture<(Deleter, Result<()>)>),
 }
 
@@ -56,11 +55,6 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
         match &mut self.state {
             State::Idle(_) => Poll::Ready(Ok(())),
             State::Delete(fut) => {
-                let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(deleter));
-                Poll::Ready(res.map(|_| ()))
-            }
-            State::Flush(fut) => {
                 let (deleter, res) = ready!(fut.as_mut().poll(cx));
                 self.state = State::Idle(Some(deleter));
                 Poll::Ready(res.map(|_| ()))
@@ -100,31 +94,12 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(deleter) => {
-                    let mut deleter = deleter.take().ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "FuturesDeleteSink has been closed or errored",
-                        )
-                    })?;
-                    let fut = async move {
-                        let res = deleter.flush().await;
-                        (deleter, res)
-                    };
-                    self.state = State::Flush(Box::pin(fut));
-                    return Poll::Ready(Ok(()));
-                }
+                State::Idle(_) => return Poll::Ready(Ok(())),
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(deleter));
                     res?;
                     continue;
-                }
-                State::Flush(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    let _ = res?;
-                    return Poll::Ready(Ok(()));
                 }
                 State::Close(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
@@ -154,12 +129,6 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                     return Poll::Ready(Ok(()));
                 }
                 State::Delete(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    res?;
-                    continue;
-                }
-                State::Flush(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(deleter));
                     res?;

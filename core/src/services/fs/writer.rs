@@ -155,7 +155,7 @@ impl oio::PositionWrite for FsWriter {
         .map_err(new_task_join_error)?
     }
 
-    async fn close(&self) -> Result<Metadata> {
+    async fn close(&self, _size: u64) -> Result<Metadata> {
         let mut f = self
             .f
             .try_clone()

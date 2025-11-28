@@ -96,7 +96,12 @@ impl HuggingfaceCore {
         self.info.http_client().send(req).await
     }
 
-    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
+    pub async fn hf_list(
+        &self,
+        path: &str,
+        recursive: bool,
+        cursor: Option<&str>,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -122,7 +127,25 @@ impl HuggingfaceCore {
             url.push_str("&recursive=True");
         }
 
+        if let Some(cursor_val) = cursor {
+            url.push_str(&format!("&cursor={}", cursor_val));
+        }
+
         let mut req = Request::get(&url);
+        // Inject operation to the request.
+        req = req.extension(Operation::List);
+        if let Some(token) = &self.token {
+            let auth_header_content = format_authorization_by_bearer(token)?;
+            req = req.header(header::AUTHORIZATION, auth_header_content);
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    pub async fn hf_list_with_url(&self, url: &str) -> Result<Response<Buffer>> {
+        let mut req = Request::get(url);
         // Inject operation to the request.
         req = req.extension(Operation::List);
         if let Some(token) = &self.token {
@@ -391,7 +414,7 @@ mod tests {
             "https://huggingface.co",
         );
 
-        core.hf_list("path1", false).await?;
+        core.hf_list("path1", false, None).await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -411,12 +434,32 @@ mod tests {
             "https://huggingface.co",
         );
 
-        core.hf_list("path2", true).await?;
+        core.hf_list("path2", true, None).await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
             url,
             "https://huggingface.co/api/models/org/model/tree/main/path2?expand=True&recursive=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_with_cursor() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "org/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("path3", false, Some("abc123")).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/models/org/model/tree/main/path3?expand=True&cursor=abc123"
         );
 
         Ok(())

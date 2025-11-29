@@ -115,6 +115,7 @@ async fn main() -> Result<()> {
 
 ```rust,no_run
 use anyhow::Result;
+use futures::TryStreamExt;
 use opendal::services::Git;
 use opendal::Operator;
 
@@ -128,7 +129,7 @@ async fn main() -> Result<()> {
     let op: Operator = Operator::new(builder)?.finish();
     
     // List files in the repository
-    let mut lister = op.list("/").await?;
+    let mut lister = op.lister("/").await?;
     while let Some(entry) = lister.try_next().await? {
         println!("{}: {} bytes", entry.path(), entry.metadata().content_length());
     }

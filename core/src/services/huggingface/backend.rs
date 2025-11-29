@@ -45,8 +45,8 @@ impl HuggingfaceBuilder {
     /// - model
     /// - dataset
     /// - datasets (alias for dataset)
+    /// - space
     ///
-    /// Currently, only models and datasets are supported.
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
@@ -130,10 +130,7 @@ impl Builder for HuggingfaceBuilder {
         let repo_type = match self.config.repo_type.as_deref() {
             Some("model") => Ok(RepoType::Model),
             Some("dataset") | Some("datasets") => Ok(RepoType::Dataset),
-            Some("space") => Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "repo type \"space\" is unsupported",
-            )),
+            Some("space") => Ok(RepoType::Space),
             Some(repo_type) => Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 format!("unknown repo_type: {repo_type}").as_str(),
@@ -245,6 +242,14 @@ impl Access for HuggingfaceBackend {
 
                     meta.set_content_length(status.size);
 
+                    // Use LFS OID as ETag if available, otherwise use regular OID
+                    let etag = if let Some(lfs) = &status.lfs {
+                        &lfs.oid
+                    } else {
+                        &status.oid
+                    };
+                    meta.set_etag(etag);
+
                     match status.type_.as_str() {
                         "directory" => meta.set_mode(EntryMode::DIR),
                         "file" => meta.set_mode(EntryMode::FILE),
@@ -284,12 +289,13 @@ impl Access for HuggingfaceBackend {
     }
 }
 
-/// Repository type of Huggingface. Currently, we only support `model` and `dataset`.
+/// Repository type of Huggingface. Supports `model`, `dataset`, and `space`.
 /// [Reference](https://huggingface.co/docs/hub/repositories)
 #[derive(Debug, Clone, Copy)]
 pub enum RepoType {
     Model,
     Dataset,
+    Space,
 }
 
 #[cfg(test)]
@@ -303,5 +309,14 @@ mod tests {
             .repo_type("datasets")
             .build()
             .expect("builder should accept datasets alias");
+    }
+
+    #[test]
+    fn build_accepts_space_repo_type() {
+        HuggingfaceBuilder::default()
+            .repo_id("org/space")
+            .repo_type("space")
+            .build()
+            .expect("builder should accept space repo type");
     }
 }

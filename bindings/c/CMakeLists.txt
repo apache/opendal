@@ -86,8 +86,15 @@ target_link_libraries(basic opendal_c_shared)
 add_executable(error_handle examples/error_handle.c)
 target_link_libraries(error_handle opendal_c_shared)
 
+add_executable(async_stat examples/async_stat.c)
+target_link_libraries(async_stat opendal_c_shared pthread)
+
+add_executable(compare_sync_async examples/compare_sync_async.c)
+target_link_libraries(compare_sync_async opendal_c_shared pthread)
+
 # test targets
 set(GTEST_SRCS
+    tests/async_stat_test.cpp
     tests/bdd.cpp
     tests/error_msg.cpp
     tests/list.cpp
@@ -95,7 +102,7 @@ set(GTEST_SRCS
     tests/reader.cpp
 )
 add_executable(tests ${GTEST_SRCS})
-target_link_libraries(tests opendal_c_shared gtest_main uuid)
+target_link_libraries(tests opendal_c_shared gtest_main uuid pthread)
 if (TEST_ENABLE_ASAN)
     target_compile_options(tests PRIVATE -fsanitize=address)
     target_link_options(tests PRIVATE -fsanitize=address)

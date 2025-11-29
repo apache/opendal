@@ -250,29 +250,6 @@ impl Access for HuggingfaceBackend {
                     };
                     meta.set_etag(etag);
 
-                    // Add security scan flags to user metadata if available
-                    if let Some(security) = &status.security {
-                        let mut user_meta = std::collections::HashMap::new();
-                        user_meta.insert("security.safe".to_string(), security.safe.to_string());
-                        user_meta.insert("security.blob_id".to_string(), security.blob_id.clone());
-
-                        if let Some(av_scan) = &security.av_scan {
-                            user_meta.insert(
-                                "security.av_scan.virus_found".to_string(),
-                                av_scan.virus_found.to_string(),
-                            );
-                        }
-
-                        if let Some(pickle_scan) = &security.pickle_import_scan {
-                            user_meta.insert(
-                                "security.pickle_import_scan.highest_safety_level".to_string(),
-                                pickle_scan.highest_safety_level.clone(),
-                            );
-                        }
-
-                        meta = meta.with_user_metadata(user_meta);
-                    }
-
                     match status.type_.as_str() {
                         "directory" => meta.set_mode(EntryMode::DIR),
                         "file" => meta.set_mode(EntryMode::FILE),

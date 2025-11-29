@@ -112,14 +112,11 @@ fn parse_link_header(headers: &http::HeaderMap) -> Option<String> {
 
     // Parse Link header format: <url>; rel="next"
     for link in link_str.split(',') {
-        let link = link.trim();
         if link.contains("rel=\"next\"") || link.contains("rel='next'") {
-            // Extract URL from <url>
-            if let Some(start) = link.find('<') {
-                if let Some(end) = link.find('>') {
-                    return Some(link[start + 1..end].to_string());
-                }
-            }
+            // Extract URL from <url> using split_once for cleaner parsing
+            let (_, rest) = link.split_once('<')?;
+            let (inside, _) = rest.split_once('>')?;
+            return Some(inside.to_string());
         }
     }
 

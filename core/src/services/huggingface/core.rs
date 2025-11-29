@@ -75,6 +75,12 @@ impl HuggingfaceCore {
                 &self.repo_id,
                 percent_encode_revision(&self.revision)
             ),
+            RepoType::Space => format!(
+                "{}/api/spaces/{}/paths-info/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision)
+            ),
         };
 
         let mut req = Request::post(&url);
@@ -116,6 +122,13 @@ impl HuggingfaceCore {
             ),
             RepoType::Dataset => format!(
                 "{}/api/datasets/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision),
+                percent_encode_path(&p)
+            ),
+            RepoType::Space => format!(
+                "{}/api/spaces/{}/tree/{}/{}?expand=True",
                 &self.endpoint,
                 &self.repo_id,
                 percent_encode_revision(&self.revision),
@@ -178,6 +191,13 @@ impl HuggingfaceCore {
             ),
             RepoType::Dataset => format!(
                 "{}/datasets/{}/resolve/{}/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision),
+                percent_encode_path(&p)
+            ),
+            RepoType::Space => format!(
+                "{}/spaces/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
                 percent_encode_revision(&self.revision),
@@ -504,6 +524,68 @@ mod tests {
         assert_eq!(
             url,
             "https://huggingface.co/datasets/org/data/resolve/v1%2E0/train.csv"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_path_info_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "test-user/test-space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_path_info("app.py").await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/spaces/test-user/test-space/paths-info/main"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "org/space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("static", false, None).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/spaces/org/space/tree/main/static?expand=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_resolve_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "user/space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let args = OpRead::default();
+        core.hf_resolve("README.md", BytesRange::default(), &args)
+            .await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/spaces/user/space/resolve/main/README.md"
         );
 
         Ok(())

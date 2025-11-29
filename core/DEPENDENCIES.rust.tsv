@@ -18,7 +18,7 @@ const-random@0.1.18	X									X
 const-random-macro@0.1.16	X									X		
 core-foundation-sys@0.8.7	X									X		
 cpufeatures@0.2.17	X									X		
-crc32c@0.6.8	X									X		
+crc-fast@1.8.0	X									X		
 crunchy@0.2.4										X		
 crypto-common@0.1.7	X									X		
 digest@0.10.7	X									X		

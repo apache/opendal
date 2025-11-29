@@ -199,6 +199,7 @@ pub struct S3Config {
     ///
     /// Available options:
     /// - "crc32c"
+    /// - "crc64nvme"
     #[serde(alias = "aws_checksum_algorithm")]
     pub checksum_algorithm: Option<String>,
     /// Disable write with if match so that opendal will not send write request with if match headers.
@@ -332,6 +333,18 @@ mod tests {
         assert!(config.enable_virtual_host_style);
         assert_eq!(config.checksum_algorithm, Some("crc32c".to_string()));
         assert!(config.enable_request_payer);
+    }
+
+    #[test]
+    fn test_s3_config_checksum_crc64nvme() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "aws_checksum_algorithm": "crc64nvme"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(config.checksum_algorithm, Some("crc64nvme".to_string()));
     }
 
     #[test]

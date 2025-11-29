@@ -229,6 +229,8 @@ impl Operator {
             services::FTP_SCHEME => Self::from_iter::<services::Ftp>(iter)?.finish(),
             #[cfg(feature = "services-gcs")]
             services::GCS_SCHEME => Self::from_iter::<services::Gcs>(iter)?.finish(),
+            #[cfg(feature = "services-git")]
+            services::GIT_SCHEME => Self::from_iter::<services::Git>(iter)?.finish(),
             #[cfg(feature = "services-gdrive")]
             services::GDRIVE_SCHEME => Self::from_iter::<services::Gdrive>(iter)?.finish(),
             #[cfg(feature = "services-ghac")]

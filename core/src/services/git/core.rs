@@ -129,8 +129,13 @@ impl GitCore {
                     Error::new(ErrorKind::Unexpected, "failed to prepare clone").set_source(e)
                 })?;
 
-            // Use full clone instead of shallow to support arbitrary commit SHAs
-            // Shallow clone only gets the tip of the default branch
+            // Use shallow clone for HEAD, full clone for specific refs
+            if self.reference == GIT_HEAD_REF {
+                use std::num::NonZeroU32;
+                let depth = NonZeroU32::new(1).expect("1 is non-zero");
+                prepare = prepare.with_shallow(gix::remote::fetch::Shallow::DepthAtRemote(depth));
+            }
+
             let (repo, _) = prepare
                 .fetch_only(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)
                 .map_err(|e| {
@@ -150,12 +155,37 @@ impl GitCore {
             .clone())
     }
 
-    /// Get file metadata (blocking operation) - returns (size, is_dir, last_modified)
-    pub fn stat_file_blocking(&self, path: &str) -> Result<(u64, bool, i64)> {
-        let repo = self.get_or_create_repo()?;
+    /// Get commit tree and time from OID
+    fn get_commit_tree<'a>(
+        &self,
+        repo: &'a gix::Repository,
+        commit_oid: gix::hash::ObjectId,
+    ) -> Result<(gix::Tree<'a>, i64)> {
+        let commit = repo
+            .find_object(commit_oid)
+            .map_err(|e| Error::new(ErrorKind::NotFound, "commit not found").set_source(e))?
+            .peel_to_commit()
+            .map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "failed to peel to commit").set_source(e)
+            })?;
 
-        // Resolve reference to commit OID
-        let commit_oid: gix::hash::ObjectId = if self.reference == GIT_HEAD_REF {
+        let commit_time = commit
+            .time()
+            .map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "failed to get commit time").set_source(e)
+            })?
+            .seconds;
+
+        let tree = commit
+            .tree()
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "failed to get tree").set_source(e))?;
+
+        Ok((tree, commit_time))
+    }
+
+    /// Resolve reference to commit OID (blocking operation)
+    fn resolve_reference(&self, repo: &gix::Repository) -> Result<gix::hash::ObjectId> {
+        let commit_oid = if self.reference == GIT_HEAD_REF {
             let mut head = repo.head().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "failed to get HEAD").set_source(e)
             })?;
@@ -185,25 +215,14 @@ impl GitCore {
             }
         };
 
-        let commit = repo
-            .find_object(commit_oid)
-            .map_err(|e| Error::new(ErrorKind::NotFound, "commit not found").set_source(e))?
-            .peel_to_commit()
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to peel to commit").set_source(e)
-            })?;
+        Ok(commit_oid)
+    }
 
-        // Get commit time
-        let commit_time = commit
-            .time()
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to get commit time").set_source(e)
-            })?
-            .seconds;
-
-        let tree = commit
-            .tree()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "failed to get tree").set_source(e))?;
+    /// Get file metadata (blocking operation) - returns (size, is_dir, last_modified)
+    pub fn stat_file_blocking(&self, path: &str) -> Result<(u64, bool, i64)> {
+        let repo = self.get_or_create_repo()?;
+        let commit_oid = self.resolve_reference(&repo)?;
+        let (tree, commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
         let path = path.trim_start_matches('/');
         let entry = tree
@@ -235,57 +254,8 @@ impl GitCore {
     /// List directory contents (blocking operation) - returns Vec<(name, is_dir, size, last_modified)>
     pub fn list_dir_blocking(&self, path: &str) -> Result<Vec<(String, bool, u64, i64)>> {
         let repo = self.get_or_create_repo()?;
-
-        // Resolve reference to commit OID
-        let commit_oid: gix::hash::ObjectId = if self.reference == GIT_HEAD_REF {
-            let mut head = repo.head().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to get HEAD").set_source(e)
-            })?;
-            head.peel_to_commit()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "failed to peel HEAD to commit").set_source(e)
-                })?
-                .id()
-                .into()
-        } else {
-            // Try as SHA first, then as ref name
-            if let Ok(oid) = gix::hash::ObjectId::from_hex(self.reference.as_bytes()) {
-                oid
-            } else {
-                // Try as ref name (branch/tag)
-                let reference = repo.find_reference(&self.reference).map_err(|e| {
-                    Error::new(
-                        ErrorKind::NotFound,
-                        format!("reference not found: {}", self.reference),
-                    )
-                    .set_source(e)
-                })?;
-                let object = reference.into_fully_peeled_id().map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "failed to peel reference").set_source(e)
-                })?;
-                object.detach()
-            }
-        };
-
-        let commit = repo
-            .find_object(commit_oid)
-            .map_err(|e| Error::new(ErrorKind::NotFound, "commit not found").set_source(e))?
-            .peel_to_commit()
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to peel to commit").set_source(e)
-            })?;
-
-        // Get commit time
-        let commit_time = commit
-            .time()
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to get commit time").set_source(e)
-            })?
-            .seconds;
-
-        let mut tree = commit
-            .tree()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "failed to get tree").set_source(e))?;
+        let commit_oid = self.resolve_reference(&repo)?;
+        let (mut tree, commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
         let path = path.trim_start_matches('/').trim_end_matches('/');
         if !path.is_empty() {
@@ -346,49 +316,8 @@ impl GitCore {
     /// Get blob content (blocking operation) - reads from git objects directly
     pub fn read_blob_blocking(&self, path: &str) -> Result<bytes::Bytes> {
         let repo = self.get_or_create_repo()?;
-
-        // Resolve reference to commit OID
-        let commit_oid: gix::hash::ObjectId = if self.reference == GIT_HEAD_REF {
-            let mut head = repo.head().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to get HEAD").set_source(e)
-            })?;
-            head.peel_to_commit()
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "failed to peel HEAD to commit").set_source(e)
-                })?
-                .id()
-                .into()
-        } else {
-            // Try as SHA first, then as ref name
-            if let Ok(oid) = gix::hash::ObjectId::from_hex(self.reference.as_bytes()) {
-                oid
-            } else {
-                // Try as ref name (branch/tag)
-                let reference = repo.find_reference(&self.reference).map_err(|e| {
-                    Error::new(
-                        ErrorKind::NotFound,
-                        format!("reference not found: {}", self.reference),
-                    )
-                    .set_source(e)
-                })?;
-                let object = reference.into_fully_peeled_id().map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "failed to peel reference").set_source(e)
-                })?;
-                object.detach()
-            }
-        };
-
-        let commit = repo
-            .find_object(commit_oid)
-            .map_err(|e| Error::new(ErrorKind::NotFound, "commit not found").set_source(e))?
-            .peel_to_commit()
-            .map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to peel to commit").set_source(e)
-            })?;
-
-        let tree = commit
-            .tree()
-            .map_err(|e| Error::new(ErrorKind::Unexpected, "failed to get tree").set_source(e))?;
+        let commit_oid = self.resolve_reference(&repo)?;
+        let (tree, _commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
         let path = path.trim_start_matches('/');
         let entry = tree

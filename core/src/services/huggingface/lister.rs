@@ -85,6 +85,14 @@ impl oio::PageList for HuggingfaceLister {
 
             if entry_type == EntryMode::FILE {
                 meta.set_content_length(status.size);
+
+                // Use LFS OID as ETag if available, otherwise use regular OID
+                let etag = if let Some(lfs) = &status.lfs {
+                    &lfs.oid
+                } else {
+                    &status.oid
+                };
+                meta.set_etag(etag);
             }
 
             let path = if entry_type == EntryMode::DIR {

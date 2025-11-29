@@ -242,6 +242,14 @@ impl Access for HuggingfaceBackend {
 
                     meta.set_content_length(status.size);
 
+                    // Use LFS OID as ETag if available, otherwise use regular OID
+                    let etag = if let Some(lfs) = &status.lfs {
+                        &lfs.oid
+                    } else {
+                        &status.oid
+                    };
+                    meta.set_etag(etag);
+
                     match status.type_.as_str() {
                         "directory" => meta.set_mode(EntryMode::DIR),
                         "file" => meta.set_mode(EntryMode::FILE),

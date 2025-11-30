@@ -1466,20 +1466,17 @@ impl Operator {
         Ok(())
     }
 
-    /// List entries in the parent directory that start with the specified `path`.
+    /// List entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
-    ///
-    /// This function only reads the immediate children of the specified directory.
-    /// To list all entries recursively, use `Operator::list_with("path").recursive(true)` instead.
+    /// - Listing is **prefix-based**. It does not require the parent directory to exist.
+    /// - If `path` itself exists (file or dir), it will be returned as an entry in addition to any prefixed children.
+    /// - If `path` is absent but deeper objects exist (e.g. `path/child`), the list succeeds and returns those prefixed entries instead of an error.
     ///
     /// ## Streaming List
     ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
-    ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// This function materializes the entire list into memory. For large listings, prefer [`Operator::lister`] to stream entries.
     ///
     /// # Examples
     ///
@@ -1509,19 +1506,24 @@ impl Operator {
         self.list_with(path).await
     }
 
-    /// List entries in the parent directory that start with the specified `path` with additional options.
+    /// List entries whose paths start with the given prefix `path` with additional options.
+    ///
+    /// # Semantics
+    ///
+    /// Inherits the prefix semantics described in [`Operator::list`]: returns `path` itself if it exists and tolerates missing parents when prefixed objects exist.
     ///
     /// # Notes
     ///
     /// ## Streaming List
     ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
+    /// This function materializes the entire list into memory. For large listings, prefer [`Operator::lister`] to stream entries.
     ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// ## Options
     ///
-    /// # Options
-    ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// See [`options::ListOptions`] for the full set. Common knobs:
+    /// - Traversal: `recursive` (default `false`) toggles depth-first listing under the prefix.
+    /// - Pagination: `limit` and `start_after` tune page size and resume positions (backend dependent).
+    /// - Versioning: `versions` / `deleted` ask versioned backends to return extra entries.
     ///
     /// # Examples
     ///
@@ -1558,19 +1560,19 @@ impl Operator {
         )
     }
 
-    /// List entries in the parent directory that start with the specified `path` with additional options.
+    /// List entries whose paths start with the given prefix `path` using explicit options.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Streaming List
-    ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
-    ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// Same prefix behavior as [`Operator::list`]: returns `path` itself if present and tolerates missing parents when prefixed objects exist.
     ///
     /// # Options
     ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// Accepts [`options::ListOptions`] (see field docs for meaning).
+    ///
+    /// ## Streaming List
+    ///
+    /// Materializes the entire list; use [`Operator::lister`] to stream large result sets.
     ///
     /// # Examples
     ///
@@ -1618,14 +1620,15 @@ impl Operator {
         lister.try_collect().await
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir.
+    /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively list
+    /// Shares the same prefix semantics as [`Operator::list`]: the parent directory is not required to exist; the entry for `path` is yielded if present; missing parents with deeper objects are accepted.
     ///
-    /// This function only reads the immediate children of the specified directory.
-    /// To retrieve all entries recursively, use [`Operator::lister_with`] with `recursive(true)` instead.
+    /// # Options
+    ///
+    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     ///
     /// # Examples
     ///
@@ -1655,11 +1658,11 @@ impl Operator {
         self.lister_with(path).await
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir with additional options.
+    /// Create a new lister to list entries that start with the given prefix `path` using additional options.
     ///
     /// # Options
     ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// Same as [`lister_with`](Operator::lister_with); see [`options::ListOptions`] for traversal, pagination, and versioning knobs.
     ///
     /// # Examples
     ///
@@ -1697,7 +1700,15 @@ impl Operator {
         )
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir with additional options.
+    /// Create a new lister to list entries that start with the given prefix `path` using additional options.
+    ///
+    /// # Semantics
+    ///
+    /// Inherits the prefix behavior of [`Operator::lister_with`].
+    ///
+    /// # Options
+    ///
+    /// Uses [`options::ListOptions`] to control traversal, pagination, and versioning.
     ///
     /// # Examples
     ///

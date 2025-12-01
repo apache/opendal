@@ -27,10 +27,10 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
   issues: write
-  workflows: write
 
 jobs:
   promote:

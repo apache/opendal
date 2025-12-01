@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::Duration;
-
 use prometheus::HistogramVec;
 use prometheus::Registry;
 use prometheus::core::AtomicI64;

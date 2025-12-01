@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use log::debug;
 

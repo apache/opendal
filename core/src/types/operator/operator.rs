@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::time::Duration;
 
 use futures::Stream;
 use futures::StreamExt;

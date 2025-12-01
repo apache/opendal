@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::time::Duration;
 
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;

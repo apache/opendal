@@ -16,13 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::REDIS_SCHEME;
 use super::backend::RedisBuilder;
+use crate::raw::*;
 
 /// Config for Redis services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

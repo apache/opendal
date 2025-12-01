@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
 
 use log::debug;
 
@@ -27,8 +26,6 @@ use super::core::*;
 use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
-use crate::raw::oio;
-use crate::raw::signed_to_duration;
 use crate::raw::*;
 use crate::*;
 

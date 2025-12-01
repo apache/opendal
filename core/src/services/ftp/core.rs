@@ -17,9 +17,7 @@
 
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
-use raw::Operation;
 use std::sync::Arc;
-use std::time::Duration;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
@@ -29,7 +27,7 @@ use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
 
 use super::err::format_ftp_error;
-use crate::raw::AccessorInfo;
+use crate::raw::*;
 use crate::*;
 
 pub struct FtpCore {

@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;

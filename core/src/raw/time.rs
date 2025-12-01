@@ -22,7 +22,11 @@ use jiff::SignedDuration;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+#[cfg(target_arch = "wasm32")]
+pub use web_time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

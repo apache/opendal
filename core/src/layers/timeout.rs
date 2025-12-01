@@ -17,7 +17,6 @@
 
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::raw::*;
 use crate::*;
@@ -356,7 +355,6 @@ mod tests {
     use std::future::Future;
     use std::future::pending;
     use std::sync::Arc;
-    use std::time::Duration;
 
     use futures::StreamExt;
     use tokio::time::sleep;

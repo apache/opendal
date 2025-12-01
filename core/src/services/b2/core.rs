@@ -300,10 +300,21 @@ impl B2Core {
             bucket_id: self.bucket_id.clone(),
             file_name: percent_encode_path(&p),
             content_type: "b2/x-auto".to_owned(),
+            file_info: None,
         };
 
         if let Some(mime) = args.content_type() {
             mime.clone_into(&mut start_large_file_request.content_type)
+        }
+
+        // Set user metadata in file_info.
+        // B2 uses fileInfo field for custom file info in start_large_file API.
+        if let Some(user_metadata) = args.user_metadata() {
+            let file_info: HashMap<String, String> = user_metadata
+                .iter()
+                .map(|(k, v)| (k.to_string(), percent_encode_path(v)))
+                .collect();
+            start_large_file_request.file_info = Some(file_info);
         }
 
         let req = req.extension(Operation::Write);
@@ -613,6 +624,11 @@ pub struct StartLargeFileRequest {
     pub bucket_id: String,
     pub file_name: String,
     pub content_type: String,
+    /// Custom file info (user metadata) to store with the file.
+    /// Keys should NOT include the `X-Bz-Info-` prefix.
+    /// Values should be URL-encoded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_info: Option<HashMap<String, String>>,
 }
 
 /// Response of [b2_start_large_file](https://www.backblaze.com/apidocs/b2-start-large-file).

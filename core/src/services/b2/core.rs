@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,6 +40,7 @@ pub(super) mod constants {
     pub const X_BZ_FILE_NAME: &str = "X-Bz-File-Name";
     pub const X_BZ_CONTENT_SHA1: &str = "X-Bz-Content-Sha1";
     pub const X_BZ_PART_NUMBER: &str = "X-Bz-Part-Number";
+    pub const X_BZ_INFO_PREFIX: &str = "X-Bz-Info-";
 }
 
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
@@ -262,6 +264,17 @@ impl B2Core {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, pos)
+        }
+
+        // Set user metadata headers.
+        // B2 uses X-Bz-Info-* prefix for custom file info.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(
+                    format!("{}{}", constants::X_BZ_INFO_PREFIX, key),
+                    percent_encode_path(value),
+                );
+            }
         }
 
         let req = req.extension(Operation::Write);
@@ -687,6 +700,11 @@ pub struct File {
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
     pub file_name: String,
+    /// Custom file info (user metadata) stored with the file.
+    /// Keys are the original names without the `X-Bz-Info-` prefix.
+    /// Values are URL-encoded when stored, decoded when read.
+    #[serde(default)]
+    pub file_info: HashMap<String, String>,
 }
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {
@@ -704,6 +722,20 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
 
     if let Some(content_type) = &file.content_type {
         metadata.set_content_type(content_type);
+    }
+
+    // Parse user metadata from file_info
+    // B2 stores user metadata with keys stripped of the "X-Bz-Info-" prefix
+    // and values are URL-encoded
+    if !file.file_info.is_empty() {
+        let user_metadata: HashMap<String, String> = file
+            .file_info
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), percent_decode_path(v)))
+            .collect();
+        if !user_metadata.is_empty() {
+            metadata = metadata.with_user_metadata(user_metadata);
+        }
     }
 
     metadata

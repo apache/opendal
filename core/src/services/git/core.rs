@@ -60,6 +60,8 @@ pub struct GitCore {
     pub password: Option<String>,
     pub resolve_lfs: bool,
     repo_cell: Arc<Mutex<Option<RepoHolder>>>,
+    commit_oid_cache: Arc<Mutex<Option<gix::hash::ObjectId>>>,
+    commit_info_cache: Arc<Mutex<Option<(gix::hash::ObjectId, i64)>>>,
     lfs_url_cache: Arc<Mutex<HashMap<String, LfsDownloadUrl>>>,
 }
 
@@ -94,6 +96,8 @@ impl GitCore {
             password,
             resolve_lfs,
             repo_cell: Arc::new(Mutex::new(None)),
+            commit_oid_cache: Arc::new(Mutex::new(None)),
+            commit_info_cache: Arc::new(Mutex::new(None)),
             lfs_url_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -161,6 +165,19 @@ impl GitCore {
         repo: &'a gix::Repository,
         commit_oid: gix::hash::ObjectId,
     ) -> Result<(gix::Tree<'a>, i64)> {
+        if let Some((tree_oid, commit_time)) = self
+            .commit_info_cache
+            .lock()
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit info cache lock poisoned"))?
+            .clone()
+        {
+            let tree = repo
+                .find_object(tree_oid)
+                .map_err(|e| Error::new(ErrorKind::NotFound, "tree not found").set_source(e))?
+                .into_tree();
+            return Ok((tree, commit_time));
+        }
+
         let commit = repo
             .find_object(commit_oid)
             .map_err(|e| Error::new(ErrorKind::NotFound, "commit not found").set_source(e))?
@@ -180,11 +197,28 @@ impl GitCore {
             .tree()
             .map_err(|e| Error::new(ErrorKind::Unexpected, "failed to get tree").set_source(e))?;
 
+        let tree_id = tree.id().detach();
+        *self
+            .commit_info_cache
+            .lock()
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit info cache lock poisoned"))? =
+            Some((tree_id, commit_time));
+
         Ok((tree, commit_time))
     }
 
     /// Resolve reference to commit OID (blocking operation)
     fn resolve_reference(&self, repo: &gix::Repository) -> Result<gix::hash::ObjectId> {
+        // Return cached OID if available
+        if let Some(oid) = self
+            .commit_oid_cache
+            .lock()
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit cache lock poisoned"))?
+            .clone()
+        {
+            return Ok(oid);
+        }
+
         let commit_oid = if self.reference == GIT_HEAD_REF {
             let mut head = repo.head().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "failed to get HEAD").set_source(e)
@@ -214,6 +248,12 @@ impl GitCore {
                 object.detach()
             }
         };
+
+        // Cache result for subsequent operations
+        *self
+            .commit_oid_cache
+            .lock()
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit cache lock poisoned"))? = Some(commit_oid.clone());
 
         Ok(commit_oid)
     }
@@ -339,10 +379,6 @@ impl GitCore {
 
     /// Check if file content is a Git LFS pointer
     pub fn is_lfs_pointer(content: &[u8]) -> bool {
-        if content.len() < 128 {
-            return false;
-        }
-
         if let Ok(text) = std::str::from_utf8(&content[..256.min(content.len())]) {
             text.starts_with(LFS_VERSION_PREFIX)
         } else {

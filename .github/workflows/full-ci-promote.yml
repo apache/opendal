@@ -30,6 +30,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  workflows: write
 
 jobs:
   promote:
@@ -93,6 +94,30 @@ jobs:
             core.setOutput('internal_pr_number', internalPr.number);
             core.setOutput('internal_pr_html_url', internalPr.html_url);
 
+      - name: Trigger CI workflows
+        uses: actions/github-script@v7
+        env:
+          TARGET_BRANCH: ci/pr-${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const workflows = [
+              'ci_core.yml',
+              'test_behavior.yml',
+            ];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const ref = process.env.TARGET_BRANCH;
+
+            for (const workflow of workflows) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: workflow,
+                ref,
+              });
+              core.info(`Dispatched ${workflow} on ref ${ref}`);
+            }
+
       - name: Comment on PR
         uses: actions/github-script@v7
         env:
@@ -110,6 +135,7 @@ jobs:
               marker,
               'Maintainer triggered full CI with repository secrets.',
               `Please monitor the mirrored CI PR for results: ${internalUrl}`,
+              'Workflows dispatched: ci_core.yml, test_behavior.yml.',
               'Re-applying the label will refresh this mirror.',
             ].join('\n');
 

@@ -38,6 +38,7 @@ use crate::*;
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
+pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
@@ -165,6 +166,13 @@ impl AzdlsCore {
 
         if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v)
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value);
+            }
         }
 
         let operation = if resource == DIRECTORY {
@@ -314,6 +322,11 @@ impl AzdlsCore {
 
         if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
             meta.set_version(version_id);
+        }
+
+        let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
+        if !user_meta.is_empty() {
+            meta = meta.with_user_metadata(user_meta);
         }
 
         let resource = resp

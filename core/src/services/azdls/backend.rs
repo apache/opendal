@@ -294,6 +294,7 @@ impl Builder for AzdlsBuilder {
                             write_can_multi: true,
                             write_with_if_none_match: true,
                             write_with_if_not_exists: true,
+                            write_with_user_metadata: true,
 
                             create_dir: true,
                             delete: true,

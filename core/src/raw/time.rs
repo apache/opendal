@@ -23,11 +23,11 @@ use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 
-pub use std::time::Duration;
+pub use std::time::{Duration, UNIX_EPOCH};
 #[cfg(not(target_arch = "wasm32"))]
-pub use std::time::{Instant, SystemTime, UNIX_EPOCH};
+pub use std::time::{Instant, SystemTime};
 #[cfg(target_arch = "wasm32")]
-pub use web_time::{Instant, SystemTime, UNIX_EPOCH};
+pub use web_time::{Instant, SystemTime};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

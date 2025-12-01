@@ -165,11 +165,10 @@ impl GitCore {
         repo: &'a gix::Repository,
         commit_oid: gix::hash::ObjectId,
     ) -> Result<(gix::Tree<'a>, i64)> {
-        if let Some((tree_oid, commit_time)) = self
+        if let Some((tree_oid, commit_time)) = *self
             .commit_info_cache
             .lock()
             .map_err(|_| Error::new(ErrorKind::Unexpected, "commit info cache lock poisoned"))?
-            .clone()
         {
             let tree = repo
                 .find_object(tree_oid)
@@ -210,11 +209,10 @@ impl GitCore {
     /// Resolve reference to commit OID (blocking operation)
     fn resolve_reference(&self, repo: &gix::Repository) -> Result<gix::hash::ObjectId> {
         // Return cached OID if available
-        if let Some(oid) = self
+        if let Some(oid) = *self
             .commit_oid_cache
             .lock()
             .map_err(|_| Error::new(ErrorKind::Unexpected, "commit cache lock poisoned"))?
-            .clone()
         {
             return Ok(oid);
         }
@@ -253,7 +251,8 @@ impl GitCore {
         *self
             .commit_oid_cache
             .lock()
-            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit cache lock poisoned"))? = Some(commit_oid.clone());
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "commit cache lock poisoned"))? =
+            Some(commit_oid);
 
         Ok(commit_oid)
     }

@@ -23,10 +23,11 @@ use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 
+pub use std::time::Duration;
 #[cfg(not(target_arch = "wasm32"))]
-pub use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+pub use std::time::{Instant, UNIX_EPOCH};
 #[cfg(target_arch = "wasm32")]
-pub use web_time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+pub use web_time::{Instant, UNIX_EPOCH};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -170,25 +171,9 @@ impl From<Timestamp> for jiff::Timestamp {
     }
 }
 
-impl From<Timestamp> for SystemTime {
-    fn from(t: Timestamp) -> Self {
-        t.0.into()
-    }
-}
-
 impl From<jiff::Timestamp> for Timestamp {
     fn from(t: jiff::Timestamp) -> Self {
         Timestamp(t)
-    }
-}
-
-impl TryFrom<SystemTime> for Timestamp {
-    type Error = Error;
-
-    fn try_from(t: SystemTime) -> Result<Self> {
-        jiff::Timestamp::try_from(t).map(Timestamp).map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
-        })
     }
 }
 

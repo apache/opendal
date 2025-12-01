@@ -326,7 +326,7 @@ impl<A: Access> TailCutAccessor<A> {
 
     async fn with_deadline<F, T>(&self, op: Operation, size: Option<u64>, fut: F) -> Result<T>
     where
-        F: std::future::Future<Output = Result<T>>,
+        F: Future<Output = Result<T>>,
     {
         let start = Instant::now();
 
@@ -812,10 +812,8 @@ impl WindowedHistogram {
     }
 
     fn now_ms() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64
+        // SAFETY: Unless System clock goes backwards before UNIX_EPOCH, this should never fail.
+        u64::try_from(Timestamp::now().into_inner().as_millisecond()).unwrap()
     }
 }
 

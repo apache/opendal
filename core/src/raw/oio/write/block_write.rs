@@ -245,7 +245,6 @@ where
 mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
-    use std::time::Duration;
 
     use pretty_assertions::assert_eq;
     use rand::Rng;

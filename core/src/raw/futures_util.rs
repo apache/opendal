@@ -115,7 +115,7 @@ pub struct ConcurrentTasks<I, O> {
     executor: Executor,
     /// The factory to create the task.
     ///
-    /// Caller of ConcurrentTasks must provides a factory to create the task for executing.
+    /// Caller of ConcurrentTasks must provide a factory to create the task for executing.
     ///
     /// The factory must accept an input and return a future that resolves to a tuple of input and
     /// output result. If the given result is error, the error will be returned to users and the
@@ -318,13 +318,12 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use pretty_assertions::assert_eq;
     use rand::Rng;
     use tokio::time::sleep;
 
     use super::*;
+    use crate::raw::Duration;
 
     #[tokio::test]
     async fn test_concurrent_tasks() {

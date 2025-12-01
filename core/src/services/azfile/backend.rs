@@ -28,6 +28,7 @@ use reqsign::AzureStorageSigner;
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
 use super::core::AzfileCore;
+use super::core::X_MS_META_PREFIX;
 use super::deleter::AzfileDeleter;
 use super::error::parse_error;
 use super::lister::AzfileLister;
@@ -219,6 +220,8 @@ impl Builder for AzfileBuilder {
                             read: true,
 
                             write: true,
+                            write_with_user_metadata: true,
+
                             create_dir: true,
                             delete: true,
                             rename: true,
@@ -302,7 +305,12 @@ impl Access for AzfileBackend {
         let status = resp.status();
         match status {
             StatusCode::OK => {
-                let meta = parse_into_metadata(path, resp.headers())?;
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(path, headers)?;
+                let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
+                if !user_meta.is_empty() {
+                    meta = meta.with_user_metadata(user_meta);
+                }
                 Ok(RpStat::new(meta))
             }
             _ => Err(parse_error(resp)),

@@ -175,7 +175,6 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
 mod tests {
     use std::collections::HashSet;
     use std::sync::Mutex;
-    use std::time::Duration;
 
     use pretty_assertions::assert_eq;
     use rand::Rng;

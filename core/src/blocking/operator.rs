@@ -575,24 +575,18 @@ impl Operator {
         self.handle.block_on(self.op.remove_all(path))
     }
 
-    /// List entries that starts with given `path` in parent dir.
+    /// List entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
-    ///
-    /// This function only read the children of the given directory. To read
-    /// all entries recursively, use `blocking::Operator::list_options("path", opts)`
-    /// instead.
+    /// - Listing is **prefix-based**; it doesn't require the parent directory to exist.
+    /// - If `path` itself exists, it is returned as an entry along with prefixed children.
+    /// - If `path` is missing but deeper objects exist, the list succeeds and returns those prefixed entries instead of an error.
+    /// - Set `recursive` in [`options::ListOptions`] via [`list_options`](Self::list_options) to walk all descendants; the default returns only immediate children when delimiter is supported.
     ///
     /// ## Streaming List
     ///
-    /// This function will read all entries in the given directory. It could
-    /// take very long time and consume a lot of memory if the directory
-    /// contains a lot of entries.
-    ///
-    /// In order to avoid this, you can use [`blocking::Operator::lister`] to list entries in
-    /// a streaming way.
+    /// This function materializes the full result in memory. For large listings, prefer [`blocking::Operator::lister`] to stream entries.
     ///
     /// # Examples
     ///
@@ -621,34 +615,34 @@ impl Operator {
         self.list_options(path, options::ListOptions::default())
     }
 
-    /// List entries that starts with given `path` in parent dir. with options.
+    /// List entries whose paths start with the given prefix `path` with additional options.
     ///
-    /// # Notes
+    /// # Semantics
+    ///
+    /// Inherits the prefix semantics described in [`Operator::list`] (blocking variant). It returns `path` itself if present and tolerates missing parents when prefixed objects exist.
     ///
     /// ## Streaming List
     ///
-    /// This function will read all entries in the given directory. It could
-    /// take very long time and consume a lot of memory if the directory
-    /// contains a lot of entries.
+    /// This function materializes the full result in memory. For large listings, prefer [`blocking::Operator::lister`] to stream entries.
     ///
-    /// In order to avoid this, you can use [`blocking::Operator::lister`] to list entries in
-    /// a streaming way.
+    /// ## Options
+    ///
+    /// See [`options::ListOptions`] for the full set. Common knobs: traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     pub fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
         self.handle.block_on(self.op.list_options(path, opts))
     }
 
-    /// List entries that starts with given `path` in parent dir.
+    /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function will create a new [`BlockingLister`] to list entries. Users can stop listing
-    /// via dropping this [`Lister`].
+    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
+    /// Shares the same prefix semantics as [`blocking::Operator::list`]: parent directory is optional; `path` itself is yielded if present; missing parents with deeper objects are accepted.
     ///
-    /// This function only read the children of the given directory. To read
-    /// all entries recursively, use [`blocking::Operator::lister_with`] and `delimiter("")`
-    /// instead.
+    /// ## Options
+    ///
+    /// Accepts the same [`options::ListOptions`] as [`list_options`](Self::list_options): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     ///
     /// # Examples
     ///
@@ -680,11 +674,13 @@ impl Operator {
         self.lister_options(path, options::ListOptions::default())
     }
 
-    /// List entries within a given directory as an iterator with options.
+    /// List entries under a prefix as an iterator with options.
     ///
-    /// This function will create a new handle to list entries.
+    /// This function creates a new handle to stream entries and inherits the prefix semantics of [`blocking::Operator::list`].
     ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// ## Options
+    ///
+    /// Same as [`lister`](Self::lister); see [`options::ListOptions`] for traversal, pagination, and versioning knobs.
     pub fn lister_options(
         &self,
         path: &str,

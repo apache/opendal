@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use super::MEMCACHED_SCHEME;
 use super::config::MemcachedConfig;

@@ -22,7 +22,12 @@ use jiff::SignedDuration;
 use std::fmt;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+
+pub use std::time::{Duration, UNIX_EPOCH};
+#[cfg(not(target_arch = "wasm32"))]
+pub use std::time::{Instant, SystemTime};
+#[cfg(target_arch = "wasm32")]
+pub use web_time::{Instant, SystemTime};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -166,15 +171,26 @@ impl From<Timestamp> for jiff::Timestamp {
     }
 }
 
-impl From<Timestamp> for SystemTime {
-    fn from(t: Timestamp) -> Self {
-        t.0.into()
-    }
-}
-
 impl From<jiff::Timestamp> for Timestamp {
     fn from(t: jiff::Timestamp) -> Self {
         Timestamp(t)
+    }
+}
+
+impl From<Timestamp> for SystemTime {
+    fn from(ts: Timestamp) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            SystemTime::from(ts.0)
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            use std::time::SystemTime as StdSystemTime;
+
+            let t = StdSystemTime::from(ts.0);
+            <web_time::SystemTime as web_time::web::SystemTimeExt>::from_std(t)
+        }
     }
 }
 
@@ -182,6 +198,18 @@ impl TryFrom<SystemTime> for Timestamp {
     type Error = Error;
 
     fn try_from(t: SystemTime) -> Result<Self> {
+        let t = {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                t
+            }
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                <web_time::SystemTime as web_time::web::SystemTimeExt>::to_std(t)
+            }
+        };
+
         jiff::Timestamp::try_from(t).map(Timestamp).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "input timestamp overflow").set_source(err)
         })

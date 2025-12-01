@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
 
 use bytes::Bytes;
 use constants::X_OSS_META_PREFIX;

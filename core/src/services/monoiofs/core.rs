@@ -19,7 +19,6 @@ use std::mem;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::time::Duration;
 
 use flume::Receiver;
 use flume::Sender;
@@ -31,6 +30,7 @@ use monoio::RuntimeBuilder;
 use super::MONOIOFS_SCHEME;
 use crate::raw::*;
 use crate::*;
+
 pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 
 /// a boxed function that spawns task in current monoio runtime
@@ -219,7 +219,6 @@ impl MonoiofsCore {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::time::Duration;
 
     use futures::StreamExt;
     use futures::channel::mpsc::UnboundedSender;

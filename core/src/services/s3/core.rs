@@ -19,7 +19,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Write;
 use std::sync::Arc;
-use std::time::Duration;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;

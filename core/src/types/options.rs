@@ -34,39 +34,24 @@ pub struct DeleteOptions {
 }
 
 /// Options for list operations.
+///
+/// # Groups
+/// - Traversal: `recursive`.
+/// - Pagination: `limit`, `start_after`.
+/// - Versioning: `versions`, `deleted` (effective on version-aware backends).
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
-    /// The limit passed to underlying service to specify the max results
-    /// that could return per-request.
-    ///
-    /// Users could use this to control the memory usage of list operation.
+    /// Maximum results per request (backend hint) to control memory and throttling.
     pub limit: Option<usize>,
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
     pub start_after: Option<String>,
-    /// The recursive is used to control whether the list operation is recursive.
-    ///
-    /// - If `false`, list operation will only list the entries under the given path.
-    /// - If `true`, list operation will list all entries that starts with given path.
-    ///
-    /// Default to `false`.
+    /// Whether to list recursively under the prefix; default `false`.
     pub recursive: bool,
-    /// The version is used to control whether the object versions should be returned.
-    ///
-    /// - If `false`, list operation will not return with object versions
-    /// - If `true`, list operation will return with object versions if object versioning is supported
-    ///   by the underlying service
-    ///
-    /// Default to `false`
+    /// Include object versions when supported by the backend; default `false`.
     pub versions: bool,
-    /// The deleted is used to control whether the deleted objects should be returned.
-    ///
-    /// - If `false`, list operation will not return with deleted objects
-    /// - If `true`, list operation will return with deleted objects if object versioning is supported
-    ///   by the underlying service
-    ///
-    /// Default to `false`
+    /// Include delete markers when supported by version-aware backends; default `false`.
     pub deleted: bool,
 }
 

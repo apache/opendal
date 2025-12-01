@@ -21,8 +21,8 @@
 
 use crate::options;
 use crate::raw::*;
+
 use std::collections::HashMap;
-use std::time::Duration;
 
 /// Args for `create` operation.
 ///

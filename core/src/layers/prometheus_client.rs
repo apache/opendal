@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt;
-use std::time::Duration;
 
 use prometheus_client::encoding::EncodeLabel;
 use prometheus_client::encoding::EncodeLabelSet;

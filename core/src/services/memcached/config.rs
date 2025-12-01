@@ -16,13 +16,13 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::time::Duration;
 
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::MEMCACHED_SCHEME;
 use super::backend::MemcachedBuilder;
+use crate::raw::*;
 
 /// Config for MemCached services support
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

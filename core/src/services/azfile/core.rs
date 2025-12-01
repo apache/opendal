@@ -42,6 +42,7 @@ const X_MS_FILE_RENAME_SOURCE: &str = "x-ms-file-rename-source";
 const X_MS_CONTENT_LENGTH: &str = "x-ms-content-length";
 const X_MS_TYPE: &str = "x-ms-type";
 const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
+pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
 pub struct AzfileCore {
     pub info: Arc<AccessorInfo>,
@@ -152,6 +153,13 @@ impl AzfileCore {
 
         if let Some(pos) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, pos);
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_MS_META_PREFIX}{key}"), value);
+            }
         }
 
         let req = req.extension(Operation::Write);

@@ -94,15 +94,14 @@ jobs:
             core.setOutput('mirror_pr_number', mirrorPr.number);
             core.setOutput('mirror_pr_html_url', mirrorPr.html_url);
 
-      - name: Trigger CI workflows
+      - name: Trigger Behavior Test
         uses: actions/github-script@v7
         env:
           TARGET_BRANCH: ci/pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const workflows = [
-              'ci_core.yml',
-              'test_behavior.yml',
+              { id: 'test_behavior.yml', inputs: { pr_number: `${context.payload.pull_request.number}` } },
             ];
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -112,10 +111,11 @@ jobs:
               await github.rest.actions.createWorkflowDispatch({
                 owner,
                 repo,
-                workflow_id: workflow,
+                workflow_id: workflow.id,
                 ref,
+                inputs: workflow.inputs,
               });
-              core.info(`Dispatched ${workflow} on ref ${ref}`);
+              core.info(`Dispatched ${workflow.id} on ref ${ref}`);
             }
 
       - name: Comment on PR
@@ -135,7 +135,7 @@ jobs:
               marker,
               'Maintainer triggered full CI with repository secrets.',
               `Please monitor the mirrored CI PR for results: ${mirrorUrl}`,
-              'Workflows dispatched: ci_core.yml, test_behavior.yml.',
+              'Workflows dispatched: test_behavior.yml.',
               'Re-applying the label will refresh this mirror.',
             ].join('\n');
 

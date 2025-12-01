@@ -585,11 +585,11 @@ impl<R: oio::List> oio::List for TailCutWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
-    async fn flush(&mut self) -> Result<usize> {
+    async fn close(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Delete);
         Self::with_io_deadline(
             deadline,
@@ -597,7 +597,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
             &self.stats,
             self.size,
             Operation::Delete,
-            self.inner.flush(),
+            self.inner.close(),
         )
         .await
     }

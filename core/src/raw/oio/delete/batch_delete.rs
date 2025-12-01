@@ -23,7 +23,7 @@ use crate::*;
 
 /// BatchDelete is used to implement [`oio::Delete`] based on batch delete operation.
 ///
-/// OneShotDeleter will perform delete operation while calling `flush`.
+/// OneShotDeleter will perform delete operation while calling `close`.
 pub trait BatchDelete: Send + Sync + Unpin + 'static {
     /// delete_once delete one path at once.
     ///
@@ -59,28 +59,30 @@ pub struct BatchDeleteResult {
 pub struct BatchDeleter<D: BatchDelete> {
     inner: D,
     buffer: HashSet<(String, OpDelete)>,
+    max_batch_size: usize,
 }
 
 impl<D: BatchDelete> BatchDeleter<D> {
     /// Create a new batch deleter.
-    pub fn new(inner: D) -> Self {
+    pub fn new(inner: D, max_batch_size: Option<usize>) -> Self {
+        debug_assert!(
+            max_batch_size.is_some(),
+            "BatchDeleter requires delete_max_size to be configured"
+        );
+        let max_batch_size = max_batch_size.unwrap_or(1);
+
         Self {
             inner,
             buffer: HashSet::default(),
+            max_batch_size,
         }
     }
-}
 
-impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.buffer.insert((path.to_string(), args));
-        Ok(())
-    }
-
-    async fn flush(&mut self) -> Result<usize> {
+    async fn flush_buffer(&mut self) -> Result<usize> {
         if self.buffer.is_empty() {
             return Ok(0);
         }
+
         if self.buffer.len() == 1 {
             let (path, args) = self
                 .buffer
@@ -95,23 +97,26 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
 
         let batch = self.buffer.iter().cloned().collect();
         let result = self.inner.delete_batch(batch).await?;
-        debug_assert!(
-            !result.succeeded.is_empty(),
-            "the number of succeeded operations must be greater than 0"
-        );
-        debug_assert_eq!(
-            result.succeeded.len() + result.failed.len(),
-            self.buffer.len(),
-            "the number of succeeded and failed operations must be equal to the input batch size"
-        );
 
-        // Remove all succeeded operations from the buffer.
-        let deleted = result.succeeded.len();
-        for i in result.succeeded {
-            self.buffer.remove(&i);
+        if result.succeeded.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "batch delete returned zero successes",
+            ));
+        }
+        if result.succeeded.len() + result.failed.len() != self.buffer.len() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "batch delete result size mismatch",
+            ));
         }
 
-        // Return directly if there are non-temporary errors.
+        let mut deleted = 0;
+        for i in result.succeeded {
+            self.buffer.remove(&i);
+            deleted += 1;
+        }
+
         for (path, op, err) in result.failed {
             if !err.is_temporary() {
                 return Err(err
@@ -120,8 +125,37 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
             }
         }
 
-        // Return the number of succeeded operations to allow users to decide whether
-        // to retry or push more delete operations.
         Ok(deleted)
+    }
+}
+
+impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.buffer.insert((path.to_string(), args));
+        if self.buffer.len() >= self.max_batch_size {
+            let _ = self.flush_buffer().await?;
+            return Ok(());
+        }
+
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        loop {
+            let deleted = self.flush_buffer().await?;
+
+            if self.buffer.is_empty() {
+                break;
+            }
+
+            if deleted == 0 {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "batch delete made no progress while buffer remains",
+                ));
+            }
+        }
+
+        Ok(())
     }
 }

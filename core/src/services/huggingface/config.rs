@@ -33,6 +33,7 @@ pub struct HuggingfaceConfig {
     /// Available values:
     /// - model
     /// - dataset
+    /// - datasets (alias for dataset)
     pub repo_type: Option<String>,
     /// Repo id of this backend.
     ///

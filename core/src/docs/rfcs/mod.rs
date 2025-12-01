@@ -284,3 +284,11 @@ pub mod rfc_6678_simulate_layer {}
 /// Capability Override Layer
 #[doc = include_str!("6707_capability_override_layer.md")]
 pub mod rfc_6707_capability_override_layer {}
+
+/// Checksum
+#[doc = include_str!("6817_checksum.md")]
+pub mod rfc_6817_checksum {}
+
+/// Core
+#[doc = include_str!("6828_core.md")]
+pub mod rfc_6828_core {}

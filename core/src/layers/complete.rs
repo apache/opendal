@@ -20,54 +20,22 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::raw::oio::FlatLister;
-use crate::raw::oio::PrefixLister;
-use crate::raw::*;
+use crate::raw::oio;
+use crate::raw::{
+    Access, AccessorInfo, Layer, LayeredAccess, OpCreateDir, OpList, OpPresign, OpRead, OpStat,
+    OpWrite, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpStat, RpWrite,
+};
 use crate::*;
 
-/// Complete underlying services features so that users can use them in
-/// the same way.
-///
-/// # Notes
-///
-/// CompleteLayer is not a public accessible layer that can be used by
-/// external users. OpenDAL will make sure every accessor will apply this
-/// layer once and only once.
-///
-/// # Internal
-///
-/// So far `CompleteLayer` will do the following things:
-///
-/// ## Stat Completion
-///
-/// Not all services support stat dir natively, but we can simulate it via list.
-///
-/// ## List Completion
-///
-/// There are two styles of list, but not all services support both of
-/// them. CompleteLayer will add those capabilities in a zero cost way.
-///
-/// Underlying services will return [`Capability`] to indicate the
-/// features that returning listers support.
-///
-/// - If support `list_with_recursive`, return directly.
-/// - if not, wrap with [`FlatLister`].
+/// CompleteLayer keeps validation wrappers for read/write operations.
 pub struct CompleteLayer;
 
 impl<A: Access> Layer<A> for CompleteLayer {
     type LayeredAccess = CompleteAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-        info.update_full_capability(|mut cap| {
-            if cap.list && cap.write_can_empty {
-                cap.create_dir = true;
-            }
-            cap
-        });
-
         CompleteAccessor {
-            info,
+            info: inner.info(),
             inner: Arc::new(inner),
         }
     }
@@ -85,115 +53,11 @@ impl<A: Access> Debug for CompleteAccessor<A> {
     }
 }
 
-impl<A: Access> CompleteAccessor<A> {
-    async fn complete_create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        let capability = self.info.native_capability();
-        if capability.create_dir {
-            return self.inner().create_dir(path, args).await;
-        }
-
-        if capability.write_can_empty && capability.list {
-            let (_, mut w) = self.inner.write(path, OpWrite::default()).await?;
-            oio::Write::close(&mut w).await?;
-            return Ok(RpCreateDir::default());
-        }
-
-        self.inner.create_dir(path, args).await
-    }
-
-    async fn complete_stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.info.native_capability();
-
-        if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
-        }
-
-        // Forward to inner if create_dir is supported.
-        if path.ends_with('/') && capability.create_dir {
-            let meta = self.inner.stat(path, args).await?.into_metadata();
-
-            if meta.is_file() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "stat expected a directory, but found a file",
-                ));
-            }
-
-            return Ok(RpStat::new(meta));
-        }
-
-        // Otherwise, we can simulate stat dir via `list`.
-        if path.ends_with('/') && capability.list_with_recursive {
-            let (_, mut l) = self
-                .inner
-                .list(path, OpList::default().with_recursive(true).with_limit(1))
-                .await?;
-
-            return if oio::List::next(&mut l).await?.is_some() {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
-            } else {
-                Err(Error::new(
-                    ErrorKind::NotFound,
-                    "the directory is not found",
-                ))
-            };
-        }
-
-        // Forward to underlying storage directly since we don't know how to handle stat dir.
-        self.inner.stat(path, args).await
-    }
-
-    async fn complete_list(
-        &self,
-        path: &str,
-        args: OpList,
-    ) -> Result<(RpList, CompleteLister<A, A::Lister>)> {
-        let cap = self.info.native_capability();
-
-        let recursive = args.recursive();
-
-        match (recursive, cap.list_with_recursive) {
-            // - If service can list_with_recursive, we can forward list to it directly.
-            (_, true) => {
-                let (rp, p) = self.inner.list(path, args).await?;
-                Ok((rp, CompleteLister::One(p)))
-            }
-            // If recursive is true but service can't list_with_recursive
-            (true, false) => {
-                // Forward path that ends with /
-                if path.ends_with('/') {
-                    let p = FlatLister::new(self.inner.clone(), path);
-                    Ok((RpList::default(), CompleteLister::Two(p)))
-                } else {
-                    let parent = get_parent(path);
-                    let p = FlatLister::new(self.inner.clone(), parent);
-                    let p = PrefixLister::new(p, path);
-                    Ok((RpList::default(), CompleteLister::Four(p)))
-                }
-            }
-            // If recursive and service doesn't support list_with_recursive, we need to handle
-            // list prefix by ourselves.
-            (false, false) => {
-                // Forward path that ends with /
-                if path.ends_with('/') {
-                    let (rp, p) = self.inner.list(path, args).await?;
-                    Ok((rp, CompleteLister::One(p)))
-                } else {
-                    let parent = get_parent(path);
-                    let (rp, p) = self.inner.list(parent, args).await?;
-                    let p = PrefixLister::new(p, path);
-                    Ok((rp, CompleteLister::Three(p)))
-                }
-            }
-        }
-    }
-}
-
 impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type Writer = CompleteWriter<A::Writer>;
-    type Lister = CompleteLister<A, A::Lister>;
+    type Lister = A::Lister;
     type Deleter = A::Deleter;
 
     fn inner(&self) -> &Self::Inner {
@@ -205,7 +69,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        self.complete_create_dir(path, args).await
+        self.inner().create_dir(path, args).await
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -223,7 +87,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        self.complete_stat(path, args).await
+        self.inner.stat(path, args).await
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -231,16 +95,13 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.complete_list(path, args).await
+        self.inner.list(path, args).await
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
     }
 }
-
-pub type CompleteLister<A, P> =
-    FourWays<P, FlatLister<Arc<A>, P>, PrefixLister<P>, PrefixLister<FlatLister<Arc<A>, P>>>;
 
 pub struct CompleteReader<R> {
     inner: R,

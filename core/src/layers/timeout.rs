@@ -340,12 +340,12 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 }
 
 impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args)
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        let fut = self.inner.flush();
+    async fn close(&mut self) -> Result<()> {
+        let fut = self.inner.close();
         Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 }

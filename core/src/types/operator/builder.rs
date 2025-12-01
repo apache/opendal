@@ -423,6 +423,7 @@ impl<A: Access> OperatorBuilder<A> {
         // Make sure error context layer has been attached.
         OperatorBuilder { accessor }
             .layer(ErrorContextLayer)
+            .layer(SimulateLayer::default())
             .layer(CompleteLayer)
             .layer(CorrectnessCheckLayer)
     }

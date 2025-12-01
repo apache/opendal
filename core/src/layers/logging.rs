@@ -753,7 +753,6 @@ pub struct LoggingDeleter<D, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,
 
-    queued: usize,
     deleted: usize,
     inner: D,
 }
@@ -764,7 +763,6 @@ impl<D, I: LoggingInterceptor> LoggingDeleter<D, I> {
             info,
             logger,
 
-            queued: 0,
             deleted: 0,
             inner,
         }
@@ -772,17 +770,17 @@ impl<D, I: LoggingInterceptor> LoggingDeleter<D, I> {
 }
 
 impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I> {
-    fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let version = args
             .version()
             .map(|v| v.to_string())
             .unwrap_or_else(|| "<latest>".to_string());
 
-        let res = self.inner.delete(path, args);
+        let res = self.inner.delete(path, args).await;
 
         match &res {
             Ok(_) => {
-                self.queued += 1;
+                self.deleted += 1;
             }
             Err(err) => {
                 self.logger.log(
@@ -791,7 +789,6 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                     &[
                         ("path", path),
                         ("version", &version),
-                        ("queued", &self.queued.to_string()),
                         ("deleted", &self.deleted.to_string()),
                     ],
                     "failed",
@@ -803,20 +800,15 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
         res
     }
 
-    async fn flush(&mut self) -> Result<usize> {
-        let res = self.inner.flush().await;
+    async fn close(&mut self) -> Result<()> {
+        let res = self.inner.close().await;
 
         match &res {
-            Ok(flushed) => {
-                self.queued -= flushed;
-                self.deleted += flushed;
+            Ok(_) => {
                 self.logger.log(
                     &self.info,
                     Operation::Delete,
-                    &[
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
+                    &[("deleted", &self.deleted.to_string())],
                     "succeeded",
                     None,
                 );
@@ -825,10 +817,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
                 self.logger.log(
                     &self.info,
                     Operation::Delete,
-                    &[
-                        ("queued", &self.queued.to_string()),
-                        ("deleted", &self.deleted.to_string()),
-                    ],
+                    &[("deleted", &self.deleted.to_string())],
                     "failed",
                     Some(err),
                 );

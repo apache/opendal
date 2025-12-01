@@ -75,6 +75,12 @@ impl HuggingfaceCore {
                 &self.repo_id,
                 percent_encode_revision(&self.revision)
             ),
+            RepoType::Space => format!(
+                "{}/api/spaces/{}/paths-info/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision)
+            ),
         };
 
         let mut req = Request::post(&url);
@@ -96,7 +102,12 @@ impl HuggingfaceCore {
         self.info.http_client().send(req).await
     }
 
-    pub async fn hf_list(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
+    pub async fn hf_list(
+        &self,
+        path: &str,
+        recursive: bool,
+        cursor: Option<&str>,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -116,13 +127,38 @@ impl HuggingfaceCore {
                 percent_encode_revision(&self.revision),
                 percent_encode_path(&p)
             ),
+            RepoType::Space => format!(
+                "{}/api/spaces/{}/tree/{}/{}?expand=True",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision),
+                percent_encode_path(&p)
+            ),
         };
 
         if recursive {
             url.push_str("&recursive=True");
         }
 
+        if let Some(cursor_val) = cursor {
+            url.push_str(&format!("&cursor={}", cursor_val));
+        }
+
         let mut req = Request::get(&url);
+        // Inject operation to the request.
+        req = req.extension(Operation::List);
+        if let Some(token) = &self.token {
+            let auth_header_content = format_authorization_by_bearer(token)?;
+            req = req.header(header::AUTHORIZATION, auth_header_content);
+        }
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    pub async fn hf_list_with_url(&self, url: &str) -> Result<Response<Buffer>> {
+        let mut req = Request::get(url);
         // Inject operation to the request.
         req = req.extension(Operation::List);
         if let Some(token) = &self.token {
@@ -155,6 +191,13 @@ impl HuggingfaceCore {
             ),
             RepoType::Dataset => format!(
                 "{}/datasets/{}/resolve/{}/{}",
+                &self.endpoint,
+                &self.repo_id,
+                percent_encode_revision(&self.revision),
+                percent_encode_path(&p)
+            ),
+            RepoType::Space => format!(
+                "{}/spaces/{}/resolve/{}/{}",
                 &self.endpoint,
                 &self.repo_id,
                 percent_encode_revision(&self.revision),
@@ -391,7 +434,7 @@ mod tests {
             "https://huggingface.co",
         );
 
-        core.hf_list("path1", false).await?;
+        core.hf_list("path1", false, None).await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -411,12 +454,32 @@ mod tests {
             "https://huggingface.co",
         );
 
-        core.hf_list("path2", true).await?;
+        core.hf_list("path2", true, None).await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
             url,
             "https://huggingface.co/api/models/org/model/tree/main/path2?expand=True&recursive=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_with_cursor() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Model,
+            "org/model",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("path3", false, Some("abc123")).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/models/org/model/tree/main/path3?expand=True&cursor=abc123"
         );
 
         Ok(())
@@ -461,6 +524,68 @@ mod tests {
         assert_eq!(
             url,
             "https://huggingface.co/datasets/org/data/resolve/v1%2E0/train.csv"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_path_info_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "test-user/test-space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_path_info("app.py").await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/spaces/test-user/test-space/paths-info/main"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_list_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "org/space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        core.hf_list("static", false, None).await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/api/spaces/org/space/tree/main/static?expand=True"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_hf_resolve_url_space() -> Result<()> {
+        let (core, mock_client) = create_test_core(
+            RepoType::Space,
+            "user/space",
+            "main",
+            "https://huggingface.co",
+        );
+
+        let args = OpRead::default();
+        core.hf_resolve("README.md", BytesRange::default(), &args)
+            .await?;
+
+        let url = mock_client.get_captured_url();
+        assert_eq!(
+            url,
+            "https://huggingface.co/spaces/user/space/resolve/main/README.md"
         );
 
         Ok(())

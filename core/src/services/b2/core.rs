@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -38,6 +39,7 @@ pub(super) mod constants {
     pub const X_BZ_FILE_NAME: &str = "X-Bz-File-Name";
     pub const X_BZ_CONTENT_SHA1: &str = "X-Bz-Content-Sha1";
     pub const X_BZ_PART_NUMBER: &str = "X-Bz-Part-Number";
+    pub const X_BZ_INFO_PREFIX: &str = "X-Bz-Info-";
 }
 
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
@@ -263,6 +265,17 @@ impl B2Core {
             req = req.header(header::CONTENT_DISPOSITION, pos)
         }
 
+        // Set user metadata headers.
+        // B2 uses X-Bz-Info-* prefix for custom file info.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(
+                    format!("{}{}", constants::X_BZ_INFO_PREFIX, key),
+                    percent_encode_path(value),
+                );
+            }
+        }
+
         let req = req.extension(Operation::Write);
 
         // Set body
@@ -286,10 +299,21 @@ impl B2Core {
             bucket_id: self.bucket_id.clone(),
             file_name: percent_encode_path(&p),
             content_type: "b2/x-auto".to_owned(),
+            file_info: None,
         };
 
         if let Some(mime) = args.content_type() {
             mime.clone_into(&mut start_large_file_request.content_type)
+        }
+
+        // Set user metadata in file_info.
+        // B2 uses fileInfo field for custom file info in start_large_file API.
+        if let Some(user_metadata) = args.user_metadata() {
+            let file_info: HashMap<String, String> = user_metadata
+                .iter()
+                .map(|(k, v)| (k.to_string(), percent_encode_path(v)))
+                .collect();
+            start_large_file_request.file_info = Some(file_info);
         }
 
         let req = req.extension(Operation::Write);
@@ -599,6 +623,11 @@ pub struct StartLargeFileRequest {
     pub bucket_id: String,
     pub file_name: String,
     pub content_type: String,
+    /// Custom file info (user metadata) to store with the file.
+    /// Keys should NOT include the `X-Bz-Info-` prefix.
+    /// Values should be URL-encoded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_info: Option<HashMap<String, String>>,
 }
 
 /// Response of [b2_start_large_file](https://www.backblaze.com/apidocs/b2-start-large-file).
@@ -686,6 +715,11 @@ pub struct File {
     pub content_md5: Option<String>,
     pub content_type: Option<String>,
     pub file_name: String,
+    /// Custom file info (user metadata) stored with the file.
+    /// Keys are the original names without the `X-Bz-Info-` prefix.
+    /// Values are URL-encoded when stored, decoded when read.
+    #[serde(default)]
+    pub file_info: HashMap<String, String>,
 }
 
 pub(super) fn parse_file_info(file: &File) -> Metadata {
@@ -703,6 +737,20 @@ pub(super) fn parse_file_info(file: &File) -> Metadata {
 
     if let Some(content_type) = &file.content_type {
         metadata.set_content_type(content_type);
+    }
+
+    // Parse user metadata from file_info
+    // B2 stores user metadata with keys stripped of the "X-Bz-Info-" prefix
+    // and values are URL-encoded
+    if !file.file_info.is_empty() {
+        let user_metadata: HashMap<String, String> = file
+            .file_info
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), percent_decode_path(v)))
+            .collect();
+        if !user_metadata.is_empty() {
+            metadata = metadata.with_user_metadata(user_metadata);
+        }
     }
 
     metadata

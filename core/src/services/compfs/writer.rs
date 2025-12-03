@@ -23,6 +23,7 @@ use compio::fs::File;
 use compio::io::AsyncWriteExt;
 
 use super::core::CompfsCore;
+use super::core::CompioBuffer;
 use crate::raw::*;
 use crate::*;
 
@@ -50,7 +51,7 @@ impl oio::Write for CompfsWriter {
         let pos = self
             .core
             .exec(move || async move {
-                buf_try!(@try file.write_vectored_all(bs).await);
+                buf_try!(@try file.write_vectored_all(CompioBuffer::from(bs)).await);
                 Ok(file.position())
             })
             .await?;

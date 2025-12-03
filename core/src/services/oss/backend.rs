@@ -22,6 +22,7 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
+use opendal_core::raw::http_util::GLOBAL_REQWEST_CLIENT;
 use reqsign::AliyunConfig;
 use reqsign::AliyunLoader;
 use reqsign::AliyunOssSigner;
@@ -703,6 +704,10 @@ impl Access for OssBackend {
                     .oss_put_object_request(path, None, v, Buffer::new(), true)
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

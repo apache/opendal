@@ -64,6 +64,13 @@ mod compfs;
 #[cfg(feature = "services-compfs")]
 pub use compfs::*;
 
+#[cfg(any(
+    feature = "services-azblob",
+    feature = "services-azdls",
+    feature = "services-azfile"
+))]
+pub(crate) mod azure_shared;
+
 #[cfg(feature = "services-cos")]
 mod cos;
 #[cfg(feature = "services-cos")]

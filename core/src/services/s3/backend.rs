@@ -30,6 +30,7 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 use log::warn;
+use opendal_core::raw::http_util::GLOBAL_REQWEST_CLIENT;
 use md5::Digest;
 use md5::Md5;
 use reqsign_aws_v4::AssumeRoleCredentialProvider;
@@ -1118,6 +1119,7 @@ impl Access for S3Backend {
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),
+            _ => Err(Error::new(ErrorKind::Unsupported, "operation is not supported")),
         };
         let req = req?;
 

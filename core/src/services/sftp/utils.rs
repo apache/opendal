@@ -21,34 +21,31 @@ use crate::EntryMode;
 use crate::Metadata;
 use crate::raw::Timestamp;
 
-/// REMOVE ME: we should not implement `From<SftpMeta> for Metadata`.
-impl From<SftpMeta> for Metadata {
-    fn from(meta: SftpMeta) -> Self {
-        let mode = meta
-            .file_type()
-            .map(|filetype| {
-                if filetype.is_file() {
-                    EntryMode::FILE
-                } else if filetype.is_dir() {
-                    EntryMode::DIR
-                } else {
-                    EntryMode::Unknown
-                }
-            })
-            .unwrap_or(EntryMode::Unknown);
-
-        let mut metadata = Metadata::new(mode);
-
-        if let Some(size) = meta.len() {
-            metadata.set_content_length(size);
-        }
-
-        if let Some(modified) = meta.modified() {
-            if let Ok(m) = Timestamp::try_from(modified.as_system_time()) {
-                metadata.set_last_modified(m);
+pub fn metadata_from_sftp(meta: &SftpMeta) -> Metadata {
+    let mode = meta
+        .file_type()
+        .map(|filetype| {
+            if filetype.is_file() {
+                EntryMode::FILE
+            } else if filetype.is_dir() {
+                EntryMode::DIR
+            } else {
+                EntryMode::Unknown
             }
-        }
+        })
+        .unwrap_or(EntryMode::Unknown);
 
-        metadata
+    let mut metadata = Metadata::new(mode);
+
+    if let Some(size) = meta.len() {
+        metadata.set_content_length(size);
     }
+
+    if let Some(modified) = meta.modified() {
+        if let Ok(m) = Timestamp::try_from(modified.as_system_time()) {
+            metadata.set_last_modified(m);
+        }
+    }
+
+    metadata
 }

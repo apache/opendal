@@ -38,7 +38,7 @@ all-features = true
 
 [workspace]
 default-members = ["."]
-members = [".", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
+members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
 
 [workspace.package]
 edition = "2024"
@@ -238,6 +238,7 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
+opendal-core = { path = "core", version = "1.0.0" }
 # Required dependencies
 anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.6", features = ["tokio-sleep"] }

@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::layers::correctness_check::new_unsupported_error;
 use crate::raw::*;
+use crate::*;
 
 /// Add an extra capability check layer for every operation
 ///
@@ -137,6 +137,17 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 
         self.inner.list(path, args).await
     }
+}
+
+pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
+    let scheme = info.scheme();
+    let op = op.into_static();
+
+    Error::new(
+        ErrorKind::Unsupported,
+        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
+    )
+    .with_operation(op)
 }
 
 #[cfg(test)]

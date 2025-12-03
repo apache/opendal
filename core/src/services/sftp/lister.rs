@@ -22,6 +22,7 @@ use openssh_sftp_client::fs::DirEntry;
 use openssh_sftp_client::fs::ReadDir;
 
 use super::error::parse_sftp_error;
+use super::utils::metadata_from_sftp;
 use crate::Result;
 use crate::raw::oio;
 use crate::raw::oio::Entry;
@@ -61,7 +62,7 @@ impl oio::List for SftpLister {
                         if self.prefix.is_empty() {
                             path = "/";
                         }
-                        return Ok(Some(Entry::new(path, e.metadata().into())));
+                        return Ok(Some(Entry::new(path, metadata_from_sftp(&e.metadata()))));
                     } else {
                         return Ok(Some(map_entry(self.prefix.as_str(), e)));
                     }
@@ -84,5 +85,5 @@ fn map_entry(prefix: &str, value: DirEntry) -> Entry {
         }
     );
 
-    Entry::new(path.as_str(), value.metadata().into())
+    Entry::new(path.as_str(), metadata_from_sftp(&value.metadata()))
 }

@@ -25,18 +25,27 @@ use compio::dispatcher::Dispatcher;
 use crate::raw::*;
 use crate::*;
 
-unsafe impl IoBuf for Buffer {
+#[derive(Clone, Debug)]
+pub struct CompioBuffer(Buffer);
+
+impl From<Buffer> for CompioBuffer {
+    fn from(value: Buffer) -> Self {
+        CompioBuffer(value)
+    }
+}
+
+unsafe impl IoBuf for CompioBuffer {
     fn as_buf_ptr(&self) -> *const u8 {
-        self.current().as_ptr()
+        self.0.current().as_ptr()
     }
 
     fn buf_len(&self) -> usize {
-        self.current().len()
+        self.0.current().len()
     }
 
     fn buf_capacity(&self) -> usize {
         // `Bytes` doesn't expose uninitialized capacity, so treat it as the same as `len`
-        self.current().len()
+        self.0.current().len()
     }
 }
 
@@ -81,9 +90,9 @@ impl CompfsCore {
     }
 }
 
-impl IoVectoredBuf for Buffer {
+impl IoVectoredBuf for CompioBuffer {
     unsafe fn iter_io_buffer(&self) -> impl Iterator<Item = IoBuffer> {
-        self.clone().map(|b| unsafe { b.as_io_buffer() })
+        self.0.clone().map(|b| unsafe { b.as_io_buffer() })
     }
 }
 
@@ -96,7 +105,7 @@ mod tests {
 
     use super::*;
 
-    fn setup_buffer() -> (Buffer, usize, Bytes) {
+    fn setup_buffer() -> (CompioBuffer, usize, Bytes) {
         let mut rng = thread_rng();
 
         let bs = (0..100)
@@ -110,7 +119,7 @@ mod tests {
 
         let total_size = bs.iter().map(|b| b.len()).sum::<usize>();
         let total_content = bs.iter().flatten().copied().collect::<Bytes>();
-        let buf = Buffer::from(bs);
+        let buf = CompioBuffer(Buffer::from(bs));
 
         (buf, total_size, total_content)
     }
@@ -120,6 +129,6 @@ mod tests {
         let (buf, _len, _bytes) = setup_buffer();
         let slice = IoBuf::as_slice(&buf);
 
-        assert_eq!(slice, buf.current().chunk())
+        assert_eq!(slice, buf.0.current().chunk())
     }
 }

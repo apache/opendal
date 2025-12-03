@@ -227,8 +227,10 @@ impl AzdlsBuilder {
     ///     .unwrap();
     /// ```
     pub fn from_connection_string(conn_str: &str) -> Result<Self> {
-        let config =
-            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::Adls)?;
+        let config = crate::services::azure_shared::azure_config_from_connection_string(
+            conn_str,
+            crate::services::azure_shared::AzureStorageService::Adls,
+        )?;
 
         Ok(AzdlsConfig::from(config).into_builder())
     }
@@ -265,7 +267,7 @@ impl Builder for AzdlsBuilder {
                 .config
                 .account_name
                 .clone()
-                .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str())),
+                .or_else(|| crate::services::azure_shared::azure_account_name_from_endpoint(endpoint.as_str())),
             account_key: self.config.account_key.clone(),
             sas_token: self.config.sas_token,
             client_id: self.config.client_id.clone(),

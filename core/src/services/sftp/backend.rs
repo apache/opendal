@@ -34,6 +34,7 @@ use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
+use super::utils::metadata_from_sftp;
 use crate::raw::*;
 use crate::*;
 
@@ -244,7 +245,7 @@ impl Access for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = fs.metadata(path).await.map_err(parse_sftp_error)?.into();
+        let meta = metadata_from_sftp(&fs.metadata(path).await.map_err(parse_sftp_error)?);
 
         Ok(RpStat::new(meta))
     }

@@ -5388,6 +5388,7 @@ dependencies = [
  "mongodb",
  "mongodb-internal-macros",
  "monoio",
+ "opendal-core",
  "openssh",
  "openssh-sftp-client",
  "opentelemetry",
@@ -5458,6 +5459,36 @@ dependencies = [
  "opendal",
  "rand 0.8.5",
  "tokio",
+]
+
+[[package]]
+name = "opendal-core"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "dotenvy",
+ "futures",
+ "getrandom 0.2.16",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "jiff",
+ "log",
+ "md-5",
+ "mea",
+ "moka",
+ "percent-encoding",
+ "pretty_assertions",
+ "quick-xml",
+ "rand 0.8.5",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]

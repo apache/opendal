@@ -25,18 +25,18 @@ use crate::services::core::AzblobCore;
 use crate::services::writer::AzblobWriter;
 use crate::*;
 
-pub type GhacWriter = TwoWays<GhacWriterV1, GhacWriterV2>;
+pub struct GhacWriter(TwoWays<GhacWriterV1, GhacWriterV2>);
 
 impl GhacWriter {
     /// TODO: maybe we can move the signed url logic to azblob service instead.
     pub fn new(core: Arc<GhacCore>, write_path: String, url: String) -> Result<Self> {
         match core.service_version {
-            GhacVersion::V1 => Ok(TwoWays::One(GhacWriterV1 {
+            GhacVersion::V1 => Ok(GhacWriter(TwoWays::One(GhacWriterV1 {
                 core,
                 path: write_path,
                 url,
                 size: 0,
-            })),
+            }))),
             GhacVersion::V2 => {
                 let uri = http::Uri::from_str(&url)
                     .map_err(new_http_uri_invalid_error)?
@@ -123,13 +123,13 @@ impl GhacWriter {
                 });
                 let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());
                 let writer = oio::BlockWriter::new(core.info.clone(), w, 4);
-                Ok(TwoWays::Two(GhacWriterV2 {
+                Ok(GhacWriter(TwoWays::Two(GhacWriterV2 {
                     core,
                     writer,
                     path: write_path,
                     url,
                     size: 0,
-                }))
+                })))
             }
         }
     }
@@ -197,5 +197,28 @@ impl oio::Write for GhacWriterV2 {
 
     async fn abort(&mut self) -> Result<()> {
         Ok(())
+    }
+}
+
+impl oio::Write for GhacWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        match &mut self.0 {
+            TwoWays::One(v1) => v1.write(bs).await,
+            TwoWays::Two(v2) => v2.write(bs).await,
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match &mut self.0 {
+            TwoWays::One(v1) => v1.close().await,
+            TwoWays::Two(v2) => v2.close().await,
+        }
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match &mut self.0 {
+            TwoWays::One(v1) => v1.abort().await,
+            TwoWays::Two(v2) => v2.abort().await,
+        }
     }
 }

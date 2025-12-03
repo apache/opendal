@@ -363,7 +363,6 @@ mod tests {
     use tokio::time::timeout;
 
     use crate::layers::TimeoutLayer;
-    use crate::layers::TypeEraseLayer;
     use crate::raw::*;
     use crate::*;
 
@@ -371,10 +370,10 @@ mod tests {
     struct MockService;
 
     impl Access for MockService {
-        type Reader = MockReader;
-        type Writer = ();
-        type Lister = MockLister;
-        type Deleter = ();
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
@@ -389,18 +388,18 @@ mod tests {
 
         /// This function will build a reader that always return pending.
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), MockReader))
+            Ok((RpRead::new(), Box::new(MockReader)))
         }
 
         /// This function will never return.
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             sleep(Duration::from_secs(u64::MAX)).await;
 
-            Ok((RpDelete::default(), ()))
+            Ok((RpDelete::default(), Box::new(())))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), MockLister))
+            Ok((RpList::default(), Box::new(MockLister)))
         }
     }
 
@@ -424,7 +423,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_operation_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
+        let acc = Arc::new(MockService) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_timeout(Duration::from_secs(1)));
 
@@ -443,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_io_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
+        let acc = Arc::new(MockService) as Accessor;
         let op = Operator::from_inner(acc)
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
@@ -458,7 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
+        let acc = Arc::new(MockService) as Accessor;
         let op = Operator::from_inner(acc).layer(
             TimeoutLayer::new()
                 .with_timeout(Duration::from_secs(1))

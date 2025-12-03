@@ -16,19 +16,6 @@
 // under the License.
 
 //! `Layer` is the mechanism to intercept operations.
-
-mod type_eraser;
-pub(crate) use type_eraser::TypeEraseLayer;
-
-mod error_context;
-pub(crate) use error_context::ErrorContextLayer;
-
-mod complete;
-pub(crate) use complete::CompleteLayer;
-
-mod simulate;
-pub use simulate::SimulateLayer;
-
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
@@ -128,10 +115,7 @@ pub use self::dtrace::DtraceLayer;
 
 pub mod observe;
 
-mod correctness_check;
-pub(crate) use correctness_check::CorrectnessCheckLayer;
 mod capability_check;
 pub use capability_check::CapabilityCheckLayer;
 
-mod http_client;
-pub use http_client::HttpClientLayer;
+pub use opendal_core::layers::HttpClientLayer;

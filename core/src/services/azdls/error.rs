@@ -23,7 +23,6 @@ use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::raw::*;
 use crate::*;
 
 /// AzdlsError is the error returned by azure dfs service.
@@ -97,7 +96,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
     let mut err = Error::new(kind, &message);
 
-    err = with_azure_error_response_context(err, parts);
+    err = crate::services::azure_shared::with_azure_error_response_context(err, parts);
 
     if retryable {
         err = err.set_temporary();

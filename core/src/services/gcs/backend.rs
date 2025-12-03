@@ -21,6 +21,7 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use opendal_core::raw::http_util::GLOBAL_REQWEST_CLIENT;
 use reqsign::GoogleCredentialLoader;
 use reqsign::GoogleSigner;
 use reqsign::GoogleTokenLoad;
@@ -468,6 +469,10 @@ impl Access for GcsBackend {
                     .gcs_insert_object_xml_request(path, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

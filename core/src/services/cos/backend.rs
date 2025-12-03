@@ -23,6 +23,7 @@ use http::StatusCode;
 use http::Uri;
 use log::debug;
 use reqsign::TencentCosConfig;
+use opendal_core::raw::http_util::GLOBAL_REQWEST_CLIENT;
 use reqsign::TencentCosCredentialLoader;
 use reqsign::TencentCosSigner;
 
@@ -410,6 +411,10 @@ impl Access for CosBackend {
                     .cos_put_object_request(path, None, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

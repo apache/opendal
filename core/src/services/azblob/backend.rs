@@ -278,8 +278,10 @@ impl AzblobBuilder {
     /// Connection strings can only configure the endpoint, account name and
     /// authentication information. Users still need to configure container name.
     pub fn from_connection_string(conn: &str) -> Result<Self> {
-        let config =
-            raw::azure_config_from_connection_string(conn, raw::AzureStorageService::Blob)?;
+        let config = crate::services::azure_shared::azure_config_from_connection_string(
+            conn,
+            crate::services::azure_shared::AzureStorageService::Blob,
+        )?;
 
         Ok(AzblobConfig::from(config).into_builder())
     }
@@ -316,12 +318,9 @@ impl Builder for AzblobBuilder {
         #[cfg(not(target_arch = "wasm32"))]
         let mut config_loader = AzureStorageConfig::default().from_env();
 
-        if let Some(v) = self
-            .config
-            .account_name
-            .clone()
-            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()))
-        {
+        if let Some(v) = self.config.account_name.clone().or_else(|| {
+            crate::services::azure_shared::azure_account_name_from_endpoint(endpoint.as_str())
+        }) {
             config_loader.account_name = Some(v);
         }
 
@@ -562,6 +561,10 @@ impl Access for AzblobBackend {
                     .azblob_put_blob_request(path, None, &OpWrite::default(), Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

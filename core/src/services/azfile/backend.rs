@@ -159,8 +159,10 @@ impl AzfileBuilder {
     ///     .unwrap();
     /// ```
     pub fn from_connection_string(conn_str: &str) -> Result<Self> {
-        let config =
-            raw::azure_config_from_connection_string(conn_str, raw::AzureStorageService::File)?;
+        let config = crate::services::azure_shared::azure_config_from_connection_string(
+            conn_str,
+            crate::services::azure_shared::AzureStorageService::File,
+        )?;
 
         Ok(AzfileConfig::from(config).into_builder())
     }
@@ -187,7 +189,7 @@ impl Builder for AzfileBuilder {
             .config
             .account_name
             .clone()
-            .or_else(|| raw::azure_account_name_from_endpoint(endpoint.as_str()));
+            .or_else(|| crate::services::azure_shared::azure_account_name_from_endpoint(endpoint.as_str()));
 
         let account_name = match account_name_option {
             Some(account_name) => Ok(account_name),

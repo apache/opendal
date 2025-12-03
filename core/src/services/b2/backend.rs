@@ -416,6 +416,10 @@ impl Access for B2Backend {
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),
+            _ => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
         }
     }
 }

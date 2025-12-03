@@ -124,6 +124,11 @@ mod ghac;
 #[cfg(feature = "services-ghac")]
 pub use ghac::*;
 
+#[cfg(feature = "services-git")]
+mod git;
+#[cfg(feature = "services-git")]
+pub use git::*;
+
 #[cfg(feature = "services-github")]
 mod github;
 #[cfg(feature = "services-github")]

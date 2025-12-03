@@ -93,6 +93,8 @@ fn register_builtin_services(registry: &OperatorRegistry) {
     registry.register::<crate::services::Cos>(crate::services::COS_SCHEME);
     #[cfg(feature = "services-gcs")]
     registry.register::<crate::services::Gcs>(crate::services::GCS_SCHEME);
+    #[cfg(feature = "services-git")]
+    registry.register::<crate::services::Git>(crate::services::GIT_SCHEME);
     #[cfg(feature = "services-obs")]
     registry.register::<crate::services::Obs>(crate::services::OBS_SCHEME);
     #[cfg(feature = "services-oss")]

@@ -37,6 +37,8 @@ pub struct GdriveConfig {
     pub client_id: Option<String>,
     /// Client secret for gdrive.
     pub client_secret: Option<String>,
+    /// Enable viewing shared files in list
+    pub shared_files: Option<bool>,
 }
 
 impl Debug for GdriveConfig {

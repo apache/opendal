@@ -30,8 +30,8 @@ Refer to [`DbfsBuilder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Dbfs;
-use opendal::Operator;
+use opendal_core::services::Dbfs;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

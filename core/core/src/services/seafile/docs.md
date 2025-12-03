@@ -28,8 +28,8 @@ You can refer to [`SeafileBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Seafile;
-use opendal::Operator;
+use opendal_core::services::Seafile;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

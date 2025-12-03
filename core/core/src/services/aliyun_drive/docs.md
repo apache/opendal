@@ -31,8 +31,8 @@ Refer to [`AliyunDriveBuilder`]`s  public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::AliyunDrive;
-use opendal::Operator;
+use opendal_core::services::AliyunDrive;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

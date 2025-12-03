@@ -46,9 +46,9 @@ You can refer to [`DropboxBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::raw::OpWrite;
-use opendal::services::Dropbox;
-use opendal::Operator;
+use opendal_core::raw::OpWrite;
+use opendal_core::services::Dropbox;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

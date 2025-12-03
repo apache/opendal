@@ -28,8 +28,8 @@ This service can be used to:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::D1;
-use opendal::Operator;
+use opendal_core::services::D1;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

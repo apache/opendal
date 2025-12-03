@@ -31,8 +31,8 @@ This service can be used to:
 
 ```rust
 use anyhow::Result;
-use opendal::services::Surrealdb;
-use opendal::Operator;
+use opendal_core::services::Surrealdb;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

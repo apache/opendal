@@ -60,8 +60,8 @@ Refer to [`Builder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Webhdfs;
-use opendal::Operator;
+use opendal_core::services::Webhdfs;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

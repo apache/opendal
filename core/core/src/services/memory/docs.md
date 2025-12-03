@@ -21,8 +21,8 @@ This service can be used to:
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Memory;
-use opendal::Operator;
+use opendal_core::services::Memory;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

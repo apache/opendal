@@ -27,8 +27,8 @@ You can refer to [`FtpBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Ftp;
-use opendal::Operator;
+use opendal_core::services::Ftp;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -27,8 +27,8 @@ You can refer to [`FsBuilder`]'s docs for more information
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Fs;
-use opendal::Operator;
+use opendal_core::services::Fs;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

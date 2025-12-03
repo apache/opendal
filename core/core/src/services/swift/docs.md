@@ -28,8 +28,8 @@ Refer to [`SwiftBuilder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Swift;
-use opendal::Operator;
+use opendal_core::services::Swift;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

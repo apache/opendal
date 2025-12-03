@@ -74,8 +74,8 @@ When you have a current access token:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Onedrive;
-use opendal::Operator;
+use opendal_core::services::Onedrive;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -93,8 +93,8 @@ When you have an Application with a refresh token:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Onedrive;
-use opendal::Operator;
+use opendal_core::services::Onedrive;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

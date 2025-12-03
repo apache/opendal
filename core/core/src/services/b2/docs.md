@@ -28,8 +28,8 @@ You can refer to [`B2Builder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::B2;
-use opendal::Operator;
+use opendal_core::services::B2;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

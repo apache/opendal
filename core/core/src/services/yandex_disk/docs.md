@@ -25,8 +25,8 @@ You can refer to [`YandexDiskBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::YandexDisk;
-use opendal::Operator;
+use opendal_core::services::YandexDisk;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

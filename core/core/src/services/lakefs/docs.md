@@ -33,8 +33,8 @@ Refer to [`LakefsBuilder`]'s public API docs for more information.
 ### Via Builder
 
 ```rust,no_run
-use opendal::Operator;
-use opendal::services::Lakefs;
+use opendal_core::Operator;
+use opendal_core::services::Lakefs;
 use anyhow::Result;
 
 #[tokio::main]

@@ -110,8 +110,8 @@ Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.s
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal::services::Hdfs;
-use opendal::Operator;
+use opendal_core::services::Hdfs;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -27,8 +27,8 @@ You can refer to [`GithubBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Github;
-use opendal::Operator;
+use opendal_core::services::Github;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

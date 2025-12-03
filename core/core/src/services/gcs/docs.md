@@ -50,8 +50,8 @@ Notes:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Gcs;
-use opendal::Operator;
+use opendal_core::services::Gcs;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

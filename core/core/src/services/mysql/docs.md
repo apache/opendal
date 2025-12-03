@@ -26,8 +26,8 @@ This service can be used to:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Mysql;
-use opendal::Operator;
+use opendal_core::services::Mysql;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

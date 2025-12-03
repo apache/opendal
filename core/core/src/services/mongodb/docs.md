@@ -27,8 +27,8 @@ This service can be used to:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Mongodb;
-use opendal::Operator;
+use opendal_core::services::Mongodb;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

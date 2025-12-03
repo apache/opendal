@@ -39,8 +39,8 @@ You can refer to [`RocksdbBuilder`]'s docs for more information.
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Rocksdb;
-use opendal::Operator;
+use opendal_core::services::Rocksdb;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

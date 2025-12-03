@@ -27,8 +27,8 @@ You can refer to [`PcloudBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal::services::Pcloud;
-use opendal::Operator;
+use opendal_core::services::Pcloud;
+use opendal_core::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

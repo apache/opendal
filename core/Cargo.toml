@@ -47,27 +47,26 @@ unused_async = "warn"
 all-features = true
 
 [features]
-default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
-reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 blocking = ["opendal-core/blocking"]
-tests = ["opendal-core/tests"]
+default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
-executors-tokio = ["opendal-core/executors-tokio"]
+layers-async-backtrace = ["opendal-core/layers-async-backtrace"]
+layers-await-tree = ["opendal-core/layers-await-tree"]
 layers-chaos = ["opendal-core/layers-chaos"]
-layers-metrics = ["opendal-core/layers-metrics"]
-layers-mime-guess = ["opendal-core/layers-mime-guess"]
-layers-prometheus = ["opendal-core/layers-prometheus"]
-layers-prometheus-client = ["opendal-core/layers-prometheus-client"]
+layers-dtrace = ["opendal-core/layers-dtrace"]
 layers-fastmetrics = ["opendal-core/layers-fastmetrics"]
 layers-fastrace = ["opendal-core/layers-fastrace"]
-layers-tracing = ["opendal-core/layers-tracing"]
+layers-metrics = ["opendal-core/layers-metrics"]
+layers-mime-guess = ["opendal-core/layers-mime-guess"]
 layers-otel-metrics = ["opendal-core/layers-otel-metrics"]
 layers-otel-trace = ["opendal-core/layers-otel-trace"]
+layers-prometheus = ["opendal-core/layers-prometheus"]
+layers-prometheus-client = ["opendal-core/layers-prometheus-client"]
 layers-throttle = ["opendal-core/layers-throttle"]
-layers-await-tree = ["opendal-core/layers-await-tree"]
-layers-async-backtrace = ["opendal-core/layers-async-backtrace"]
-layers-dtrace = ["opendal-core/layers-dtrace"]
+layers-tracing = ["opendal-core/layers-tracing"]
+reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 services-aliyun-drive = ["opendal-core/services-aliyun-drive"]
 services-alluxio = ["opendal-core/services-alluxio"]
 services-azblob = ["opendal-core/services-azblob"]
@@ -131,6 +130,7 @@ services-vercel-blob = ["opendal-core/services-vercel-blob"]
 services-webdav = ["opendal-core/services-webdav"]
 services-webhdfs = ["opendal-core/services-webhdfs"]
 services-yandex-disk = ["opendal-core/services-yandex-disk"]
+tests = ["opendal-core/tests"]
 
 [lib]
 bench = false
@@ -154,26 +154,31 @@ required-features = ["tests"]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 
 [dev-dependencies]
-futures = "0.3"
-uuid = { version = "1", features = ["serde", "v4"] }
-bytes = "1.10"
 anyhow = { version = "1.0.100", features = ["std"] }
+bytes = "1.10"
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
+futures = "0.3"
+http = "1.1"
 libtest-mimic = "0.8"
-opentelemetry = { version = "0.31.0", default-features = false, features = ["trace"] }
+log = "0.4"
+opentelemetry = { version = "0.31.0", default-features = false, features = [
+  "trace",
+] }
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = "0.8"
+reqwest = { version = "0.12.24" }
 sha2 = "0.10"
 size = "0.5"
 tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log"] }
-reqwest = { version = "0.12.24"}
-http = "1.1"
-log = "0.4"
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }
+uuid = { version = "1", features = ["serde", "v4"] }

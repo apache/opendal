@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::BoxedStaticFuture;
+use crate::raw::*;
 use crate::*;
 
 /// Executor that uses the [`tokio::task::spawn`] to execute futures.
@@ -34,7 +34,6 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::Ordering;
-    use std::time::Duration;
 
     use tokio::time::sleep;
 

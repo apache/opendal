@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
-use std::time::Duration;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;

@@ -16,11 +16,10 @@
 // under the License.
 
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use super::core::DashmapCore;
 use super::core::DashmapValue;
-use crate::raw::{OpWrite, Timestamp, oio};
+use crate::raw::*;
 use crate::*;
 
 pub struct DashmapWriter {
@@ -54,7 +53,7 @@ impl oio::Write for DashmapWriter {
         let entry_mode = EntryMode::from_path(&self.path);
         let mut meta = Metadata::new(entry_mode);
         meta.set_content_length(content.len() as u64);
-        meta.set_last_modified(Timestamp::try_from(SystemTime::now())?);
+        meta.set_last_modified(Timestamp::now());
 
         if let Some(v) = self.op.content_type() {
             meta.set_content_type(v);

@@ -419,6 +419,7 @@ getrandom = { version = "0.2", features = ["js"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { version = "1.48", features = ["time"] }
 uuid = { version = "1.18", features = ["serde", "v4", "js"] }
+web-time = { version = "1.1.0" }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["async", "async_tokio"] }

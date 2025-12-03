@@ -17,7 +17,6 @@
 
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::net::TcpStream;
 
 use super::binary;

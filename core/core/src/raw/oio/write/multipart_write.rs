@@ -307,8 +307,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::Rng;

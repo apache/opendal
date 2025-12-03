@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::services::etcd::error::format_etcd_error;
-use crate::{Buffer, Error, ErrorKind, Result};
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
 use fastpool::ManageObject;
@@ -24,7 +22,10 @@ use fastpool::ObjectStatus;
 use fastpool::bounded;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
+
+use crate::raw::*;
+use crate::services::etcd::error::format_etcd_error;
+use crate::{Buffer, Error, ErrorKind, Result};
 
 pub mod constants {
     pub const DEFAULT_ETCD_ENDPOINTS: &str = "http://127.0.0.1:2379";

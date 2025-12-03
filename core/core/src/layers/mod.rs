@@ -1,6 +1,3 @@
-// Critical layers embedded in opendal-core.
-// Note: Non-critical layers (logging, retry, tracing, metrics, etc.) remain in the facade crate.
-
 mod type_eraser;
 pub(crate) use type_eraser::TypeEraseLayer;
 

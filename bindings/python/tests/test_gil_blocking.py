@@ -63,12 +63,14 @@ def test_sync_file_write_gil_release(service_name, operator, async_operator):
     Related issue: https://github.com/apache/opendal/issues/6855.
     """
     filename = f"test_gil_write_{uuid4()}.bin"
-    # Use large data to ensure I/O takes measurable time
-    data = b"x" * (1024 * 1024 * 100)  # 100MB
+    # Use 1MB data to stay within service limits (e.g., etcd has ~10MB limit)
+    # Write multiple times to ensure I/O takes measurable time
+    data = b"x" * (1024 * 1024)  # 1MB
 
     def do_write() -> None:
         with operator.open(filename, "wb") as f:
-            f.write(data)
+            for _ in range(10):
+                f.write(data)
 
     try:
         result = _test_gil_release_with_callback(do_write)
@@ -85,13 +87,16 @@ def test_sync_file_read_gil_release(service_name, operator, async_operator):
     Related issue: https://github.com/apache/opendal/issues/6855.
     """
     filename = f"test_gil_read_{uuid4()}.bin"
-    data = b"x" * (1024 * 1024 * 100)  # 100MB
+    # Use 1MB data to stay within service limits (e.g., etcd has ~10MB limit)
+    data = b"x" * (1024 * 1024)  # 1MB
 
     operator.write(filename, data)
 
     def do_read() -> None:
         with operator.open(filename, "rb") as f:
-            _ = f.read()
+            for _ in range(10):
+                f.seek(0)
+                _ = f.read()
 
     try:
         result = _test_gil_release_with_callback(do_read)

@@ -1,1 +1,1 @@
-./src/docs/upgrade.md
+core/src/docs/upgrade.md

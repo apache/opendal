@@ -162,7 +162,7 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// use opendal_core::services;
     /// use opendal_core::Operator;
     ///
-    /// fn notify(_err: &opendal::Error, _dur: std::time::Duration) {}
+    /// fn notify(_err: &opendal_core::Error, _dur: std::time::Duration) {}
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")

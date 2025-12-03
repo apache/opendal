@@ -71,7 +71,7 @@ use crate::*;
 ///                 .await?;
 ///             op.stat("test").await?;
 ///             op.read("test").await?;
-///             Ok::<(), opendal::Error>(())
+///             Ok::<(), opendal_core::Error>(())
 ///         }
 ///         .in_span(Span::enter_with_parent("test", &root)),
 ///     )?;

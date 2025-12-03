@@ -41,10 +41,10 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal::layers::LoggingLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::LoggingLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -75,13 +75,13 @@ use crate::*;
 /// You can implement your own logging interceptor to customize the logging behavior.
 ///
 /// ```no_run
-/// # use opendal::layers::LoggingInterceptor;
-/// # use opendal::layers::LoggingLayer;
-/// # use opendal::raw;
-/// # use opendal::services;
-/// # use opendal::Error;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::LoggingInterceptor;
+/// # use opendal_core::layers::LoggingLayer;
+/// # use opendal_core::raw;
+/// # use opendal_core::services;
+/// # use opendal_core::Error;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// #[derive(Debug, Clone)]
 /// struct MyLoggingInterceptor;

@@ -37,8 +37,8 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal::services::Fs;
-/// use opendal::Operator;
+/// use opendal_core::services::Fs;
+/// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let mut builder = Fs::default().root("/tmp");
@@ -81,8 +81,8 @@ impl Builder for () {
 /// # use anyhow::Result;
 /// use std::collections::HashMap;
 ///
-/// use opendal::services::MemoryConfig;
-/// use opendal::Operator;
+/// use opendal_core::services::MemoryConfig;
+/// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     let mut cfg = MemoryConfig::default();
 ///     cfg.root = Some("/".to_string());
@@ -101,10 +101,10 @@ impl Builder for () {
 /// # use anyhow::Result;
 /// use std::collections::HashMap;
 ///
-/// use opendal::raw::HttpClient;
-/// use opendal::services::S3Config;
-/// use opendal::Configurator;
-/// use opendal::Operator;
+/// use opendal_core::raw::HttpClient;
+/// use opendal_core::services::S3Config;
+/// use opendal_core::Configurator;
+/// use opendal_core::Operator;
 ///
 /// async fn test() -> Result<()> {
 ///     let mut cfg = S3Config::default();

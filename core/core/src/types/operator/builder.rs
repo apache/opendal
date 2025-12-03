@@ -28,8 +28,8 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal::services::Fs;
-/// use opendal::Operator;
+/// use opendal_core::services::Fs;
+/// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = Fs::default().root("/tmp");
@@ -52,8 +52,8 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
+    /// use opendal_core::services::Fs;
+    /// use opendal_core::Operator;
     /// async fn test() -> Result<()> {
     ///     // Create fs backend builder.
     ///     let builder = Fs::default().root("/tmp");
@@ -78,8 +78,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::services::MemoryConfig;
-    /// use opendal::Operator;
+    /// use opendal_core::services::MemoryConfig;
+    /// use opendal_core::Operator;
     /// async fn test() -> Result<()> {
     ///     let cfg = MemoryConfig::default();
     ///
@@ -107,8 +107,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::services::Fs;
-    /// use opendal::Operator;
+    /// use opendal_core::services::Fs;
+    /// use opendal_core::Operator;
     /// async fn test() -> Result<()> {
     ///     let map = HashMap::from([
     ///         // Set the root for fs, all operations will happen under this root.
@@ -138,7 +138,7 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// # fn example() -> Result<()> {
     /// let op = Operator::from_uri("memory://localhost/")?;
@@ -162,8 +162,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal::Operator;
-    /// use opendal::services;
+    /// use opendal_core::Operator;
+    /// use opendal_core::services;
     ///
     /// async fn test() -> Result<()> {
     ///     let map = [
@@ -350,9 +350,9 @@ impl Operator {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Memory;
-    /// use opendal::Operator;
+    /// use opendal_core::layers::LoggingLayer;
+    /// use opendal_core::services::Memory;
+    /// use opendal_core::Operator;
     ///
     /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Memory::default())?.finish();
@@ -387,12 +387,12 @@ impl Operator {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use opendal::layers::LoggingLayer;
-/// use opendal::layers::RetryLayer;
-/// use opendal::services;
-/// use opendal::Builder;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::layers::LoggingLayer;
+/// use opendal_core::layers::RetryLayer;
+/// use opendal_core::services;
+/// use opendal_core::Builder;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
 ///     let op = Operator::from_iter::<B>(cfg)?
@@ -444,9 +444,9 @@ impl<A: Access> OperatorBuilder<A> {
     /// ```no_run
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::layers::LoggingLayer;
-    /// use opendal::services::Memory;
-    /// use opendal::Operator;
+    /// use opendal_core::layers::LoggingLayer;
+    /// use opendal_core::services::Memory;
+    /// use opendal_core::Operator;
     ///
     /// # async fn test() -> Result<()> {
     /// let op = Operator::new(Memory::default())?

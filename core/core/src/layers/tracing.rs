@@ -36,10 +36,10 @@ use crate::*;
 /// ## Basic Setup
 ///
 /// ```no_run
-/// # use opendal::layers::TracingLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::TracingLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -53,9 +53,9 @@ use crate::*;
 ///
 /// ```no_run
 /// # use anyhow::Result;
-/// # use opendal::layers::TracingLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
+/// # use opendal_core::layers::TracingLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
 /// # use opentelemetry::KeyValue;
 /// # use opentelemetry_sdk::trace;
 /// # use opentelemetry_sdk::Resource;

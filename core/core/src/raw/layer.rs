@@ -45,8 +45,8 @@ use crate::*;
 /// ```
 /// use std::sync::Arc;
 ///
-/// use opendal::raw::*;
-/// use opendal::*;
+/// use opendal_core::raw::*;
+/// use opendal_core::*;
 ///
 /// /// Implement the real accessor logic here.
 /// #[derive(Debug)]

@@ -21,9 +21,9 @@
 //!
 //! ```
 //! # use anyhow::Result;
-//! # use opendal::EntryMode;
-//! # use opendal::Operator;
-//! use opendal::ErrorKind;
+//! # use opendal_core::EntryMode;
+//! # use opendal_core::Operator;
+//! use opendal_core::ErrorKind;
 //! # async fn test(op: Operator) -> Result<()> {
 //! if let Err(e) = op.stat("test_file").await {
 //!     if e.kind() == ErrorKind::NotFound {

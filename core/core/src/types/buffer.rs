@@ -61,7 +61,7 @@ use crate::*;
 ///
 /// ```rust
 /// use bytes::Buf;
-/// use opendal::Buffer;
+/// use opendal_core::Buffer;
 /// use serde_json;
 ///
 /// fn test(mut buf: Buffer) -> Vec<String> {
@@ -75,7 +75,7 @@ use crate::*;
 ///
 /// ```rust
 /// use bytes::Bytes;
-/// use opendal::Buffer;
+/// use opendal_core::Buffer;
 ///
 /// fn test(mut buf: Buffer) -> Vec<Bytes> {
 ///     buf.into_iter().collect()
@@ -89,7 +89,7 @@ use crate::*;
 /// ```rust
 /// use bytes::Bytes;
 /// use futures::TryStreamExt;
-/// use opendal::Buffer;
+/// use opendal_core::Buffer;
 ///
 /// async fn test(mut buf: Buffer) -> Vec<Bytes> {
 ///     buf.into_iter().try_collect().await.unwrap()
@@ -104,7 +104,7 @@ use crate::*;
 ///
 /// ```rust
 /// use bytes::Bytes;
-/// use opendal::Buffer;
+/// use opendal_core::Buffer;
 ///
 /// fn test_to_vec(buf: Buffer) -> Vec<u8> {
 ///     buf.to_vec()

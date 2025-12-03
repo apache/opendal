@@ -49,9 +49,9 @@ impl Writer {
     ///
     /// ```
     /// use bytes::Bytes;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::Result;
     ///
     /// fn test(op: blocking::Operator) -> Result<()> {
     ///     let mut w = op.writer("hello.txt")?;

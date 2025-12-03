@@ -28,11 +28,11 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use opendal::layers::HttpClientLayer;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Result;
-/// use opendal::raw::HttpClient;
+/// use opendal_core::layers::HttpClientLayer;
+/// use opendal_core::services;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
+/// use opendal_core::raw::HttpClient;
 ///
 /// # fn main() -> Result<()> {
 /// // Create a custom HTTP client
@@ -48,10 +48,10 @@ use crate::*;
 /// # Custom HTTP Client Implementation
 ///
 /// ```no_run
-/// use opendal::raw::{HttpFetch, HttpBody};
-/// use opendal::Buffer;
+/// use opendal_core::raw::{HttpFetch, HttpBody};
+/// use opendal_core::Buffer;
 /// use http::{Request, Response};
-/// use opendal::Result;
+/// use opendal_core::Result;
 ///
 /// struct CustomHttpClient {
 ///     // Your custom HTTP client fields
@@ -79,9 +79,9 @@ impl HttpClientLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::layers::HttpClientLayer;
-    /// use opendal::raw::HttpClient;
-    /// use opendal::Result;
+    /// use opendal_core::layers::HttpClientLayer;
+    /// use opendal_core::raw::HttpClient;
+    /// use opendal_core::Result;
     ///
     /// # fn main() -> Result<()> {
     /// let client = HttpClient::new()?;

@@ -41,9 +41,9 @@
 //! Let's take [`services::S3`] as an example:
 //!
 //! ```no_run
-//! use opendal::services;
-//! use opendal::Operator;
-//! use opendal::Result;
+//! use opendal_core::services;
+//! use opendal_core::Operator;
+//! use opendal_core::Result;
 //!
 //! fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
@@ -64,10 +64,10 @@
 //! every operation that OpenDAL performs.
 //!
 //! ```no_run
-//! use opendal::layers::LoggingLayer;
-//! use opendal::services;
-//! use opendal::Operator;
-//! use opendal::Result;
+//! use opendal_core::layers::LoggingLayer;
+//! use opendal_core::services;
+//! use opendal_core::Operator;
+//! use opendal_core::Result;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
@@ -102,11 +102,11 @@
 //! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 //!
 //! ```no_run
-//! use opendal::layers::LoggingLayer;
-//! use opendal::options;
-//! use opendal::services;
-//! use opendal::Operator;
-//! use opendal::Result;
+//! use opendal_core::layers::LoggingLayer;
+//! use opendal_core::options;
+//! use opendal_core::services;
+//! use opendal_core::Operator;
+//! use opendal_core::Result;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {

@@ -604,7 +604,7 @@ impl S3Builder {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::services::S3;
+    /// use opendal_core::services::S3;
     ///
     /// # async fn example() {
     /// let region: Option<String> = S3::detect_region("https://s3.amazonaws.com", "example").await;

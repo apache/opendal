@@ -31,10 +31,10 @@ use crate::*;
 /// ```rust, no_run
 /// # use std::collections::HashMap;
 ///
-/// # use opendal::layers::ImmutableIndexLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::ImmutableIndexLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let mut iil = ImmutableIndexLayer::default();

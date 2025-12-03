@@ -62,10 +62,10 @@ impl MokaBuilder {
     /// # use std::time::Duration;
     /// # use log::debug;
     /// # use moka::notification::RemovalCause;
-    /// # use opendal::services::Moka;
-    /// # use opendal::services::MokaCacheBuilder;
-    /// # use opendal::services::MokaValue;
-    /// # use opendal::Configurator;
+    /// # use opendal_core::services::Moka;
+    /// # use opendal_core::services::MokaCacheBuilder;
+    /// # use opendal_core::services::MokaValue;
+    /// # use opendal_core::Configurator;
     /// let moka = Moka::new(
     ///     MokaCacheBuilder::<String, MokaValue>::default()
     ///         .name("demo")

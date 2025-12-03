@@ -49,10 +49,10 @@ use crate::*;
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 ///
 /// ```no_run
-/// # use opendal::layers::ThrottleLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::ThrottleLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())

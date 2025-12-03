@@ -31,11 +31,11 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use opendal::layers::TailCutLayer;
+/// use opendal_core::layers::TailCutLayer;
 /// use std::time::Duration;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let layer = TailCutLayer::builder()
@@ -174,11 +174,11 @@ impl TailCutLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal::layers::TailCutLayer;
+    /// use opendal_core::layers::TailCutLayer;
     /// use std::time::Duration;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     ///
     /// # fn main() -> Result<()> {
     /// let layer = TailCutLayer::builder()
@@ -235,11 +235,11 @@ struct TailCutConfig {
 /// # Examples
 ///
 /// ```no_run
-/// use opendal::layers::TailCutLayer;
+/// use opendal_core::layers::TailCutLayer;
 /// use std::time::Duration;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let layer = TailCutLayer::builder()

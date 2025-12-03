@@ -53,11 +53,11 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
-/// # use opendal::layers::RetryLayer;
-/// # use opendal::layers::TimeoutLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::RetryLayer;
+/// # use opendal_core::layers::TimeoutLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
@@ -79,10 +79,10 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
-/// # use opendal::layers::TimeoutLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::TimeoutLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?

@@ -52,8 +52,8 @@ use crate::*;
 ///
 /// ```no_run
 /// use anyhow::Result;
-/// use opendal::services::Ipmfs;
-/// use opendal::Operator;
+/// use opendal_core::services::Ipmfs;
+/// use opendal_core::Operator;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {

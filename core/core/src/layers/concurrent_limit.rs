@@ -46,10 +46,10 @@ use crate::*;
 /// Add a concurrent limit layer to the operator:
 ///
 /// ```no_run
-/// # use opendal::layers::ConcurrentLimitLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::ConcurrentLimitLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -62,10 +62,10 @@ use crate::*;
 /// Share a concurrent limit layer between the operators:
 ///
 /// ```no_run
-/// # use opendal::layers::ConcurrentLimitLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::ConcurrentLimitLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let limit = ConcurrentLimitLayer::new(1024);

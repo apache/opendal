@@ -41,13 +41,13 @@ use crate::raw::*;
 /// # examples
 ///
 /// ```no_run
-/// # use opendal::layers::CapabilityCheckLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::CapabilityCheckLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
-/// use opendal::layers::CapabilityCheckLayer;
+/// use opendal_core::layers::CapabilityCheckLayer;
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(CapabilityCheckLayer)
 ///     .finish();

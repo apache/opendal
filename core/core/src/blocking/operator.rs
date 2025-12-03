@@ -37,10 +37,10 @@ use crate::*;
 /// This is just for initialization. You must use `blocking::Operator` in blocking context.
 ///
 /// ```rust,no_run
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -62,10 +62,10 @@ use crate::*;
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -95,10 +95,10 @@ use crate::*;
 ///
 /// ```rust,no_run
 /// # use std::sync::LazyLock;
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 ///     tokio::runtime::Builder::new_multi_thread()
@@ -148,9 +148,9 @@ impl Operator {
     ///
     /// ```
     /// # use std::sync::Arc;
-    /// use opendal::blocking;
+    /// use opendal_core::blocking;
     /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
+    /// use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let info = op.info();
@@ -199,9 +199,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
-    /// use opendal::ErrorKind;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
+    /// use opendal_core::ErrorKind;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test") {
@@ -253,8 +253,8 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
     /// fn test(op: blocking::Operator) -> Result<()> {
     ///     let _ = op.exists("test")?;
     ///
@@ -288,9 +288,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.create_dir("path/to/dir/")?;
@@ -309,9 +309,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let bs = op.read("path/to/file")?;
@@ -335,9 +335,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let r = op.reader("path/to/file")?;
@@ -367,12 +367,12 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
-    /// use opendal::blocking;
+    /// use opendal_core::blocking;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.write("path/to/file", vec![0; 4096])?;
@@ -406,9 +406,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -447,9 +447,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.copy("path/to/file", "path/to/file2")?;
@@ -471,9 +471,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.rename("path/to/file", "path/to/file2")?;
@@ -495,8 +495,8 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.delete("path/to/file")?;
     /// # Ok(())
@@ -564,8 +564,8 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.remove_all("path/to/dir")?;
     /// # Ok(())
@@ -592,9 +592,9 @@ impl Operator {
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::EntryMode;
     /// #  fn test(op: blocking::Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/")?;
     /// for entry in entries {
@@ -650,9 +650,9 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::EntryMode;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/")?;
     /// for de in ds {
@@ -697,9 +697,9 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::ErrorKind;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::ErrorKind;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.check()?;

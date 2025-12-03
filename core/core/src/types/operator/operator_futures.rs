@@ -256,8 +256,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// - `1024..` means read bytes in range `[1024, n)` of file
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").range(0..1024).await?;
@@ -279,8 +279,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// the given chunk size.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.read_with("path/to/file").concurrent(8).await?;
     /// # Ok(())
@@ -296,8 +296,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// This following example will make opendal read data in 4MiB chunks:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.read_with("path/to/file").chunk(4 * 1024 * 1024).await?;
     /// # Ok(())
@@ -315,8 +315,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// let mut bs = op.read_with("path/to/file").version(version).await?;
@@ -336,8 +336,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_match(etag).await?;
     /// # Ok(())
@@ -356,8 +356,8 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_none_match(etag).await?;
     /// # Ok(())
@@ -378,9 +378,9 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
+    /// # use opendal_core::Result;
     /// use jiff::Timestamp;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut metadata = op.read_with("path/to/file").if_modified_since(time).await?;
     /// # Ok(())
@@ -399,9 +399,9 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
+    /// # use opendal_core::Result;
     /// use jiff::Timestamp;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut metadata = op
     ///     .read_with("path/to/file")
@@ -433,8 +433,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// If the version doesn't exist, an error with kind [`ErrorKind::NotFound`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// let mut r = op.reader_with("path/to/file").version(version).await?;
@@ -456,8 +456,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// the give chunk size.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader_with("path/to/file").concurrent(8).await?;
     /// # Ok(())
@@ -473,8 +473,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// This following example will make opendal read data in 4MiB chunks:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
     ///     .reader_with("path/to/file")
@@ -503,8 +503,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// they will be merged into a single read request:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
     ///     .reader_with("path/to/file")
@@ -527,8 +527,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut r = op.reader_with("path/to/file").if_match(etag).await?;
     /// # Ok(())
@@ -547,8 +547,8 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, etag: &str) -> Result<()> {
     /// let mut r = op.reader_with("path/to/file").if_none_match(etag).await?;
     /// # Ok(())
@@ -567,9 +567,9 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
+    /// # use opendal_core::Result;
     /// use jiff::Timestamp;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut r = op
     ///     .reader_with("path/to/file")
@@ -591,9 +591,9 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     ///
     /// ```
-    /// # use opendal::Result;
+    /// # use opendal_core::Result;
     /// use jiff::Timestamp;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator, time: Timestamp) -> Result<()> {
     /// let mut r = op
     ///     .reader_with("path/to/file")
@@ -621,8 +621,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -647,8 +647,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -674,8 +674,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ## Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -702,8 +702,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -729,8 +729,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ## Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -754,8 +754,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -780,8 +780,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -806,8 +806,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -832,8 +832,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -858,8 +858,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -884,8 +884,8 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -920,8 +920,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -946,8 +946,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -976,8 +976,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ## Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1009,8 +1009,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1039,8 +1039,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ## Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -1067,8 +1067,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1096,8 +1096,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1137,8 +1137,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1166,8 +1166,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1195,8 +1195,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1221,8 +1221,8 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -1405,8 +1405,8 @@ impl<F: Future<Output = Result<()>>> FutureCopy<F> {
     /// ### Example
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let _ = op

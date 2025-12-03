@@ -211,8 +211,8 @@ impl AzdlsBuilder {
     ///
     /// # Example
     /// ```
-    /// use opendal::Builder;
-    /// use opendal::services::Azdls;
+    /// use opendal_core::Builder;
+    /// use opendal_core::services::Azdls;
     ///
     /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
     ///

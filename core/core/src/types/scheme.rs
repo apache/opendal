@@ -177,7 +177,7 @@ impl Scheme {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use opendal::Scheme;
+    /// use opendal_core::Scheme;
     ///
     /// let enabled_schemes = Scheme::enabled();
     /// if !enabled_schemes.contains(&Scheme::Memory) {

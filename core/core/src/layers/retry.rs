@@ -48,11 +48,11 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
-/// # use opendal::layers::RetryLayer;
-/// # use opendal::layers::TimeoutLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::RetryLayer;
+/// # use opendal_core::layers::TimeoutLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
@@ -69,10 +69,10 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal::layers::RetryLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::RetryLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
@@ -90,12 +90,12 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
-/// # use opendal::layers::RetryInterceptor;
-/// # use opendal::layers::RetryLayer;
-/// # use opendal::services;
-/// # use opendal::Error;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::RetryInterceptor;
+/// # use opendal_core::layers::RetryLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Error;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// struct MyRetryInterceptor;
 ///
@@ -141,9 +141,9 @@ impl RetryLayer {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use opendal::layers::RetryLayer;
-    /// use opendal::services;
-    /// use opendal::Operator;
+    /// use opendal_core::layers::RetryLayer;
+    /// use opendal_core::services;
+    /// use opendal_core::Operator;
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
@@ -158,9 +158,9 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
-    /// use opendal::layers::RetryLayer;
-    /// use opendal::services;
-    /// use opendal::Operator;
+    /// use opendal_core::layers::RetryLayer;
+    /// use opendal_core::services;
+    /// use opendal_core::Operator;
     ///
     /// fn notify(_err: &opendal::Error, _dur: std::time::Duration) {}
     ///

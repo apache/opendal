@@ -37,8 +37,8 @@ use crate::*;
 /// Use the `delete` method to remove a single file:
 ///
 /// ```rust
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut d = op.deleter().await?;
@@ -52,8 +52,8 @@ use crate::*;
 ///
 /// ```rust
 /// use futures::stream;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut d = op.deleter().await?;
@@ -71,8 +71,8 @@ use crate::*;
 /// use futures::stream;
 /// use futures::Sink;
 /// use futures::SinkExt;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// async fn example(op: Operator) -> Result<()> {
 ///     let mut sink = op.deleter().await?.into_sink();

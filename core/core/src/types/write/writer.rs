@@ -39,8 +39,8 @@ use crate::*;
 /// at the second time.
 ///
 /// ```
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?;
@@ -56,7 +56,7 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use futures::SinkExt;
-/// use opendal::Operator;
+/// use opendal_core::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?.into_bytes_sink();
@@ -72,7 +72,7 @@ use crate::*;
 /// ```
 /// use anyhow::Result;
 /// use futures::AsyncWriteExt;
-/// use opendal::Operator;
+/// use opendal_core::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut w = op.writer("path/to/file").await?.into_futures_async_write();
@@ -120,8 +120,8 @@ impl Writer {
     ///
     /// ```
     /// use bytes::Bytes;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let mut w = op.writer("hello.txt").await?;
@@ -195,9 +195,9 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::Buffer;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Buffer;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op.writer("hello.txt").await?.into_sink();
@@ -216,9 +216,9 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::Buffer;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Buffer;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
@@ -256,8 +256,8 @@ impl Writer {
     /// use std::io;
     ///
     /// use futures::io::AsyncWriteExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op.writer("hello.txt").await?.into_futures_async_write();
@@ -275,8 +275,8 @@ impl Writer {
     /// use std::io;
     ///
     /// use futures::io::AsyncWriteExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op
@@ -312,8 +312,8 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op.writer("hello.txt").await?.into_bytes_sink();
@@ -332,8 +332,8 @@ impl Writer {
     ///
     /// use bytes::Bytes;
     /// use futures::SinkExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut w = op

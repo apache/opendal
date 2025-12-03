@@ -42,10 +42,10 @@ use crate::*;
 /// ```no_run
 /// # use fastmetrics::format::text;
 /// # use log::info;
-/// # use opendal::layers::FastmetricsLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::FastmetricsLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
@@ -87,10 +87,10 @@ use crate::*;
 /// # use fastmetrics::format::text;
 /// # use fastmetrics::registry::with_global_registry;
 /// # use log::info;
-/// # use opendal::layers::FastmetricsLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::FastmetricsLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// fn global_fastmetrics_layer() -> &'static FastmetricsLayer {
 ///     static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
@@ -230,10 +230,10 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal::layers::FastmetricsLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::FastmetricsLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -325,10 +325,10 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal::layers::FastmetricsLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::FastmetricsLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     ///
     /// # fn main() -> Result<()> {
     /// // Pick a builder and configure it.

@@ -43,10 +43,10 @@ use crate::*;
 ///
 /// ```no_run
 /// # use log::info;
-/// # use opendal::layers::PrometheusLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::PrometheusLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 /// # use prometheus::Encoder;
 ///
 /// # #[tokio::main]
@@ -94,10 +94,10 @@ use crate::*;
 /// ```no_run
 /// # use std::sync::OnceLock;
 /// # use log::info;
-/// # use opendal::layers::PrometheusLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::PrometheusLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 /// # use prometheus::Encoder;
 ///
 /// fn global_prometheus_layer() -> &'static PrometheusLayer {
@@ -146,10 +146,10 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal::layers::PrometheusLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -261,10 +261,10 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal::layers::PrometheusLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -499,10 +499,10 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal::layers::PrometheusLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {

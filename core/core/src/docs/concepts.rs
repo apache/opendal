@@ -52,7 +52,7 @@
 //! For example:
 //!
 //! ```no_run
-//! use opendal::services::S3;
+//! use opendal_core::services::S3;
 //!
 //! let mut builder = S3::default();
 //! builder.bucket("example");
@@ -78,9 +78,9 @@
 //! `Operator` can be built from `Builder`:
 //!
 //! ```no_run
-//! # use opendal::Result;
-//! use opendal::services::S3;
-//! use opendal::Operator;
+//! # use opendal_core::Result;
+//! use opendal_core::services::S3;
+//! use opendal_core::Operator;
 //!
 //! # fn test() -> Result<()> {
 //! let mut builder = S3::default();
@@ -116,9 +116,9 @@
 //! We can read data with given path in this way:
 //!
 //! ```no_run
-//! # use opendal::Result;
-//! use opendal::services::S3;
-//! use opendal::Operator;
+//! # use opendal_core::Result;
+//! use opendal_core::services::S3;
+//! use opendal_core::Operator;
 //!
 //! # async fn test() -> Result<()> {
 //! let mut builder = S3::default();

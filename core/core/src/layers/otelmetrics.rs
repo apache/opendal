@@ -29,10 +29,10 @@ use crate::raw::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal::layers::OtelMetricsLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::layers::OtelMetricsLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let meter = opentelemetry::global::meter("opendal");
@@ -53,10 +53,10 @@ impl OtelMetricsLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::layers::OtelMetricsLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::OtelMetricsLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -150,10 +150,10 @@ impl OtelMetricsLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::layers::OtelMetricsLayer;
-    /// # use opendal::services;
-    /// # use opendal::Operator;
-    /// # use opendal::Result;
+    /// # use opendal_core::layers::OtelMetricsLayer;
+    /// # use opendal_core::services;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {

@@ -40,8 +40,8 @@ use crate::*;
 /// [`Reader`] provides public API including [`Reader::read`]. You can use those APIs directly without extra copy.
 ///
 /// ```
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let r = op.reader("path/to/file").await?;
@@ -56,7 +56,7 @@ use crate::*;
 /// use anyhow::Result;
 /// use bytes::Bytes;
 /// use futures::TryStreamExt;
-/// use opendal::Operator;
+/// use opendal_core::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let s = op
@@ -75,7 +75,7 @@ use crate::*;
 /// use anyhow::Result;
 /// use bytes::Bytes;
 /// use futures::AsyncReadExt;
-/// use opendal::Operator;
+/// use opendal_core::Operator;
 ///
 /// async fn test(op: Operator) -> Result<()> {
 ///     let mut r = op
@@ -235,9 +235,9 @@ impl Reader {
     ///
     /// use bytes::Bytes;
     /// use futures::TryStreamExt;
-    /// use opendal::Buffer;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Buffer;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op
@@ -265,9 +265,9 @@ impl Reader {
     ///
     /// use bytes::Bytes;
     /// use futures::TryStreamExt;
-    /// use opendal::Buffer;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Buffer;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let s = op
@@ -312,8 +312,8 @@ impl Reader {
     /// use std::io;
     ///
     /// use futures::io::AsyncReadExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut r = op
@@ -336,8 +336,8 @@ impl Reader {
     /// use std::io;
     ///
     /// use futures::io::AsyncReadExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut r = op
@@ -377,8 +377,8 @@ impl Reader {
     ///
     /// use bytes::Bytes;
     /// use futures::TryStreamExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op
@@ -401,8 +401,8 @@ impl Reader {
     ///
     /// use bytes::Bytes;
     /// use futures::TryStreamExt;
-    /// use opendal::Operator;
-    /// use opendal::Result;
+    /// use opendal_core::Operator;
+    /// use opendal_core::Result;
     ///
     /// async fn test(op: Operator) -> io::Result<()> {
     ///     let mut s = op

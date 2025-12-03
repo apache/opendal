@@ -560,6 +560,7 @@ impl S3Builder {
     ///
     /// Available options:
     /// - "crc32c"
+    /// - "md5"
     pub fn checksum_algorithm(mut self, checksum_algorithm: &str) -> Self {
         self.config.checksum_algorithm = Some(checksum_algorithm.to_string());
 

@@ -20,12 +20,12 @@ use std::sync::Arc;
 use bytes::Buf;
 use http::StatusCode;
 
-use super::core::*;
-use super::error::parse_error;
-use super::error::parse_s3_error_code;
-use crate::raw::oio::BatchDeleteResult;
-use crate::raw::*;
-use crate::*;
+use crate::core::*;
+use crate::error::parse_error;
+use crate::error::parse_s3_error_code;
+use opendal_core::raw::oio::BatchDeleteResult;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct S3Deleter {
     core: Arc<S3Core>,

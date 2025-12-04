@@ -81,7 +81,7 @@ Reference: [Protecting data using server-side encryption](https://docs.aws.amazo
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::S3;
+use opendal_service_s3::S3;
 use opendal_core::Operator;
 
 #[tokio::main]
@@ -126,7 +126,7 @@ async fn main() -> Result<()> {
 ```rust,no_run
 use anyhow::Result;
 use log::info;
-use opendal_core::services::S3;
+use opendal_service_s3::S3;
 use opendal_core::Operator;
 
 #[tokio::main]
@@ -155,7 +155,7 @@ async fn main() -> Result<()> {
 ```rust,no_run
 use anyhow::Result;
 use log::info;
-use opendal_core::services::S3;
+use opendal_service_s3::S3;
 use opendal_core::Operator;
 
 #[tokio::main]
@@ -185,7 +185,7 @@ async fn main() -> Result<()> {
 ```rust,no_run
 use anyhow::Result;
 use log::info;
-use opendal_core::services::S3;
+use opendal_service_s3::S3;
 use opendal_core::Operator;
 
 #[tokio::main]
@@ -215,7 +215,7 @@ async fn main() -> Result<()> {
 ```rust,no_run
 use anyhow::Result;
 use log::info;
-use opendal_core::services::S3;
+use opendal_service_s3::S3;
 use opendal_core::Operator;
 
 #[tokio::main]

@@ -20,14 +20,14 @@ use std::sync::Arc;
 use bytes::Buf;
 use quick_xml::de;
 
-use super::core::*;
-use super::error::parse_error;
-use crate::EntryMode;
-use crate::Error;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::oio::PageContext;
-use crate::raw::*;
+use crate::core::*;
+use crate::error::parse_error;
+use opendal_core::EntryMode;
+use opendal_core::Error;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::oio::PageContext;
+use opendal_core::raw::*;
 
 pub type S3Listers = ThreeWays<
     oio::PageLister<S3ListerV1>,
@@ -138,7 +138,12 @@ impl oio::PageList for S3ListerV1 {
                 path = "/".to_string();
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            let mode = if path.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let mut meta = Metadata::new(mode);
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
@@ -248,7 +253,12 @@ impl oio::PageList for S3ListerV2 {
                 path = "/".to_string();
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            let mode = if path.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let mut meta = Metadata::new(mode);
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
@@ -364,7 +374,12 @@ impl oio::PageList for S3ObjectVersionsLister {
                 path = "/".to_owned();
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            let mode = if path.ends_with('/') {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            };
+            let mut meta = Metadata::new(mode);
             meta.set_version(&version_object.version_id);
             meta.set_is_current(version_object.is_latest);
             meta.set_content_length(version_object.size);

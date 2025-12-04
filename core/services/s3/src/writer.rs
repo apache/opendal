@@ -22,12 +22,12 @@ use constants::X_AMZ_OBJECT_SIZE;
 use constants::X_AMZ_VERSION_ID;
 use http::StatusCode;
 
-use super::core::*;
-use super::error::S3Error;
-use super::error::from_s3_error;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use crate::core::*;
+use crate::error::S3Error;
+use crate::error::from_s3_error;
+use crate::error::parse_error;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type S3Writers = TwoWays<oio::MultipartWriter<S3Writer>, oio::AppendWriter<S3Writer>>;
 
@@ -48,17 +48,22 @@ impl S3Writer {
     }
 
     fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut meta = Metadata::new(EntryMode::from_path(path));
+        let mode = if path.ends_with('/') {
+            EntryMode::DIR
+        } else {
+            EntryMode::FILE
+        };
+        let mut meta = Metadata::new(mode);
         if let Some(etag) = parse_etag(headers)? {
             meta.set_etag(etag);
         }
         if let Some(version) = parse_header_to_str(headers, X_AMZ_VERSION_ID)? {
             meta.set_version(version);
         }
-        if let Some(size) = parse_header_to_str(headers, X_AMZ_OBJECT_SIZE)? {
-            if let Ok(value) = size.parse() {
-                meta.set_content_length(value);
-            }
+        if let Some(value) =
+            parse_header_to_str(headers, X_AMZ_OBJECT_SIZE)?.and_then(|size| size.parse().ok())
+        {
+            meta.set_content_length(value);
         }
         Ok(meta)
     }

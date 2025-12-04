@@ -45,18 +45,16 @@
 //! └───────────┘                 └───────────┘
 //! ```
 //!
-//! All [`Builder`] provided by OpenDAL is under [`services`][crate::services], we can refer to them like `opendal::services::S3`.
+//! All [`Builder`] provided by OpenDAL is under [`services`][crate::services], we can refer to them like `opendal::services::Memory`.
 //! By right the builder will be named like `OneServiceBuilder`, but usually we will export it to public with renaming it as one
 //! general name. For example, we will rename `S3Builder` to `S3` and developer will use `S3` finally.
 //!
 //! For example:
 //!
 //! ```no_run
-//! use opendal_core::services::S3;
+//! use opendal_core::services::Memory;
 //!
-//! let mut builder = S3::default();
-//! builder.bucket("example");
-//! builder.root("/path/to/file");
+//! let builder = Memory::default();
 //! ```
 //!
 //! # Operator
@@ -79,13 +77,11 @@
 //!
 //! ```no_run
 //! # use opendal_core::Result;
-//! use opendal_core::services::S3;
+//! use opendal_core::services::Memory;
 //! use opendal_core::Operator;
 //!
 //! # fn test() -> Result<()> {
-//! let mut builder = S3::default();
-//! builder.bucket("example");
-//! builder.root("/path/to/file");
+//! let builder = Memory::default();
 //!
 //! let op = Operator::new(builder)?.finish();
 //! # Ok(())
@@ -117,13 +113,11 @@
 //!
 //! ```no_run
 //! # use opendal_core::Result;
-//! use opendal_core::services::S3;
+//! use opendal_core::services::Memory;
 //! use opendal_core::Operator;
 //!
 //! # async fn test() -> Result<()> {
-//! let mut builder = S3::default();
-//! builder.bucket("example");
-//! builder.root("/path/to/file");
+//! let builder = Memory::default();
 //!
 //! let op = Operator::new(builder)?.finish();
 //! let bs: Vec<u8> = op.read("abc").await?;

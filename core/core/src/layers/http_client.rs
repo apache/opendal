@@ -38,7 +38,7 @@ use crate::*;
 /// // Create a custom HTTP client
 /// let custom_client = HttpClient::new()?;
 ///
-/// let op = Operator::new(services::S3::default())?
+/// let op = Operator::new(services::Memory::default())?
 ///     .layer(HttpClientLayer::new(custom_client))
 ///     .finish();
 /// # Ok(())

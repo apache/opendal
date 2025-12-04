@@ -15,18 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![doc(
-    html_logo_url = "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg"
-)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-//! Facade crate that re-exports all public APIs from `opendal-core` and optional services/layers.
+//! Amazon S3 service implementation for Apache OpenDAL.
 #![deny(missing_docs)]
 
-pub use opendal_core::*;
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-/// Re-export of service implementations.
-pub mod services {
-    pub use opendal_core::services::*;
-    #[cfg(feature = "services-s3")]
-    pub use opendal_service_s3::*;
+pub use backend::S3Builder as S3;
+pub use config::S3Config;
+
+/// Default scheme for s3 service.
+pub const S3_SCHEME: &str = "s3";
+
+#[ctor::ctor]
+fn register_s3_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<S3>(S3_SCHEME);
 }

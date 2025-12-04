@@ -102,14 +102,13 @@ impl Builder for () {
 /// use std::collections::HashMap;
 ///
 /// use opendal_core::raw::HttpClient;
-/// use opendal_core::services::S3Config;
+/// use opendal_core::services::MemoryConfig;
 /// use opendal_core::Configurator;
 /// use opendal_core::Operator;
 ///
 /// async fn test() -> Result<()> {
-///     let mut cfg = S3Config::default();
+///     let mut cfg = MemoryConfig::default();
 ///     cfg.root = Some("/".to_string());
-///     cfg.bucket = "test".to_string();
 ///
 ///     let builder = cfg.into_builder();
 ///     let builder = builder.http_client(HttpClient::new()?);

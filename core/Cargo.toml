@@ -17,7 +17,7 @@
 
 [workspace]
 default-members = [".", "core"]
-members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*"]
+members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/s3"]
 
 [workspace.package]
 edition = "2024"
@@ -116,7 +116,8 @@ services-redb = ["opendal-core/services-redb"]
 services-redis = ["opendal-core/services-redis"]
 services-redis-native-tls = ["opendal-core/services-redis-native-tls"]
 services-rocksdb = ["opendal-core/services-rocksdb"]
-services-s3 = ["opendal-core/services-s3"]
+services-s3 = ["dep:opendal-service-s3"]
+service-s3 = ["services-s3"]
 services-seafile = ["opendal-core/services-seafile"]
 services-sftp = ["opendal-core/services-sftp"]
 services-sled = ["opendal-core/services-sled"]
@@ -152,6 +153,7 @@ required-features = ["tests"]
 
 [dependencies]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
+opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

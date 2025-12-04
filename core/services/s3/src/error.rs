@@ -21,8 +21,8 @@ use http::response::Parts;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// S3Error is the error returned by s3 service.
 #[derive(Default, Debug, Deserialize, PartialEq, Eq)]

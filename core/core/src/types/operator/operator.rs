@@ -39,8 +39,8 @@ use crate::*;
 ///
 /// Users can initialize an `Operator` through the following methods:
 ///
-/// - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::S3`].
-/// - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::S3Config`].
+/// - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::Memory`].
+/// - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::MemoryConfig`].
 /// - [`Operator::from_iter`]: Creates an operator from an iterator of configuration key-value pairs.
 ///
 /// ```
@@ -110,7 +110,7 @@ use crate::*;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
-///     let mut builder = services::S3::default().bucket("test");
+///     let builder = services::Memory::default();
 ///
 ///     // Init an operator
 ///     let op = Operator::new(builder)?

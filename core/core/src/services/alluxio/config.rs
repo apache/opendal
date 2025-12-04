@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::ALLUXIO_SCHEME;
 use super::backend::AlluxioBuilder;
 
 /// Config for alluxio services support.
@@ -53,13 +52,10 @@ impl crate::Configurator for AlluxioConfig {
     type Builder = AlluxioBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", ALLUXIO_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("http://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("http://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {

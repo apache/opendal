@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::WEBHDFS_SCHEME;
 use super::backend::WebhdfsBuilder;
 
 /// Config for WebHDFS support.
@@ -58,13 +57,10 @@ impl crate::Configurator for WebhdfsConfig {
     type Builder = WebhdfsBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", WEBHDFS_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("http://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("http://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
@@ -101,5 +97,13 @@ mod tests {
         );
         assert_eq!(cfg.root.as_deref(), Some("user/hadoop/data"));
         assert_eq!(cfg.user_name.as_deref(), Some("hadoop"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("webhdfs", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = WebhdfsConfig::from_uri(&uri).unwrap();
+        assert!(cfg.endpoint.is_none());
     }
 }

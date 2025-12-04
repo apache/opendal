@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::MEMCACHED_SCHEME;
 use super::backend::MemcachedBuilder;
 use crate::raw::*;
 
@@ -64,13 +63,10 @@ impl crate::Configurator for MemcachedConfig {
     type Builder = MemcachedBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", MEMCACHED_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("tcp://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("tcp://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {

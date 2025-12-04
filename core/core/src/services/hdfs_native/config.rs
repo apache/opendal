@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::HDFS_NATIVE_SCHEME;
 use super::backend::HdfsNativeBuilder;
 
 /// Config for HdfsNative services support.
@@ -50,13 +49,10 @@ impl crate::Configurator for HdfsNativeConfig {
     type Builder = HdfsNativeBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", HDFS_NATIVE_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
@@ -89,5 +85,13 @@ mod tests {
         let cfg = HdfsNativeConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.name_node.as_deref(), Some("hdfs://namenode:9000"));
         assert_eq!(cfg.root.as_deref(), Some("user/project"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("hdfs-native", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = HdfsNativeConfig::from_uri(&uri).unwrap();
+        assert!(cfg.name_node.is_none());
     }
 }

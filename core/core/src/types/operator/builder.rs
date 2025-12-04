@@ -183,9 +183,7 @@ impl Operator {
         scheme: impl AsRef<str>,
         iter: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Operator> {
-        let uri = (format!("{}:///", scheme.as_ref()), iter);
-
-        Operator::from_uri(uri)
+        Operator::from_uri((scheme.as_ref(), iter))
     }
 
     /// Create a new layer with dynamic dispatch.

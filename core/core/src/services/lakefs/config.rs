@@ -70,11 +70,6 @@ impl crate::Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", LAKEFS_SCHEME)
-        })?;
-
         let raw_path = uri.root().ok_or_else(|| {
             crate::Error::new(
                 crate::ErrorKind::ConfigInvalid,
@@ -102,7 +97,9 @@ impl crate::Configurator for LakefsConfig {
         })?;
 
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("https://{authority}"));
+        }
         map.insert("repository".to_string(), repository.to_string());
 
         if let Some(rest) = remainder {

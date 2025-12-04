@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::HTTP_SCHEME;
 use super::backend::HttpBuilder;
 
 /// Config for Http service support.
@@ -53,16 +52,13 @@ impl crate::Configurator for HttpConfig {
     type Builder = HttpBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", HTTP_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert(
-            "endpoint".to_string(),
-            format!("{}://{}", uri.scheme(), authority),
-        );
+        if let Some(authority) = uri.authority() {
+            map.insert(
+                "endpoint".to_string(),
+                format!("{}://{}", uri.scheme(), authority),
+            );
+        }
 
         if let Some(root) = uri.root() {
             map.insert("root".to_string(), root.to_string());
@@ -97,6 +93,14 @@ mod tests {
         let cfg = HttpConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
         assert_eq!(cfg.root.as_deref(), Some("static/assets"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("http", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+        assert!(cfg.endpoint.is_none());
     }
 
     #[test]

@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::HDFS_SCHEME;
 use super::backend::HdfsBuilder;
 
 /// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
@@ -64,13 +63,10 @@ impl crate::Configurator for HdfsConfig {
     type Builder = HdfsBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", HDFS_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
@@ -103,5 +99,13 @@ mod tests {
         let cfg = HdfsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.name_node.as_deref(), Some("hdfs://cluster.local:8020"));
         assert_eq!(cfg.root.as_deref(), Some("user/data"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("hdfs", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = HdfsConfig::from_uri(&uri).unwrap();
+        assert!(cfg.name_node.is_none());
     }
 }

@@ -38,7 +38,7 @@
 //! The first step is to pick a service and init it with a builder. All supported
 //! services could be found at [`services`].
 //!
-//! Let's take [`services::S3`] as an example:
+//! Let's take [`services::Memory`] as an example:
 //!
 //! ```no_run
 //! use opendal_core::services;
@@ -47,7 +47,7 @@
 //!
 //! fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default().bucket("test");
+//!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?.finish();
@@ -72,7 +72,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default().bucket("test");
+//!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?
@@ -111,7 +111,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Pick a builder and configure it.
-//!     let mut builder = services::S3::default().bucket("test");
+//!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
 //!     let op = Operator::new(builder)?

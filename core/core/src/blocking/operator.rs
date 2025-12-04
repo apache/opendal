@@ -45,7 +45,7 @@ use crate::*;
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     // Build an `blocking::Operator` with blocking layer to start operating the storage.
@@ -75,7 +75,7 @@ use crate::*;
 ///
 /// fn blocking_fn() -> Result<blocking::Operator> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
@@ -109,7 +109,7 @@ use crate::*;
 ///
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     // Fetch the `EnterGuard` from global runtime.

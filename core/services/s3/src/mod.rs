@@ -18,7 +18,7 @@
 /// Default scheme for s3 service.
 pub const S3_SCHEME: &str = "s3";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

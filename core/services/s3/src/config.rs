@@ -17,10 +17,13 @@
 
 use std::fmt::Debug;
 
+use opendal_core::Configurator;
+use opendal_core::OperatorUri;
+use opendal_core::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::S3Builder;
+use crate::backend::S3Builder;
 
 /// Config for Aws S3 and compatible services (including minio, digitalocean space,
 /// Tencent Cloud Object Storage(COS) and so on) support.
@@ -231,10 +234,10 @@ impl Debug for S3Config {
     }
 }
 
-impl crate::Configurator for S3Config {
+impl Configurator for S3Config {
     type Builder = S3Builder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -263,8 +266,8 @@ mod tests {
     use std::iter;
 
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn test_s3_config_original_field_names() {

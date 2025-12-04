@@ -254,11 +254,6 @@ mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
 
-#[cfg(feature = "services-s3")]
-mod s3;
-#[cfg(feature = "services-s3")]
-pub use s3::*;
-
 #[cfg(feature = "services-seafile")]
 mod seafile;
 #[cfg(feature = "services-seafile")]

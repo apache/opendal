@@ -45,19 +45,21 @@ use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqwest::Url;
 
-use super::S3_SCHEME;
-use super::config::S3Config;
-use super::core::*;
-use super::deleter::S3Deleter;
-use super::error::parse_error;
-use super::lister::S3ListerV1;
-use super::lister::S3ListerV2;
-use super::lister::S3Listers;
-use super::lister::S3ObjectVersionsLister;
-use super::writer::S3Writer;
-use super::writer::S3Writers;
-use crate::raw::*;
-use crate::*;
+use crate::S3_SCHEME;
+use crate::config::S3Config;
+use crate::core::*;
+use crate::deleter::S3Deleter;
+use crate::error::parse_error;
+use crate::lister::S3ListerV1;
+use crate::lister::S3ListerV2;
+use crate::lister::S3Listers;
+use crate::lister::S3ObjectVersionsLister;
+use crate::writer::S3Writer;
+use crate::writer::S3Writers;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
@@ -604,7 +606,7 @@ impl S3Builder {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal_core::services::S3;
+    /// use opendal_service_s3::S3;
     ///
     /// # async fn example() {
     /// let region: Option<String> = S3::detect_region("https://s3.amazonaws.com", "example").await;
@@ -642,10 +644,11 @@ impl S3Builder {
         }
 
         // If this bucket is AWS, we can try to match the endpoint.
-        if let Some(v) = endpoint.strip_prefix("https://s3.") {
-            if let Some(region) = v.strip_suffix(".amazonaws.com") {
-                return Some(region.to_string());
-            }
+        if let Some(region) = endpoint
+            .strip_prefix("https://s3.")
+            .and_then(|v| v.strip_suffix(".amazonaws.com"))
+        {
+            return Some(region.to_string());
         }
 
         // If this bucket is OSS, we can try to match the endpoint.
@@ -679,10 +682,12 @@ impl S3Builder {
         );
 
         // Get region from response header no matter status code.
-        if let Some(header) = res.headers().get("x-amz-bucket-region") {
-            if let Ok(regin) = header.to_str() {
-                return Some(regin.to_string());
-            }
+        if let Some(region) = res
+            .headers()
+            .get("x-amz-bucket-region")
+            .and_then(|header| header.to_str().ok())
+        {
+            return Some(region.to_string());
         }
 
         // Status code is 403 or 200 means we already visit the correct
@@ -1116,6 +1121,10 @@ impl Access for S3Backend {
                     .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

@@ -20,14 +20,14 @@ use std::sync::Arc;
 use bytes::Buf;
 use quick_xml::de;
 
-use super::core::*;
-use super::error::parse_error;
-use crate::EntryMode;
-use crate::Error;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::oio::PageContext;
-use crate::raw::*;
+use crate::core::*;
+use crate::error::parse_error;
+use opendal_core::EntryMode;
+use opendal_core::Error;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::oio::PageContext;
+use opendal_core::raw::*;
 
 pub type S3Listers = ThreeWays<
     oio::PageLister<S3ListerV1>,

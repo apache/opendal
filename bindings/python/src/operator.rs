@@ -45,6 +45,10 @@ fn build_blocking_operator(
     Ok(op)
 }
 
+fn normalize_scheme(raw: &str) -> String {
+    raw.trim().to_ascii_lowercase().replace('_', "-")
+}
+
 /// The blocking equivalent of `AsyncOperator`.
 ///
 /// `Operator` is the entry point for all blocking APIs.
@@ -93,6 +97,7 @@ impl Operator {
                 "Invalid type for scheme, expected str or Scheme",
             ));
         };
+        let scheme = normalize_scheme(&scheme);
         let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
@@ -737,6 +742,7 @@ impl AsyncOperator {
                 "Invalid type for scheme, expected str or Scheme",
             ));
         };
+        let scheme = normalize_scheme(&scheme);
 
         let map = kwargs
             .map(|v| {

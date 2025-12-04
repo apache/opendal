@@ -18,6 +18,8 @@
 /// Default scheme for redb service.
 pub const REDB_SCHEME: &str = "redb";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::RedbBuilder as Redb;
 pub use config::RedbConfig;
+
+#[ctor::ctor]
+fn register_redb_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Redb>(REDB_SCHEME);
+}

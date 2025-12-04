@@ -18,6 +18,8 @@
 /// Default scheme for cos service.
 pub const COS_SCHEME: &str = "cos";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::CosBuilder as Cos;
 pub use config::CosConfig;
+
+#[ctor::ctor]
+fn register_cos_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Cos>(COS_SCHEME);
+}

@@ -18,6 +18,8 @@
 /// Default scheme for huggingface service.
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod lister;
 
 pub use backend::HuggingfaceBuilder as Huggingface;
 pub use config::HuggingfaceConfig;
+
+#[ctor::ctor]
+fn register_huggingface_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Huggingface>(HUGGINGFACE_SCHEME);
+}

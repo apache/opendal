@@ -18,6 +18,8 @@
 /// Default scheme for koofr service.
 pub const KOOFR_SCHEME: &str = "koofr";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::KoofrBuilder as Koofr;
 pub use config::KoofrConfig;
+
+#[ctor::ctor]
+fn register_koofr_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Koofr>(KOOFR_SCHEME);
+}

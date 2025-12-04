@@ -18,6 +18,8 @@
 /// Default scheme for persy service.
 pub const PERSY_SCHEME: &str = "persy";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::PersyBuilder as Persy;
 pub use config::PersyConfig;
+
+#[ctor::ctor]
+fn register_persy_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Persy>(PERSY_SCHEME);
+}

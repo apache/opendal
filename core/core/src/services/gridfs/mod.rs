@@ -18,6 +18,8 @@
 /// Default scheme for gridfs service.
 pub const GRIDFS_SCHEME: &str = "gridfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::GridfsBuilder as Gridfs;
 pub use config::GridfsConfig;
+
+#[ctor::ctor]
+fn register_gridfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
+}

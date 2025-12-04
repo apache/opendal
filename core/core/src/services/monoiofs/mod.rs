@@ -18,6 +18,8 @@
 /// Default scheme for monoiofs service.
 pub const MONOIOFS_SCHEME: &str = "monoiofs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -27,3 +29,8 @@ mod writer;
 
 pub use backend::MonoiofsBuilder as Monoiofs;
 pub use config::MonoiofsConfig;
+
+#[ctor::ctor]
+fn register_monoiofs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Monoiofs>(MONOIOFS_SCHEME);
+}

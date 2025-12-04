@@ -18,6 +18,8 @@
 /// Default scheme for fs service.
 pub const FS_SCHEME: &str = "fs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -29,3 +31,8 @@ mod writer;
 
 pub use backend::FsBuilder as Fs;
 pub use config::FsConfig;
+
+#[ctor::ctor]
+fn register_fs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
+}

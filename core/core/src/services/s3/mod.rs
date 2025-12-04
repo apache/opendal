@@ -18,6 +18,8 @@
 /// Default scheme for s3 service.
 pub const S3_SCHEME: &str = "s3";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::S3Builder as S3;
 pub use config::S3Config;
+
+#[ctor::ctor]
+fn register_s3_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<S3>(S3_SCHEME);
+}

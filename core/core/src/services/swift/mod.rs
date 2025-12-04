@@ -18,6 +18,8 @@
 /// Default scheme for swift service.
 pub const SWIFT_SCHEME: &str = "swift";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::SwiftBuilder as Swift;
 pub use config::SwiftConfig;
+
+#[ctor::ctor]
+fn register_swift_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Swift>(SWIFT_SCHEME);
+}

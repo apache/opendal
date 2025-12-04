@@ -18,6 +18,8 @@
 /// Default scheme for compfs service.
 pub const COMPFS_SCHEME: &str = "compfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::CompfsBuilder as Compfs;
 pub use config::CompfsConfig;
+
+#[ctor::ctor]
+fn register_compfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Compfs>(COMPFS_SCHEME);
+}

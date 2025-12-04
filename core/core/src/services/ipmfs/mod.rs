@@ -18,6 +18,8 @@
 /// Default scheme for ipmfs service.
 pub const IPMFS_SCHEME: &str = "ipmfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod builder;
 mod config;
@@ -29,3 +31,8 @@ mod writer;
 
 pub use builder::IpmfsBuilder as Ipmfs;
 pub use config::IpmfsConfig;
+
+#[ctor::ctor]
+fn register_ipmfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Ipmfs>(IPMFS_SCHEME);
+}

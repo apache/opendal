@@ -18,6 +18,8 @@
 /// Default scheme for seafile service.
 pub const SEAFILE_SCHEME: &str = "seafile";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::SeafileBuilder as Seafile;
 pub use config::SeafileConfig;
+
+#[ctor::ctor]
+fn register_seafile_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Seafile>(SEAFILE_SCHEME);
+}

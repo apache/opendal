@@ -18,6 +18,8 @@
 /// Default scheme for dashmap service.
 pub const DASHMAP_SCHEME: &str = "dashmap";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -27,3 +29,8 @@ mod writer;
 
 pub use backend::DashmapBuilder as Dashmap;
 pub use config::DashmapConfig;
+
+#[ctor::ctor]
+fn register_dashmap_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Dashmap>(DASHMAP_SCHEME);
+}

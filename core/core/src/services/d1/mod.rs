@@ -18,6 +18,8 @@
 /// Default scheme for d1 service.
 pub const D1_SCHEME: &str = "d1";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::D1Builder as D1;
 pub use config::D1Config;
+
+#[ctor::ctor]
+fn register_d1_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<D1>(D1_SCHEME);
+}

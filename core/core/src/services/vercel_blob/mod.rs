@@ -18,6 +18,8 @@
 /// Default scheme for vercel-blob service.
 pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::VercelBlobBuilder as VercelBlob;
 pub use config::VercelBlobConfig;
+
+#[ctor::ctor]
+fn register_vercelblob_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<VercelBlob>(VERCEL_BLOB_SCHEME);
+}

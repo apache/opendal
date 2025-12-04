@@ -18,6 +18,8 @@
 /// Default scheme for etcd service.
 pub const ETCD_SCHEME: &str = "etcd";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::EtcdBuilder as Etcd;
 pub use config::EtcdConfig;
+
+#[ctor::ctor]
+fn register_etcd_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Etcd>(ETCD_SCHEME);
+}

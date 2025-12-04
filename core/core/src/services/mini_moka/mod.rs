@@ -18,6 +18,8 @@
 /// Default scheme for mini-moka service.
 pub const MINI_MOKA_SCHEME: &str = "mini-moka";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -27,3 +29,8 @@ mod writer;
 
 pub use backend::MiniMokaBuilder as MiniMoka;
 pub use config::MiniMokaConfig;
+
+#[ctor::ctor]
+fn register_minimoka_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<MiniMoka>(MINI_MOKA_SCHEME);
+}

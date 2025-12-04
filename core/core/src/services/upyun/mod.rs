@@ -18,6 +18,8 @@
 /// Default scheme for upyun service.
 pub const UPYUN_SCHEME: &str = "upyun";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::UpyunBuilder as Upyun;
 pub use config::UpyunConfig;
+
+#[ctor::ctor]
+fn register_upyun_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Upyun>(UPYUN_SCHEME);
+}

@@ -18,6 +18,8 @@
 /// Default scheme for azfile service.
 pub const AZFILE_SCHEME: &str = "azfile";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::AzfileBuilder as Azfile;
 pub use config::AzfileConfig;
+
+#[ctor::ctor]
+fn register_azfile_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Azfile>(AZFILE_SCHEME);
+}

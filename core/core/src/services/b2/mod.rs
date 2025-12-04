@@ -18,6 +18,8 @@
 /// Default scheme for b2 service.
 pub const B2_SCHEME: &str = "b2";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::B2Builder as B2;
 pub use config::B2Config;
+
+#[ctor::ctor]
+fn register_b2_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<B2>(B2_SCHEME);
+}

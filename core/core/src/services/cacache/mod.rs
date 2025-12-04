@@ -18,6 +18,8 @@
 /// Default scheme for cacache service.
 pub const CACACHE_SCHEME: &str = "cacache";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::CacacheBuilder as Cacache;
 pub use config::CacacheConfig;
+
+#[ctor::ctor]
+fn register_cacache_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Cacache>(CACACHE_SCHEME);
+}

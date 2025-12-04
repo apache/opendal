@@ -18,6 +18,8 @@
 /// Default scheme for http service.
 pub const HTTP_SCHEME: &str = "http";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -25,3 +27,8 @@ mod error;
 
 pub use backend::HttpBuilder as Http;
 pub use config::HttpConfig;
+
+#[ctor::ctor]
+fn register_http_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
+}

@@ -18,6 +18,8 @@
 /// Default scheme for postgresql service.
 pub const POSTGRESQL_SCHEME: &str = "postgresql";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::PostgresqlBuilder as Postgresql;
 pub use config::PostgresqlConfig;
+
+#[ctor::ctor]
+fn register_postgresql_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Postgresql>(POSTGRESQL_SCHEME);
+}

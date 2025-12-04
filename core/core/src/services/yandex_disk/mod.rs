@@ -18,6 +18,8 @@
 /// Default scheme for yandex-disk service.
 pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::YandexDiskBuilder as YandexDisk;
 pub use config::YandexDiskConfig;
+
+#[ctor::ctor]
+fn register_yandexdisk_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<YandexDisk>(YANDEX_DISK_SCHEME);
+}

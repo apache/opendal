@@ -18,6 +18,8 @@
 /// Default scheme for surrealdb service.
 pub const SURREALDB_SCHEME: &str = "surrealdb";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::SurrealdbBuilder as Surrealdb;
 pub use config::SurrealdbConfig;
+
+#[ctor::ctor]
+fn register_surrealdb_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Surrealdb>(SURREALDB_SCHEME);
+}

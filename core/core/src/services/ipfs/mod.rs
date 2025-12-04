@@ -18,6 +18,8 @@
 /// Default scheme for ipfs service.
 pub const IPFS_SCHEME: &str = "ipfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod ipld;
 
 pub use backend::IpfsBuilder as Ipfs;
 pub use config::IpfsConfig;
+
+#[ctor::ctor]
+fn register_ipfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Ipfs>(IPFS_SCHEME);
+}

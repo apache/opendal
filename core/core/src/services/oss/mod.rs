@@ -18,6 +18,8 @@
 /// Default scheme for oss service.
 pub const OSS_SCHEME: &str = "oss";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::OssBuilder as Oss;
 pub use config::OssConfig;
+
+#[ctor::ctor]
+fn register_oss_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Oss>(OSS_SCHEME);
+}

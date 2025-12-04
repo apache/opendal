@@ -18,6 +18,8 @@
 /// Default scheme for sftp service.
 pub const SFTP_SCHEME: &str = "sftp";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -30,3 +32,8 @@ mod writer;
 
 pub use backend::SftpBuilder as Sftp;
 pub use config::SftpConfig;
+
+#[ctor::ctor]
+fn register_sftp_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Sftp>(SFTP_SCHEME);
+}

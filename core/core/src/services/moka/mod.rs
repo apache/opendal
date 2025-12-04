@@ -18,6 +18,8 @@
 /// Default scheme for moka service.
 pub const MOKA_SCHEME: &str = "moka";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -29,3 +31,8 @@ pub use backend::MokaBuilder as Moka;
 pub use backend::MokaCacheBuilder;
 pub use config::MokaConfig;
 pub use core::MokaValue;
+
+#[ctor::ctor]
+fn register_moka_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Moka>(MOKA_SCHEME);
+}

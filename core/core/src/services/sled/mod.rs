@@ -18,6 +18,8 @@
 /// Default scheme for sled service.
 pub const SLED_SCHEME: &str = "sled";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -27,3 +29,8 @@ mod writer;
 
 pub use backend::SledBuilder as Sled;
 pub use config::SledConfig;
+
+#[ctor::ctor]
+fn register_sled_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Sled>(SLED_SCHEME);
+}

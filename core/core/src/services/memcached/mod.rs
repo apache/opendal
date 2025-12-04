@@ -18,6 +18,8 @@
 /// Default scheme for memcached service.
 pub const MEMCACHED_SCHEME: &str = "memcached";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod binary;
 mod config;
@@ -27,3 +29,8 @@ mod writer;
 
 pub use backend::MemcachedBuilder as Memcached;
 pub use config::MemcachedConfig;
+
+#[ctor::ctor]
+fn register_memcached_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Memcached>(MEMCACHED_SCHEME);
+}

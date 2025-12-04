@@ -18,6 +18,8 @@
 /// Default scheme for lakefs service.
 pub const LAKEFS_SCHEME: &str = "lakefs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::LakefsBuilder as Lakefs;
 pub use config::LakefsConfig;
+
+#[ctor::ctor]
+fn register_lakefs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Lakefs>(LAKEFS_SCHEME);
+}

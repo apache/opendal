@@ -18,6 +18,8 @@
 /// Default scheme for sqlite service.
 pub const SQLITE_SCHEME: &str = "sqlite";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::SqliteBuilder as Sqlite;
 pub use config::SqliteConfig;
+
+#[ctor::ctor]
+fn register_sqlite_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Sqlite>(SQLITE_SCHEME);
+}

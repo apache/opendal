@@ -18,6 +18,8 @@
 /// Default scheme for dropbox service.
 pub const DROPBOX_SCHEME: &str = "dropbox";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod builder;
 mod config;
@@ -29,3 +31,8 @@ mod writer;
 
 pub use builder::DropboxBuilder as Dropbox;
 pub use config::DropboxConfig;
+
+#[ctor::ctor]
+fn register_dropbox_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Dropbox>(DROPBOX_SCHEME);
+}

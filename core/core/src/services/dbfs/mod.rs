@@ -18,6 +18,8 @@
 /// Default scheme for dbfs service.
 pub const DBFS_SCHEME: &str = "dbfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::DbfsBuilder as Dbfs;
 pub use config::DbfsConfig;
+
+#[ctor::ctor]
+fn register_dbfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Dbfs>(DBFS_SCHEME);
+}

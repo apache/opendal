@@ -18,6 +18,8 @@
 /// Default scheme for tikv service.
 pub const TIKV_SCHEME: &str = "tikv";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -26,3 +28,8 @@ mod writer;
 
 pub use backend::TikvBuilder as Tikv;
 pub use config::TikvConfig;
+
+#[ctor::ctor]
+fn register_tikv_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Tikv>(TIKV_SCHEME);
+}

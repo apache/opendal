@@ -18,6 +18,8 @@
 /// Default scheme for webdav service.
 pub const WEBDAV_SCHEME: &str = "webdav";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::WebdavBuilder as Webdav;
 pub use config::WebdavConfig;
+
+#[ctor::ctor]
+fn register_webdav_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Webdav>(WEBDAV_SCHEME);
+}

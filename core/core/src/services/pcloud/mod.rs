@@ -18,6 +18,8 @@
 /// Default scheme for pcloud service.
 pub const PCLOUD_SCHEME: &str = "pcloud";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -28,3 +30,8 @@ mod writer;
 
 pub use backend::PcloudBuilder as Pcloud;
 pub use config::PcloudConfig;
+
+#[ctor::ctor]
+fn register_pcloud_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Pcloud>(PCLOUD_SCHEME);
+}

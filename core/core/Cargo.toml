@@ -232,6 +232,7 @@ jiff = { version = "0.2.15", features = ["serde"] }
 log = "0.4"
 md-5 = "0.10"
 mea = { version = "0.5.1" }
+ctor = "0.6"
 percent-encoding = "2"
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [

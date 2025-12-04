@@ -18,6 +18,8 @@
 /// Default scheme for gcs service.
 pub const GCS_SCHEME: &str = "gcs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
 mod config;
 mod core;
@@ -29,3 +31,8 @@ mod writer;
 
 pub use backend::GcsBuilder as Gcs;
 pub use config::GcsConfig;
+
+#[ctor::ctor]
+fn register_gcs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Gcs>(GCS_SCHEME);
+}

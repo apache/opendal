@@ -20,7 +20,6 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::PCLOUD_SCHEME;
 use super::backend::PcloudBuilder;
 
 /// Config for Pcloud services support.
@@ -54,13 +53,10 @@ impl crate::Configurator for PcloudConfig {
     type Builder = PcloudBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", PCLOUD_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("https://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
@@ -101,9 +97,10 @@ mod tests {
     }
 
     #[test]
-    fn from_uri_requires_authority() {
-        let uri = OperatorUri::new("pcloud:///drive", Vec::<(String, String)>::new()).unwrap();
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("pcloud", Vec::<(String, String)>::new()).unwrap();
 
-        assert!(PcloudConfig::from_uri(&uri).is_err());
+        let cfg = PcloudConfig::from_uri(&uri).unwrap();
+        assert!(cfg.endpoint.is_empty());
     }
 }

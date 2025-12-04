@@ -53,11 +53,6 @@ impl crate::Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", KOOFR_SCHEME)
-        })?;
-
         let raw_path = uri.root().ok_or_else(|| {
             crate::Error::new(
                 crate::ErrorKind::ConfigInvalid,
@@ -76,7 +71,9 @@ impl crate::Configurator for KoofrConfig {
         })?;
 
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("https://{authority}"));
+        }
         map.insert("email".to_string(), email.to_string());
 
         if let Some(rest) = segments.next() {

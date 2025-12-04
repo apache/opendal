@@ -54,13 +54,10 @@ impl crate::Configurator for AzfileConfig {
     type Builder = AzfileBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", AZFILE_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("https://{authority}"));
+        }
 
         if let Some(host) = uri.name() {
             if let Some(account) = host.split('.').next() {

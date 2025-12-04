@@ -59,36 +59,29 @@ impl crate::Configurator for SeafileConfig {
     type Builder = SeafileBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", SEAFILE_SCHEME)
-        })?;
-
-        let raw_path = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "uri path must start with repo name",
-            )
-            .with_context("service", SEAFILE_SCHEME)
-        })?;
-
-        let mut segments = raw_path.splitn(2, '/');
-        let repo_name = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "repo name is required in uri path",
-            )
-            .with_context("service", SEAFILE_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("https://{authority}"));
-        map.insert("repo_name".to_string(), repo_name.to_string());
-
-        if let Some(rest) = segments.next() {
-            if !rest.is_empty() {
-                map.insert("root".to_string(), rest.to_string());
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("https://{authority}"));
+        }
+        if let Some(raw_path) = uri.root() {
+            let mut segments = raw_path.splitn(2, '/');
+            if let Some(repo_name) = segments.next().filter(|s| !s.is_empty()) {
+                map.insert("repo_name".to_string(), repo_name.to_string());
             }
+
+            if let Some(rest) = segments.next() {
+                if !rest.is_empty() {
+                    map.insert("root".to_string(), rest.to_string());
+                }
+            }
+        }
+
+        if !map.contains_key("repo_name") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "repo_name is required via uri path or option",
+            )
+            .with_context("service", SEAFILE_SCHEME));
         }
 
         Self::from_iter(map)
@@ -121,16 +114,5 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("https://files.example.com"));
         assert_eq!(cfg.repo_name, "myrepo".to_string());
         assert_eq!(cfg.root.as_deref(), Some("projects/app"));
-    }
-
-    #[test]
-    fn from_uri_requires_repo_name() {
-        let uri = OperatorUri::new(
-            "seafile://files.example.com",
-            Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-
-        assert!(SeafileConfig::from_uri(&uri).is_err());
     }
 }

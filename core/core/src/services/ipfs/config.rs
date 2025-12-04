@@ -18,7 +18,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::IPFS_SCHEME;
 use super::backend::IpfsBuilder;
 
 /// Config for IPFS file system support.
@@ -36,13 +35,10 @@ impl crate::Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
-        let authority = uri.authority().ok_or_else(|| {
-            crate::Error::new(crate::ErrorKind::ConfigInvalid, "uri authority is required")
-                .with_context("service", IPFS_SCHEME)
-        })?;
-
         let mut map = uri.options().clone();
-        map.insert("endpoint".to_string(), format!("http://{authority}"));
+        if let Some(authority) = uri.authority() {
+            map.insert("endpoint".to_string(), format!("http://{authority}"));
+        }
 
         if let Some(root) = uri.root() {
             if !root.is_empty() {
@@ -79,5 +75,13 @@ mod tests {
         let cfg = IpfsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoint.as_deref(), Some("http://ipfs.io"));
         assert_eq!(cfg.root.as_deref(), Some("ipfs/QmHash/path"));
+    }
+
+    #[test]
+    fn from_uri_allows_missing_authority() {
+        let uri = OperatorUri::new("ipfs", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = IpfsConfig::from_uri(&uri).unwrap();
+        assert!(cfg.endpoint.is_none());
     }
 }

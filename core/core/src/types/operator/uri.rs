@@ -41,20 +41,41 @@ impl OperatorUri {
         base: &str,
         extra_options: impl IntoIterator<Item = (String, String)>,
     ) -> Result<Self> {
+        let extra_opts = extra_options
+            .into_iter()
+            .map(|(k, v)| (k.to_ascii_lowercase(), v))
+            .collect::<Vec<_>>();
+
+        let mut options = HashMap::<String, String>::new();
+
+        // Allow pure scheme (e.g. "s3") to align with from_iter semantics.
+        if !base.contains("://") {
+            for (key, value) in &extra_opts {
+                options.insert(key.clone(), value.clone());
+            }
+            return Ok(Self {
+                scheme: base.to_ascii_lowercase(),
+                authority: None,
+                name: None,
+                username: None,
+                password: None,
+                root: None,
+                options,
+            });
+        }
+
         let url = Url::parse(base).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "failed to parse uri").set_source(err)
         })?;
 
         let scheme = url.scheme().to_ascii_lowercase();
 
-        let mut options = HashMap::<String, String>::new();
-
         for (key, value) in url.query_pairs() {
             options.insert(key.to_ascii_lowercase(), value.into_owned());
         }
 
-        for (key, value) in extra_options {
-            options.insert(key.to_ascii_lowercase(), value);
+        for (key, value) in extra_opts {
+            options.insert(key, value);
         }
 
         let username = if url.username().is_empty() {

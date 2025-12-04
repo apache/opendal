@@ -73,6 +73,7 @@ impl crate::Configurator for HuggingfaceConfig {
 
     fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
         let mut map = uri.options().clone();
+        map.retain(|_, v| !v.is_empty());
 
         if let Some(repo_type) = uri.name() {
             if !repo_type.is_empty() {
@@ -80,58 +81,45 @@ impl crate::Configurator for HuggingfaceConfig {
             }
         }
 
-        let raw_path = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "uri path must include owner and repo",
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)
-        })?;
+        if let Some(raw_path) = uri.root() {
+            let parts: Vec<_> = raw_path.split('/').filter(|s| !s.is_empty()).collect();
 
-        let mut segments = raw_path.splitn(4, '/');
-        let owner = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "repository owner is required in uri path",
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)
-        })?;
-        let repo = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "repository name is required in uri path",
-            )
-            .with_context("service", HUGGINGFACE_SCHEME)
-        })?;
+            if parts.len() >= 2 {
+                map.insert("repo_id".to_string(), format!("{}/{}", parts[0], parts[1]));
 
-        map.insert("repo_id".to_string(), format!("{owner}/{repo}"));
-
-        if let Some(segment) = segments.next() {
-            if map.contains_key("revision") {
-                let mut root_value = segment.to_string();
-                if let Some(rest) = segments.next() {
-                    if !rest.is_empty() {
+                if parts.len() >= 3 {
+                    if map.contains_key("revision") {
+                        let root_value = parts[2..].join("/");
                         if !root_value.is_empty() {
-                            root_value.push('/');
-                            root_value.push_str(rest);
-                        } else {
-                            root_value = rest.to_string();
+                            map.insert("root".to_string(), root_value);
+                        }
+                    } else {
+                        map.insert("revision".to_string(), parts[2].to_string());
+                        if parts.len() > 3 {
+                            let root_value = parts[3..].join("/");
+                            if !root_value.is_empty() {
+                                map.insert("root".to_string(), root_value);
+                            }
                         }
                     }
                 }
-                if !root_value.is_empty() {
-                    map.insert("root".to_string(), root_value);
-                }
+            } else if parts.is_empty() {
+                // no owner/repo provided, fall back to options-only
             } else {
-                if !segment.is_empty() {
-                    map.insert("revision".to_string(), segment.to_string());
-                }
-                if let Some(rest) = segments.next() {
-                    if !rest.is_empty() {
-                        map.insert("root".to_string(), rest.to_string());
-                    }
-                }
+                return Err(crate::Error::new(
+                    crate::ErrorKind::ConfigInvalid,
+                    "repository owner and name are required in uri path",
+                )
+                .with_context("service", HUGGINGFACE_SCHEME));
             }
+        }
+
+        if !map.contains_key("repo_id") {
+            return Err(crate::Error::new(
+                crate::ErrorKind::ConfigInvalid,
+                "repo_id is required via uri path or option",
+            )
+            .with_context("service", HUGGINGFACE_SCHEME));
         }
 
         Self::from_iter(map)
@@ -176,6 +164,26 @@ mod tests {
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
         assert_eq!(cfg.revision.as_deref(), Some("dev"));
         assert_eq!(cfg.root.as_deref(), Some("data/train"));
+    }
+
+    #[test]
+    fn from_uri_allows_options_only() {
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "model".to_string()),
+                ("repo_id".to_string(), "opendal/sample".to_string()),
+                ("revision".to_string(), "main".to_string()),
+                ("root".to_string(), "".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = HuggingfaceConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.repo_type.as_deref(), Some("model"));
+        assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
+        assert_eq!(cfg.revision.as_deref(), Some("main"));
+        assert!(cfg.root.is_none());
     }
 
     #[test]

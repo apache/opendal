@@ -22,17 +22,18 @@
 #include <string>
 
 // Test: Basic list operation
-void test_list_basic(opendal_test_context* ctx) {
+void test_list_basic(opendal_test_context* ctx)
+{
     const char* dir_path = "test_list_dir/";
-    
+
     // Create directory
     opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir operation should succeed");
-    
+
     // Create some test files
-    const char* test_files[] = {"test_list_dir/file1.txt", "test_list_dir/file2.txt", "test_list_dir/file3.txt"};
+    const char* test_files[] = { "test_list_dir/file1.txt", "test_list_dir/file2.txt", "test_list_dir/file3.txt" };
     const size_t num_files = sizeof(test_files) / sizeof(test_files[0]);
-    
+
     for (size_t i = 0; i < num_files; i++) {
         opendal_bytes data;
         data.data = (uint8_t*)"test content";
@@ -41,12 +42,12 @@ void test_list_basic(opendal_test_context* ctx) {
         error = opendal_operator_write(ctx->config->operator_instance, test_files[i], &data);
         OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
     }
-    
+
     // List directory
     opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
-    
+
     // Collect all entries
     std::set<std::string> found_paths;
     while (true) {
@@ -55,32 +56,32 @@ void test_list_basic(opendal_test_context* ctx) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
         }
-        
+
         if (!next_result.entry) {
             // End of list
             break;
         }
-        
+
         char* path = opendal_entry_path(next_result.entry);
         OPENDAL_ASSERT_NOT_NULL(path, "Entry path should not be null");
         found_paths.insert(std::string(path));
-        
+
         free(path);
         opendal_entry_free(next_result.entry);
     }
-    
+
     // Check if the directory itself is included in the listing
     bool dir_included = found_paths.count(dir_path) > 0;
-    
+
     // Verify we found all files, and optionally the directory itself
     size_t expected_count = num_files + (dir_included ? 1 : 0);
     OPENDAL_ASSERT_EQ(expected_count, found_paths.size(), "Should find all files and optionally the directory");
-    
+
     // All files should be present
     for (size_t i = 0; i < num_files; i++) {
         OPENDAL_ASSERT(found_paths.count(test_files[i]) > 0, "Should find all test files");
     }
-    
+
     // Cleanup
     opendal_lister_free(list_result.lister);
     for (size_t i = 0; i < num_files; i++) {
@@ -90,18 +91,19 @@ void test_list_basic(opendal_test_context* ctx) {
 }
 
 // Test: List empty directory
-void test_list_empty_dir(opendal_test_context* ctx) {
+void test_list_empty_dir(opendal_test_context* ctx)
+{
     const char* dir_path = "test_empty_dir/";
-    
+
     // Create directory
     opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir operation should succeed");
-    
+
     // List directory
     opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
     OPENDAL_ASSERT_NOT_NULL(list_result.lister, "Lister should not be null");
-    
+
     // Collect entries
     std::set<std::string> found_paths;
     while (true) {
@@ -110,61 +112,62 @@ void test_list_empty_dir(opendal_test_context* ctx) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
         }
-        
+
         if (!next_result.entry) {
             break;
         }
-        
+
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
         free(path);
         opendal_entry_free(next_result.entry);
     }
-    
+
     // Some services include the directory itself, others don't
     bool dir_included = found_paths.count(dir_path) > 0;
     size_t expected_count = dir_included ? 1 : 0;
     OPENDAL_ASSERT_EQ(expected_count, found_paths.size(), "Should find empty listing or just the directory");
-    
+
     if (dir_included) {
         OPENDAL_ASSERT(found_paths.count(dir_path) > 0, "Should find the directory itself if it's included");
     }
-    
+
     // Cleanup
     opendal_lister_free(list_result.lister);
     opendal_operator_delete(ctx->config->operator_instance, dir_path);
 }
 
 // Test: List nested directories
-void test_list_nested(opendal_test_context* ctx) {
+void test_list_nested(opendal_test_context* ctx)
+{
     const char* base_dir = "test_nested/";
     const char* sub_dir = "test_nested/subdir/";
     const char* file_in_base = "test_nested/base_file.txt";
     const char* file_in_sub = "test_nested/subdir/sub_file.txt";
-    
+
     // Create directories
     opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, base_dir);
     OPENDAL_ASSERT_NO_ERROR(error, "Create base dir should succeed");
-    
+
     error = opendal_operator_create_dir(ctx->config->operator_instance, sub_dir);
     OPENDAL_ASSERT_NO_ERROR(error, "Create sub dir should succeed");
-    
+
     // Create files
     opendal_bytes data;
     data.data = (uint8_t*)"test content";
     data.len = 12;
     data.capacity = 12;
-    
+
     error = opendal_operator_write(ctx->config->operator_instance, file_in_base, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write to base dir should succeed");
-    
+
     error = opendal_operator_write(ctx->config->operator_instance, file_in_sub, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write to sub dir should succeed");
-    
+
     // List base directory
     opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, base_dir);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
-    
+
     std::set<std::string> found_paths;
     while (true) {
         opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
@@ -172,34 +175,34 @@ void test_list_nested(opendal_test_context* ctx) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
         }
-        
+
         if (!next_result.entry) {
             break;
         }
-        
+
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
         free(path);
         opendal_entry_free(next_result.entry);
     }
-    
+
     // Should find base dir, sub dir, and file in base
     bool base_dir_included = found_paths.count(base_dir) > 0;
-    size_t expected_count = 2 + (base_dir_included ? 1 : 0);  // sub_dir + file_in_base + optionally base_dir
+    size_t expected_count = 2 + (base_dir_included ? 1 : 0); // sub_dir + file_in_base + optionally base_dir
     OPENDAL_ASSERT_EQ(expected_count, found_paths.size(), "Should find correct number of items in base directory");
-    
+
     // These should always be present
     OPENDAL_ASSERT(found_paths.count(sub_dir) > 0, "Should find sub directory");
     OPENDAL_ASSERT(found_paths.count(file_in_base) > 0, "Should find file in base directory");
-    
+
     // Base directory may or may not be included depending on the service
     if (base_dir_included) {
         OPENDAL_ASSERT(found_paths.count(base_dir) > 0, "Should find base directory if it's included");
     }
-    
+
     // Should NOT find file in subdirectory when listing base directory non-recursively
     OPENDAL_ASSERT(found_paths.count(file_in_sub) == 0, "Should not find file in subdirectory");
-    
+
     // Cleanup
     opendal_lister_free(list_result.lister);
     opendal_operator_delete(ctx->config->operator_instance, file_in_sub);
@@ -209,25 +212,26 @@ void test_list_nested(opendal_test_context* ctx) {
 }
 
 // Test: Entry name vs path
-void test_entry_name_path(opendal_test_context* ctx) {
+void test_entry_name_path(opendal_test_context* ctx)
+{
     const char* dir_path = "test_entry_names/";
     const char* file_path = "test_entry_names/test_file.txt";
-    
+
     // Create directory and file
     opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir should succeed");
-    
+
     opendal_bytes data;
     data.data = (uint8_t*)"test";
     data.len = 4;
     data.capacity = 4;
     error = opendal_operator_write(ctx->config->operator_instance, file_path, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
-    
+
     // List directory
     opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
     OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
-    
+
     bool found_file = false;
     while (true) {
         opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
@@ -235,27 +239,27 @@ void test_entry_name_path(opendal_test_context* ctx) {
             OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
             break;
         }
-        
+
         if (!next_result.entry) {
             break;
         }
-        
+
         char* path = opendal_entry_path(next_result.entry);
         char* name = opendal_entry_name(next_result.entry);
-        
+
         if (strcmp(path, file_path) == 0) {
             found_file = true;
             OPENDAL_ASSERT_STR_EQ("test_file.txt", name, "Entry name should be just the filename");
             OPENDAL_ASSERT_STR_EQ(file_path, path, "Entry path should be the full path");
         }
-        
+
         free(path);
         free(name);
         opendal_entry_free(next_result.entry);
     }
-    
+
     OPENDAL_ASSERT(found_file, "Should have found the test file");
-    
+
     // Cleanup
     opendal_lister_free(list_result.lister);
     opendal_operator_delete(ctx->config->operator_instance, file_path);
@@ -264,14 +268,14 @@ void test_entry_name_path(opendal_test_context* ctx) {
 
 // Define the list test suite
 opendal_test_case list_tests[] = {
-    {"list_basic", test_list_basic, make_capability_write_create_dir_list()},
-    {"list_empty_dir", test_list_empty_dir, make_capability_create_dir_list()},
-    {"list_nested", test_list_nested, make_capability_write_create_dir_list()},
-    {"entry_name_path", test_entry_name_path, make_capability_write_create_dir_list()},
+    { "list_basic", test_list_basic, make_capability_write_create_dir_list() },
+    { "list_empty_dir", test_list_empty_dir, make_capability_create_dir_list() },
+    { "list_nested", test_list_nested, make_capability_write_create_dir_list() },
+    { "entry_name_path", test_entry_name_path, make_capability_write_create_dir_list() },
 };
 
 opendal_test_suite list_suite = {
-    "List Operations",            // name
-    list_tests,                   // tests
-    sizeof(list_tests) / sizeof(list_tests[0])  // test_count
-}; 
+    "List Operations", // name
+    list_tests, // tests
+    sizeof(list_tests) / sizeof(list_tests[0]) // test_count
+};

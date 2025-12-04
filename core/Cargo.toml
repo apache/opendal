@@ -17,7 +17,7 @@
 
 [workspace]
 default-members = [".", "core"]
-members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/s3"]
+members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/*"]
 
 [workspace.package]
 edition = "2024"

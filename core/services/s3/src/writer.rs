@@ -48,12 +48,7 @@ impl S3Writer {
     }
 
     fn parse_header_into_meta(path: &str, headers: &http::HeaderMap) -> Result<Metadata> {
-        let mode = if path.ends_with('/') {
-            EntryMode::DIR
-        } else {
-            EntryMode::FILE
-        };
-        let mut meta = Metadata::new(mode);
+        let mut meta = Metadata::new(EntryMode::from_path(path));
         if let Some(etag) = parse_etag(headers)? {
             meta.set_etag(etag);
         }

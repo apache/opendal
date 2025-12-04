@@ -138,12 +138,7 @@ impl oio::PageList for S3ListerV1 {
                 path = "/".to_string();
             }
 
-            let mode = if path.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut meta = Metadata::new(mode);
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
@@ -253,12 +248,7 @@ impl oio::PageList for S3ListerV2 {
                 path = "/".to_string();
             }
 
-            let mode = if path.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut meta = Metadata::new(mode);
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_is_current(true);
             if let Some(etag) = &object.etag {
                 meta.set_etag(etag);
@@ -374,12 +364,7 @@ impl oio::PageList for S3ObjectVersionsLister {
                 path = "/".to_owned();
             }
 
-            let mode = if path.ends_with('/') {
-                EntryMode::DIR
-            } else {
-                EntryMode::FILE
-            };
-            let mut meta = Metadata::new(mode);
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
             meta.set_version(&version_object.version_id);
             meta.set_is_current(version_object.is_latest);
             meta.set_content_length(version_object.size);

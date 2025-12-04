@@ -93,32 +93,6 @@ impl Builder for () {
 ///     Ok(())
 /// }
 /// ```
-///
-/// Some service builder might contain in memory options like `http_client` . Users can call
-/// `into_builder` to convert the configuration into a builder instead.
-///
-/// ```
-/// # use anyhow::Result;
-/// use std::collections::HashMap;
-///
-/// use opendal_core::raw::HttpClient;
-/// use opendal_core::services::MemoryConfig;
-/// use opendal_core::Configurator;
-/// use opendal_core::Operator;
-///
-/// async fn test() -> Result<()> {
-///     let mut cfg = MemoryConfig::default();
-///     cfg.root = Some("/".to_string());
-///
-///     let builder = cfg.into_builder();
-///     let builder = builder.http_client(HttpClient::new()?);
-///
-///     // Build an `Operator` to start operating the storage.
-///     let op: Operator = Operator::new(builder)?.finish();
-///
-///     Ok(())
-/// }
-/// ```
 pub trait Configurator: Serialize + DeserializeOwned + Debug + 'static {
     /// Associated builder for this configuration.
     type Builder: Builder;

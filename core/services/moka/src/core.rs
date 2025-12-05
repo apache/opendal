@@ -19,7 +19,7 @@ use std::fmt::Debug;
 
 use moka::future::Cache;
 
-use crate::*;
+use opendal_core::*;
 
 /// Value stored in moka cache containing both metadata and content
 #[derive(Clone)]

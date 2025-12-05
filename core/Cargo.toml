@@ -101,7 +101,7 @@ services-lakefs = ["opendal-core/services-lakefs"]
 services-memcached = ["opendal-core/services-memcached"]
 services-memory = ["opendal-core/services-memory"]
 services-mini-moka = ["opendal-core/services-mini-moka"]
-services-moka = ["opendal-core/services-moka"]
+services-moka = ["dep:opendal-service-moka"]
 services-mongodb = ["opendal-core/services-mongodb"]
 services-monoiofs = ["opendal-core/services-monoiofs"]
 services-mysql = ["opendal-core/services-mysql"]
@@ -154,6 +154,7 @@ required-features = ["tests"]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
+opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

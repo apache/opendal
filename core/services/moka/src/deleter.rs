@@ -15,24 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for moka service.
-pub const MOKA_SCHEME: &str = "moka";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use super::core::MokaCore;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod lister;
-mod writer;
+pub struct MokaDeleter {
+    core: Arc<MokaCore>,
+    root: String,
+}
 
-pub use backend::MokaBuilder as Moka;
-pub use backend::MokaCacheBuilder;
-pub use config::MokaConfig;
-pub use core::MokaValue;
+impl MokaDeleter {
+    pub fn new(core: Arc<MokaCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
 
-#[ctor::ctor]
-fn register_moka_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Moka>(MOKA_SCHEME);
+impl oio::OneShotDelete for MokaDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

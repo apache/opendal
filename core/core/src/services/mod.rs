@@ -189,11 +189,6 @@ mod mini_moka;
 #[cfg(feature = "services-mini-moka")]
 pub use self::mini_moka::*;
 
-#[cfg(feature = "services-moka")]
-mod moka;
-#[cfg(feature = "services-moka")]
-pub use self::moka::*;
-
 #[cfg(feature = "services-mongodb")]
 mod mongodb;
 #[cfg(feature = "services-mongodb")]

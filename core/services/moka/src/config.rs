@@ -19,6 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::MokaBuilder;
+use opendal_core::{Configurator, OperatorUri, Result};
 
 /// Config for Moka services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -44,20 +45,20 @@ pub struct MokaConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for MokaConfig {
+impl Configurator for MokaConfig {
     type Builder = MokaBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.option("name") {
             map.insert("name".to_string(), name.to_string());
         }
 
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
-            }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)
@@ -74,8 +75,8 @@ impl crate::Configurator for MokaConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_name_and_root() {

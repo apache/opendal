@@ -26,8 +26,8 @@ use super::core::*;
 use super::deleter::MokaDeleter;
 use super::lister::MokaLister;
 use super::writer::MokaWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Type alias of [`moka::future::Cache`](https://docs.rs/moka/latest/moka/future/struct.Cache.html)
 pub type MokaCache<K, V> = moka::future::Cache<K, V>;
@@ -62,9 +62,9 @@ impl MokaBuilder {
     /// # use std::time::Duration;
     /// # use log::debug;
     /// # use moka::notification::RemovalCause;
-    /// # use opendal_core::services::Moka;
-    /// # use opendal_core::services::MokaCacheBuilder;
-    /// # use opendal_core::services::MokaValue;
+    /// # use opendal_service_moka::Moka;
+    /// # use opendal_service_moka::MokaCacheBuilder;
+    /// # use opendal_service_moka::MokaValue;
     /// # use opendal_core::Configurator;
     /// let moka = Moka::new(
     ///     MokaCacheBuilder::<String, MokaValue>::default()

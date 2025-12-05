@@ -5407,6 +5407,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-layer-async-backtrace",
+ "opendal-service-moka",
  "opendal-service-s3",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5582,6 +5583,17 @@ version = "0.55.0"
 dependencies = [
  "async-backtrace",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-service-moka"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "log",
+ "moka",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

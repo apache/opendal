@@ -27,6 +27,8 @@ pub use opendal_core::*;
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;
+    #[cfg(feature = "services-moka")]
+    pub use opendal_service_moka::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
 }

@@ -18,9 +18,9 @@
 use std::sync::Arc;
 
 use super::core::{MokaCore, MokaValue};
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct MokaWriter {
     core: Arc<MokaCore>,

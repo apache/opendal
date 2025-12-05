@@ -5406,6 +5406,7 @@ dependencies = [
  "libtest-mimic",
  "log",
  "opendal-core",
+ "opendal-layer-async-backtrace",
  "opendal-service-s3",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5452,7 +5453,6 @@ name = "opendal-core"
 version = "0.55.0"
 dependencies = [
  "anyhow",
- "async-backtrace",
  "await-tree",
  "backon",
  "base64 0.22.1",
@@ -5574,6 +5574,14 @@ dependencies = [
  "logforth",
  "opendal",
  "uuid",
+]
+
+[[package]]
+name = "opendal-layer-async-backtrace"
+version = "0.55.0"
+dependencies = [
+ "async-backtrace",
+ "opendal-core",
 ]
 
 [[package]]

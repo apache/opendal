@@ -116,11 +116,6 @@ mod await_tree;
 #[cfg(feature = "layers-await-tree")]
 pub use self::await_tree::AwaitTreeLayer;
 
-#[cfg(feature = "layers-async-backtrace")]
-mod async_backtrace;
-#[cfg(feature = "layers-async-backtrace")]
-pub use self::async_backtrace::AsyncBacktraceLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

@@ -17,7 +17,7 @@
 
 [workspace]
 default-members = [".", "core"]
-members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/*"]
+members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/*", "layers/*"]
 
 [workspace.package]
 edition = "2024"
@@ -52,7 +52,7 @@ default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
-layers-async-backtrace = ["opendal-core/layers-async-backtrace"]
+layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["opendal-core/layers-await-tree"]
 layers-chaos = ["opendal-core/layers-chaos"]
 layers-dtrace = ["opendal-core/layers-dtrace"]
@@ -152,6 +152,7 @@ required-features = ["tests"]
 
 [dependencies]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
+opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]

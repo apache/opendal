@@ -97,8 +97,6 @@ layers-otel-trace = ["dep:opentelemetry", "opentelemetry/trace"]
 layers-throttle = ["dep:governor"]
 # Enable layers await-tree support.
 layers-await-tree = ["dep:await-tree"]
-# Enable layers async-backtrace support.
-layers-async-backtrace = ["dep:async-backtrace"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
@@ -352,8 +350,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
 ] }
 
 # Layers
-# for layers-async-backtrace
-async-backtrace = { version = "0.2.6", optional = true }
 # for layers-await-tree
 await-tree = { version = "0.3", optional = true }
 # for layers-throttle

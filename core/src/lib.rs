@@ -30,3 +30,10 @@ pub mod services {
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
 }
+
+/// Re-export of layers.
+pub mod layers {
+    pub use opendal_core::layers::*;
+    #[cfg(feature = "layers-async-backtrace")]
+    pub use opendal_layer_async_backtrace::*;
+}

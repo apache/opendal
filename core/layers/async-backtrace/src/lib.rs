@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add Efficient, logical 'stack' traces of async functions for the underlying services.
 ///
@@ -28,10 +29,10 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::AsyncBacktraceLayer;
-/// # use opendal_core::services;
-/// # use opendal_core::Operator;
-/// # use opendal_core::Result;
+/// use opendal_layer_async_backtrace::AsyncBacktraceLayer;
+/// use opendal_core::services;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?

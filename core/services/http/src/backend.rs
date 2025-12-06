@@ -26,8 +26,8 @@ use super::HTTP_SCHEME;
 use super::config::HttpConfig;
 use super::core::HttpCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// HTTP Read-only service support like [Nginx](https://www.nginx.com/) and [Caddy](https://caddyserver.com/).
 #[doc = include_str!("docs.md")]
@@ -269,3 +269,5 @@ impl Access for HttpBackend {
         )))
     }
 }
+
+

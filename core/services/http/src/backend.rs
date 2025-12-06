@@ -269,5 +269,3 @@ impl Access for HttpBackend {
         )))
     }
 }
-
-

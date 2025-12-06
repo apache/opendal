@@ -122,5 +122,3 @@ impl HttpCore {
         self.info.http_client().send(req).await
     }
 }
-
-

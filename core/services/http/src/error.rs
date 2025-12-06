@@ -51,5 +51,3 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
     err
 }
-
-

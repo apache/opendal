@@ -34,5 +34,3 @@ pub const HTTP_SCHEME: &str = "http";
 fn register_http_service() {
     opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
 }
-
-

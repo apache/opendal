@@ -131,4 +131,3 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
     }
 }
-

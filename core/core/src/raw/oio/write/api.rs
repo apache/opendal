@@ -43,7 +43,10 @@ pub trait Write: Unpin + Send + Sync {
 
 impl Write for () {
     async fn write(&mut self, _: Buffer) -> Result<()> {
-        unimplemented!("write is required to be implemented for oio::Write")
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "output writer doesn't support write",
+        ))
     }
 
     async fn close(&mut self) -> Result<Metadata> {

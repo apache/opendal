@@ -24,8 +24,8 @@ use http::header;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HttpCore {
     pub info: Arc<AccessorInfo>,

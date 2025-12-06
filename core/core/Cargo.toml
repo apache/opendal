@@ -59,7 +59,6 @@ tests = [
   "services-azdls",
   "services-azfile",
   "services-fs",
-  "services-http",
   "services-memory",
   "internal-tokio-rt",
 ]
@@ -151,7 +150,6 @@ services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
 services-hdfs-native = ["hdfs-native"]
-services-http = []
 services-huggingface = []
 services-ipfs = ["dep:prost"]
 services-ipmfs = []

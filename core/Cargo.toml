@@ -17,7 +17,7 @@
 
 [workspace]
 default-members = [".", "core"]
-members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/*", "layers/*"]
+members = [".", "core", "examples/*", "fuzz", "edge/file_write_on_full_disk", "edge/s3_aws_assume_role_with_web_identity", "edge/s3_read_on_wasm", "benches/vs_*", "services/*", "layers/*"]
 
 [workspace.package]
 edition = "2024"
@@ -92,7 +92,7 @@ services-github = ["opendal-core/services-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
 services-hdfs = ["opendal-core/services-hdfs"]
 services-hdfs-native = ["opendal-core/services-hdfs-native"]
-services-http = ["opendal-core/services-http"]
+services-http = ["dep:opendal-service-http"]
 services-huggingface = ["opendal-core/services-huggingface"]
 services-ipfs = ["opendal-core/services-ipfs"]
 services-ipmfs = ["opendal-core/services-ipmfs"]
@@ -153,6 +153,7 @@ required-features = ["tests"]
 [dependencies]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
+opendal-service-http = { path = "services/http", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 

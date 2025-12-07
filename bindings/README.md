@@ -25,6 +25,12 @@ This folder contains the bindings for OpenDAL. Currently, we support the followi
 * [Swift](swift/README.md)
 * [Zig](zig/README.md)
 
+## Versioning
+
+**Important**: Each binding has its own independent version number, which may differ from the Rust core version. This allows bindings to be released and versioned independently based on their own release cycles and compatibility requirements.
+
+For example, while the Rust core might be at version `0.55.0`, a binding might be at version `0.47.0` or `0.49.2`. When checking for updates or compatibility, always refer to the specific binding's version rather than the core version.
+
 ## Getting Started
 
 Every binding should provide a `README.md` file to help users get started.

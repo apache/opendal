@@ -46,9 +46,7 @@ jobs:
           - "integrations/object_store"
           - "integrations/parquet"
           - "integrations/dav-server"
-          - "integrations/fuse3"
           - "integrations/unftp-sbe"
-          - "integrations/cloud_filter"
     steps:
       - uses: actions/checkout@v5
       - name: Checkout python env

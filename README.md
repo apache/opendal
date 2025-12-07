@@ -12,6 +12,8 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* languages
 
+> **Note**: Each binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to the specific binding's version rather than the core version.
+
 | Name              | Release                                          | Docs                                                                              | Used By |
 | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------- |
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       | [![Rust Core Users Image]][Rust Core Users]            |
@@ -82,15 +84,15 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* methods
 
-|| Name  | Description                                                        | Release                   |
-|| ----- | ------------------------------------------------------------------ | ------------------------- |
-|| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
-|| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
+| Name  | Description                                                        | Release                   |
+| ----- | ------------------------------------------------------------------ | ------------------------- |
+| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
+| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
 
-[oli]: https://opendal.apache.org/docs/40-apps/oli
+[oli]: https://github.com/apache/opendal-oli
 [oli image]: https://img.shields.io/crates/v/oli.svg
 [oli crate]: https://crates.io/crates/oli
-[ofs]: https://opendal.apache.org/docs/40-apps/ofs
+[ofs]: https://github.com/apache/opendal-ofs
 [ofs image]: https://img.shields.io/crates/v/ofs.svg
 [ofs crate]: https://crates.io/crates/ofs
 
@@ -100,7 +102,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
 | [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.                               | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
 | [object_store_opendal] | an [object_store] implementation using opendal.                               | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
-| [fuse3_opendal]        | Access data via integrations to [fuse3]                                       | [![fuse3 image]][fuse3 crate]               | [![Docs Release]][fuse3 release docs] [![Docs Dev]][fuse3 dev docs]               |
 | [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal.                      | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
 | [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities | [![parquet image]][parquet crate]           | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs]           |
 
@@ -118,12 +119,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [object_store release docs]: https://docs.rs/object_store_opendal/
 [object_store dev docs]: https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/
 
-[fuse3_opendal]: integrations/fuse3/README.md
-[fuse3]: https://docs.rs/fuse3
-[fuse3 image]: https://img.shields.io/crates/v/fuse3_opendal.svg
-[fuse3 crate]: https://crates.io/crates/fuse3_opendal
-[fuse3 release docs]: https://docs.rs/fuse3_opendal/
-[fuse3 dev docs]: https://opendal.apache.org/docs/fuse3-opendal/fuse3_opendal/
 
 [unftp-sbe-opendal]: integrations/unftp-sbe/README.md
 [unftp]: https://crates.io/crates/unftp
@@ -140,16 +135,16 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* services
 
-| Type                           | Services                                                                                                                                 |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                                        |
-| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                      |
-| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
-| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
-| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                                 |
-| Git Based Storage Services     | [huggingface]                                                                                                                            |
+| Type                           | Services                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                  |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                   |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                         |
+| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                |
+| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
+| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                  |
+| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                  |
+| Git Based Storage Services     | [huggingface]                                                                                                             |
 
 [sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
 [webdav]: https://datatracker.ietf.org/doc/html/rfc4918
@@ -180,7 +175,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [gdrive]: https://www.google.com/drive/
 [onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
 [dropbox]: https://www.dropbox.com/
-[icloud]: https://www.icloud.com/iclouddrive
 [koofr]: https://koofr.eu/
 [pcloud]: https://www.pcloud.com/
 [seafile]: https://www.seafile.com/
@@ -197,7 +191,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [sled]: https://crates.io/crates/sled
 [redb]: https://crates.io/crates/redb
 [tikv]: https://tikv.org/
-[atomicserver]: https://github.com/atomicdata-dev/atomic-server
 
 [d1]: https://developers.cloudflare.com/d1/
 [mongodb]: https://www.mongodb.com/

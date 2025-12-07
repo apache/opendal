@@ -1,3 +1,35 @@
+# Upgrade to v0.47
+
+## Breaking change: Module exports are explicit
+
+`opendal.__init__` now only re-exports the `capability`, `exceptions`, `file`, `layers`, `services`, `types`, `Operator`, and `AsyncOperator` symbols. Imports such as:
+
+```python
+from opendal import Metadata, Layer
+```
+
+no longer work. Update them to use the dedicated submodules:
+
+```python
+from opendal.types import Metadata
+from opendal.layers import Layer
+```
+
+The legacy helper module `opendal.__base` has also been removed together with `_Base`.
+
+## Breaking change: Capability accessors renamed
+
+Both `Operator.full_capability()` and `AsyncOperator.full_capability()` have been renamed to `capability()`. Adjust your code accordingly:
+
+```diff
+-caps = op.full_capability()
++caps = op.capability()
+```
+
+## Breaking change: Service identifiers now have typed enums
+
+The constructors for `Operator` / `AsyncOperator` provide overloads that accept `opendal.services.Scheme` members. While plain strings are still accepted at runtime, type checkers (pyright/mypy) expect the new enum values. Migrate code bases that relied on importing the old `Scheme` enum from `opendal` to `from opendal import services` and use `services.Scheme.<NAME>`.
+
 # Upgrade to v0.46
 
 ## Breaking change: Native blocking API removed

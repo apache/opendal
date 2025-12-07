@@ -38,18 +38,26 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
+mod services;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
+pub use services::*;
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Operator>()?;
-    m.add_class::<AsyncOperator>()?;
+    // Add version
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
-    m.add_class::<File>()?;
-    m.add_class::<AsyncFile>()?;
+    // Operator module
+    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
+
+    // File module
+    add_pymodule!(py, m, "file", [File, AsyncFile])?;
 
     // Capability module
     add_pymodule!(py, m, "capability", [Capability])?;
+
+    // Services module
+    add_pymodule!(py, m, "services", [PyScheme])?;
 
     // Layers module
     add_pymodule!(
@@ -60,9 +68,12 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
 
     // Types module
-    add_pymodule!(py, m, "types", [Entry, EntryMode, Metadata])?;
-
-    m.add_class::<PresignedRequest>()?;
+    add_pymodule!(
+        py,
+        m,
+        "types",
+        [Entry, EntryMode, Metadata, PresignedRequest]
+    )?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;

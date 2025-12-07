@@ -57,7 +57,8 @@ jobs:
       matrix:
         include:
           - { os: windows-latest }
-          - { os: macos-latest, target: "universal2-apple-darwin" }
+          - { os: macos-15-intel, target: "x86_64-apple-darwin" }
+          - { os: macos-15, target: "aarch64-apple-darwin" }
           - { os: ubuntu-latest, target: "x86_64" }
           - { os: ubuntu-latest, target: "aarch64", manylinux: "manylinux_2_28" }
           - { os: ubuntu-latest, target: "armv7l" }

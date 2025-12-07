@@ -34,7 +34,7 @@ plugins:
         python:
           paths: [python]
           options:
-            docstring_style: google
+            docstring_style: numpy
 
 nav:
   - Overview: index.md

@@ -3,9 +3,9 @@
 This page documents all types in OpenDAL.
 
 ## Entry
-::: opendal.Entry
+::: opendal.types.Entry
     options:
-      heading: "opendal.Entry"
+      heading: "opendal.types.Entry"
       heading_level: 2
       show_source: false
       show_bases: false
@@ -13,13 +13,21 @@ This page documents all types in OpenDAL.
 ## EntryMode   
 ::: opendal.types.EntryMode
     options:
-      heading: "opendal.EntryMode"
+      heading: "opendal.types.EntryMode"
       heading_level: 2
 
 ## Metadata   
 ::: opendal.types.Metadata
     options:
-      heading: "opendal.Metadata"
+      heading: "opendal.types.Metadata"
+      heading_level: 2
+      show_source: false
+      show_bases: false
+
+## PresignedRequest   
+::: opendal.types.PresignedRequest
+    options:
+      heading: "opendal.types.PresignedRequest"
       heading_level: 2
       show_source: false
       show_bases: false

@@ -25,7 +25,6 @@ use futures::StreamExt;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
-use log::warn;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -59,7 +58,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_abort_with_concurrent,
             test_writer_futures_copy,
             test_writer_futures_copy_with_concurrent,
-            test_writer_return_metadata
+            test_writer_return_metadata,
+            test_writer_write_non_contiguous_data
         ))
     }
 
@@ -114,16 +114,10 @@ pub async fn test_write_with_dir_path(op: Operator) -> Result<()> {
 
 /// Write a single file with special chars should succeed.
 pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
     // Ignore test for vercel blob https://github.com/apache/opendal/pull/4103.
-    if op.info().scheme() == opendal::Scheme::VercelBlob {
-        warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
+    #[cfg(feature = "services-vercel-blob")]
+    if op.info().scheme() == services::VERCEL_BLOB_SCHEME {
+        log::warn!("ignore test for vercel blob https://github.com/apache/opendal/pull/4103");
         return Ok(());
     }
 
@@ -700,7 +694,8 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
 
 pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     // ghac does not support overwrite
-    if op.info().scheme() == Scheme::Ghac {
+    #[cfg(feature = "services-ghac")]
+    if op.info().scheme() == services::GHAC_SCHEME {
         return Ok(());
     }
 
@@ -758,7 +753,7 @@ pub async fn test_write_with_if_none_match(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Write an file with if_not_exists will get a ConditionNotMatch error if file exists.
+/// Write a file with if_not_exists will get a ConditionNotMatch error if file exists.
 pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
     if !op.info().full_capability().write_with_if_not_exists {
         return Ok(());
@@ -782,7 +777,7 @@ pub async fn test_write_with_if_not_exists(op: Operator) -> Result<()> {
     Ok(())
 }
 
-/// Write an file with if_match will get a ConditionNotMatch error if file's etag does not match.
+/// Write a file with if_match will get a ConditionNotMatch error if file's etag does not match.
 pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
     if !op.info().full_capability().write_with_if_match {
         return Ok(());
@@ -816,6 +811,38 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let size = 1024 * 1024; // write file with 1 MiB
+    let content_a = gen_fixed_bytes(size);
+    let digest_a = Sha256::digest(&content_a);
+    let content_b = gen_fixed_bytes(size);
+    let digest_b = Sha256::digest(&content_b);
+
+    let mut w = op.writer(&path).await?;
+    w.write(vec![Bytes::from(content_a), Bytes::from(content_b)])
+        .await?;
+    w.close().await?;
+
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), (size * 2) as u64);
+
+    let bs = op.read(&path).await?.to_bytes();
+    assert_eq!(bs.len(), size * 2, "read size");
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[..size])),
+        format!("{:x}", digest_a),
+        "read content a"
+    );
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&bs[size..])),
+        format!("{:x}", digest_b),
+        "read content b"
+    );
 
     Ok(())
 }

@@ -29,21 +29,6 @@ mod alluxio;
 #[cfg(feature = "services-alluxio")]
 pub use alluxio::*;
 
-#[cfg(feature = "services-azblob")]
-mod azblob;
-#[cfg(feature = "services-azblob")]
-pub use azblob::*;
-
-#[cfg(feature = "services-azdls")]
-mod azdls;
-#[cfg(feature = "services-azdls")]
-pub use azdls::*;
-
-#[cfg(feature = "services-azfile")]
-mod azfile;
-#[cfg(feature = "services-azfile")]
-pub use azfile::*;
-
 #[cfg(feature = "services-b2")]
 mod b2;
 #[cfg(feature = "services-b2")]
@@ -118,11 +103,6 @@ pub use gcs::*;
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::*;
-
-#[cfg(feature = "services-ghac")]
-mod ghac;
-#[cfg(feature = "services-ghac")]
-pub use ghac::*;
 
 #[cfg(feature = "services-github")]
 mod github;

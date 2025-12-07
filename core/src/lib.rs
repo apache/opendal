@@ -27,6 +27,14 @@ pub use opendal_core::*;
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;
+    #[cfg(feature = "services-azblob")]
+    pub use opendal_service_azblob::*;
+    #[cfg(feature = "services-azdls")]
+    pub use opendal_service_azdls::*;
+    #[cfg(feature = "services-azfile")]
+    pub use opendal_service_azfile::*;
+    #[cfg(feature = "services-ghac")]
+    pub use opendal_service_ghac::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-s3")]

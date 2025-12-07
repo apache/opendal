@@ -5407,6 +5407,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-layer-async-backtrace",
+ "opendal-layer-await-tree",
  "opendal-service-moka",
  "opendal-service-s3",
  "opentelemetry",
@@ -5454,7 +5455,6 @@ name = "opendal-core"
 version = "0.55.0"
 dependencies = [
  "anyhow",
- "await-tree",
  "backon",
  "base64 0.22.1",
  "bytes",
@@ -5582,6 +5582,15 @@ name = "opendal-layer-async-backtrace"
 version = "0.55.0"
 dependencies = [
  "async-backtrace",
+ "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-await-tree"
+version = "0.55.0"
+dependencies = [
+ "await-tree",
+ "futures",
  "opendal-core",
 ]
 

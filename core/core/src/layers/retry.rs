@@ -635,7 +635,7 @@ mod tests {
 
         fn build(self) -> Result<impl Access> {
             Ok(MockService {
-                attempt: self.attempt.clone(),
+                attempt: self.attempt,
             })
         }
     }

@@ -55,9 +55,9 @@ clean:
 stub-gen: setup
     @echo "{{ BOLD }}--- Generating Python type stubs ---{{ NORMAL }}"
     @cargo run --quiet --manifest-path=../../dev/Cargo.toml -- generate -l python
-    @bash -c 'PY_PREFIX=$($(uv python find) -c "import sys; print(sys.base_prefix)") && PYTHONHOME="$PY_PREFIX" PYO3_PYTHON=$(uv python find) cargo run --quiet --bin stub_gen'
+    @cargo run --quiet --bin stub_gen
     @echo "{{ BOLD }}--- Formatting and fixing generated stubs ---{{ NORMAL }}"
-    -@uv run ruff check python/**/*.pyi --fix --unsafe-fixes --silent || true
+    -@bash -c 'shopt -s globstar; uv run ruff check **/*.pyi --fix --unsafe-fixes --silent || true'
     @just fmt
 
 # Compile and produce a release wheel with optimizations

@@ -21,8 +21,8 @@ use bytes::Buf;
 
 use super::core::AliyunDriveCore;
 use super::core::AliyunDriveFile;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct AliyunDriveDeleter {
     core: Arc<AliyunDriveCore>,

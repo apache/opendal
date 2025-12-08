@@ -31,7 +31,7 @@ Refer to [`AliyunDriveBuilder`]`s  public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::AliyunDrive;
+use opendal_service_aliyun_drive::AliyunDrive;
 use opendal_core::Operator;
 
 #[tokio::main]

@@ -5477,6 +5477,7 @@ dependencies = [
  "opendal-core",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
+ "opendal-layer-capability-check",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
@@ -5664,6 +5665,14 @@ dependencies = [
  "await-tree",
  "futures",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-capability-check"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

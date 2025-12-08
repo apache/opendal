@@ -19,8 +19,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use crate::layers::correctness_check::new_unsupported_error;
-use crate::raw::*;
+use opendal_core::raw::*;
+use opendal_core::{Error, ErrorKind, Result};
 
 /// Add an extra capability check layer for every operation
 ///
@@ -41,13 +41,13 @@ use crate::raw::*;
 /// # examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::CapabilityCheckLayer;
+/// # use opendal_layer_capability_check::CapabilityCheckLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
-/// use opendal_core::layers::CapabilityCheckLayer;
+/// use opendal_layer_capability_check::CapabilityCheckLayer;
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(CapabilityCheckLayer)
 ///     .finish();
@@ -66,9 +66,21 @@ impl<A: Access> Layer<A> for CapabilityCheckLayer {
         CapabilityAccessor { info, inner }
     }
 }
+
 pub struct CapabilityAccessor<A: Access> {
     info: Arc<AccessorInfo>,
     inner: A,
+}
+
+fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
+    let scheme = info.scheme();
+    let op = op.into_static();
+
+    Error::new(
+        ErrorKind::Unsupported,
+        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
+    )
+    .with_operation(op)
 }
 
 impl<A: Access> Debug for CapabilityAccessor<A> {
@@ -90,11 +102,11 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         &self.inner
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> crate::Result<(RpRead, Self::Reader)> {
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         self.inner.read(path, args).await
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let capability = self.info.full_capability();
         if !capability.write_with_content_type && args.content_type().is_some() {
             return Err(new_unsupported_error(
@@ -121,11 +133,11 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         self.inner.write(path, args).await
     }
 
-    async fn delete(&self) -> crate::Result<(RpDelete, Self::Deleter)> {
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner.delete().await
     }
 
-    async fn list(&self, path: &str, args: OpList) -> crate::Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let capability = self.info.full_capability();
         if !capability.list_with_versions && args.versions() {
             return Err(new_unsupported_error(
@@ -142,9 +154,9 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Capability;
-    use crate::ErrorKind;
-    use crate::Operator;
+    use opendal_core::Capability;
+    use opendal_core::ErrorKind;
+    use opendal_core::Operator;
 
     #[derive(Debug)]
     struct MockService {
@@ -164,11 +176,11 @@ mod tests {
             info.into()
         }
 
-        async fn write(&self, _: &str, _: OpWrite) -> crate::Result<(RpWrite, Self::Writer)> {
+        async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
             Ok((RpWrite::new(), Box::new(())))
         }
 
-        async fn list(&self, _: &str, _: OpList) -> crate::Result<(RpList, Self::Lister)> {
+        async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
             Ok((RpList {}, Box::new(())))
         }
     }

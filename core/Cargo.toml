@@ -27,6 +27,8 @@ members = [
   "services/aliyun-drive",
   "services/*",
   "layers/*",
+  "layers/await-tree",
+  "layers/capability-check",
 ]
 
 [workspace.package]
@@ -78,12 +80,18 @@ all-features = true
 
 [features]
 blocking = ["opendal-core/blocking"]
-default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+default = [
+  "reqwest-rustls-tls",
+  "executors-tokio",
+  "services-memory",
+  "layers-capability-check",
+]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
+layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["opendal-core/layers-chaos"]
 layers-dtrace = ["opendal-core/layers-dtrace"]
 layers-fastmetrics = ["opendal-core/layers-fastmetrics"]
@@ -184,6 +192,7 @@ required-features = ["tests"]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
 opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }

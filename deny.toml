@@ -32,19 +32,35 @@ allow = [
 exceptions = [
   # cbindgen is used to generate C bindings; it is only a build dependency
   # so it won't be included in the final library
-  { crate = "cbindgen", allow = ["MPL-2.0"] },
+  { crate = "cbindgen", allow = [
+    "MPL-2.0",
+  ] },
 
   # malachite and its subcrates are introduced in the Python bindings (pyo3-stub-gen)
   # they are only used in proc-macro so they won't be included in the final library
-  { crate = "malachite", allow = ["LGPL-3.0-only"] },
-  { crate = "malachite-base", allow = ["LGPL-3.0-only"] },
-  { crate = "malachite-bigint", allow = ["LGPL-3.0-only"] },
-  { crate = "malachite-nz", allow = ["LGPL-3.0-only"] },
-  { crate = "malachite-q", allow = ["LGPL-3.0-only"] },
+  { crate = "malachite", allow = [
+    "LGPL-3.0-only",
+  ] },
+  { crate = "malachite-base", allow = [
+    "LGPL-3.0-only",
+  ] },
+  { crate = "malachite-bigint", allow = [
+    "LGPL-3.0-only",
+  ] },
+  { crate = "malachite-nz", allow = [
+    "LGPL-3.0-only",
+  ] },
+  { crate = "malachite-q", allow = [
+    "LGPL-3.0-only",
+  ] },
 
   # open data licenses that SHOULD be OK
-  { crate = "unicode_names2", allow = ["Unicode-DFS-2016"] },
-  { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+  { crate = "unicode_names2", allow = [
+    "Unicode-DFS-2016",
+  ] },
+  { crate = "webpki-roots", allow = [
+    "CDLA-Permissive-2.0",
+  ] },
 ]
 
 # this config file is used for all crates; some of them would not encounter all the allowed licenses

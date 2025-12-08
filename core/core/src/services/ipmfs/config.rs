@@ -51,10 +51,7 @@ impl crate::Configurator for IpmfsConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        IpmfsBuilder {
-            config: self,
-            http_client: None,
-        }
+        IpmfsBuilder { config: self }
     }
 }
 

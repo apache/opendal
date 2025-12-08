@@ -68,10 +68,7 @@ impl crate::Configurator for UpyunConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        UpyunBuilder {
-            config: self,
-            http_client: None,
-        }
+        UpyunBuilder { config: self }
     }
 }
 

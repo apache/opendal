@@ -36,10 +36,6 @@ use crate::*;
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
-
-    /// The HTTP client used to communicate with CloudFlare.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for CloudflareKvBuilder {
@@ -181,12 +177,6 @@ impl Builder for CloudflareKvBuilder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

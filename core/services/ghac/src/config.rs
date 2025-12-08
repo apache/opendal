@@ -79,10 +79,7 @@ impl opendal_core::Configurator for GhacConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        GhacBuilder {
-            config: self,
-            http_client: None,
-        }
+        GhacBuilder { config: self }
     }
 }
 

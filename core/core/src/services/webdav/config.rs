@@ -70,10 +70,7 @@ impl crate::Configurator for WebdavConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        WebdavBuilder {
-            config: self,
-            http_client: None,
-        }
+        WebdavBuilder { config: self }
     }
 }
 

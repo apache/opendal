@@ -60,10 +60,7 @@ impl crate::Configurator for YandexDiskConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        YandexDiskBuilder {
-            config: self,
-            http_client: None,
-        }
+        YandexDiskBuilder { config: self }
     }
 }
 

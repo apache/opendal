@@ -99,10 +99,7 @@ impl opendal_core::Configurator for AzfileConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AzfileBuilder {
-            config: self,
-            http_client: None,
-        }
+        AzfileBuilder { config: self }
     }
 }
 

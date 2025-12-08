@@ -107,11 +107,7 @@ impl opendal_core::Configurator for AzblobConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AzblobBuilder {
-            config: self,
-
-            http_client: None,
-        }
+        AzblobBuilder { config: self }
     }
 }
 

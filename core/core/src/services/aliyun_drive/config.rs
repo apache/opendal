@@ -93,10 +93,7 @@ impl crate::Configurator for AliyunDriveConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AliyunDriveBuilder {
-            config: self,
-            http_client: None,
-        }
+        AliyunDriveBuilder { config: self }
     }
 }
 

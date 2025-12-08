@@ -100,10 +100,7 @@ impl crate::Configurator for D1Config {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        D1Builder {
-            config: self,
-            http_client: None,
-        }
+        D1Builder { config: self }
     }
 }
 

@@ -47,10 +47,7 @@ impl crate::Configurator for VercelArtifactsConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        VercelArtifactsBuilder {
-            config: self,
-            http_client: None,
-        }
+        VercelArtifactsBuilder { config: self }
     }
 }
 

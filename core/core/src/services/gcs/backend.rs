@@ -45,9 +45,6 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 #[derive(Default)]
 pub struct GcsBuilder {
     pub(super) config: GcsConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
     pub(super) customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
 }
 
@@ -138,19 +135,6 @@ impl GcsBuilder {
         if !path.is_empty() {
             self.config.credential_path = Some(path.to_string())
         };
-        self
-    }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
         self
     }
 
@@ -345,12 +329,6 @@ impl Builder for GcsBuilder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

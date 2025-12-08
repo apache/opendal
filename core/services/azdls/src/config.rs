@@ -119,10 +119,7 @@ impl opendal_core::Configurator for AzdlsConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AzdlsBuilder {
-            config: self,
-            http_client: None,
-        }
+        AzdlsBuilder { config: self }
     }
 }
 

@@ -105,7 +105,6 @@ impl crate::Configurator for GcsConfig {
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
-            http_client: None,
             customized_token_loader: None,
         }
     }

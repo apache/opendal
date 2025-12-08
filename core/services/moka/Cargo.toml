@@ -17,18 +17,24 @@
 
 [package]
 description = "Apache OpenDAL Moka service implementation"
-edition = "2024"
-license = "Apache-2.0"
+keywords = []
 name = "opendal-service-moka"
-repository = "https://github.com/apache/opendal"
-version = "0.55.0"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-ctor = "0.6"
-log = "0.4"
-moka = { version = "0.12", features = ["future", "sync"] }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-serde = { version = "1", features = ["derive"] }
+
+ctor = { workspace = true }
+log = { workspace = true }
+moka = { version = "0.12", features = ["future", "sync"] }
+serde = { workspace = true, features = ["derive"] }

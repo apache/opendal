@@ -27,5 +27,5 @@ version.workspace = true
 [dependencies]
 futures = "0.3"
 opendal = { path = "../..", features = ["services-memory", "services-fs"] }
-rand = "0.8"
-tokio = { version = "1", features = ["full"] }
+rand = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

@@ -17,16 +17,22 @@
 
 [package]
 description = "Shared Azure helpers for Apache OpenDAL services"
-edition = "2024"
-license = "Apache-2.0"
+keywords = []
 name = "opendal-service-azure-common"
-repository = "https://github.com/apache/opendal"
-version = "0.55.0"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-http = "1.1"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-reqsign = { version = "0.16.5", default-features = false }
+
+http = { workspace = true }
+reqsign = { workspace = true, default-features = false }

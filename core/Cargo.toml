@@ -29,25 +29,45 @@ members = [
 ]
 
 [workspace.package]
-edition = "2024"
-license = "Apache-2.0"
-rust-version = "1.85"
-version = "0.55.0"
-
-[package]
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "Apache OpenDAL™: One Layer, All Storage."
-exclude = ["/tests/"]
-keywords = ["storage", "fs", "s3", "azblob", "gcs"]
-name = "opendal"
-
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
 version = "0.55.0"
+
+[workspace.dependencies]
+base64 = "0.22"
+bytes = "1.10"
+ctor = "0.6"
+http = "1.1"
+log = "0.4"
+quick-xml = { version = "0.38", default-features = false }
+rand = "0.8"
+reqsign = { version = "0.16.5", default-features = false }
+serde = { version = "1", default-features = false }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1.48", default-features = false }
+uuid = { version = "1", default-features = false }
+
+[package]
+exclude = ["/tests/"]
+keywords = ["storage", "fs", "s3", "azblob", "gcs"]
+name = "opendal"
+
+authors = { workspace = true }
+categories = { workspace = true }
+description = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [lints.clippy]
 unused_async = "warn"
@@ -172,30 +192,36 @@ opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
-bytes = "1.10"
+bytes = { workspace = true }
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
 futures = "0.3"
-http = "1.1"
+http = { workspace = true }
 libtest-mimic = "0.8"
-log = "0.4"
+log = { workspace = true }
 opentelemetry = { version = "0.31.0", default-features = false, features = [
   "trace",
 ] }
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
-rand = "0.8"
+rand = { workspace = true }
 reqwest = { version = "0.12.24" }
-sha2 = "0.10"
+sha2 = { workspace = true }
 size = "0.5"
-tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { workspace = true, features = ["serde", "v4"] }
+
+[profile.release]
+codegen-units = 1
+debug = false
+lto = "fat"
+strip = true

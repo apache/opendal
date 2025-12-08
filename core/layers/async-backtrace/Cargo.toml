@@ -16,16 +16,16 @@
 # under the License.
 
 [package]
-name = "opendal-layer-async-backtrace"
-version = "0.55.0"
+description = "Apache OpenDAL async-backtrace layer"
 edition = "2024"
 license = "Apache-2.0"
+name = "opendal-layer-async-backtrace"
 repository = "https://github.com/apache/opendal"
-description = "Apache OpenDAL async-backtrace layer"
+version = "0.55.0"
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 async-backtrace = "0.2.6"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

@@ -16,24 +16,27 @@
 # under the License.
 
 [package]
-name = "opendal-service-azdls"
-version = "0.55.0"
+description = "Apache OpenDAL Azure Data Lake Storage Gen2 service implementation"
 edition = "2024"
 license = "Apache-2.0"
+name = "opendal-service-azdls"
 repository = "https://github.com/apache/opendal"
-description = "Apache OpenDAL Azure Data Lake Storage Gen2 service implementation"
+version = "0.55.0"
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 bytes = "1.6"
 ctor = "0.6"
 http = "1.1"
 log = "0.4"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
-reqsign = { version = "0.16.5", default-features = false, features = ["reqwest_request", "services-azblob"] }
+reqsign = { version = "0.16.5", default-features = false, features = [
+  "reqwest_request",
+  "services-azblob",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

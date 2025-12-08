@@ -26,7 +26,6 @@ members = [
   "benches/vs_*",
   "services/*",
   "layers/*",
-  "layers/await-tree",
 ]
 
 [workspace.package]
@@ -164,12 +163,12 @@ required-features = ["tests"]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
-opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
-opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
+opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
+opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

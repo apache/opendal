@@ -16,19 +16,19 @@
 # under the License.
 
 [package]
-name = "opendal-service-moka"
-version = "0.55.0"
+description = "Apache OpenDAL Moka service implementation"
 edition = "2024"
 license = "Apache-2.0"
+name = "opendal-service-moka"
 repository = "https://github.com/apache/opendal"
-description = "Apache OpenDAL Moka service implementation"
+version = "0.55.0"
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-log = "0.4"
-serde = { version = "1", features = ["derive"] }
-moka = { version = "0.12", features = ["future", "sync"] }
 ctor = "0.6"
+log = "0.4"
+moka = { version = "0.12", features = ["future", "sync"] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+serde = { version = "1", features = ["derive"] }

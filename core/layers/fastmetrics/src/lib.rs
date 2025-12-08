@@ -28,10 +28,9 @@ use fastmetrics::registry::Register;
 use fastmetrics::registry::Registry;
 use fastmetrics::registry::RegistryError;
 use fastmetrics::registry::with_global_registry_mut;
-
-use crate::layers::observe;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+use opendal_layer_observe_metrics_common as observe;
 
 /// Add [fastmetrics](https://docs.rs/fastmetrics/) for every operation.
 ///
@@ -42,7 +41,7 @@ use crate::*;
 /// ```no_run
 /// # use fastmetrics::format::text;
 /// # use log::info;
-/// # use opendal_core::layers::FastmetricsLayer;
+/// # use opendal_layer_fastmetrics::FastmetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -87,7 +86,7 @@ use crate::*;
 /// # use fastmetrics::format::text;
 /// # use fastmetrics::registry::with_global_registry;
 /// # use log::info;
-/// # use opendal_core::layers::FastmetricsLayer;
+/// # use opendal_layer_fastmetrics::FastmetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -230,7 +229,7 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::FastmetricsLayer;
+    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -325,7 +324,7 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::FastmetricsLayer;
+    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -495,6 +494,7 @@ impl observe::MetricsIntercept for FastmetricsInterceptor {
                 self.http_status_errors_total
                     .with_or_new(&labels, |counter| counter.inc());
             }
+            _ => {}
         };
     }
 }

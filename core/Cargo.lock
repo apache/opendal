@@ -5478,6 +5478,12 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-layer-fastmetrics",
+ "opendal-layer-metrics",
+ "opendal-layer-observe-metrics-common",
+ "opendal-layer-otelmetrics",
+ "opendal-layer-prometheus",
+ "opendal-layer-prometheus-client",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
@@ -5541,7 +5547,6 @@ dependencies = [
  "divan",
  "dotenvy",
  "etcd-client",
- "fastmetrics",
  "fastpool",
  "fastrace",
  "fastrace-jaeger",
@@ -5562,7 +5567,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "metrics",
  "mime_guess",
  "mini-moka",
  "moka",
@@ -5579,8 +5583,6 @@ dependencies = [
  "persy",
  "pretty_assertions",
  "probe",
- "prometheus 0.14.0",
- "prometheus-client",
  "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
@@ -5674,6 +5676,60 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-fastmetrics"
+version = "0.55.0"
+dependencies = [
+ "fastmetrics",
+ "opendal-core",
+ "opendal-layer-observe-metrics-common",
+]
+
+[[package]]
+name = "opendal-layer-metrics"
+version = "0.55.0"
+dependencies = [
+ "metrics",
+ "opendal-core",
+ "opendal-layer-observe-metrics-common",
+]
+
+[[package]]
+name = "opendal-layer-observe-metrics-common"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "http 1.4.0",
+ "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-otelmetrics"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "opendal-layer-observe-metrics-common",
+ "opentelemetry",
+]
+
+[[package]]
+name = "opendal-layer-prometheus"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "opendal-layer-observe-metrics-common",
+ "prometheus 0.14.0",
+]
+
+[[package]]
+name = "opendal-layer-prometheus-client"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "opendal-layer-observe-metrics-common",
+ "prometheus-client",
 ]
 
 [[package]]

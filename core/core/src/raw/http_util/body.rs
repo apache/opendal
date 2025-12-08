@@ -76,7 +76,7 @@ impl HttpBody {
 
     /// Map the inner stream.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn map_inner(
+    pub fn map_inner(
         mut self,
         f: impl FnOnce(
             Box<dyn Stream<Item = Result<Buffer>> + Send + Sync + Unpin + 'static>,
@@ -89,7 +89,7 @@ impl HttpBody {
 
     /// Map the inner stream.
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn map_inner(
+    pub fn map_inner(
         mut self,
         f: impl FnOnce(
             Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,

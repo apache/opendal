@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::raw::Access;
+use opendal_core::raw::*;
+use opendal_core::*;
+use opendal_layer_observe_metrics_common as observe;
 use prometheus::HistogramVec;
 use prometheus::Registry;
 use prometheus::core::AtomicI64;
@@ -24,11 +28,6 @@ use prometheus::core::GenericGaugeVec;
 use prometheus::register_histogram_vec_with_registry;
 use prometheus::register_int_counter_vec_with_registry;
 use prometheus::register_int_gauge_vec_with_registry;
-
-use crate::layers::observe;
-use crate::raw::Access;
-use crate::raw::*;
-use crate::*;
 
 /// Add [prometheus](https://docs.rs/prometheus) for every operation.
 ///
@@ -43,7 +42,7 @@ use crate::*;
 ///
 /// ```no_run
 /// # use log::info;
-/// # use opendal_core::layers::PrometheusLayer;
+/// # use opendal_layer_prometheus::PrometheusLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -94,7 +93,7 @@ use crate::*;
 /// ```no_run
 /// # use std::sync::OnceLock;
 /// # use log::info;
-/// # use opendal_core::layers::PrometheusLayer;
+/// # use opendal_layer_prometheus::PrometheusLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -146,7 +145,7 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -261,7 +260,7 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -499,7 +498,7 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::PrometheusLayer;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -624,6 +623,7 @@ impl observe::MetricsIntercept for PrometheusInterceptor {
                 .http_status_errors_total
                 .with_label_values(&labels.values())
                 .inc(),
+            _ => {}
         }
     }
 }

@@ -52,4 +52,14 @@ pub mod layers {
     pub use opendal_layer_await_tree::*;
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
+    #[cfg(feature = "layers-fastmetrics")]
+    pub use opendal_layer_fastmetrics::*;
+    #[cfg(feature = "layers-metrics")]
+    pub use opendal_layer_metrics::*;
+    #[cfg(feature = "layers-otel-metrics")]
+    pub use opendal_layer_otelmetrics::*;
+    #[cfg(feature = "layers-prometheus")]
+    pub use opendal_layer_prometheus::*;
+    #[cfg(feature = "layers-prometheus-client")]
+    pub use opendal_layer_prometheus_client::*;
 }

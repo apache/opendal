@@ -91,7 +91,7 @@ impl HttpClient {
     }
 
     /// Get the inner http client.
-    pub(crate) fn into_inner(self) -> HttpFetcher {
+    pub fn into_inner(self) -> HttpFetcher {
         self.fetcher
     }
 

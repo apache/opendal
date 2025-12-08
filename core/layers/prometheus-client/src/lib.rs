@@ -17,6 +17,9 @@
 
 use std::fmt;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+use opendal_layer_observe_metrics_common as observe;
 use prometheus_client::encoding::EncodeLabel;
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::encoding::LabelSetEncoder;
@@ -29,10 +32,6 @@ use prometheus_client::registry::Metric;
 use prometheus_client::registry::Registry;
 use prometheus_client::registry::Unit;
 
-use crate::layers::observe;
-use crate::raw::*;
-use crate::*;
-
 /// Add [prometheus-client](https://docs.rs/prometheus-client) for every operation.
 ///
 /// # Prometheus Metrics
@@ -44,7 +43,7 @@ use crate::*;
 ///
 /// ```no_run
 /// # use log::info;
-/// # use opendal_core::layers::PrometheusClientLayer;
+/// # use opendal_layer_prometheus_client::PrometheusClientLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -181,7 +180,7 @@ impl PrometheusClientLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_core::layers::PrometheusClientLayer;
+    /// # use opendal_layer_prometheus_client::PrometheusClientLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -477,6 +476,7 @@ impl observe::MetricsIntercept for PrometheusClientInterceptor {
             observe::MetricValue::HttpStatusErrorsTotal => {
                 self.http_status_errors_total.get_or_create(&labels).inc();
             }
+            _ => {}
         };
     }
 }

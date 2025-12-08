@@ -15,21 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::raw::*;
+use opendal_layer_observe_metrics_common as observe;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::Counter;
 use opentelemetry::metrics::Histogram;
 use opentelemetry::metrics::Meter;
 use opentelemetry::metrics::UpDownCounter;
 
-use crate::layers::observe;
-use crate::raw::*;
-
 /// Add [opentelemetry::metrics](https://docs.rs/opentelemetry/latest/opentelemetry/metrics/index.html) for every operation.
 ///
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::OtelMetricsLayer;
+/// # use opendal_layer_otelmetrics::OtelMetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -53,7 +52,7 @@ impl OtelMetricsLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal_core::layers::OtelMetricsLayer;
+    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -150,7 +149,7 @@ impl OtelMetricsLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal_core::layers::OtelMetricsLayer;
+    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
@@ -421,6 +420,7 @@ impl observe::MetricsIntercept for OtelMetricsInterceptor {
             observe::MetricValue::HttpStatusErrorsTotal => {
                 self.http_status_errors_total.add(1, &attributes)
             }
+            _ => {}
         }
     }
 }

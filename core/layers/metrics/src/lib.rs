@@ -19,9 +19,8 @@ use metrics::Label;
 use metrics::counter;
 use metrics::gauge;
 use metrics::histogram;
-
-use crate::layers::observe;
-use crate::raw::*;
+use opendal_core::raw::*;
+use opendal_layer_observe_metrics_common as observe;
 
 /// Add [metrics](https://docs.rs/metrics/) for every operation.
 ///
@@ -38,7 +37,7 @@ use crate::raw::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::MetricsLayer;
+/// # use opendal_layer_metrics::MetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -148,6 +147,7 @@ impl observe::MetricsIntercept for MetricsInterceptor {
             observe::MetricValue::HttpStatusErrorsTotal => {
                 counter!(value.name(), labels).increment(1)
             }
+            _ => {}
         }
     }
 }

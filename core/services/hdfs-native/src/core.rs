@@ -22,8 +22,8 @@ use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 
 use super::error::parse_hdfs_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// HdfsNativeCore contains code that directly interacts with HDFS Native client.
 #[derive(Clone)]

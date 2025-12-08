@@ -127,7 +127,6 @@ services-gdrive = ["internal-path-cache"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
-services-hdfs-native = ["hdfs-native"]
 services-http = []
 services-huggingface = []
 services-ipfs = ["dep:prost"]
@@ -189,7 +188,7 @@ backon = { version = "1.6", features = ["tokio-sleep"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
 ctor = { workspace = true }
-futures = { version = "0.3", default-features = false, features = [
+futures = { workspace = true, default-features = false, features = [
   "std",
   "async-await",
 ] }

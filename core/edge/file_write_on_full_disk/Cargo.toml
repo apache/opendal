@@ -25,7 +25,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-futures = "0.3"
+futures = { workspace = true, default-features = true }
 opendal = { path = "../..", features = ["services-memory", "services-fs"] }
 rand = { workspace = true }
 tokio = { workspace = true, features = ["full"] }

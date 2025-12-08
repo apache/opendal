@@ -37,6 +37,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
+    #[cfg(feature = "services-hdfs-native")]
+    pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-s3")]

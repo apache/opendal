@@ -15,25 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for hdfs-native service.
+pub const HDFS_NATIVE_SCHEME: &str = "hdfs-native";
 
-use super::core::HdfsNativeCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub struct HdfsNativeDeleter {
-    core: Arc<HdfsNativeCore>,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod reader;
+mod writer;
 
-impl HdfsNativeDeleter {
-    pub fn new(core: Arc<HdfsNativeCore>) -> Self {
-        Self { core }
-    }
-}
+pub use backend::HdfsNativeBuilder as HdfsNative;
+pub use config::HdfsNativeConfig;
 
-impl oio::OneShotDelete for HdfsNativeDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        self.core.hdfs_delete(&path).await?;
-        Ok(())
-    }
+#[ctor::ctor]
+fn register_hdfs_native_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<HdfsNative>(HDFS_NATIVE_SCHEME);
 }

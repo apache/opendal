@@ -20,9 +20,9 @@ use futures::StreamExt;
 use hdfs_native::HdfsError;
 use hdfs_native::file::FileReader;
 
-use crate::raw::*;
-use crate::services::hdfs_native::error::parse_hdfs_error;
-use crate::*;
+use crate::error::parse_hdfs_error;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HdfsNativeReader {
     read: usize,

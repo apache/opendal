@@ -17,7 +17,7 @@
 
 use hdfs_native::HdfsError;
 
-use crate::*;
+use opendal_core::*;
 
 /// Parse hdfs-native error into opendal::Error.
 pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {

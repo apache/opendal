@@ -5483,6 +5483,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-ghac",
+ "opendal-service-hdfs-native",
  "opendal-service-moka",
  "opendal-service-s3",
  "opentelemetry",
@@ -5767,6 +5768,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "opendal-service-hdfs-native"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "hdfs-native",
+ "log",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

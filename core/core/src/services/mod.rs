@@ -114,11 +114,6 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-hdfs-native")]
-mod hdfs_native;
-#[cfg(feature = "services-hdfs-native")]
-pub use hdfs_native::*;
-
 #[cfg(feature = "services-http")]
 mod http;
 #[cfg(feature = "services-http")]

@@ -24,6 +24,6 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-futures = "0.3"
+futures = { workspace = true, default-features = true }
 opendal = { path = "../..", features = ["tests"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

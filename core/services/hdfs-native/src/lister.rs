@@ -17,13 +17,12 @@
 
 use hdfs_native::client::ListStatusIterator;
 
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::Timestamp;
-use crate::raw::build_rel_path;
-use crate::raw::oio;
-use crate::services::hdfs_native::error::parse_hdfs_error;
+use opendal_core::EntryMode;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::*;
+
+use crate::error::parse_hdfs_error;
 
 pub struct HdfsNativeLister {
     root: String,

@@ -79,9 +79,9 @@ layers-tracing = ["opendal-core/layers-tracing"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 services-aliyun-drive = ["opendal-core/services-aliyun-drive"]
 services-alluxio = ["opendal-core/services-alluxio"]
-services-azblob = ["opendal-core/services-azblob"]
-services-azdls = ["opendal-core/services-azdls"]
-services-azfile = ["opendal-core/services-azfile"]
+services-azblob = ["dep:opendal-service-azblob"]
+services-azdls = ["dep:opendal-service-azdls"]
+services-azfile = ["dep:opendal-service-azfile"]
 services-b2 = ["opendal-core/services-b2"]
 services-cacache = ["opendal-core/services-cacache"]
 services-cloudflare-kv = ["opendal-core/services-cloudflare-kv"]
@@ -97,7 +97,7 @@ services-fs = ["opendal-core/services-fs"]
 services-ftp = ["opendal-core/services-ftp"]
 services-gcs = ["opendal-core/services-gcs"]
 services-gdrive = ["opendal-core/services-gdrive"]
-services-ghac = ["opendal-core/services-ghac"]
+services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["opendal-core/services-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
 services-hdfs = ["opendal-core/services-hdfs"]
@@ -166,6 +166,10 @@ opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
+opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

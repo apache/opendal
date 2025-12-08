@@ -64,10 +64,7 @@ impl crate::Configurator for DropboxConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        DropboxBuilder {
-            config: self,
-            http_client: None,
-        }
+        DropboxBuilder { config: self }
     }
 }
 

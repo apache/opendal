@@ -30,9 +30,6 @@ use crate::*;
 #[derive(Default)]
 pub struct D1Builder {
     pub(super) config: D1Config,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for D1Builder {
@@ -145,15 +142,10 @@ impl Builder for D1Builder {
             ));
         };
 
-        #[allow(deprecated)]
-        let client = if let Some(client) = self.http_client {
-            client
-        } else {
-            HttpClient::new().map_err(|err| {
-                err.with_operation("Builder::build")
-                    .with_context("service", D1_SCHEME)
-            })?
-        };
+        let client = HttpClient::new().map_err(|err| {
+            err.with_operation("Builder::build")
+                .with_context("service", D1_SCHEME)
+        })?;
 
         let Some(table) = config.table.clone() else {
             return Err(Error::new(ErrorKind::ConfigInvalid, "table is required"));

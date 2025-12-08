@@ -70,9 +70,6 @@ use crate::*;
 #[derive(Default)]
 pub struct IpmfsBuilder {
     pub(super) config: IpmfsConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for IpmfsBuilder {
@@ -104,19 +101,6 @@ impl IpmfsBuilder {
         } else {
             Some(endpoint.to_string())
         };
-        self
-    }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
         self
     }
 }

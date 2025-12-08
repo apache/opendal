@@ -29,7 +29,7 @@ use crate::*;
 /// This trait allows the developer to define a builder struct that can:
 ///
 /// - build a service via builder style API.
-/// - configure in-memory options like `http_client` or `customized_credential_load`.
+/// - configure in-memory options like `customized_credential_load`.
 ///
 /// Usually, users don't need to use or import this trait directly, they can use `Operator` API instead.
 ///

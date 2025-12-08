@@ -73,10 +73,7 @@ impl crate::Configurator for OnedriveConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        OnedriveBuilder {
-            config: self,
-            http_client: None,
-        }
+        OnedriveBuilder { config: self }
     }
 }
 

@@ -17,7 +17,6 @@
 
 [package]
 description = "Apache OpenDAL GitHub Actions Cache service implementation"
-keywords = []
 name = "opendal-service-ghac"
 
 authors = { workspace = true }

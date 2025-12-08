@@ -17,7 +17,6 @@
 
 [package]
 description = "Apache OpenDAL Azure File Storage service implementation"
-keywords = []
 name = "opendal-service-azfile"
 
 authors = { workspace = true }

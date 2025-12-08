@@ -17,7 +17,6 @@
 
 [package]
 description = "Apache OpenDAL Azure Data Lake Storage Gen2 service implementation"
-keywords = []
 name = "opendal-service-azdls"
 
 authors = { workspace = true }

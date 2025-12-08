@@ -17,7 +17,6 @@
 
 [package]
 description = "Apache OpenDAL S3 service implementation"
-keywords = []
 name = "opendal-service-s3"
 
 authors = { workspace = true }

@@ -1,0 +1,38 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[package]
+name = "opendal-service-azfile"
+version = "0.55.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/apache/opendal"
+description = "Apache OpenDAL Azure File Storage service implementation"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
+bytes = "1.6"
+ctor = "0.6"
+http = "1.1"
+log = "0.4"
+quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
+reqsign = { version = "0.16.5", default-features = false, features = ["reqwest_request", "services-azblob"] }
+serde = { version = "1", features = ["derive"] }

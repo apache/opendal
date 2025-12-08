@@ -506,6 +506,13 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
+        scheme: builtins.str,
+        /,
+        **kwargs: builtins.str,
+    ) -> typing_extensions.Self: ...
+    @typing.overload
+    def __new__(
+        cls,
         scheme: opendal.services.Scheme.AliyunDrive | typing.Literal["aliyun-drive"],
         /,
         *,
@@ -2736,6 +2743,13 @@ class Operator:
         AsyncOperator
             The async operator.
         """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: builtins.str,
+        /,
+        **kwargs: builtins.str,
+    ) -> typing_extensions.Self: ...
     @typing.overload
     def __new__(
         cls,

@@ -27,6 +27,8 @@ use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use mea::mutex::Mutex;
+use mea::oneshot;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -45,7 +47,6 @@ use opendal::options::CopyOptions;
 use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
-use tokio::sync::{Mutex, Notify};
 
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
@@ -608,15 +609,18 @@ impl ObjectStore for OpendalStore {
 struct OpendalMultipartUpload {
     writer: Arc<Mutex<Writer>>,
     location: Path,
-    next_notify: Option<Arc<Notify>>,
+    next_notify: oneshot::Receiver<()>,
 }
 
 impl OpendalMultipartUpload {
     fn new(writer: Writer, location: Path) -> Self {
+        // an immediately dropped sender for the first part to write without waiting
+        let (_, rx) = oneshot::channel();
+
         Self {
             writer: Arc::new(Mutex::new(writer)),
             location,
-            next_notify: None,
+            next_notify: rx,
         }
     }
 }
@@ -628,16 +632,13 @@ impl MultipartUpload for OpendalMultipartUpload {
         let location = self.location.clone();
 
         // Generate next notify which will be notified after the current part is written.
-        let next_notify = Arc::new(Notify::new());
+        let (tx, rx) = oneshot::channel();
         // Fetch the notify for current part to wait for it to be written.
-        let current_notify = self.next_notify.replace(next_notify.clone());
+        let last_rx = std::mem::replace(&mut self.next_notify, rx);
 
         async move {
-            // current_notify == None means that it's the first part, we don't need to wait.
-            if let Some(notify) = current_notify {
-                // Wait for the previous part to be written
-                notify.notified().await;
-            }
+            // Wait for the previous part to be written
+            let _ = last_rx.await;
 
             let mut writer = writer.lock().await;
             let result = writer
@@ -646,7 +647,7 @@ impl MultipartUpload for OpendalMultipartUpload {
                 .map_err(|err| format_object_store_error(err, location.as_ref()));
 
             // Notify the next part to be written
-            next_notify.notify_one();
+            drop(tx);
 
             result
         }

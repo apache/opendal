@@ -33,9 +33,6 @@ use crate::*;
 #[derive(Default)]
 pub struct DropboxBuilder {
     pub(super) config: DropboxConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for DropboxBuilder {
@@ -94,19 +91,6 @@ impl DropboxBuilder {
     /// This is required for OAuth 2.0 Flow with refresh the access token.
     pub fn client_secret(mut self, client_secret: &str) -> Self {
         self.config.client_secret = Some(client_secret.to_string());
-        self
-    }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, http_client: HttpClient) -> Self {
-        self.http_client = Some(http_client);
         self
     }
 }
@@ -191,12 +175,6 @@ impl Builder for DropboxBuilder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

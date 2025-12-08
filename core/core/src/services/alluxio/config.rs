@@ -68,10 +68,7 @@ impl crate::Configurator for AlluxioConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AlluxioBuilder {
-            config: self,
-            http_client: None,
-        }
+        AlluxioBuilder { config: self }
     }
 }
 

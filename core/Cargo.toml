@@ -24,6 +24,7 @@ members = [
   "fuzz",
   "edge/*",
   "benches/vs_*",
+  "services/aliyun-drive",
   "services/*",
   "layers/*",
 ]
@@ -96,7 +97,7 @@ layers-prometheus-client = ["opendal-core/layers-prometheus-client"]
 layers-throttle = ["opendal-core/layers-throttle"]
 layers-tracing = ["opendal-core/layers-tracing"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
-services-aliyun-drive = ["opendal-core/services-aliyun-drive"]
+services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["opendal-core/services-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]
 services-azdls = ["dep:opendal-service-azdls"]
@@ -189,6 +190,7 @@ opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optiona
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
+opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

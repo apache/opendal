@@ -106,10 +106,7 @@ impl crate::Configurator for GithubConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        GithubBuilder {
-            config: self,
-            http_client: None,
-        }
+        GithubBuilder { config: self }
     }
 }
 

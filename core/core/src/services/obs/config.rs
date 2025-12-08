@@ -71,11 +71,7 @@ impl crate::Configurator for ObsConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        ObsBuilder {
-            config: self,
-
-            http_client: None,
-        }
+        ObsBuilder { config: self }
     }
 }
 

@@ -61,9 +61,6 @@ impl From<AzureStorageConfig> for AzdlsConfig {
 #[derive(Default)]
 pub struct AzdlsBuilder {
     pub(super) config: AzdlsConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for AzdlsBuilder {
@@ -195,19 +192,6 @@ impl AzdlsBuilder {
         self
     }
 
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
-        self
-    }
-
     /// Create a new `AzdlsBuilder` instance from an [Azure Storage connection string][1].
     ///
     /// [1]: https://learn.microsoft.com/en-us/azure/storage/common/storage-configure-connection-string
@@ -307,12 +291,6 @@ impl Builder for AzdlsBuilder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

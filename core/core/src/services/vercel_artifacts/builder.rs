@@ -30,9 +30,6 @@ use crate::*;
 #[derive(Default)]
 pub struct VercelArtifactsBuilder {
     pub(super) config: VercelArtifactsConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for VercelArtifactsBuilder {
@@ -49,19 +46,6 @@ impl VercelArtifactsBuilder {
     /// default: no access token, which leads to failure
     pub fn access_token(mut self, access_token: &str) -> Self {
         self.config.access_token = Some(access_token.to_string());
-        self
-    }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, http_client: HttpClient) -> Self {
-        self.http_client = Some(http_client);
         self
     }
 }
@@ -83,12 +67,6 @@ impl Builder for VercelArtifactsBuilder {
 
                 ..Default::default()
             });
-
-        // allow deprecated api here for compatibility
-        #[allow(deprecated)]
-        if let Some(client) = self.http_client {
-            info.update_http_client(|_| client);
-        }
 
         match self.config.access_token.clone() {
             Some(access_token) => Ok(VercelArtifactsBackend {

@@ -69,10 +69,7 @@ impl crate::Configurator for PcloudConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        PcloudBuilder {
-            config: self,
-            http_client: None,
-        }
+        PcloudBuilder { config: self }
     }
 }
 

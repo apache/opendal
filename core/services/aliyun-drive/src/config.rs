@@ -70,22 +70,22 @@ impl Debug for AliyunDriveConfig {
     }
 }
 
-impl crate::Configurator for AliyunDriveConfig {
+impl opendal_core::Configurator for AliyunDriveConfig {
     type Builder = AliyunDriveBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
-        if let Some(drive_type) = uri.name() {
-            if !drive_type.is_empty() {
-                map.insert("drive_type".to_string(), drive_type.to_string());
-            }
+        if let Some(drive_type) = uri.name()
+            && !drive_type.is_empty()
+        {
+            map.insert("drive_type".to_string(), drive_type.to_string());
         }
 
-        if let Some(root) = uri.root() {
-            if !root.is_empty() {
-                map.insert("root".to_string(), root.to_string());
-            }
+        if let Some(root) = uri.root()
+            && !root.is_empty()
+        {
+            map.insert("root".to_string(), root.to_string());
         }
 
         Self::from_iter(map)
@@ -93,18 +93,15 @@ impl crate::Configurator for AliyunDriveConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AliyunDriveBuilder {
-            config: self,
-            http_client: None,
-        }
+        AliyunDriveBuilder { config: self }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_drive_type_and_root() {

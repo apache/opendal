@@ -81,9 +81,6 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 #[derive(Default)]
 pub struct S3Builder {
     pub(super) config: S3Config,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
     pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
@@ -449,19 +446,6 @@ impl S3Builder {
         self
     }
 
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
-        self
-    }
-
     /// Set bucket versioning status for this backend
     pub fn enable_versioning(mut self, enabled: bool) -> Self {
         self.config.enable_versioning = enabled;
@@ -706,10 +690,8 @@ impl Builder for S3Builder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        #[allow(deprecated)]
         let S3Builder {
             mut config,
-            http_client,
             credential_providers,
         } = self;
 
@@ -961,12 +943,6 @@ impl Builder for S3Builder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

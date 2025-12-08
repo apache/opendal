@@ -95,10 +95,7 @@ impl crate::Configurator for CloudflareKvConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        CloudflareKvBuilder {
-            config: self,
-            http_client: None,
-        }
+        CloudflareKvBuilder { config: self }
     }
 }
 

@@ -23,8 +23,8 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator.
-let op = op.update_http_client(|_| HttpClient::with(client));
+// Update the http client in the operator via layer.
+let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
 ```
 
 ## DNS Caching
@@ -42,8 +42,8 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator.
-let op = op.update_http_client(|_| HttpClient::with(client));
+// Update the http client in the operator via layer.
+let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
 ```
 
 The default DNS cache settings from `hickory_dns` are generally sufficient for most workloads. However, if you have specific requirements—such as sharing the same DNS cache across multiple HTTP clients or configuring the DNS cache size—you can use the `Xuanwo/reqwest-hickory-resolver` crate to set up a custom DNS resolver.
@@ -75,8 +75,8 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator.
-let op = op.update_http_client(|_| HttpClient::with(client));
+// Update the http client in the operator via layer.
+let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
 ```
 
 The `ResolverOpts` has many options that can be configured. For a complete list of options, please refer to the [hickory_resolver documentation](https://docs.rs/hickory-resolver/latest/hickory_resolver/config/struct.ResolverOpts.html).
@@ -102,8 +102,8 @@ let client = reqwest::ClientBuilder::new()
   .build()
   .expect("http client must be created");
 
-// Update the http client in the operator.
-let op = op.update_http_client(|_| HttpClient::with(client));
+// Update the http client in the operator via layer.
+let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
 ```
 
 It's also recommended to use opendal's [`TimeoutLayer`][crate::layers::TimeoutLayer] to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.

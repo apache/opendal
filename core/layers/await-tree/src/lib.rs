@@ -18,8 +18,8 @@
 use await_tree::InstrumentAwait;
 use futures::Future;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add an Instrument await-tree for actor-based applications to the underlying services.
 ///
@@ -32,7 +32,7 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::AwaitTreeLayer;
+/// # use opendal_layer_await_tree::AwaitTreeLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;

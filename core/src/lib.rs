@@ -46,4 +46,6 @@ pub mod layers {
     pub use opendal_core::layers::*;
     #[cfg(feature = "layers-async-backtrace")]
     pub use opendal_layer_async_backtrace::*;
+    #[cfg(feature = "layers-await-tree")]
+    pub use opendal_layer_await_tree::*;
 }

@@ -92,8 +92,6 @@ layers-otel-metrics = ["dep:opentelemetry", "opentelemetry/metrics"]
 layers-otel-trace = ["dep:opentelemetry", "opentelemetry/trace"]
 # Enable layers throttle support.
 layers-throttle = ["dep:governor"]
-# Enable layers await-tree support.
-layers-await-tree = ["dep:await-tree"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
@@ -327,8 +325,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
 ] }
 
 # Layers
-# for layers-await-tree
-await-tree = { version = "0.3", optional = true }
 # for layers-throttle
 governor = { version = "0.10.1", optional = true, features = ["std"] }
 # for layers-metrics

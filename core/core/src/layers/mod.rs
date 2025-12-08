@@ -111,11 +111,6 @@ mod throttle;
 #[cfg(feature = "layers-throttle")]
 pub use self::throttle::ThrottleLayer;
 
-#[cfg(feature = "layers-await-tree")]
-mod await_tree;
-#[cfg(feature = "layers-await-tree")]
-pub use self::await_tree::AwaitTreeLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

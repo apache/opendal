@@ -5407,6 +5407,10 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-layer-async-backtrace",
+ "opendal-service-azblob",
+ "opendal-service-azdls",
+ "opendal-service-azfile",
+ "opendal-service-ghac",
  "opendal-service-moka",
  "opendal-service-s3",
  "opentelemetry",
@@ -5475,7 +5479,6 @@ dependencies = [
  "futures",
  "futures-rustls",
  "getrandom 0.2.16",
- "ghac",
  "governor",
  "hdfs-native",
  "hdrs",
@@ -5583,6 +5586,84 @@ version = "0.55.0"
 dependencies = [
  "async-backtrace",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-service-azblob"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.3.1",
+ "log",
+ "opendal-core",
+ "opendal-service-azure-common",
+ "pretty_assertions",
+ "quick-xml",
+ "reqsign",
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
+]
+
+[[package]]
+name = "opendal-service-azdls"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.3.1",
+ "log",
+ "opendal-core",
+ "opendal-service-azure-common",
+ "quick-xml",
+ "reqsign",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "opendal-service-azfile"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.3.1",
+ "log",
+ "opendal-core",
+ "opendal-service-azure-common",
+ "quick-xml",
+ "reqsign",
+ "serde",
+]
+
+[[package]]
+name = "opendal-service-azure-common"
+version = "0.55.0"
+dependencies = [
+ "http 1.3.1",
+ "opendal-core",
+ "reqsign",
+]
+
+[[package]]
+name = "opendal-service-ghac"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "ghac",
+ "http 1.3.1",
+ "log",
+ "opendal-core",
+ "opendal-service-azblob",
+ "prost 0.13.5",
+ "reqsign",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

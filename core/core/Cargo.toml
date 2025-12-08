@@ -22,13 +22,13 @@ exclude = ["/tests/"]
 keywords = ["storage", "fs", "s3", "azblob", "gcs"]
 name = "opendal-core"
 
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2024"
-homepage = "https://opendal.apache.org/"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
-rust-version = "1.85"
-version = "0.55.0"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [lints.clippy]
 unused_async = "warn"
@@ -186,33 +186,33 @@ doctest = false
 # Required dependencies
 anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.6", features = ["tokio-sleep"] }
-base64 = "0.22"
-bytes = "1.6"
-ctor = "0.6"
+base64 = { workspace = true }
+bytes = { workspace = true }
+ctor = { workspace = true }
 futures = { version = "0.3", default-features = false, features = [
   "std",
   "async-await",
 ] }
-http = "1.1"
+http = { workspace = true }
 http-body = "1"
 jiff = { version = "0.2.15", features = ["serde"] }
-log = "0.4"
+log = { workspace = true }
 md-5 = "0.10"
 mea = { version = "0.5.1" }
 percent-encoding = "2"
-quick-xml = { version = "0.38", features = ["serialize", "overlapped-lists"] }
+quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [
   "stream",
 ], default-features = false }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1.48", features = ["macros", "io-util"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "io-util"] }
 url = "2.5"
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { workspace = true, features = ["serde", "v4"] }
 
 # Test only dependencies
 dotenvy = { version = "0.15", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { workspace = true, optional = true }
 
 # Optional dependencies
 
@@ -221,13 +221,13 @@ rand = { version = "0.8", optional = true }
 fastpool = { version = "1.0.2", optional = true }
 prost = { version = "0.13", optional = true }
 sha1 = { version = "0.10.6", optional = true }
-sha2 = { version = "0.10", optional = true }
+sha2 = { workspace = true, optional = true }
 sqlx = { version = "0.8.0", features = [
   "runtime-tokio-rustls",
 ], optional = true }
 
 # For http based services.
-reqsign = { version = "0.16.5", default-features = false, optional = true }
+reqsign = { workspace = true, default-features = false, optional = true }
 
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }
@@ -320,7 +320,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
   "FileSystemWritableFileStream",
   "Navigator",
   "StorageManager",
-  "FileSystemGetFileOptions",
 ] }
 
 # Layers
@@ -349,8 +348,8 @@ probe = { version = "0.5.1", optional = true }
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }
 getrandom = { version = "0.2", features = ["js"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
-tokio = { version = "1.48", features = ["time"] }
-uuid = { version = "1.18", features = ["serde", "v4", "js"] }
+tokio = { workspace = true, features = ["time"] }
+uuid = { workspace = true, features = ["serde", "v4", "js"] }
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]
@@ -366,10 +365,10 @@ opentelemetry = { version = "0.31.0", default-features = false, features = [
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
-rand = "0.8"
-sha2 = "0.10"
+rand = { workspace = true }
+sha2 = { workspace = true }
 size = "0.5"
-tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",

@@ -16,17 +16,22 @@
 # under the License.
 
 [package]
-name = "opendal-layer-await-tree"
-version = "0.55.0"
-edition = "2024"
-license = "Apache-2.0"
-repository = "https://github.com/apache/opendal"
 description = "Apache OpenDAL await-tree layer"
+name = "opendal-layer-await-tree"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
 await-tree = "0.3"
 futures = "0.3"

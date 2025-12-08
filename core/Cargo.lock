@@ -5641,7 +5641,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-fuzz"
-version = "0.0.0"
+version = "0.55.0"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",

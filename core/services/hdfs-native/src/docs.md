@@ -15,18 +15,6 @@ This service can be used to:
 - [x] rename
 - [ ] ~~presign~~
 
-## Differences with webhdfs
-
-[Webhdfs][crate::services::Webhdfs] is powered by hdfs's RESTful HTTP API.
-
-## Differences with hdfs
-
-[hdfs][crate::services::Hdfs] is powered by libhdfs and require the Java dependencies
-
-## Features
-
-HDFS-native support needs to enable feature `services-hdfs-native`.
-
 ## Configuration
 
 - `root`: Set the work dir for backend.

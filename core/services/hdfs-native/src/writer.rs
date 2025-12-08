@@ -17,9 +17,9 @@
 
 use hdfs_native::file::FileWriter;
 
-use crate::raw::*;
-use crate::services::hdfs_native::error::parse_hdfs_error;
-use crate::*;
+use crate::error::parse_hdfs_error;
+use opendal_core::raw::*;
+use opendal_core::*;
 pub struct HdfsNativeWriter {
     f: FileWriter,
     size: u64,

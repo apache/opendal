@@ -34,4 +34,4 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 await-tree = "0.3"
-futures = "0.3"
+futures = { workspace = true, default-features = true }

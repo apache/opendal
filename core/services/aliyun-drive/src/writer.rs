@@ -23,8 +23,8 @@ use super::core::AliyunDriveCore;
 use super::core::CheckNameMode;
 use super::core::CreateResponse;
 use super::core::CreateType;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct AliyunDriveWriter {
     core: Arc<AliyunDriveCore>,
@@ -84,10 +84,9 @@ impl oio::Write for AliyunDriveWriter {
             .core
             .upload(file_id, upload_id, self.part_number, bs)
             .await
+            && err.kind() != ErrorKind::AlreadyExists
         {
-            if err.kind() != ErrorKind::AlreadyExists {
-                return Err(err);
-            }
+            return Err(err);
         };
 
         self.part_number += 1;

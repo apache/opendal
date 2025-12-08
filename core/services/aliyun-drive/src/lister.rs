@@ -20,13 +20,13 @@ use std::sync::Arc;
 use self::oio::Entry;
 use super::core::AliyunDriveCore;
 use super::core::AliyunDriveFileList;
-use crate::EntryMode;
-use crate::Error;
-use crate::ErrorKind;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::*;
 use bytes::Buf;
+use opendal_core::EntryMode;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub struct AliyunDriveLister {
     core: Arc<AliyunDriveCore>,

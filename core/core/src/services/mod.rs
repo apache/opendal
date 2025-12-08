@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-aliyun-drive")]
-mod aliyun_drive;
-#[cfg(feature = "services-aliyun-drive")]
-pub use aliyun_drive::*;
-
 #[cfg(feature = "services-alluxio")]
 mod alluxio;
 #[cfg(feature = "services-alluxio")]

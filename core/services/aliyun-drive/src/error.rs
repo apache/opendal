@@ -19,7 +19,7 @@ use bytes::Buf;
 use http::Response;
 use serde::Deserialize;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Default, Debug, Deserialize)]
 struct AliyunDriveError {

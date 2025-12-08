@@ -95,7 +95,6 @@ layers-throttle = ["dep:governor"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-aliyun-drive = []
 services-alluxio = []
 services-b2 = []
 services-cacache = ["dep:cacache"]

@@ -41,7 +41,7 @@ impl StreamingReader {
     /// Create a new streaming reader.
     #[inline]
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
-        let generator = ReadGenerator::new(ctx.clone(), range.offset(), range.size());
+        let generator = ReadGenerator::new(ctx, range.offset(), range.size());
         Self {
             generator,
             reader: None,

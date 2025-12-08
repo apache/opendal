@@ -29,8 +29,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Available Aliyun Drive Type.
 #[derive(Debug, Deserialize, Default, Clone)]

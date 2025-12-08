@@ -5478,6 +5478,7 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
@@ -5673,6 +5674,21 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-aliyun-drive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -221,9 +221,3 @@ tracing-subscriber = { version = "0.3", features = [
   "tracing-log",
 ] }
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-[profile.release]
-codegen-units = 1
-debug = false
-lto = "fat"
-strip = true

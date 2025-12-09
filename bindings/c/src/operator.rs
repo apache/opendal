@@ -468,6 +468,28 @@ pub unsafe extern "C" fn opendal_operator_delete(
     }
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_remove_all(
+    op: &opendal_operator,
+    path: *const c_char,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    use core::options::DeleteOptions;
+    match op.deref().delete_options(
+        path,
+        DeleteOptions {
+            recursive: true,
+            ..Default::default()
+        },
+    ) {
+        Ok(_) => std::ptr::null_mut(),
+        Err(e) => opendal_error::new(e),
+    }
+}
+
 /// \brief Check whether the path exists.
 ///
 /// If the operation succeeds, no matter the path exists or not,

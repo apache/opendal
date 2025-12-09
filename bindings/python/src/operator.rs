@@ -484,20 +484,16 @@ impl Operator {
     /// path : str
     ///     The path to remove.
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
-        use ocore::options::ListOptions;
+        use ocore::options::DeleteOptions;
         let path = path.to_string_lossy().to_string();
-        let entries = self
-            .core
-            .list_options(
+        self.core
+            .delete_options(
                 &path,
-                ListOptions {
+                DeleteOptions {
                     recursive: true,
                     ..Default::default()
                 },
             )
-            .map_err(format_pyerr)?;
-        self.core
-            .delete_try_iter(entries.into_iter().map(Ok))
             .map_err(format_pyerr)
     }
 
@@ -1232,12 +1228,10 @@ impl AsyncOperator {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
         future_into_py(py, async move {
-            let lister = this
-                .lister_with(&path)
+            this.delete_with(&path)
                 .recursive(true)
                 .await
-                .map_err(format_pyerr)?;
-            this.delete_try_stream(lister).await.map_err(format_pyerr)
+                .map_err(format_pyerr)
         })
     }
 

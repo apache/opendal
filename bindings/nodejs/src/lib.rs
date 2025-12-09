@@ -515,14 +515,9 @@ impl Operator {
     /// ```
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
-        let lister = self
-            .async_op
-            .lister_with(&path)
-            .recursive(true)
-            .await
-            .map_err(format_napi_error)?;
         self.async_op
-            .delete_try_stream(lister)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map_err(format_napi_error)
     }
@@ -538,18 +533,15 @@ impl Operator {
     /// ```
     #[napi]
     pub fn remove_all_sync(&self, path: String) -> Result<()> {
-        let entries = self
-            .blocking_op
-            .list_options(
+        use opendal::options::DeleteOptions;
+        self.blocking_op
+            .delete_options(
                 &path,
-                ListOptions {
+                DeleteOptions {
                     recursive: true,
                     ..Default::default()
                 },
             )
-            .map_err(format_napi_error)?;
-        self.blocking_op
-            .delete_try_iter(entries.into_iter().map(Ok))
             .map_err(format_napi_error)
     }
 

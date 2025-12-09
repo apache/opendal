@@ -19,8 +19,8 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use ::opendal as od;
-use mlua::UserData;
 use mlua::prelude::*;
+use mlua::UserData;
 
 static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()

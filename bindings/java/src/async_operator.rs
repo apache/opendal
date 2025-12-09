@@ -468,13 +468,12 @@ fn intern_remove_all(
     let path = jstring_to_string(env, &path)?;
 
     executor_or_default(env, executor)?.spawn(async move {
-        let result = async {
-            let lister = op.lister_with(&path).recursive(true).await?;
-            op.delete_try_stream(lister).await
-        }
-        .await
-        .map(|_| JValueOwned::Void)
-        .map_err(Into::into);
+        let result = op
+            .delete_with(&path)
+            .recursive(true)
+            .await
+            .map(|_| JValueOwned::Void)
+            .map_err(Into::into);
         complete_future(id, result)
     });
 

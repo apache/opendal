@@ -62,7 +62,6 @@ impl crate::Configurator for DropboxConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         DropboxBuilder { config: self }
     }

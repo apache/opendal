@@ -93,7 +93,6 @@ impl crate::Configurator for CloudflareKvConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         CloudflareKvBuilder { config: self }
     }

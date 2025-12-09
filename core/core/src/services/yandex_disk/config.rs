@@ -58,7 +58,6 @@ impl crate::Configurator for YandexDiskConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         YandexDiskBuilder { config: self }
     }

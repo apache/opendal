@@ -69,7 +69,6 @@ impl crate::Configurator for ObsConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         ObsBuilder { config: self }
     }

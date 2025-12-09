@@ -104,7 +104,6 @@ impl crate::Configurator for GithubConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GithubBuilder { config: self }
     }

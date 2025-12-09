@@ -66,7 +66,6 @@ impl crate::Configurator for UpyunConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         UpyunBuilder { config: self }
     }

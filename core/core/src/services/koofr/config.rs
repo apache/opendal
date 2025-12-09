@@ -85,7 +85,6 @@ impl crate::Configurator for KoofrConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         KoofrBuilder { config: self }
     }

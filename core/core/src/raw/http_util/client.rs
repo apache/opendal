@@ -95,16 +95,6 @@ impl HttpClient {
         self.fetcher
     }
 
-    /// Build a new http client in async context.
-    #[deprecated]
-    pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        let client = builder.build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-        })?;
-        let fetcher = Arc::new(client);
-        Ok(Self { fetcher })
-    }
-
     /// Send a request and consume response.
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         let (parts, mut body) = self.fetch(req).await?.into_parts();

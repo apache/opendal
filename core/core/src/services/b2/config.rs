@@ -79,7 +79,6 @@ impl crate::Configurator for B2Config {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         B2Builder { config: self }
     }

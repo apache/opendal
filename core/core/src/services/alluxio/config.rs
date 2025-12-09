@@ -66,7 +66,6 @@ impl crate::Configurator for AlluxioConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         AlluxioBuilder { config: self }
     }

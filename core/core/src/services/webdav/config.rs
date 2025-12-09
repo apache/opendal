@@ -68,7 +68,6 @@ impl crate::Configurator for WebdavConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         WebdavBuilder { config: self }
     }

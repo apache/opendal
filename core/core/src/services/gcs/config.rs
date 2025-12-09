@@ -101,7 +101,6 @@ impl crate::Configurator for GcsConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,

@@ -257,7 +257,7 @@ persy = { version = "1.7.1", optional = true }
 # for services-redb
 redb = { version = "2", optional = true }
 # for services-redis
-redis = { version = "0.32", features = [
+redis = { version = "1.0", features = [
   "cluster-async",
   "tokio-comp",
   "connection-manager",

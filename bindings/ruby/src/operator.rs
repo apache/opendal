@@ -200,20 +200,16 @@ impl Operator {
     /// @param path [String]
     /// @return [nil]
     fn remove_all(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
-        use ocore::options::ListOptions;
-        let entries = rb_self
+        use ocore::options::DeleteOptions;
+        rb_self
             .blocking_op
-            .list_options(
+            .delete_options(
                 &path,
-                ListOptions {
+                DeleteOptions {
                     recursive: true,
                     ..Default::default()
                 },
             )
-            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
-        rb_self
-            .blocking_op
-            .delete_try_iter(entries.into_iter().map(Ok))
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 

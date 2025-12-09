@@ -557,8 +557,8 @@ impl Operator {
     ///
     /// # Deprecated
     ///
-    /// This method is deprecated since v0.55.0. Use [`blocking::Operator::delete_try_iter`] with
-    /// [`blocking::Operator::list_options`] instead.
+    /// This method is deprecated since v0.55.0. Use [`blocking::Operator::delete_options`] with
+    /// `recursive: true` instead.
     ///
     /// ## Migration Example
     ///
@@ -569,31 +569,17 @@ impl Operator {
     ///
     /// Use:
     /// ```ignore
-    /// use opendal::options::ListOptions;
-    /// let entries = op.list_options("path/to/dir", ListOptions {
+    /// use opendal_core::options::DeleteOptions;
+    /// op.delete_options("path/to/dir", DeleteOptions {
     ///     recursive: true,
     ///     ..Default::default()
     /// })?;
-    /// op.delete_try_iter(entries.into_iter().map(|e| Ok(e.path().to_string())))?;
-    /// ```
-    ///
-    /// Or use [`BlockingDeleter`] for more control:
-    /// ```ignore
-    /// use opendal::options::ListOptions;
-    /// let mut deleter = op.deleter()?;
-    /// let entries = op.list_options("path/to/dir", ListOptions {
-    ///     recursive: true,
-    ///     ..Default::default()
-    /// })?;
-    /// for entry in entries {
-    ///     deleter.delete(entry.path())?;
-    /// }
-    /// deleter.close()?;
     /// ```
     ///
     /// # Notes
     ///
-    /// We don't support batch delete now.
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
     ///
     /// # Examples
     ///
@@ -609,11 +595,17 @@ impl Operator {
     /// ```
     #[deprecated(
         since = "0.55.0",
-        note = "Use `delete_try_iter` with `list_options` and `recursive: true` instead"
+        note = "Use `delete_options` with `recursive: true` instead"
     )]
     #[allow(deprecated)]
     pub fn remove_all(&self, path: &str) -> Result<()> {
-        self.handle.block_on(self.op.remove_all(path))
+        self.delete_options(
+            path,
+            options::DeleteOptions {
+                recursive: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// List entries whose paths start with the given prefix `path`.

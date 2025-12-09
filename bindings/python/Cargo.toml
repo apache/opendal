@@ -60,7 +60,6 @@ services-all = [
   'services-ftp',
   'services-gdrive',
   'services-gridfs',
-  'services-hdfs-native',
   'services-huggingface',
   'services-ipfs',
   'services-koofr',
@@ -152,7 +151,7 @@ services-pcloud = [
 services-persy = ["opendal/services-persy"]
 services-postgresql = ["opendal/services-postgresql"]
 services-redb = ["opendal/services-redb"]
-services-redis = ["opendal/services-redis", "opendal/services-redis-native-tls"]
+services-redis = ["opendal/services-redis"]
 services-rocksdb = [
   "opendal/services-rocksdb",
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
@@ -184,6 +183,10 @@ abi3 = ["pyo3/abi3-py311"]
 [target.'cfg(not(windows))'.features]
 services-all = ["services-sftp"]
 
+# Conditionally include sftp only on non-windows targets
+[target.'cfg(not(target_arch = "arm"))'.features]
+services-all = ["services-hdfs-native"]
+
 [[bin]]
 doc = false
 name = "stub_gen"
@@ -198,6 +201,7 @@ bytes = "1.5.0"
 dict_derive = "0.6.0"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }
+mea = { version = "0.5.1" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
@@ -205,7 +209,7 @@ opendal = { version = ">=0", path = "../../core", features = [
 ] }
 pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
-pyo3-stub-gen = { version = "0.16" }
+pyo3-stub-gen = { version = "0.17" }
 tokio = "1"
 
 [profile.release]

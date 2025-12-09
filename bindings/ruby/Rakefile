@@ -94,7 +94,7 @@ namespace :doc do
     target_dir = "tmp"
     ext_dir = "opendal-ruby"
     run(<<~CMD)
-      cargo +nightly-2025-03-18 rustdoc \
+      cargo +nightly-2025-10-12 rustdoc \
         --target-dir #{target_dir} \
         --package #{ext_dir} \
         -Zunstable-options \

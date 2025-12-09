@@ -21,6 +21,7 @@ package opendal
 
 import (
 	"context"
+	"strings"
 	"unsafe"
 
 	"github.com/jupiterrider/ffi"
@@ -103,8 +104,10 @@ var ffiOperatorNew = newFFI(ffiOpts{
 	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
 	return func(scheme Scheme, opts *operatorOptions) (op *opendalOperator, err error) {
+		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
+		normalizedSchemeName := strings.ReplaceAll(scheme.Name(), "_", "-")
 		var byteName *byte
-		byteName, err = BytePtrFromString(scheme.Name())
+		byteName, err = BytePtrFromString(normalizedSchemeName)
 		if err != nil {
 			return nil, err
 		}

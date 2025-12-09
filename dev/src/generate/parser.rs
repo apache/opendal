@@ -681,7 +681,7 @@ For example, Ceph RADOS S3 doesn't support write with if match.".to_string(),
     #[test]
     fn test_parse() {
         let path = workspace_dir()
-            .join("core/src/services")
+            .join("core/core/src/services")
             .canonicalize()
             .unwrap();
 

@@ -508,12 +508,15 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
 #[derive(Default)]
 pub struct DeleteOptions {
     pub version: Option<String>,
+    /// Whether to delete recursively.
+    pub recursive: Option<bool>,
 }
 
 impl From<DeleteOptions> for opendal::options::DeleteOptions {
     fn from(value: DeleteOptions) -> Self {
         Self {
             version: value.version,
+            recursive: value.recursive.unwrap_or_default(),
         }
     }
 }

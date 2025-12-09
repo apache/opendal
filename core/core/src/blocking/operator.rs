@@ -37,15 +37,15 @@ use crate::*;
 /// This is just for initialization. You must use `blocking::Operator` in blocking context.
 ///
 /// ```rust,no_run
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     // Build an `blocking::Operator` with blocking layer to start operating the storage.
@@ -62,10 +62,10 @@ use crate::*;
 /// This often happens in the case that async function calls blocking function.
 ///
 /// ```rust,no_run
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
@@ -75,7 +75,7 @@ use crate::*;
 ///
 /// fn blocking_fn() -> Result<blocking::Operator> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
@@ -95,10 +95,10 @@ use crate::*;
 ///
 /// ```rust,no_run
 /// # use std::sync::LazyLock;
-/// # use opendal::services;
-/// # use opendal::blocking;
-/// # use opendal::Operator;
-/// # use opendal::Result;
+/// # use opendal_core::services;
+/// # use opendal_core::blocking;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
 ///     tokio::runtime::Builder::new_multi_thread()
@@ -109,7 +109,7 @@ use crate::*;
 ///
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
-///     let mut builder = services::S3::default().bucket("test").region("us-east-1");
+///     let builder = services::Memory::default();
 ///     let op = Operator::new(builder)?.finish();
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
@@ -148,9 +148,9 @@ impl Operator {
     ///
     /// ```
     /// # use std::sync::Arc;
-    /// use opendal::blocking;
+    /// use opendal_core::blocking;
     /// # use anyhow::Result;
-    /// use opendal::blocking::Operator;
+    /// use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let info = op.info();
@@ -199,9 +199,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
-    /// use opendal::ErrorKind;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
+    /// use opendal_core::ErrorKind;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test") {
@@ -253,8 +253,8 @@ impl Operator {
     ///
     /// ```no_run
     /// use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
     /// fn test(op: blocking::Operator) -> Result<()> {
     ///     let _ = op.exists("test")?;
     ///
@@ -288,9 +288,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.create_dir("path/to/dir/")?;
@@ -309,9 +309,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// #
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let bs = op.read("path/to/file")?;
@@ -335,9 +335,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::TryStreamExt;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let r = op.reader("path/to/file")?;
@@ -367,12 +367,12 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
-    /// use opendal::blocking;
+    /// use opendal_core::blocking;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.write("path/to/file", vec![0; 4096])?;
@@ -406,9 +406,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal::Result;
-    /// # use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -447,9 +447,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.copy("path/to/file", "path/to/file2")?;
@@ -471,9 +471,9 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// # use opendal_core::Result;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.rename("path/to/file", "path/to/file2")?;
@@ -495,8 +495,8 @@ impl Operator {
     /// ```no_run
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.delete("path/to/file")?;
     /// # Ok(())
@@ -555,42 +555,6 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated since v0.55.0. Use [`blocking::Operator::delete_try_iter`] with
-    /// [`blocking::Operator::list_options`] instead.
-    ///
-    /// ## Migration Example
-    ///
-    /// Instead of:
-    /// ```ignore
-    /// op.remove_all("path/to/dir")?;
-    /// ```
-    ///
-    /// Use:
-    /// ```ignore
-    /// use opendal::options::ListOptions;
-    /// let entries = op.list_options("path/to/dir", ListOptions {
-    ///     recursive: true,
-    ///     ..Default::default()
-    /// })?;
-    /// op.delete_try_iter(entries.into_iter().map(|e| Ok(e.path().to_string())))?;
-    /// ```
-    ///
-    /// Or use [`BlockingDeleter`] for more control:
-    /// ```ignore
-    /// use opendal::options::ListOptions;
-    /// let mut deleter = op.deleter()?;
-    /// let entries = op.list_options("path/to/dir", ListOptions {
-    ///     recursive: true,
-    ///     ..Default::default()
-    /// })?;
-    /// for entry in entries {
-    ///     deleter.delete(entry.path())?;
-    /// }
-    /// deleter.close()?;
-    /// ```
-    ///
     /// # Notes
     ///
     /// We don't support batch delete now.
@@ -600,48 +564,37 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// use opendal::blocking;
-    /// # use opendal::blocking::Operator;
+    /// use opendal_core::blocking;
+    /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.remove_all("path/to/dir")?;
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(
-        since = "0.55.0",
-        note = "Use `delete_try_iter` with `list_options` and `recursive: true` instead"
-    )]
-    #[allow(deprecated)]
     pub fn remove_all(&self, path: &str) -> Result<()> {
         self.handle.block_on(self.op.remove_all(path))
     }
 
-    /// List entries that starts with given `path` in parent dir.
+    /// List entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
-    ///
-    /// This function only read the children of the given directory. To read
-    /// all entries recursively, use `blocking::Operator::list_options("path", opts)`
-    /// instead.
+    /// - Listing is **prefix-based**; it doesn't require the parent directory to exist.
+    /// - If `path` itself exists, it is returned as an entry along with prefixed children.
+    /// - If `path` is missing but deeper objects exist, the list succeeds and returns those prefixed entries instead of an error.
+    /// - Set `recursive` in [`options::ListOptions`] via [`list_options`](Self::list_options) to walk all descendants; the default returns only immediate children when delimiter is supported.
     ///
     /// ## Streaming List
     ///
-    /// This function will read all entries in the given directory. It could
-    /// take very long time and consume a lot of memory if the directory
-    /// contains a lot of entries.
-    ///
-    /// In order to avoid this, you can use [`blocking::Operator::lister`] to list entries in
-    /// a streaming way.
+    /// This function materializes the full result in memory. For large listings, prefer [`blocking::Operator::lister`] to stream entries.
     ///
     /// # Examples
     ///
     /// ```no_run
     /// # use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::EntryMode;
     /// #  fn test(op: blocking::Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/")?;
     /// for entry in entries {
@@ -662,34 +615,34 @@ impl Operator {
         self.list_options(path, options::ListOptions::default())
     }
 
-    /// List entries that starts with given `path` in parent dir. with options.
+    /// List entries whose paths start with the given prefix `path` with additional options.
     ///
-    /// # Notes
+    /// # Semantics
+    ///
+    /// Inherits the prefix semantics described in [`Operator::list`] (blocking variant). It returns `path` itself if present and tolerates missing parents when prefixed objects exist.
     ///
     /// ## Streaming List
     ///
-    /// This function will read all entries in the given directory. It could
-    /// take very long time and consume a lot of memory if the directory
-    /// contains a lot of entries.
+    /// This function materializes the full result in memory. For large listings, prefer [`blocking::Operator::lister`] to stream entries.
     ///
-    /// In order to avoid this, you can use [`blocking::Operator::lister`] to list entries in
-    /// a streaming way.
+    /// ## Options
+    ///
+    /// See [`options::ListOptions`] for the full set. Common knobs: traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     pub fn list_options(&self, path: &str, opts: options::ListOptions) -> Result<Vec<Entry>> {
         self.handle.block_on(self.op.list_options(path, opts))
     }
 
-    /// List entries that starts with given `path` in parent dir.
+    /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function will create a new [`BlockingLister`] to list entries. Users can stop listing
-    /// via dropping this [`Lister`].
+    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
+    /// Shares the same prefix semantics as [`blocking::Operator::list`]: parent directory is optional; `path` itself is yielded if present; missing parents with deeper objects are accepted.
     ///
-    /// This function only read the children of the given directory. To read
-    /// all entries recursively, use [`blocking::Operator::lister_with`] and `delimiter("")`
-    /// instead.
+    /// ## Options
+    ///
+    /// Accepts the same [`options::ListOptions`] as [`list_options`](Self::list_options): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     ///
     /// # Examples
     ///
@@ -697,9 +650,9 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::EntryMode;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::EntryMode;
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/")?;
     /// for de in ds {
@@ -721,11 +674,13 @@ impl Operator {
         self.lister_options(path, options::ListOptions::default())
     }
 
-    /// List entries within a given directory as an iterator with options.
+    /// List entries under a prefix as an iterator with options.
     ///
-    /// This function will create a new handle to list entries.
+    /// This function creates a new handle to stream entries and inherits the prefix semantics of [`blocking::Operator::list`].
     ///
-    /// An error will be returned if given path doesn't end with `/`.
+    /// ## Options
+    ///
+    /// Same as [`lister`](Self::lister); see [`options::ListOptions`] for traversal, pagination, and versioning knobs.
     pub fn lister_options(
         &self,
         path: &str,
@@ -742,9 +697,9 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::blocking;
-    /// use opendal::blocking::Operator;
-    /// use opendal::ErrorKind;
+    /// use opendal_core::blocking;
+    /// use opendal_core::blocking::Operator;
+    /// use opendal_core::ErrorKind;
     ///
     /// # fn test(op: blocking::Operator) -> Result<()> {
     /// op.check()?;

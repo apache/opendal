@@ -8,7 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
 ## [v0.55.0] - 2025-11-11
-
 ### Added
 * feat(services/oss): allow users to specify endpoint addressing style by @howardlau1999 in https://github.com/apache/opendal/pull/6504
 * feat(bindings/ruby): publish ruby binding by @erickguan in https://github.com/apache/opendal/pull/6539
@@ -36,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/compfs): implement IoVectoredBuf for Buffer by @meteorgan in https://github.com/apache/opendal/pull/6762
 * feat(services/lakefs): Implement write returns metadata by @kingsword09 in https://github.com/apache/opendal/pull/6770
 * Add `connection_pool_max_size` option to memcached and redis builders by @trxcllnt in https://github.com/apache/opendal/pull/6759
+* fix:(bindings/python) Gate service-sftp on windows targets by @chitralverma in https://github.com/apache/opendal/pull/6777
+* feat(binding/nodejs): add TimeoutLayer, LoggingLayer and ThrottleLayer in nodejs binding by @Kilerd in https://github.com/apache/opendal/pull/6772
 ### Changed
 * refactor: Migrate cloudflare_kv from adapter::kv to Access instead by @kingsword09 in https://github.com/apache/opendal/pull/6340
 * refactor: Centralize date/time handling with Timestamp wrapper by @dami0806 in https://github.com/apache/opendal/pull/6650
@@ -60,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * refactor(hdfs): restructure HdfsBackend and introduce HdfsCore by @kingsword09 in https://github.com/apache/opendal/pull/6736
 * refactor(hdfs-native): restructure HdfsNativeBackend and introduce HdfsNativeCore by @kingsword09 in https://github.com/apache/opendal/pull/6737
 * refactor(services): impl Debug for all service builders by @koushiro in https://github.com/apache/opendal/pull/6756
+* refactor(types)!: use string-based scheme over enum-based approach by @koushiro in https://github.com/apache/opendal/pull/6765
 ### Fixed
 * fix(services/cloudflare_kv): Use DEFAULT_SCHEME constant for Cloudflare KV scheme by @kingsword09 in https://github.com/apache/opendal/pull/6568
 * fix(bindings/d): Enhance D bindings build script and tests for OpenDAL by @kingsword09 in https://github.com/apache/opendal/pull/6569
@@ -77,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix: retry on 409 with AWS S3 by @wolfv in https://github.com/apache/opendal/pull/6742
 * fix(bindings/ruby): fix release build error by @erickguan in https://github.com/apache/opendal/pull/6766
 * fix(binding/nodejs): add missing lister methods by @Kilerd in https://github.com/apache/opendal/pull/6769
+* fix(bindings/python): Update python/stubgen & core/hdfs-native by @chitralverma in https://github.com/apache/opendal/pull/6774
 ### Docs
 * doc(bindinds/ruby): add examples and links by @erickguan in https://github.com/apache/opendal/pull/6609
 * docs: spelling and minor wording change by @carlsonp in https://github.com/apache/opendal/pull/6620
@@ -84,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * docs(python): add documentation for local usage by @jayceslesar in https://github.com/apache/opendal/pull/6480
 * docs(apps): add migration guide, update links; remove bin/{oli,ofs} (#6689) by @tao12345666333 in https://github.com/apache/opendal/pull/6705
 * docs(core/types): add some comments for Buffer by @meteorgan in https://github.com/apache/opendal/pull/6746
+* docs: Make it clear that bindings have different version with rust core. by @0lai0 in https://github.com/apache/opendal/pull/6780
 ### CI
 * ci: Switch from --nocapture to --no-capture by @kingsword09 in https://github.com/apache/opendal/pull/6567
 * ci: Add patch file to Ruby release workflow by @erickguan in https://github.com/apache/opendal/pull/6592
@@ -139,6 +143,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore: rename delete module => deleter module; ServiceAccessor => ServiceBackend by @koushiro in https://github.com/apache/opendal/pull/6757
 * chore(services): unify scheme usage by @koushiro in https://github.com/apache/opendal/pull/6764
 * chore(services): remove empty list operation and update docs of all services by @koushiro in https://github.com/apache/opendal/pull/6768
+* Bump to version 0.55.0 by @Xuanwo in https://github.com/apache/opendal/pull/6771
+* chore(types)!: remove deprecated `Operator::from_map` and `Operator::via_map` by @koushiro in https://github.com/apache/opendal/pull/6775
+* chore(types)!: remove deprecated `list_with_version` capability by @koushiro in https://github.com/apache/opendal/pull/6781
+* chore(services/s3)!: remove deprecated `S3::security_token` by @koushiro in https://github.com/apache/opendal/pull/6779
+* chore(services/fs): use NotADirectory directly by @meteorgan in https://github.com/apache/opendal/pull/6786
 
 ## [v0.54.1] - 2025-09-02
 

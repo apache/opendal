@@ -18,10 +18,11 @@
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use mea::mutex::Mutex;
+use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyStopAsyncIteration;
-use pyo3::{IntoPyObjectExt, prelude::*};
+use pyo3::prelude::*;
 use pyo3_async_runtimes::tokio::future_into_py;
-use tokio::sync::Mutex;
 
 use crate::*;
 

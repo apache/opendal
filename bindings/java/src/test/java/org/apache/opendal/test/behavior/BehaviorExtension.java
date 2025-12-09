@@ -64,7 +64,8 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
                 config.put("root", root);
             }
 
-            @Cleanup final AsyncOperator op = AsyncOperator.of(scheme, config);
+            @Cleanup
+            final AsyncOperator op = AsyncOperator.of(scheme.toLowerCase().replace('_', '-'), config);
             this.asyncOperator = op.layer(RetryLayer.builder().build());
             this.operator = this.asyncOperator.blocking();
 

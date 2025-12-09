@@ -16,7 +16,6 @@
 // under the License.
 
 use std::future::Future;
-use std::time::Duration;
 
 use futures::Stream;
 use futures::StreamExt;
@@ -40,14 +39,14 @@ use crate::*;
 ///
 /// Users can initialize an `Operator` through the following methods:
 ///
-/// - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::S3`].
-/// - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::S3Config`].
+/// - [`Operator::new`]: Creates an operator using a [`services`] builder, such as [`services::Memory`].
+/// - [`Operator::from_config`]: Creates an operator using a [`services`] configuration, such as [`services::MemoryConfig`].
 /// - [`Operator::from_iter`]: Creates an operator from an iterator of configuration key-value pairs.
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal::services::Memory;
-/// use opendal::Operator;
+/// use opendal_core::services::Memory;
+/// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     // Build an `Operator` to start operating the storage.
 ///     let _: Operator = Operator::new(Memory::default())?.finish();
@@ -69,9 +68,9 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal::layers::RetryLayer;
-/// use opendal::services::Memory;
-/// use opendal::Operator;
+/// use opendal_core::layers::RetryLayer;
+/// use opendal_core::services::Memory;
+/// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
 ///     let op: Operator = Operator::new(Memory::default())?.finish();
 ///
@@ -102,16 +101,16 @@ use crate::*;
 /// into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 ///
 /// ```no_run
-/// use opendal::layers::LoggingLayer;
-/// use opendal::options;
-/// use opendal::services;
-/// use opendal::Operator;
-/// use opendal::Result;
+/// use opendal_core::layers::LoggingLayer;
+/// use opendal_core::options;
+/// use opendal_core::services;
+/// use opendal_core::Operator;
+/// use opendal_core::Result;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
 ///     // Pick a builder and configure it.
-///     let mut builder = services::S3::default().bucket("test");
+///     let builder = services::Memory::default();
 ///
 ///     // Init an operator
 ///     let op = Operator::new(builder)?
@@ -174,7 +173,7 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let info = op.info();
@@ -202,55 +201,6 @@ impl Operator {
     pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
         self.accessor.info().update_executor(f);
     }
-
-    /// Get the http client used by current operator.
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version."
-    )]
-    pub fn http_client(&self) -> HttpClient {
-        self.accessor.info().http_client()
-    }
-
-    /// Update http client for the context.
-    ///
-    /// All cloned `Operator` instances share the same internal state, such as
-    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
-    /// the `Operator` too like inject logging and metrics for `HttpClient`.
-    ///
-    /// # Note
-    ///
-    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
-    ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated since v0.54.0. Use [`HttpClientLayer`] instead.
-    ///
-    /// ## Migration Example
-    ///
-    /// Instead of:
-    /// ```ignore
-    /// let operator = Operator::new(service)?;
-    /// operator.update_http_client(|_| custom_client);
-    /// ```
-    ///
-    /// Use:
-    /// ```ignore
-    /// use opendal::layers::HttpClientLayer;
-    ///
-    /// let operator = Operator::new(service)?
-    ///     .layer(HttpClientLayer::new(custom_client))
-    ///     .finish();
-    /// ```
-    ///
-    /// [`HttpClientLayer`]: crate::layers::HttpClientLayer
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version"
-    )]
-    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
-        self.accessor.info().update_http_client(f);
-    }
 }
 
 /// # Operator async API.
@@ -262,7 +212,7 @@ impl Operator {
     /// ```
     /// # use std::sync::Arc;
     /// # use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.check().await?;
@@ -294,8 +244,8 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::ErrorKind;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat("test").await {
@@ -330,8 +280,8 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// use opendal::ErrorKind;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::ErrorKind;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
     /// if let Err(e) = op.stat_with("test").if_match("<etag>").await {
@@ -371,9 +321,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
-    /// use opendal::options;
-    /// use opendal::ErrorKind;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::options;
+    /// use opendal_core::ErrorKind;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
     /// let res = op
@@ -415,7 +365,7 @@ impl Operator {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let _ = op.exists("test").await?;
@@ -447,8 +397,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.create_dir("path/to/dir/").await?;
     /// # Ok(())
@@ -487,8 +437,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read("path/to/file").await?;
@@ -517,8 +467,8 @@ impl Operator {
     /// Read the first 10 bytes of a file:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op.read_with("path/to/file").range(0..10).await?;
     /// # Ok(())
@@ -548,9 +498,9 @@ impl Operator {
     /// Read the first 10 bytes of a file:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use opendal::options;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::options;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op
     ///     .read_options("path/to/file", options::ReadOptions {
@@ -596,8 +546,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader("path/to/file").await?;
@@ -621,8 +571,8 @@ impl Operator {
     /// Create a reader with a specific version ID:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op.reader_with("path/to/file").version("version_id").await?;
     /// // Read the first 10 bytes of the file
@@ -648,9 +598,9 @@ impl Operator {
     /// Create a reader with a specific version ID:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use opendal::options;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::options;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let r = op
     ///     .reader_options("path/to/file", options::ReaderOptions {
@@ -716,8 +666,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// # use futures::StreamExt;
     /// # use futures::SinkExt;
     /// use bytes::Bytes;
@@ -758,8 +708,8 @@ impl Operator {
     /// Write data to a file only when it does not already exist:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -808,9 +758,9 @@ impl Operator {
     /// Write data to a file only when it does not already exist:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use opendal::options;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::options;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let _ = op
@@ -849,6 +799,7 @@ impl Operator {
         }
 
         let (args, opts) = opts.into();
+
         let context = WriteContext::new(acc, path, args, opts);
         let mut w = Writer::new(context).await?;
         w.write(bs).await?;
@@ -874,8 +825,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -916,8 +867,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -971,8 +922,8 @@ impl Operator {
     /// Write data to a file in 4MiB chunk size and at 8 concurrency:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
@@ -1025,8 +976,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.copy("path/to/file", "path/to/file2").await?;
@@ -1088,8 +1039,8 @@ impl Operator {
     /// Copy a file only if the destination doesn't exist:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.copy_with("path/to/file", "path/to/file2")
@@ -1127,9 +1078,9 @@ impl Operator {
     /// Copy a file only if the destination doesn't exist:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// # use opendal::options::CopyOptions;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::options::CopyOptions;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut opts = CopyOptions::default();
@@ -1203,8 +1154,8 @@ impl Operator {
     /// # Examples
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.rename("path/to/file", "path/to/file2").await?;
@@ -1260,7 +1211,7 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.delete("test").await?;
     /// # Ok(())
@@ -1285,8 +1236,8 @@ impl Operator {
     /// Delete a specific version of a file:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_with("path/to/file").version(version).await?;
@@ -1315,9 +1266,9 @@ impl Operator {
     /// Delete a specific version of a file:
     ///
     /// ```
-    /// # use opendal::Result;
-    /// # use opendal::Operator;
-    /// use opendal::options;
+    /// # use opendal_core::Result;
+    /// # use opendal_core::Operator;
+    /// use opendal_core::options;
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_options("path/to/file", options::DeleteOptions {
@@ -1336,8 +1287,8 @@ impl Operator {
     async fn delete_inner(acc: Accessor, path: String, opts: options::DeleteOptions) -> Result<()> {
         let (_, mut deleter) = acc.delete_dyn().await?;
         let args = opts.into();
-        deleter.delete_dyn(&path, args)?;
-        deleter.flush_dyn().await?;
+        deleter.delete_dyn(&path, args).await?;
+        deleter.close_dyn().await?;
         Ok(())
     }
 
@@ -1424,32 +1375,6 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated since v0.55.0. Use [`Operator::delete_try_stream`] with
-    /// [`Operator::lister_with`] instead.
-    ///
-    /// ## Migration Example
-    ///
-    /// Instead of:
-    /// ```ignore
-    /// op.remove_all("path/to/dir").await?;
-    /// ```
-    ///
-    /// Use:
-    /// ```ignore
-    /// let lister = op.lister_with("path/to/dir").recursive(true).await?;
-    /// op.delete_try_stream(lister).await?;
-    /// ```
-    ///
-    /// Or use [`Deleter`] for more control:
-    /// ```ignore
-    /// let mut deleter = op.deleter().await?;
-    /// let lister = op.lister_with("path/to/dir").recursive(true).await?;
-    /// deleter.delete_try_stream(lister).await?;
-    /// deleter.close().await?;
-    /// ```
-    ///
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1460,17 +1385,13 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// # use futures::io;
-    /// # use opendal::Operator;
+    /// # use opendal_core::Operator;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
     /// op.remove_all("path/to/dir").await?;
     /// # Ok(())
     /// # }
     /// ```
-    #[deprecated(
-        since = "0.55.0",
-        note = "Use `delete_try_stream` with `lister_with().recursive(true)` instead"
-    )]
     pub async fn remove_all(&self, path: &str) -> Result<()> {
         match self.stat(path).await {
             // If object exists.
@@ -1495,20 +1416,17 @@ impl Operator {
         Ok(())
     }
 
-    /// List entries in the parent directory that start with the specified `path`.
+    /// List entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively List
-    ///
-    /// This function only reads the immediate children of the specified directory.
-    /// To list all entries recursively, use `Operator::list_with("path").recursive(true)` instead.
+    /// - Listing is **prefix-based**. It does not require the parent directory to exist.
+    /// - If `path` itself exists (file or dir), it will be returned as an entry in addition to any prefixed children.
+    /// - If `path` is absent but deeper objects exist (e.g. `path/child`), the list succeeds and returns those prefixed entries instead of an error.
     ///
     /// ## Streaming List
     ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
-    ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// This function materializes the entire list into memory. For large listings, prefer [`Operator::lister`] to stream entries.
     ///
     /// # Examples
     ///
@@ -1516,8 +1434,8 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list("path/to/dir/").await?;
     /// for entry in entries {
@@ -1538,19 +1456,24 @@ impl Operator {
         self.list_with(path).await
     }
 
-    /// List entries in the parent directory that start with the specified `path` with additional options.
+    /// List entries whose paths start with the given prefix `path` with additional options.
+    ///
+    /// # Semantics
+    ///
+    /// Inherits the prefix semantics described in [`Operator::list`]: returns `path` itself if it exists and tolerates missing parents when prefixed objects exist.
     ///
     /// # Notes
     ///
     /// ## Streaming List
     ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
+    /// This function materializes the entire list into memory. For large listings, prefer [`Operator::lister`] to stream entries.
     ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// ## Options
     ///
-    /// # Options
-    ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// See [`options::ListOptions`] for the full set. Common knobs:
+    /// - Traversal: `recursive` (default `false`) toggles depth-first listing under the prefix.
+    /// - Pagination: `limit` and `start_after` tune page size and resume positions (backend dependent).
+    /// - Versioning: `versions` / `deleted` ask versioned backends to return extra entries.
     ///
     /// # Examples
     ///
@@ -1558,8 +1481,8 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op.list_with("path/to/prefix").recursive(true).await?;
     /// for entry in entries {
@@ -1587,19 +1510,19 @@ impl Operator {
         )
     }
 
-    /// List entries in the parent directory that start with the specified `path` with additional options.
+    /// List entries whose paths start with the given prefix `path` using explicit options.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Streaming List
-    ///
-    /// This function reads all entries in the specified directory. If the directory contains many entries, this process may take a long time and use significant memory.
-    ///
-    /// To prevent this, consider using [`Operator::lister`] to stream the entries instead.
+    /// Same prefix behavior as [`Operator::list`]: returns `path` itself if present and tolerates missing parents when prefixed objects exist.
     ///
     /// # Options
     ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// Accepts [`options::ListOptions`] (see field docs for meaning).
+    ///
+    /// ## Streaming List
+    ///
+    /// Materializes the entire list; use [`Operator::lister`] to stream large result sets.
     ///
     /// # Examples
     ///
@@ -1607,9 +1530,9 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal::options;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::options;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut entries = op
     ///     .list_options("path/to/prefix", options::ListOptions {
@@ -1647,14 +1570,15 @@ impl Operator {
         lister.try_collect().await
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir.
+    /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// # Notes
+    /// # Semantics
     ///
-    /// ## Recursively list
+    /// Shares the same prefix semantics as [`Operator::list`]: the parent directory is not required to exist; the entry for `path` is yielded if present; missing parents with deeper objects are accepted.
     ///
-    /// This function only reads the immediate children of the specified directory.
-    /// To retrieve all entries recursively, use [`Operator::lister_with`] with `recursive(true)` instead.
+    /// # Options
+    ///
+    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
     ///
     /// # Examples
     ///
@@ -1662,8 +1586,8 @@ impl Operator {
     /// # use anyhow::Result;
     /// # use futures::io;
     /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut ds = op.lister("path/to/dir/").await?;
     /// while let Some(mut de) = ds.try_next().await? {
@@ -1684,11 +1608,11 @@ impl Operator {
         self.lister_with(path).await
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir with additional options.
+    /// Create a new lister to list entries that start with the given prefix `path` using additional options.
     ///
     /// # Options
     ///
-    /// Visit [`options::ListOptions`] for all available options.
+    /// Same as [`lister_with`](Operator::lister_with); see [`options::ListOptions`] for traversal, pagination, and versioning knobs.
     ///
     /// # Examples
     ///
@@ -1697,8 +1621,8 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// use futures::TryStreamExt;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op.lister_with("path/to/dir/").recursive(true).await?;
     /// while let Some(mut entry) = lister.try_next().await? {
@@ -1726,7 +1650,15 @@ impl Operator {
         )
     }
 
-    /// Create a new lister to list entries that starts with given `path` in parent dir with additional options.
+    /// Create a new lister to list entries that start with the given prefix `path` using additional options.
+    ///
+    /// # Semantics
+    ///
+    /// Inherits the prefix behavior of [`Operator::lister_with`].
+    ///
+    /// # Options
+    ///
+    /// Uses [`options::ListOptions`] to control traversal, pagination, and versioning.
     ///
     /// # Examples
     ///
@@ -1735,9 +1667,9 @@ impl Operator {
     /// ```
     /// # use anyhow::Result;
     /// use futures::TryStreamExt;
-    /// use opendal::options;
-    /// use opendal::EntryMode;
-    /// use opendal::Operator;
+    /// use opendal_core::options;
+    /// use opendal_core::EntryMode;
+    /// use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut lister = op
     ///     .lister_options("path/to/dir/", options::ListOptions {
@@ -1785,7 +1717,7 @@ impl Operator {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -1814,7 +1746,7 @@ impl Operator {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -1847,8 +1779,8 @@ impl Operator {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// use opendal::options;
+    /// use opendal_core::Operator;
+    /// use opendal_core::options;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -1904,7 +1836,7 @@ impl Operator {
     /// ```
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -1944,7 +1876,7 @@ impl Operator {
     ///
     /// use anyhow::Result;
     /// use futures::io;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
@@ -1979,8 +1911,8 @@ impl Operator {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// use opendal::options;
+    /// use opendal_core::Operator;
+    /// use opendal_core::options;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -2038,7 +1970,7 @@ impl Operator {
     /// use std::time::Duration;
     ///
     /// use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
@@ -2073,7 +2005,7 @@ impl Operator {
     /// use std::time::Duration;
     ///
     /// use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
@@ -2113,8 +2045,8 @@ impl Operator {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// use opendal::options;
+    /// use opendal_core::Operator;
+    /// use opendal_core::options;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {
@@ -2172,7 +2104,7 @@ impl Operator {
     /// use std::time::Duration;
     ///
     /// use anyhow::Result;
-    /// use opendal::Operator;
+    /// use opendal_core::Operator;
     ///
     /// async fn test(op: Operator) -> Result<()> {
     ///     let signed_req = op
@@ -2221,8 +2153,8 @@ impl Operator {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use opendal::Operator;
-    /// use opendal::options;
+    /// use opendal_core::Operator;
+    /// use opendal_core::options;
     /// use std::time::Duration;
     ///
     /// async fn test(op: Operator) -> Result<()> {

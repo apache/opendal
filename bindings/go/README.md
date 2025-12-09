@@ -5,6 +5,8 @@
 
 opendal-go is a **Native** support Go binding without CGO enabled and is built on top of opendal-c.
 
+> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+
 ```bash
 go get github.com/apache/opendal/bindings/go@latest
 ```

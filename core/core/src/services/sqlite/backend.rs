@@ -356,6 +356,6 @@ mod test {
         let accessor = SqliteBackend::new(core).with_normalized_root("/test/".to_string());
 
         assert_eq!(accessor.root, "/test/");
-        assert_eq!(accessor.info.root(), "/test/".into());
+        assert_eq!(accessor.info.root(), Arc::from("/test/"));
     }
 }

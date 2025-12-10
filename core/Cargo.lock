@@ -5741,6 +5741,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-retry"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "backon",
+ "bytes",
+ "futures",
+ "log",
+ "opendal-core",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opendal-service-aliyun-drive"
 version = "0.55.0"
 dependencies = [

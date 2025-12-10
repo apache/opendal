@@ -23,8 +23,8 @@ use backon::ExponentialBuilder;
 use backon::Retryable;
 use log::warn;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add retry for temporary failed operations.
 ///
@@ -409,7 +409,9 @@ impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
                 Some(mut reader) => {
                     let buf = reader.read().await?;
                     self.reader = Some(reader);
-                    self.args.range_mut().advance(buf.len() as u64);
+                    let mut range = self.args.range();
+                    range.advance(buf.len() as u64);
+                    self.args = self.args.clone().with_range(range);
                     return Ok(buf);
                 }
             }
@@ -623,7 +625,7 @@ mod tests {
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
-    use crate::layers::LoggingLayer;
+    use opendal_core::layers::LoggingLayer;
 
     #[derive(Default, Clone)]
     struct MockBuilder {

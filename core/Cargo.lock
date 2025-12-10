@@ -5503,6 +5503,7 @@ dependencies = [
  "opendal-service-hdfs-native",
  "opendal-service-moka",
  "opendal-service-mysql",
+ "opendal-service-postgresql",
  "opendal-service-s3",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5905,6 +5906,17 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-mysql"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "sqlx",
+]
+
+[[package]]
+name = "opendal-service-postgresql"
 version = "0.55.0"
 dependencies = [
  "ctor",

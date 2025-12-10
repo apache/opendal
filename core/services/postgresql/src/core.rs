@@ -19,7 +19,7 @@ use mea::once::OnceCell;
 use sqlx::PgPool;
 use sqlx::postgres::PgConnectOptions;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone, Debug)]
 pub struct PostgresqlCore {

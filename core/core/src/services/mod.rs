@@ -194,11 +194,6 @@ mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::*;
 
-#[cfg(feature = "services-postgresql")]
-mod postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::*;
-
 #[cfg(feature = "services-redb")]
 mod redb;
 #[cfg(feature = "services-redb")]

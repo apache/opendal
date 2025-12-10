@@ -139,7 +139,6 @@ services-oss = [
 ]
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
-services-postgresql = ["dep:sqlx", "sqlx?/postgres"]
 services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]

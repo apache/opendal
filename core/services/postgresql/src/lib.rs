@@ -18,7 +18,7 @@
 /// Default scheme for postgresql service.
 pub const POSTGRESQL_SCHEME: &str = "postgresql";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

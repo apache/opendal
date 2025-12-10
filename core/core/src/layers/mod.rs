@@ -75,11 +75,6 @@ mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]
 pub use self::oteltrace::OtelTraceLayer;
 
-#[cfg(feature = "layers-throttle")]
-mod throttle;
-#[cfg(feature = "layers-throttle")]
-pub use self::throttle::ThrottleLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

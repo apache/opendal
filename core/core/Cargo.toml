@@ -80,8 +80,6 @@ layers-fastrace = ["dep:fastrace"]
 layers-tracing = ["dep:tracing"]
 # Enable layers oteltrace support.
 layers-otel-trace = ["dep:opentelemetry", "opentelemetry/trace"]
-# Enable layers throttle support.
-layers-throttle = ["dep:governor"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 

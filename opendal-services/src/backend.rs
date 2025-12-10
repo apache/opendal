@@ -24,8 +24,10 @@ use super::config::MongodbConfig;
 use super::core::*;
 use super::deleter::MongodbDeleter;
 use super::writer::MongodbWriter;
-use crate::raw::*;
-use crate::*;
+
+use opendal_core::*;
+use opendal_core::raw::*;
+use opendal_core::raw::oio;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
@@ -34,46 +36,22 @@ pub struct MongodbBuilder {
 }
 
 impl MongodbBuilder {
-    /// Set the connection_string of the MongoDB service.
-    ///
-    /// This connection string is used to connect to the MongoDB service. It typically follows the format:
-    ///
-    /// ## Format
-    ///
-    /// `mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]`
-    ///
-    /// Examples:
-    ///
-    /// - Connecting to a local MongoDB instance: `mongodb://localhost:27017`
-    /// - Using authentication: `mongodb://myUser:myPassword@localhost:27017/myAuthDB`
-    /// - Specifying authentication mechanism: `mongodb://myUser:myPassword@localhost:27017/myAuthDB?authMechanism=SCRAM-SHA-256`
-    ///
-    /// ## Options
-    ///
-    /// - `authMechanism`: Specifies the authentication method to use. Examples include `SCRAM-SHA-1`, `SCRAM-SHA-256`, and `MONGODB-AWS`.
-    /// - ... (any other options you wish to highlight)
-    ///
-    /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
     pub fn connection_string(mut self, v: &str) -> Self {
         if !v.is_empty() {
             self.config.connection_string = Some(v.to_string());
         }
         self
     }
-    /// Set the working directory, all operations will be performed under it.
-    ///
-    /// default: "/"
+
     pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
         } else {
             Some(root.to_string())
         };
-
         self
     }
 
-    /// Set the database name of the MongoDB service to read/write.
     pub fn database(mut self, database: &str) -> Self {
         if !database.is_empty() {
             self.config.database = Some(database.to_string());
@@ -81,7 +59,6 @@ impl MongodbBuilder {
         self
     }
 
-    /// Set the collection name of the MongoDB service to read/write.
     pub fn collection(mut self, collection: &str) -> Self {
         if !collection.is_empty() {
             self.config.collection = Some(collection.to_string());
@@ -89,9 +66,6 @@ impl MongodbBuilder {
         self
     }
 
-    /// Set the key field name of the MongoDB service to read/write.
-    ///
-    /// Default to `key` if not specified.
     pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
@@ -99,9 +73,6 @@ impl MongodbBuilder {
         self
     }
 
-    /// Set the value field name of the MongoDB service to read/write.
-    ///
-    /// Default to `value` if not specified.
     pub fn value_field(mut self, value_field: &str) -> Self {
         if !value_field.is_empty() {
             self.config.value_field = Some(value_field.to_string());
@@ -123,6 +94,7 @@ impl Builder for MongodbBuilder {
                 );
             }
         };
+
         let database = match &self.config.database.clone() {
             Some(v) => v.clone(),
             None => {
@@ -130,6 +102,7 @@ impl Builder for MongodbBuilder {
                     .with_context("service", MONGODB_SCHEME));
             }
         };
+
         let collection = match &self.config.collection.clone() {
             Some(v) => v.clone(),
             None => {
@@ -139,14 +112,19 @@ impl Builder for MongodbBuilder {
                 );
             }
         };
-        let key_field = match &self.config.key_field.clone() {
-            Some(v) => v.clone(),
-            None => "key".to_string(),
-        };
-        let value_field = match &self.config.value_field.clone() {
-            Some(v) => v.clone(),
-            None => "value".to_string(),
-        };
+
+        let key_field = self
+            .config
+            .key_field
+            .clone()
+            .unwrap_or_else(|| "key".to_string());
+
+        let value_field = self
+            .config
+            .value_field
+            .clone()
+            .unwrap_or_else(|| "value".to_string());
+
         let root = normalize_root(
             self.config
                 .root
@@ -154,6 +132,7 @@ impl Builder for MongodbBuilder {
                 .unwrap_or_else(|| "/".to_string())
                 .as_str(),
         );
+
         Ok(MongodbBackend::new(MongodbCore {
             connection_string: conn,
             database,
@@ -166,7 +145,6 @@ impl Builder for MongodbBuilder {
     }
 }
 
-/// Backend for Mongodb services.
 #[derive(Clone, Debug)]
 pub struct MongodbBackend {
     core: Arc<MongodbCore>,

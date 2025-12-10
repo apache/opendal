@@ -15,28 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for mongodb service.
+pub const MONGODB_SCHEME: &str = "mongodb";
 
-use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+pub mod backend;
+pub mod config;
+pub mod core;
+pub mod deleter;
+pub mod writer;
 
-pub struct MongodbDeleter {
-    core: Arc<MongodbCore>,
-    root: String,
-}
-
-impl MongodbDeleter {
-    pub fn new(core: Arc<MongodbCore>, root: String) -> Self {
-        Self { core, root }
-    }
-}
-
-impl oio::OneShotDelete for MongodbDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p).await?;
-        Ok(())
-    }
-}
+pub use backend::MongodbBuilder;
+pub use config::MongodbConfig;

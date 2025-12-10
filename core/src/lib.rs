@@ -27,8 +27,22 @@ pub use opendal_core::*;
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;
+    #[cfg(feature = "services-aliyun-drive")]
+    pub use opendal_service_aliyun_drive::*;
+    #[cfg(feature = "services-azblob")]
+    pub use opendal_service_azblob::*;
+    #[cfg(feature = "services-azdls")]
+    pub use opendal_service_azdls::*;
+    #[cfg(feature = "services-azfile")]
+    pub use opendal_service_azfile::*;
+    #[cfg(feature = "services-ghac")]
+    pub use opendal_service_ghac::*;
+    #[cfg(feature = "services-hdfs-native")]
+    pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
+    #[cfg(feature = "services-mysql")]
+    pub use opendal_service_mysql::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
 }
@@ -38,4 +52,18 @@ pub mod layers {
     pub use opendal_core::layers::*;
     #[cfg(feature = "layers-async-backtrace")]
     pub use opendal_layer_async_backtrace::*;
+    #[cfg(feature = "layers-await-tree")]
+    pub use opendal_layer_await_tree::*;
+    #[cfg(feature = "layers-capability-check")]
+    pub use opendal_layer_capability_check::*;
+    #[cfg(feature = "layers-fastmetrics")]
+    pub use opendal_layer_fastmetrics::*;
+    #[cfg(feature = "layers-metrics")]
+    pub use opendal_layer_metrics::*;
+    #[cfg(feature = "layers-otel-metrics")]
+    pub use opendal_layer_otelmetrics::*;
+    #[cfg(feature = "layers-prometheus")]
+    pub use opendal_layer_prometheus::*;
+    #[cfg(feature = "layers-prometheus-client")]
+    pub use opendal_layer_prometheus_client::*;
 }

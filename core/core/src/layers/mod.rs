@@ -47,36 +47,10 @@ mod chaos;
 #[cfg(feature = "layers-chaos")]
 pub use chaos::ChaosLayer;
 
-#[cfg(feature = "layers-metrics")]
-mod metrics;
-#[cfg(feature = "layers-metrics")]
-pub use self::metrics::MetricsLayer;
-
 #[cfg(feature = "layers-mime-guess")]
 mod mime_guess;
 #[cfg(feature = "layers-mime-guess")]
 pub use self::mime_guess::MimeGuessLayer;
-
-#[cfg(feature = "layers-prometheus")]
-mod prometheus;
-#[cfg(feature = "layers-prometheus")]
-pub use self::prometheus::PrometheusLayer;
-#[cfg(feature = "layers-prometheus")]
-pub use self::prometheus::PrometheusLayerBuilder;
-
-#[cfg(feature = "layers-prometheus-client")]
-mod prometheus_client;
-#[cfg(feature = "layers-prometheus-client")]
-pub use self::prometheus_client::PrometheusClientLayer;
-#[cfg(feature = "layers-prometheus-client")]
-pub use self::prometheus_client::PrometheusClientLayerBuilder;
-
-#[cfg(feature = "layers-fastmetrics")]
-mod fastmetrics;
-#[cfg(feature = "layers-fastmetrics")]
-pub use self::fastmetrics::FastmetricsLayer;
-#[cfg(feature = "layers-fastmetrics")]
-pub use self::fastmetrics::FastmetricsLayerBuilder;
 
 mod retry;
 pub use self::retry::RetryInterceptor;
@@ -96,11 +70,6 @@ mod fastrace;
 #[cfg(feature = "layers-fastrace")]
 pub use self::fastrace::FastraceLayer;
 
-#[cfg(feature = "layers-otel-metrics")]
-mod otelmetrics;
-#[cfg(feature = "layers-otel-metrics")]
-pub use self::otelmetrics::OtelMetricsLayer;
-
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]
@@ -111,22 +80,13 @@ mod throttle;
 #[cfg(feature = "layers-throttle")]
 pub use self::throttle::ThrottleLayer;
 
-#[cfg(feature = "layers-await-tree")]
-mod await_tree;
-#[cfg(feature = "layers-await-tree")]
-pub use self::await_tree::AwaitTreeLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 pub use self::dtrace::DtraceLayer;
 
-pub mod observe;
-
 mod correctness_check;
 pub(crate) use correctness_check::CorrectnessCheckLayer;
-mod capability_check;
-pub use capability_check::CapabilityCheckLayer;
 
 mod http_client;
 pub use http_client::HttpClientLayer;

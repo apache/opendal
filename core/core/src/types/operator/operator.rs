@@ -201,55 +201,6 @@ impl Operator {
     pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
         self.accessor.info().update_executor(f);
     }
-
-    /// Get the http client used by current operator.
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version."
-    )]
-    pub fn http_client(&self) -> HttpClient {
-        self.accessor.info().http_client()
-    }
-
-    /// Update http client for the context.
-    ///
-    /// All cloned `Operator` instances share the same internal state, such as
-    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
-    /// the `Operator` too like inject logging and metrics for `HttpClient`.
-    ///
-    /// # Note
-    ///
-    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
-    ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated since v0.54.0. Use [`HttpClientLayer`] instead.
-    ///
-    /// ## Migration Example
-    ///
-    /// Instead of:
-    /// ```ignore
-    /// let operator = Operator::new(service)?;
-    /// operator.update_http_client(|_| custom_client);
-    /// ```
-    ///
-    /// Use:
-    /// ```ignore
-    /// use opendal_core::layers::HttpClientLayer;
-    ///
-    /// let operator = Operator::new(service)?
-    ///     .layer(HttpClientLayer::new(custom_client))
-    ///     .finish();
-    /// ```
-    ///
-    /// [`HttpClientLayer`]: crate::layers::HttpClientLayer
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version"
-    )]
-    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
-        self.accessor.info().update_http_client(f);
-    }
 }
 
 /// # Operator async API.

@@ -470,7 +470,7 @@ impl Part for MixedPart {
         let parts = http_response.split("\r\n\r\n").collect::<Vec<&str>>();
         let headers_content = parts[0];
         let body_content = parts.get(1).unwrap_or(&"");
-        let body_bytes = Buffer::from(body_content.to_string());
+        let body_bytes = Buffer::from(body_content.as_bytes().to_vec());
 
         let status_line = headers_content.lines().next().unwrap_or("");
         let status_code = status_line

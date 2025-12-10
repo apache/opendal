@@ -255,7 +255,6 @@ impl Configurator for S3Config {
     fn into_builder(self) -> Self::Builder {
         S3Builder {
             config: self,
-            http_client: None,
             credential_providers: None,
         }
     }

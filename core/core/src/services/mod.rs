@@ -19,30 +19,10 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-aliyun-drive")]
-mod aliyun_drive;
-#[cfg(feature = "services-aliyun-drive")]
-pub use aliyun_drive::*;
-
 #[cfg(feature = "services-alluxio")]
 mod alluxio;
 #[cfg(feature = "services-alluxio")]
 pub use alluxio::*;
-
-#[cfg(feature = "services-azblob")]
-mod azblob;
-#[cfg(feature = "services-azblob")]
-pub use azblob::*;
-
-#[cfg(feature = "services-azdls")]
-mod azdls;
-#[cfg(feature = "services-azdls")]
-pub use azdls::*;
-
-#[cfg(feature = "services-azfile")]
-mod azfile;
-#[cfg(feature = "services-azfile")]
-pub use azfile::*;
 
 #[cfg(feature = "services-b2")]
 mod b2;
@@ -119,11 +99,6 @@ mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::*;
 
-#[cfg(feature = "services-ghac")]
-mod ghac;
-#[cfg(feature = "services-ghac")]
-pub use ghac::*;
-
 #[cfg(feature = "services-github")]
 mod github;
 #[cfg(feature = "services-github")]
@@ -138,11 +113,6 @@ pub use gridfs::*;
 mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
-
-#[cfg(feature = "services-hdfs-native")]
-mod hdfs_native;
-#[cfg(feature = "services-hdfs-native")]
-pub use hdfs_native::*;
 
 #[cfg(feature = "services-http")]
 mod http;
@@ -198,11 +168,6 @@ pub use self::mongodb::*;
 mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
-
-#[cfg(feature = "services-mysql")]
-mod mysql;
-#[cfg(feature = "services-mysql")]
-pub use self::mysql::*;
 
 #[cfg(feature = "services-obs")]
 mod obs;

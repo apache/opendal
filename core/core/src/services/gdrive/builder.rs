@@ -35,9 +35,6 @@ use crate::*;
 #[doc = include_str!("docs.md")]
 pub struct GdriveBuilder {
     pub(super) config: GdriveConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for GdriveBuilder {
@@ -100,19 +97,6 @@ impl GdriveBuilder {
         self.config.client_secret = Some(client_secret.to_string());
         self
     }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, http_client: HttpClient) -> Self {
-        self.http_client = Some(http_client);
-        self
-    }
 }
 
 impl Builder for GdriveBuilder {
@@ -143,12 +127,6 @@ impl Builder for GdriveBuilder {
 
                 ..Default::default()
             });
-
-        // allow deprecated api here for compatibility
-        #[allow(deprecated)]
-        if let Some(client) = self.http_client {
-            info.update_http_client(|_| client);
-        }
 
         let accessor_info = Arc::new(info);
         let mut signer = GdriveSigner::new(accessor_info.clone());

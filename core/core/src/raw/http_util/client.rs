@@ -91,18 +91,8 @@ impl HttpClient {
     }
 
     /// Get the inner http client.
-    pub(crate) fn into_inner(self) -> HttpFetcher {
+    pub fn into_inner(self) -> HttpFetcher {
         self.fetcher
-    }
-
-    /// Build a new http client in async context.
-    #[deprecated]
-    pub fn build(builder: reqwest::ClientBuilder) -> Result<Self> {
-        let client = builder.build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "http client build failed").set_source(err)
-        })?;
-        let fetcher = Arc::new(client);
-        Ok(Self { fetcher })
     }
 
     /// Send a request and consume response.

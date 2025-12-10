@@ -17,28 +17,58 @@
 
 [workspace]
 default-members = [".", "core"]
-members = [".", "core", "examples/*", "fuzz", "edge/*", "benches/vs_*", "services/*", "layers/*"]
+members = [
+  ".",
+  "core",
+  "examples/*",
+  "fuzz",
+  "edge/*",
+  "benches/vs_*",
+  "services/*",
+  "layers/*",
+]
 
 [workspace.package]
-edition = "2024"
-license = "Apache-2.0"
-rust-version = "1.85"
-version = "0.55.0"
-
-[package]
+authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 categories = ["filesystem"]
 description = "Apache OpenDAL™: One Layer, All Storage."
-exclude = ["/tests/"]
-keywords = ["storage", "fs", "s3", "azblob", "gcs"]
-name = "opendal"
-
-authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
 edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
 version = "0.55.0"
+
+[workspace.dependencies]
+base64 = "0.22"
+bytes = "1.10"
+ctor = "0.6"
+futures = { version = "0.3", default-features = false }
+http = "1.1"
+log = "0.4"
+quick-xml = { version = "0.38", default-features = false }
+rand = "0.8"
+reqsign = { version = "0.16.5", default-features = false }
+serde = { version = "1", default-features = false }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1.48", default-features = false }
+uuid = { version = "1", default-features = false }
+
+[package]
+exclude = ["/tests/"]
+keywords = ["storage", "fs", "s3", "azblob", "gcs"]
+name = "opendal"
+
+authors = { workspace = true }
+categories = { workspace = true }
+description = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
 
 [lints.clippy]
 unused_async = "warn"
@@ -48,30 +78,35 @@ all-features = true
 
 [features]
 blocking = ["opendal-core/blocking"]
-default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+default = [
+  "reqwest-rustls-tls",
+  "executors-tokio",
+  "services-memory",
+]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
-layers-await-tree = ["opendal-core/layers-await-tree"]
+layers-await-tree = ["dep:opendal-layer-await-tree"]
+layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["opendal-core/layers-chaos"]
 layers-dtrace = ["opendal-core/layers-dtrace"]
-layers-fastmetrics = ["opendal-core/layers-fastmetrics"]
+layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["opendal-core/layers-fastrace"]
-layers-metrics = ["opendal-core/layers-metrics"]
+layers-metrics = ["dep:opendal-layer-metrics"]
 layers-mime-guess = ["opendal-core/layers-mime-guess"]
-layers-otel-metrics = ["opendal-core/layers-otel-metrics"]
+layers-otel-metrics = ["dep:opendal-layer-otelmetrics"]
 layers-otel-trace = ["opendal-core/layers-otel-trace"]
-layers-prometheus = ["opendal-core/layers-prometheus"]
-layers-prometheus-client = ["opendal-core/layers-prometheus-client"]
+layers-prometheus = ["dep:opendal-layer-prometheus"]
+layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-throttle = ["opendal-core/layers-throttle"]
 layers-tracing = ["opendal-core/layers-tracing"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
-services-aliyun-drive = ["opendal-core/services-aliyun-drive"]
+services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["opendal-core/services-alluxio"]
-services-azblob = ["opendal-core/services-azblob"]
-services-azdls = ["opendal-core/services-azdls"]
-services-azfile = ["opendal-core/services-azfile"]
+services-azblob = ["dep:opendal-service-azblob"]
+services-azdls = ["dep:opendal-service-azdls"]
+services-azfile = ["dep:opendal-service-azfile"]
 services-b2 = ["opendal-core/services-b2"]
 services-cacache = ["opendal-core/services-cacache"]
 services-cloudflare-kv = ["opendal-core/services-cloudflare-kv"]
@@ -87,11 +122,11 @@ services-fs = ["opendal-core/services-fs"]
 services-ftp = ["opendal-core/services-ftp"]
 services-gcs = ["opendal-core/services-gcs"]
 services-gdrive = ["opendal-core/services-gdrive"]
-services-ghac = ["opendal-core/services-ghac"]
+services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["opendal-core/services-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
 services-hdfs = ["opendal-core/services-hdfs"]
-services-hdfs-native = ["opendal-core/services-hdfs-native"]
+services-hdfs-native = ["dep:opendal-service-hdfs-native"]
 services-http = ["opendal-core/services-http"]
 services-huggingface = ["opendal-core/services-huggingface"]
 services-ipfs = ["opendal-core/services-ipfs"]
@@ -104,7 +139,7 @@ services-mini-moka = ["opendal-core/services-mini-moka"]
 services-moka = ["dep:opendal-service-moka"]
 services-mongodb = ["opendal-core/services-mongodb"]
 services-monoiofs = ["opendal-core/services-monoiofs"]
-services-mysql = ["opendal-core/services-mysql"]
+services-mysql = ["dep:opendal-service-mysql"]
 services-obs = ["opendal-core/services-obs"]
 services-onedrive = ["opendal-core/services-onedrive"]
 services-opfs = ["opendal-core/services-opfs"]
@@ -153,35 +188,50 @@ required-features = ["tests"]
 [dependencies]
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
-opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-observe-metrics-common = { path = "layers/observe-metrics-common", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-otelmetrics = { path = "layers/otelmetrics", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
+opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
+opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
+opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
+opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
+opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
+opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
-bytes = "1.10"
+bytes = { workspace = true }
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
 dotenvy = "0.15"
 fastrace = { version = "0.7", features = ["enable"] }
 fastrace-jaeger = "0.7"
-futures = "0.3"
-http = "1.1"
+futures = { workspace = true, default-features = true }
+http = { workspace = true }
 libtest-mimic = "0.8"
-log = "0.4"
+log = { workspace = true }
 opentelemetry = { version = "0.31.0", default-features = false, features = [
   "trace",
 ] }
 opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
-rand = "0.8"
+rand = { workspace = true }
 reqwest = { version = "0.12.24" }
-sha2 = "0.10"
+sha2 = { workspace = true }
 size = "0.5"
-tokio = { version = "1.48", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
-uuid = { version = "1", features = ["serde", "v4"] }
+uuid = { workspace = true, features = ["serde", "v4"] }

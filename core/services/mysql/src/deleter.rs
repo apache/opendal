@@ -15,21 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for mysql service.
-pub const MYSQL_SCHEME: &str = "mysql";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use super::core::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod writer;
+pub struct MysqlDeleter {
+    core: Arc<MysqlCore>,
+    root: String,
+}
 
-pub use backend::MysqlBuilder as Mysql;
-pub use config::MysqlConfig;
+impl MysqlDeleter {
+    pub fn new(core: Arc<MysqlCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
 
-#[ctor::ctor]
-fn register_mysql_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Mysql>(MYSQL_SCHEME);
+impl oio::OneShotDelete for MysqlDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

@@ -128,7 +128,6 @@ services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
-services-mysql = ["dep:sqlx", "sqlx?/mysql"]
 services-obs = [
   "dep:reqsign",
   "reqsign?/services-huaweicloud",

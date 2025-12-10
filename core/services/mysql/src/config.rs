@@ -61,10 +61,10 @@ impl Debug for MysqlConfig {
     }
 }
 
-impl crate::Configurator for MysqlConfig {
+impl opendal_core::Configurator for MysqlConfig {
     type Builder = MysqlBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
@@ -103,8 +103,8 @@ impl crate::Configurator for MysqlConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_connection_string_table_and_root() {

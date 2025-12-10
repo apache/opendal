@@ -169,11 +169,6 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-mysql")]
-mod mysql;
-#[cfg(feature = "services-mysql")]
-pub use self::mysql::*;
-
 #[cfg(feature = "services-obs")]
 mod obs;
 #[cfg(feature = "services-obs")]

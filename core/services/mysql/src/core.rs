@@ -19,7 +19,7 @@ use mea::once::OnceCell;
 use sqlx::MySqlPool;
 use sqlx::mysql::MySqlConnectOptions;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone, Debug)]
 pub struct MysqlCore {

@@ -26,9 +26,9 @@ use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
 use super::writer::MysqlWriter;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]

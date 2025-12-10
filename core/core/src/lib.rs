@@ -154,6 +154,8 @@
 // Make sure all our public APIs have docs.
 #![deny(missing_docs)]
 
+extern crate self as opendal_core;
+
 // Private module with public types, they will be accessed via `opendal::Xxxx`
 mod types;
 pub use types::*;

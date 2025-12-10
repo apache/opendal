@@ -52,6 +52,7 @@ mod mime_guess;
 #[cfg(feature = "layers-mime-guess")]
 pub use self::mime_guess::MimeGuessLayer;
 
+#[path = "../../../layers/retry/src/lib.rs"]
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;

@@ -23,4 +23,6 @@
 (rule
  (alias runtest)
  (action
-  (run ./test.exe)))
+  (setenv LD_LIBRARY_PATH "%{workspace_root}/target/release:%{env:LD_LIBRARY_PATH=}"
+   (setenv DYLD_LIBRARY_PATH "%{workspace_root}/target/release:%{env:DYLD_LIBRARY_PATH=}"
+    (run ./test.exe)))))

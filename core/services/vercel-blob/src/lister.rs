@@ -19,9 +19,9 @@ use std::sync::Arc;
 
 use super::core::VercelBlobCore;
 use super::core::parse_blob;
+use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;
-use opendal_core::Result;
 
 pub struct VercelBlobLister {
     core: Arc<VercelBlobCore>,

@@ -66,8 +66,8 @@ impl opendal_core::Configurator for VercelBlobConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::OperatorUri;
     use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_root() {

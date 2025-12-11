@@ -18,7 +18,7 @@
 use std::sync::Arc;
 
 use super::core::VercelBlobCore;
-use opendal_core::raw::{oio, OpDelete};
+use opendal_core::raw::{OpDelete, oio};
 use opendal_core::Result;
 
 pub struct VercelBlobDeleter {

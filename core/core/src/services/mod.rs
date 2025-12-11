@@ -194,11 +194,6 @@ mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::*;
 
-#[cfg(feature = "services-postgresql")]
-mod postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::*;
-
 #[cfg(feature = "services-redb")]
 mod redb;
 #[cfg(feature = "services-redb")]
@@ -258,11 +253,6 @@ pub use upyun::*;
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::*;
-
-#[cfg(feature = "services-vercel-blob")]
-mod vercel_blob;
-#[cfg(feature = "services-vercel-blob")]
-pub use vercel_blob::*;
 
 #[cfg(feature = "services-webdav")]
 mod webdav;

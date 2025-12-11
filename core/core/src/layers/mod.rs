@@ -44,28 +44,9 @@ mod chaos;
 #[cfg(feature = "layers-chaos")]
 pub use chaos::ChaosLayer;
 
-#[cfg(feature = "layers-mime-guess")]
-mod mime_guess;
-#[cfg(feature = "layers-mime-guess")]
-pub use self::mime_guess::MimeGuessLayer;
-
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
-
-mod tail_cut;
-pub use self::tail_cut::TailCutLayer;
-pub use self::tail_cut::TailCutLayerBuilder;
-
-#[cfg(feature = "layers-fastrace")]
-mod fastrace;
-#[cfg(feature = "layers-fastrace")]
-pub use self::fastrace::FastraceLayer;
-
-#[cfg(feature = "layers-otel-trace")]
-mod oteltrace;
-#[cfg(feature = "layers-otel-trace")]
-pub use self::oteltrace::OtelTraceLayer;
 
 #[cfg(feature = "layers-throttle")]
 mod throttle;

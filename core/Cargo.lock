@@ -5485,12 +5485,16 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-fastmetrics",
+ "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
  "opendal-layer-metrics",
+ "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
+ "opendal-layer-oteltrace",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-tail-cut",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
@@ -5500,7 +5504,9 @@ dependencies = [
  "opendal-service-hdfs-native",
  "opendal-service-moka",
  "opendal-service-mysql",
+ "opendal-service-postgresql",
  "opendal-service-s3",
+ "opendal-service-vercel-blob",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -5558,8 +5564,6 @@ dependencies = [
  "dotenvy",
  "etcd-client",
  "fastpool",
- "fastrace",
- "fastrace-jaeger",
  "flume",
  "foundationdb",
  "futures",
@@ -5577,7 +5581,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "mime_guess",
  "mini-moka",
  "moka",
  "mongodb",
@@ -5585,9 +5588,6 @@ dependencies = [
  "monoio",
  "openssh",
  "openssh-sftp-client",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
  "ouroboros",
  "percent-encoding",
  "persy",
@@ -5697,6 +5697,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-fastrace"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "fastrace",
+ "fastrace-jaeger",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-layer-immutable-index"
 version = "0.55.0"
 dependencies = [
@@ -5718,6 +5730,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-mime-guess"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "mime_guess",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-layer-observe-metrics-common"
 version = "0.55.0"
 dependencies = [
@@ -5732,6 +5754,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "opentelemetry",
+]
+
+[[package]]
+name = "opendal-layer-oteltrace"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
  "opentelemetry",
 ]
 
@@ -5751,6 +5781,14 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+]
+
+[[package]]
+name = "opendal-layer-tail-cut"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]
@@ -5892,6 +5930,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-postgresql"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "sqlx",
+]
+
+[[package]]
 name = "opendal-service-s3"
 version = "0.55.0"
 dependencies = [
@@ -5914,6 +5963,21 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-vercel-blob"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

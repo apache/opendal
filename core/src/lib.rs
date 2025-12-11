@@ -43,8 +43,12 @@ pub mod services {
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
+    #[cfg(feature = "services-postgresql")]
+    pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
+    #[cfg(feature = "services-vercel-blob")]
+    pub use opendal_service_vercel_blob::*;
 }
 
 /// Re-export of layers.
@@ -58,16 +62,24 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
+    #[cfg(feature = "layers-fastrace")]
+    pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
+    #[cfg(feature = "layers-mime-guess")]
+    pub use opendal_layer_mime_guess::*;
     #[cfg(feature = "layers-otel-metrics")]
     pub use opendal_layer_otelmetrics::*;
+    #[cfg(feature = "layers-otel-trace")]
+    pub use opendal_layer_oteltrace::*;
     #[cfg(feature = "layers-prometheus")]
     pub use opendal_layer_prometheus::*;
     #[cfg(feature = "layers-prometheus-client")]
     pub use opendal_layer_prometheus_client::*;
+    #[cfg(feature = "layers-tail-cut")]
+    pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

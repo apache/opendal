@@ -18,6 +18,8 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
 use opentelemetry::Context as TraceContext;
 use opentelemetry::KeyValue;
 use opentelemetry::global;
@@ -27,26 +29,23 @@ use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 
-use crate::raw::*;
-use crate::*;
-
 /// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
 ///
-/// Examples
+/// # Examples
 ///
 /// ## Basic Setup
 ///
 /// ```no_run
-/// # use opendal_core::layers::OtelTraceLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_oteltrace::OtelTraceLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelTraceLayer)
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 pub struct OtelTraceLayer;

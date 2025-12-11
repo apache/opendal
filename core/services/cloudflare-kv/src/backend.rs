@@ -259,7 +259,7 @@ impl Access for CloudflareKvBackend {
                     let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
                         .map_err(new_json_deserialize_error)?;
 
-                        // If listing returns results, treat as directory
+                    // If listing returns results, treat as directory
                     if let Some(entries) = list_result.result {
                         if !entries.is_empty() {
                             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));

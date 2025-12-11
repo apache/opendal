@@ -5490,6 +5490,7 @@ dependencies = [
  "opendal-layer-otelmetrics",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-tail-cut",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
@@ -5738,6 +5739,14 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+]
+
+[[package]]
+name = "opendal-layer-tail-cut"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

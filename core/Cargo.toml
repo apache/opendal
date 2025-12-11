@@ -99,6 +99,7 @@ layers-otel-metrics = ["dep:opendal-layer-otelmetrics"]
 layers-otel-trace = ["opendal-core/layers-otel-trace"]
 layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
+layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["opendal-core/layers-throttle"]
 layers-tracing = ["opendal-core/layers-tracing"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
@@ -195,6 +196,7 @@ opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional 
 opendal-layer-otelmetrics = { path = "layers/otelmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }

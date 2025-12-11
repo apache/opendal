@@ -18,11 +18,14 @@
 use std::fmt::{self, Debug, Display, Formatter};
 use std::future::IntoFuture;
 use std::io;
+use std::ops::Range;
 use std::sync::Arc;
 
 use crate::utils::*;
 use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
+use bytes::Bytes;
+use futures::stream::BoxStream;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
@@ -428,6 +431,29 @@ impl ObjectStore for OpendalStore {
             meta,
             attributes,
         })
+    }
+
+    /// Return the bytes that are stored at the specified location
+    /// in the given byte range.
+    ///
+    /// See [`GetRange::Bounded`] for more details on how `range` gets interpreted
+    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
+        // For bounded ranges, we can read directly without calling stat()
+        // This avoids the unnecessary metadata fetch in get_opts
+        let raw_location = percent_decode_path(location.as_ref());
+        let reader = self
+            .inner
+            .reader_with(&raw_location)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        reader
+            .read(range.start..range.end)
+            .into_send()
+            .await
+            .map(|buf| buf.to_bytes())
+            .map_err(|err| format_object_store_error(err, location.as_ref()))
     }
 
     async fn delete(&self, location: &Path) -> object_store::Result<()> {

@@ -34,7 +34,15 @@
   (with-stdout-to
    c_library_flags.sexp
    (run sh -c
-    "if [ \"$(uname)\" = \"Darwin\" ]; then echo '(-lpthread -lc -lm -framework CoreFoundation)'; else echo '(-lpthread -lc -lm)'; fi"))))
+    "if [ \"$(uname)\" = \"Darwin\" ]; then \
+        echo '(-lpthread -lc -lm -framework CoreFoundation \
+               -Wl,-rpath,@loader_path/../../target/release \
+               -Wl,-rpath,@loader_path)'; \
+      else \
+        echo '(-lpthread -lc -lm \
+               -Wl,-rpath,\\$$ORIGIN/../../target/release \
+               -Wl,-rpath,\\$$ORIGIN)'; \
+      fi"))))
 
 (library
  (name opendal_core)

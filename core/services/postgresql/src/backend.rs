@@ -25,8 +25,8 @@ use super::config::PostgresqlConfig;
 use super::core::*;
 use super::deleter::PostgresqlDeleter;
 use super::writer::PostgresqlWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [PostgreSQL](https://www.postgresql.org/) services support.
 #[doc = include_str!("docs.md")]

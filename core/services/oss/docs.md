@@ -38,8 +38,8 @@ Refer to [`OssBuilder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::Oss;
-use opendal_core::Operator;
+use opendal::services::Oss;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

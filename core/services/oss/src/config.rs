@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use opendal_core::OperatorUri;
+
 use super::backend::OssBuilder;
 
 /// Config for Aliyun Object Storage Service (OSS) support.
@@ -112,10 +114,10 @@ impl Debug for OssConfig {
     }
 }
 
-impl crate::Configurator for OssConfig {
+impl opendal_core::Configurator for OssConfig {
     type Builder = OssBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -137,8 +139,8 @@ impl crate::Configurator for OssConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

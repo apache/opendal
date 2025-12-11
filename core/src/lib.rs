@@ -43,6 +43,8 @@ pub mod services {
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
+    #[cfg(feature = "services-oss")]
+    pub use opendal_service_oss::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]

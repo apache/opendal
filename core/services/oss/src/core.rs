@@ -40,9 +40,9 @@ use reqsign::AliyunOssSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::raw::*;
-use crate::services::oss::core::constants::X_OSS_FORBID_OVERWRITE;
-use crate::*;
+use opendal_core::raw::*;
+use crate::core::constants::X_OSS_FORBID_OVERWRITE;
+use opendal_core::*;
 
 pub mod constants {
     pub const X_OSS_SERVER_SIDE_ENCRYPTION: &str = "x-oss-server-side-encryption";

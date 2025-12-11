@@ -144,7 +144,7 @@ services-mysql = ["dep:opendal-service-mysql"]
 services-obs = ["opendal-core/services-obs"]
 services-onedrive = ["opendal-core/services-onedrive"]
 services-opfs = ["opendal-core/services-opfs"]
-services-oss = ["opendal-core/services-oss"]
+services-oss = ["dep:opendal-service-oss"]
 services-pcloud = ["opendal-core/services-pcloud"]
 services-persy = ["opendal-core/services-persy"]
 services-postgresql = ["dep:opendal-service-postgresql"]
@@ -210,6 +210,7 @@ opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = 
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
+opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }

@@ -213,17 +213,36 @@ impl oio::List for ImmutableDir {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::collections::HashSet;
+    use std::sync::Arc;
 
     use anyhow::Result;
     use futures::TryStreamExt;
     use log::debug;
     use opendal_core::EntryMode;
     use opendal_core::Operator;
-    use opendal_core::layers::LoggingLayer;
-    use opendal_core::services::HttpConfig;
+    use opendal_core::raw::*;
 
     use super::*;
+
+    #[derive(Debug)]
+    struct MockService;
+
+    impl Access for MockService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let info = AccessorInfo::default();
+            info.set_scheme("mock");
+            info.into()
+        }
+    }
+
+    fn build_operator(layer: ImmutableIndexLayer) -> Operator {
+        Operator::from_inner(Arc::new(MockService)).layer(layer)
+    }
 
     #[tokio::test]
     async fn test_list() -> Result<()> {
@@ -234,15 +253,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = HttpConfig::from_iter({
-            let mut map = HashMap::new();
-            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-            map
-        })
-        .and_then(Operator::from_config)?
-        .layer(LoggingLayer::default())
-        .layer(iil)
-        .finish();
+        let op = build_operator(iil);
 
         let mut map = HashMap::new();
         let mut set = HashSet::new();
@@ -272,15 +283,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = HttpConfig::from_iter({
-            let mut map = HashMap::new();
-            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-            map
-        })
-        .and_then(Operator::from_config)?
-        .layer(LoggingLayer::default())
-        .layer(iil)
-        .finish();
+        let op = build_operator(iil);
 
         let mut ds = op.lister_with("/").recursive(true).await?;
         let mut set = HashSet::new();
@@ -316,15 +319,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = HttpConfig::from_iter({
-            let mut map = HashMap::new();
-            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-            map
-        })
-        .and_then(Operator::from_config)?
-        .layer(LoggingLayer::default())
-        .layer(iil)
-        .finish();
+        let op = build_operator(iil);
 
         //  List /
         let mut map = HashMap::new();
@@ -374,15 +369,7 @@ mod tests {
             iil.insert(i.to_string())
         }
 
-        let op = HttpConfig::from_iter({
-            let mut map = HashMap::new();
-            map.insert("endpoint".to_string(), "https://xuanwo.io".to_string());
-            map
-        })
-        .and_then(Operator::from_config)?
-        .layer(LoggingLayer::default())
-        .layer(iil)
-        .finish();
+        let op = build_operator(iil);
 
         let mut ds = op.lister_with("/").recursive(true).await?;
 

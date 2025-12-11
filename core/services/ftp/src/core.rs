@@ -18,15 +18,15 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fastpool::{bounded, ManageObject, ObjectStatus};
+use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
-use suppaftp::rustls::ClientConfig;
-use suppaftp::types::FileType;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
+use suppaftp::rustls::ClientConfig;
+use suppaftp::types::FileType;
 
 use super::err::format_ftp_error;
 use opendal_core::raw::*;

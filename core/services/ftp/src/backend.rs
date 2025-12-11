@@ -21,11 +21,12 @@ use std::sync::Arc;
 
 use http::Uri;
 use log::debug;
-use suppaftp::list::File;
-use suppaftp::types::Response;
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::list::File;
+use suppaftp::types::Response;
 
+use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
 use super::core::Manager;
@@ -34,7 +35,6 @@ use super::err::format_ftp_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
-use super::FTP_SCHEME;
 use opendal_core::raw::*;
 use opendal_core::*;
 

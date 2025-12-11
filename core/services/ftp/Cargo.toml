@@ -36,11 +36,18 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 bytes = { workspace = true }
 ctor = { workspace = true }
 fastpool = "1.0.2"
-futures = { workspace = true, default-features = false, features = ["std", "async-await"] }
+futures = { workspace = true, default-features = false, features = [
+  "std",
+  "async-await",
+] }
 futures-rustls = "0.26.0"
 http = { workspace = true }
 log = { workspace = true }
 rustls-native-certs = "0.8"
 serde = { workspace = true, features = ["derive"] }
-suppaftp = { version = "6.3.0", default-features = false, features = ["async-secure", "rustls", "async-rustls"] }
+suppaftp = { version = "6.3.0", default-features = false, features = [
+  "async-secure",
+  "rustls",
+  "async-rustls",
+] }
 tokio = { workspace = true, features = ["macros", "rt", "time"] }

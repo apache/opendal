@@ -20,10 +20,10 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::FtpBuilder;
 use super::FTP_SCHEME;
-use opendal_core::OperatorUri;
+use super::backend::FtpBuilder;
 use opendal_core::Configurator;
+use opendal_core::OperatorUri;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

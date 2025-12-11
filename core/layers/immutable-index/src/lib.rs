@@ -19,8 +19,8 @@ use std::collections::HashSet;
 use std::fmt::Debug;
 use std::vec::IntoIter;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add an immutable in-memory index for underlying storage services.
 ///
@@ -30,12 +30,12 @@ use crate::*;
 ///
 /// ```rust, no_run
 /// # use std::collections::HashMap;
-///
-/// # use opendal_core::layers::ImmutableIndexLayer;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_immutable_index::ImmutableIndexLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let mut iil = ImmutableIndexLayer::default();
 ///
@@ -46,7 +46,7 @@ use crate::*;
 /// let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?
 ///     .layer(iil)
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Default, Debug, Clone)]
@@ -211,7 +211,6 @@ impl oio::List for ImmutableDir {
 }
 
 #[cfg(test)]
-#[cfg(feature = "services-http")]
 mod tests {
     use std::collections::HashMap;
     use std::collections::HashSet;
@@ -219,12 +218,12 @@ mod tests {
     use anyhow::Result;
     use futures::TryStreamExt;
     use log::debug;
+    use opendal_core::EntryMode;
+    use opendal_core::Operator;
+    use opendal_core::layers::LoggingLayer;
+    use opendal_core::services::HttpConfig;
 
     use super::*;
-    use crate::EntryMode;
-    use crate::Operator;
-    use crate::layers::LoggingLayer;
-    use crate::services::HttpConfig;
 
     #[tokio::test]
     async fn test_list() -> Result<()> {

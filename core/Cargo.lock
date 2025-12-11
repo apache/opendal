@@ -5485,6 +5485,7 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-fastmetrics",
+ "opendal-layer-immutable-index",
  "opendal-layer-metrics",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
@@ -5693,6 +5694,18 @@ dependencies = [
  "fastmetrics",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+]
+
+[[package]]
+name = "opendal-layer-immutable-index"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "log",
+ "opendal-core",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

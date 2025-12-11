@@ -16,20 +16,35 @@
 ; under the License.
 
 (rule
- (targets libopendal_core.a dllopendal_core.so)
+ (targets dllopendal_core.so)
  (deps
   (glob_files *.rs))
  (action
   (progn
-   (run sh -c "cd %{project_root}/../.. && cargo build --release")
+   ;; Build Rust cdylib; staticlib exists but is intentionally unused.
+   (run sh -c "cd ../../.. && cargo build --release")
+   ;; Normalize the Rust-produced shared library name for OCaml dynlink.
    (run sh -c
-     "mv %{project_root}/../../target/release/libopendal_ocaml.so ./dllopendal_core.so 2> /dev/null || mv %{project_root}/../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so")
-   (run mv %{project_root}/../../target/release/libopendal_ocaml.a
-     libopendal_core.a))))
+     "cd ../../.. && cp target/release/libopendal_ocaml.so _build/default/src/dllopendal_core.so 2> /dev/null || cp target/release/libopendal_ocaml.dylib _build/default/src/dllopendal_core.so"))))
+
+(rule
+ (targets c_library_flags.sexp)
+ (deps dllopendal_core.so)
+ (action
+  (with-stdout-to
+   c_library_flags.sexp
+   (run sh -c
+    "if [ \"$(uname)\" = \"Darwin\" ]; then echo '(-lpthread -lc -lm -framework CoreFoundation)'; else echo '(-lpthread -lc -lm)'; fi"))))
 
 (library
  (name opendal_core)
  (public_name opendal.opendal_core)
- (foreign_archives opendal_core)
- (c_library_flags
-  (-lpthread -lc -lm)))
+  (c_library_flags
+   (:include c_library_flags.sexp)
+   -L../../target/release
+   -lopendal_ocaml
+   -Wl,-rpath,../../target/release))
+
+(install
+ (section lib)
+ (files dllopendal_core.so))

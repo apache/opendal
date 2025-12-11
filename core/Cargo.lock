@@ -5490,6 +5490,7 @@ dependencies = [
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
+ "opendal-layer-oteltrace",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
  "opendal-layer-tail-cut",
@@ -5741,6 +5742,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "opentelemetry",
+]
+
+[[package]]
+name = "opendal-layer-oteltrace"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
  "opentelemetry",
 ]
 

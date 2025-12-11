@@ -26,8 +26,8 @@ use tracing::Level;
 use tracing::Span;
 use tracing::span;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add [tracing](https://docs.rs/tracing/) for every operation.
 ///
@@ -36,7 +36,7 @@ use crate::*;
 /// ## Basic Setup
 ///
 /// ```no_run
-/// # use opendal_core::layers::TracingLayer;
+/// # use opendal_layer_tracing::TracingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -53,7 +53,7 @@ use crate::*;
 ///
 /// ```no_run
 /// # use anyhow::Result;
-/// # use opendal_core::layers::TracingLayer;
+/// # use opendal_layer_tracing::TracingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opentelemetry::KeyValue;

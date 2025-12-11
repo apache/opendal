@@ -5491,6 +5491,7 @@ dependencies = [
  "opendal-layer-otelmetrics",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
@@ -5612,7 +5613,6 @@ dependencies = [
  "surrealdb",
  "tikv-client",
  "tokio",
- "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
@@ -5751,6 +5751,16 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+]
+
+[[package]]
+name = "opendal-layer-tracing"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "http 1.4.0",
+ "opendal-core",
+ "tracing",
 ]
 
 [[package]]

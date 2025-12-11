@@ -92,16 +92,16 @@ layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["opendal-core/layers-chaos"]
 layers-dtrace = ["opendal-core/layers-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
-layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-fastrace = ["opendal-core/layers-fastrace"]
 layers-metrics = ["dep:opendal-layer-metrics"]
 layers-mime-guess = ["opendal-core/layers-mime-guess"]
+layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-otel-metrics = ["dep:opendal-layer-otelmetrics"]
 layers-otel-trace = ["opendal-core/layers-otel-trace"]
 layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-throttle = ["opendal-core/layers-throttle"]
-layers-tracing = ["opendal-core/layers-tracing"]
+layers-tracing = ["dep:opendal-layer-tracing"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["opendal-core/services-alluxio"]
@@ -191,13 +191,14 @@ opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
-opendal-layer-observe-metrics-common = { path = "layers/observe-metrics-common", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-observe-metrics-common = { path = "layers/observe-metrics-common", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-otelmetrics = { path = "layers/otelmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
-opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
-opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-tracing = { path = "layers/tracing", version = "0.55.0", optional = true, default-features = false }
 opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }

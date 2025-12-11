@@ -5487,10 +5487,12 @@ dependencies = [
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-metrics",
+ "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-tail-cut",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
@@ -5575,7 +5577,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "mime_guess",
  "mini-moka",
  "moka",
  "mongodb",
@@ -5716,6 +5717,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-mime-guess"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "mime_guess",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-layer-observe-metrics-common"
 version = "0.55.0"
 dependencies = [
@@ -5749,6 +5760,14 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+]
+
+[[package]]
+name = "opendal-layer-tail-cut"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

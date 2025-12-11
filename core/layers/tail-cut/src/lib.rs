@@ -20,8 +20,8 @@ use std::fmt::Formatter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Builder for TailCutLayer.
 ///
@@ -31,12 +31,13 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// use opendal_core::layers::TailCutLayer;
-/// use std::time::Duration;
+/// # use std::time::Duration;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_tail_cut::TailCutLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let layer = TailCutLayer::builder()
 ///     .percentile(95)
@@ -174,12 +175,13 @@ impl TailCutLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use opendal_core::layers::TailCutLayer;
-    /// use std::time::Duration;
+    /// # use std::time::Duration;
+    /// #
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
+    /// # use opendal_layer_tail_cut::TailCutLayer;
+    /// #
     /// # fn main() -> Result<()> {
     /// let layer = TailCutLayer::builder()
     ///     .percentile(95)
@@ -235,12 +237,13 @@ struct TailCutConfig {
 /// # Examples
 ///
 /// ```no_run
-/// use opendal_core::layers::TailCutLayer;
-/// use std::time::Duration;
+/// # use std::time::Duration;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_tail_cut::TailCutLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let layer = TailCutLayer::builder()
 ///     .percentile(95)

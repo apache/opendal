@@ -62,12 +62,16 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
+    #[cfg(feature = "layers-mime-guess")]
+    pub use opendal_layer_mime_guess::*;
     #[cfg(feature = "layers-otel-metrics")]
     pub use opendal_layer_otelmetrics::*;
     #[cfg(feature = "layers-prometheus")]
     pub use opendal_layer_prometheus::*;
     #[cfg(feature = "layers-prometheus-client")]
     pub use opendal_layer_prometheus_client::*;
+    #[cfg(feature = "layers-tail-cut")]
+    pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

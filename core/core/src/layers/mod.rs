@@ -60,11 +60,6 @@ mod tail_cut;
 pub use self::tail_cut::TailCutLayer;
 pub use self::tail_cut::TailCutLayerBuilder;
 
-#[cfg(feature = "layers-tracing")]
-mod tracing;
-#[cfg(feature = "layers-tracing")]
-pub use self::tracing::TracingLayer;
-
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]

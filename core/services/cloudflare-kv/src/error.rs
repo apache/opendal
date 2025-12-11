@@ -18,12 +18,12 @@
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde_json::de;
 
 use super::model::CfKvError;
 use super::model::CfKvResponse;
-use crate::raw::*;
-use crate::*;
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {

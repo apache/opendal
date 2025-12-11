@@ -5499,6 +5499,7 @@ dependencies = [
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
+ "opendal-service-cloudflare-kv",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-moka",
@@ -5861,6 +5862,19 @@ dependencies = [
  "http 1.4.0",
  "opendal-core",
  "reqsign",
+]
+
+[[package]]
+name = "opendal-service-cloudflare-kv"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for cloudflare-kv service.
-pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Cloudflare KV service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -32,7 +31,10 @@ mod writer;
 pub use backend::CloudflareKvBuilder as CloudflareKv;
 pub use config::CloudflareKvConfig;
 
+/// Default scheme for cloudflare-kv service.
+pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
+
 #[ctor::ctor]
-fn register_cloudflarekv_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<CloudflareKv>(CLOUDFLARE_KV_SCHEME);
+fn register_cloudflare_kv_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<CloudflareKv>(CLOUDFLARE_KV_SCHEME);
 }

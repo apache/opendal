@@ -20,6 +20,8 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::CLOUDFLARE_KV_SCHEME;
 use super::config::CloudflareKvConfig;
@@ -29,8 +31,6 @@ use super::error::parse_error;
 use super::lister::CloudflareKvLister;
 use super::model::*;
 use super::writer::CloudflareWriter;
-use crate::raw::*;
-use crate::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]

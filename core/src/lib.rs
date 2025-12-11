@@ -68,4 +68,6 @@ pub mod layers {
     pub use opendal_layer_prometheus_client::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
+    #[cfg(feature = "layers-tracing")]
+    pub use opendal_layer_tracing::*;
 }

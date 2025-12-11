@@ -56,11 +56,6 @@ mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
 
-#[cfg(feature = "layers-tracing")]
-mod tracing;
-#[cfg(feature = "layers-tracing")]
-pub use self::tracing::TracingLayer;
-
 #[cfg(feature = "layers-fastrace")]
 mod fastrace;
 #[cfg(feature = "layers-fastrace")]

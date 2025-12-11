@@ -24,9 +24,9 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::MultipartPart;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio::MultipartPart;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type ObsWriters = TwoWays<oio::MultipartWriter<ObsWriter>, oio::AppendWriter<ObsWriter>>;
 

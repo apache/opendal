@@ -169,11 +169,6 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::*;
-
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
 #[cfg(feature = "services-onedrive")]

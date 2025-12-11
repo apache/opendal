@@ -58,6 +58,8 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
+    #[cfg(feature = "layers-fastrace")]
+    pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]

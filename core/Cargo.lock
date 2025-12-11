@@ -5921,6 +5921,7 @@ dependencies = [
 name = "opendal-service-oss"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",

@@ -43,6 +43,7 @@ reqwest = { version = "0.12.24", features = ["stream"], default-features = false
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+anyhow = "1"
 pretty_assertions = "1"
 serde_json = { workspace = true }
 tokio = { workspace = true, features = [

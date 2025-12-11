@@ -28,8 +28,8 @@ use super::lister::FsLister;
 use super::reader::FsReader;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// POSIX file system support.
 #[doc = include_str!("docs.md")]

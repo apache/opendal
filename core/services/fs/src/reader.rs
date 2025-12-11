@@ -21,8 +21,8 @@ use tokio::io::AsyncReadExt;
 use tokio::io::ReadBuf;
 
 use super::core::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FsReader<F> {
     core: Arc<FsCore>,

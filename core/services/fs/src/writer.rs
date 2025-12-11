@@ -23,9 +23,9 @@ use std::sync::Arc;
 use bytes::Buf;
 use tokio::io::AsyncWriteExt;
 
-use crate::raw::*;
-use crate::services::fs::core::FsCore;
-use crate::*;
+use super::core::FsCore;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type FsWriters = TwoWays<FsWriter, oio::PositionWriter<FsWriter>>;
 

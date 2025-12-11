@@ -5502,6 +5502,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
+ "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
  "opendal-service-ghac",
@@ -5902,6 +5903,18 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-fs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

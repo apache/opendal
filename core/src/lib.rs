@@ -24,6 +24,34 @@
 
 pub use opendal_core::*;
 
+// Force linking of external service crates to ensure their #[ctor] registration functions run.
+// Without these extern crate declarations, the linker may optimize away the crates since they
+// are only re-exported via `pub use`, causing scheme registration to fail.
+#[cfg(feature = "services-aliyun-drive")]
+extern crate opendal_service_aliyun_drive;
+#[cfg(feature = "services-azblob")]
+extern crate opendal_service_azblob;
+#[cfg(feature = "services-azdls")]
+extern crate opendal_service_azdls;
+#[cfg(feature = "services-azfile")]
+extern crate opendal_service_azfile;
+#[cfg(feature = "services-fs")]
+extern crate opendal_service_fs;
+#[cfg(feature = "services-ghac")]
+extern crate opendal_service_ghac;
+#[cfg(feature = "services-hdfs-native")]
+extern crate opendal_service_hdfs_native;
+#[cfg(feature = "services-moka")]
+extern crate opendal_service_moka;
+#[cfg(feature = "services-mysql")]
+extern crate opendal_service_mysql;
+#[cfg(feature = "services-postgresql")]
+extern crate opendal_service_postgresql;
+#[cfg(feature = "services-s3")]
+extern crate opendal_service_s3;
+#[cfg(feature = "services-vercel-blob")]
+extern crate opendal_service_vercel_blob;
+
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;
@@ -39,6 +67,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-fs")]
+    pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
     pub use opendal_service_ftp::*;
     #[cfg(feature = "services-gcs")]

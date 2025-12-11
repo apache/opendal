@@ -321,11 +321,6 @@ criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
 dotenvy = "0.15"
 libtest-mimic = "0.8"
-opentelemetry = { version = "0.31.0", default-features = false, features = [
-  "trace",
-] }
-opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
-opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 pretty_assertions = "1"
 rand = { workspace = true }
 sha2 = { workspace = true }

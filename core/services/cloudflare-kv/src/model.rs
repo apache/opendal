@@ -51,10 +51,12 @@ pub struct CfKvDeleteResponse {
 pub struct CfKvListKey {
     pub name: String,
     pub metadata: CfKvMetadata,
+    // expiration: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CfKvListResultInfo {
+    // pub count: Option<usize>,
     pub cursor: Option<String>,
 }
 

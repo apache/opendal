@@ -119,6 +119,7 @@ impl Builder for CloudflareKvBuilder {
             ));
         };
 
+        // Validate default TTL is at least 60 seconds if specified
         if let Some(ttl) = self.config.default_ttl {
             if ttl < Duration::from_secs(60) {
                 return Err(Error::new(
@@ -206,20 +207,24 @@ impl Access for CloudflareKvBackend {
             return Ok(RpCreateDir::default());
         }
 
+        // Split path into segments and create directories for each level
         let segments: Vec<&str> = path
             .trim_start_matches('/')
             .trim_end_matches('/')
             .split('/')
             .collect();
 
+        // Create each directory level
         let mut current_path = String::from("/");
         for segment in segments {
+            // Build the current directory path
             if !current_path.ends_with('/') {
                 current_path.push('/');
             }
             current_path.push_str(segment);
             current_path.push('/');
 
+            // Create metadata for current directory
             let cf_kv_metadata = CfKvMetadata {
                 etag: build_tmp_path_of(&current_path),
                 last_modified: Timestamp::now().to_string(),
@@ -227,6 +232,7 @@ impl Access for CloudflareKvBackend {
                 is_dir: true,
             };
 
+            // Set the directory entry
             self.core
                 .set(&current_path, Buffer::new(), cf_kv_metadata)
                 .await?;
@@ -241,8 +247,11 @@ impl Access for CloudflareKvBackend {
 
         let resp = self.core.metadata(new_path).await?;
 
+        // Handle non-OK response
         if resp.status() != StatusCode::OK {
+            // Special handling for potential directory paths
             if path.ends_with('/') && resp.status() == StatusCode::NOT_FOUND {
+                // Try listing the path to check if it's a directory
                 let list_resp = self.core.list(&path, None, None).await?;
 
                 if list_resp.status() == StatusCode::OK {
@@ -250,12 +259,14 @@ impl Access for CloudflareKvBackend {
                     let list_result: CfKvListResponse = serde_json::from_reader(list_body.reader())
                         .map_err(new_json_deserialize_error)?;
 
+                        // If listing returns results, treat as directory
                     if let Some(entries) = list_result.result {
                         if !entries.is_empty() {
                             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
                         }
                     }
 
+                    // Empty or no results means not found
                     return Err(Error::new(
                         ErrorKind::NotFound,
                         "key not found in CloudFlare KV",
@@ -263,6 +274,7 @@ impl Access for CloudflareKvBackend {
                 }
             }
 
+            // For all other error cases, parse the error response
             return Err(parse_error(resp));
         }
 
@@ -296,12 +308,14 @@ impl Access for CloudflareKvBackend {
             }
         };
 
+        // Check if_match condition
         if let Some(if_match) = &args.if_match() {
             if if_match != &metadata.etag {
                 return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
             }
         }
 
+        // Check if_none_match condition
         if let Some(if_none_match) = &args.if_none_match() {
             if if_none_match == &metadata.etag {
                 return Err(Error::new(
@@ -311,11 +325,13 @@ impl Access for CloudflareKvBackend {
             }
         }
 
+        // Parse since time once for both time-based conditions
         let last_modified = metadata
             .last_modified
             .parse::<Timestamp>()
             .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
+        // Check modified_since condition
         if let Some(modified_since) = &args.if_modified_since() {
             if !last_modified.gt(modified_since) {
                 return Err(Error::new(
@@ -325,6 +341,7 @@ impl Access for CloudflareKvBackend {
             }
         }
 
+        // Check unmodified_since condition
         if let Some(unmodified_since) = &args.if_unmodified_since() {
             if !last_modified.le(unmodified_since) {
                 return Err(Error::new(
@@ -382,12 +399,14 @@ impl Access for CloudflareKvBackend {
 
             let metadata = cf_response.result.unwrap();
 
+            // Check if_match condition
             if let Some(if_match) = &args.if_match() {
                 if if_match != &metadata.etag {
                     return Err(Error::new(ErrorKind::ConditionNotMatch, "etag mismatch"));
                 }
             }
 
+            // Check if_none_match condition
             if let Some(if_none_match) = &args.if_none_match() {
                 if if_none_match == &metadata.etag {
                     return Err(Error::new(
@@ -397,11 +416,13 @@ impl Access for CloudflareKvBackend {
                 }
             }
 
+            // Parse since time once for both time-based conditions
             let last_modified = metadata
                 .last_modified
                 .parse::<Timestamp>()
                 .map_err(|_| Error::new(ErrorKind::Unsupported, "invalid since format"))?;
 
+            // Check modified_since condition
             if let Some(modified_since) = &args.if_modified_since() {
                 if !last_modified.gt(modified_since) {
                     return Err(Error::new(
@@ -411,6 +432,7 @@ impl Access for CloudflareKvBackend {
                 }
             }
 
+            // Check unmodified_since condition
             if let Some(unmodified_since) = &args.if_unmodified_since() {
                 if !last_modified.le(unmodified_since) {
                     return Err(Error::new(
@@ -459,6 +481,7 @@ impl Access for CloudflareKvBackend {
 
         let limit = match args.limit() {
             Some(limit) => {
+                // The list limit of cloudflare_kv is limited to 10..1000.
                 if !(10..=1000).contains(&limit) {
                     1000
                 } else {

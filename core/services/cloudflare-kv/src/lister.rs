@@ -59,6 +59,7 @@ impl CloudflareKvLister {
 
         let mut name = name.replace(root.trim_start_matches('/'), "");
 
+        // If it is the root directory, it needs to be processed as /
         if name.is_empty() {
             name = "/".to_string();
         }
@@ -148,6 +149,7 @@ impl oio::PageList for CloudflareKvLister {
                     name += "/";
                 }
 
+                // For non-recursive listing, filter out entries not in the current directory.
                 if !self.recursive {
                     if let Some(relative_path) = name.strip_prefix(&self.path) {
                         if relative_path.trim_end_matches('/').contains('/') {

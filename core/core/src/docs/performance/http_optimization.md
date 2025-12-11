@@ -106,10 +106,10 @@ let client = reqwest::ClientBuilder::new()
 let op = op.layer(HttpClientLayer::new(HttpClient::with(client)));
 ```
 
-It's also recommended to use opendal's [`TimeoutLayer`][crate::layers::TimeoutLayer] to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.
+It's also recommended to use opendal's [`TimeoutLayer`] to prevent slow requests hangs forever. This layer will automatically cancel the request if it takes too long to complete.
 
 ```rust
-let op = op.layer(TimeoutLayer::new());
+let op = op.layer(opendal::layers::TimeoutLayer::new());
 ```
 
 ## Connection Pool

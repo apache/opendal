@@ -39,9 +39,6 @@ mod logging;
 pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
 
-mod timeout;
-pub use timeout::TimeoutLayer;
-
 #[cfg(feature = "layers-chaos")]
 mod chaos;
 #[cfg(feature = "layers-chaos")]

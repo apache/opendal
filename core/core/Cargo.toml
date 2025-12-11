@@ -72,8 +72,6 @@ executors-tokio = ["tokio/rt"]
 
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
-# Enable layers mime_guess support
-layers-mime-guess = ["dep:mime_guess"]
 # Enable layers fastrace support.
 layers-fastrace = ["dep:fastrace"]
 # Enable layers tracing support.
@@ -313,8 +311,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
 # Layers
 # for layers-throttle
 governor = { version = "0.10.1", optional = true, features = ["std"] }
-# for layers-mime-guess
-mime_guess = { version = "2.0.5", optional = true }
 # for layers-fastrace
 fastrace = { version = "0.7.14", optional = true }
 # for layers-opentelemetry

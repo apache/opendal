@@ -5486,6 +5486,7 @@ dependencies = [
  "opendal-layer-capability-check",
  "opendal-layer-fastmetrics",
  "opendal-layer-metrics",
+ "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
  "opendal-layer-prometheus",
@@ -5575,7 +5576,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "mime_guess",
  "mini-moka",
  "moka",
  "mongodb",
@@ -5702,6 +5702,16 @@ dependencies = [
  "metrics",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+]
+
+[[package]]
+name = "opendal-layer-mime-guess"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "mime_guess",
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

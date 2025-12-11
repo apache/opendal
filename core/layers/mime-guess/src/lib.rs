@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Result;
-use crate::raw::*;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 /// A layer that can automatically set `Content-Type` based on the file extension in the path.
 ///
@@ -32,7 +32,7 @@ use crate::raw::*;
 /// provide `content_type` information, and `mime_guess` will not be called, but will use
 /// the `content_type` provided by the backend.
 ///
-/// But if you use the [Fs](../services/struct.Fs.html) backend to call `stat`, the backend will
+/// But if you use the [Fs](https://docs.rs/opendal/latest/opendal/services/struct.Fs.html) backend to call `stat`, the backend will
 /// not provide `content_type` information, and our `mime_guess` will be called to provide you with
 /// appropriate `content_type` information.
 ///
@@ -45,16 +45,16 @@ use crate::raw::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::MimeGuessLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_mime_guess::MimeGuessLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(MimeGuessLayer::default())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Debug, Clone, Default)]
@@ -142,11 +142,11 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;
+    use opendal_core::Metadata;
+    use opendal_core::Operator;
+    use opendal_core::services::Memory;
 
     use super::*;
-    use crate::Metadata;
-    use crate::Operator;
-    use crate::services::Memory;
 
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";

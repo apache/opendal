@@ -60,6 +60,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
+    #[cfg(feature = "layers-mime-guess")]
+    pub use opendal_layer_mime_guess::*;
     #[cfg(feature = "layers-otel-metrics")]
     pub use opendal_layer_otelmetrics::*;
     #[cfg(feature = "layers-prometheus")]

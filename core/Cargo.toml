@@ -96,7 +96,7 @@ layers-fastrace = ["dep:opendal-layer-fastrace"]
 layers-metrics = ["dep:opendal-layer-metrics"]
 layers-mime-guess = ["dep:opendal-layer-mime-guess"]
 layers-otel-metrics = ["dep:opendal-layer-otelmetrics"]
-layers-otel-trace = ["opendal-core/layers-otel-trace"]
+layers-otel-trace = ["dep:opendal-layer-oteltrace"]
 layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
@@ -197,6 +197,7 @@ opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional 
 opendal-layer-mime-guess = { path = "layers/mime-guess", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-observe-metrics-common = { path = "layers/observe-metrics-common", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-otelmetrics = { path = "layers/otelmetrics", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-oteltrace = { path = "layers/oteltrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.55.0", optional = true, default-features = false }

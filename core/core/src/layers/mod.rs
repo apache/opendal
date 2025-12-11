@@ -51,11 +51,6 @@ mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
 
-#[cfg(feature = "layers-otel-trace")]
-mod oteltrace;
-#[cfg(feature = "layers-otel-trace")]
-pub use self::oteltrace::OtelTraceLayer;
-
 #[cfg(feature = "layers-throttle")]
 mod throttle;
 #[cfg(feature = "layers-throttle")]

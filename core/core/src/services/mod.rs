@@ -34,11 +34,6 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
 
-#[cfg(feature = "services-cloudflare-kv")]
-mod cloudflare_kv;
-#[cfg(feature = "services-cloudflare-kv")]
-pub use self::cloudflare_kv::*;
-
 #[cfg(feature = "services-compfs")]
 mod compfs;
 #[cfg(feature = "services-compfs")]
@@ -169,11 +164,6 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-mysql")]
-mod mysql;
-#[cfg(feature = "services-mysql")]
-pub use self::mysql::*;
-
 #[cfg(feature = "services-obs")]
 mod obs;
 #[cfg(feature = "services-obs")]
@@ -198,11 +188,6 @@ pub use pcloud::*;
 mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::*;
-
-#[cfg(feature = "services-postgresql")]
-mod postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::*;
 
 #[cfg(feature = "services-redb")]
 mod redb;
@@ -263,11 +248,6 @@ pub use upyun::*;
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::*;
-
-#[cfg(feature = "services-vercel-blob")]
-mod vercel_blob;
-#[cfg(feature = "services-vercel-blob")]
-pub use vercel_blob::*;
 
 #[cfg(feature = "services-webdav")]
 mod webdav;

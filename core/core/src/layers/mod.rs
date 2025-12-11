@@ -47,11 +47,6 @@ mod chaos;
 #[cfg(feature = "layers-chaos")]
 pub use chaos::ChaosLayer;
 
-#[cfg(feature = "layers-mime-guess")]
-mod mime_guess;
-#[cfg(feature = "layers-mime-guess")]
-pub use self::mime_guess::MimeGuessLayer;
-
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;

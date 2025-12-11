@@ -162,7 +162,7 @@ services-swift = ["opendal-core/services-swift"]
 services-tikv = ["opendal-core/services-tikv"]
 services-upyun = ["opendal-core/services-upyun"]
 services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
-services-vercel-blob = ["opendal-core/services-vercel-blob"]
+services-vercel-blob = ["dep:opendal-service-vercel-blob"]
 services-webdav = ["opendal-core/services-webdav"]
 services-webhdfs = ["opendal-core/services-webhdfs"]
 services-yandex-disk = ["opendal-core/services-yandex-disk"]
@@ -211,6 +211,7 @@ opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
+opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }

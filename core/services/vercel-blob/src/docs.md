@@ -25,8 +25,8 @@ You can refer to [`VercelBlobBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::VercelBlob;
 use opendal_core::Operator;
+use opendal_service_vercel_blob::VercelBlob;
 
 #[tokio::main]
 async fn main() -> Result<()> {

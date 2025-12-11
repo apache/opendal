@@ -24,6 +24,7 @@ use http::StatusCode;
 use log::debug;
 
 use super::VERCEL_BLOB_SCHEME;
+use super::config::VercelBlobConfig;
 use super::core::Blob;
 use super::core::VercelBlobCore;
 use super::core::parse_blob;
@@ -32,9 +33,8 @@ use super::error::parse_error;
 use super::lister::VercelBlobLister;
 use super::writer::VercelBlobWriter;
 use super::writer::VercelBlobWriters;
-use crate::raw::*;
-use crate::services::VercelBlobConfig;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [VercelBlob](https://vercel.com/docs/storage/vercel-blob) services support.
 #[doc = include_str!("docs.md")]

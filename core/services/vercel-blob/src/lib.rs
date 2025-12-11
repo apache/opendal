@@ -18,7 +18,7 @@
 /// Default scheme for vercel-blob service.
 pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

@@ -31,8 +31,8 @@ use serde_json::json;
 
 use self::constants::*;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub(super) mod constants {
     // https://github.com/vercel/storage/blob/main/packages/blob/src/put.ts#L16

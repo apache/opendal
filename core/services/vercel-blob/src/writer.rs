@@ -25,8 +25,8 @@ use super::core::Part;
 use super::core::UploadPartResponse;
 use super::core::VercelBlobCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type VercelBlobWriters = oio::MultipartWriter<VercelBlobWriter>;
 

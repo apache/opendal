@@ -5504,6 +5504,7 @@ dependencies = [
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-s3",
+ "opendal-service-vercel-blob",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -5937,6 +5938,21 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-vercel-blob"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

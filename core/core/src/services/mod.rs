@@ -259,11 +259,6 @@ mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::*;
 
-#[cfg(feature = "services-vercel-blob")]
-mod vercel_blob;
-#[cfg(feature = "services-vercel-blob")]
-pub use vercel_blob::*;
-
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]

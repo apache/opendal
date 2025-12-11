@@ -45,6 +45,8 @@ pub mod services {
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
+    #[cfg(feature = "services-vercel-blob")]
+    pub use opendal_service_vercel_blob::*;
 }
 
 /// Re-export of layers.

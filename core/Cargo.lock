@@ -5500,6 +5500,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
+ "opendal-service-ftp",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-moka",
@@ -5567,7 +5568,6 @@ dependencies = [
  "flume",
  "foundationdb",
  "futures",
- "futures-rustls",
  "getrandom 0.2.16",
  "governor",
  "hdfs-native",
@@ -5601,7 +5601,6 @@ dependencies = [
  "reqsign",
  "reqwest",
  "rocksdb",
- "rustls-native-certs 0.8.2",
  "serde",
  "serde_json",
  "sha1",
@@ -5609,7 +5608,6 @@ dependencies = [
  "size",
  "sled",
  "sqlx",
- "suppaftp",
  "surrealdb",
  "tikv-client",
  "tokio",
@@ -5875,6 +5873,24 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-ftp"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "fastpool",
+ "futures",
+ "futures-rustls",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "rustls-native-certs 0.8.2",
+ "serde",
+ "suppaftp",
+ "tokio",
 ]
 
 [[package]]

@@ -21,22 +21,22 @@ use std::sync::Arc;
 
 use http::Uri;
 use log::debug;
-use services::ftp::core::Manager;
-use suppaftp::FtpError;
-use suppaftp::Status;
 use suppaftp::list::File;
 use suppaftp::types::Response;
+use suppaftp::FtpError;
+use suppaftp::Status;
 
-use super::FTP_SCHEME;
 use super::config::FtpConfig;
 use super::core::FtpCore;
+use super::core::Manager;
 use super::deleter::FtpDeleter;
 use super::err::format_ftp_error;
 use super::lister::FtpLister;
 use super::reader::FtpReader;
 use super::writer::FtpWriter;
-use crate::raw::*;
-use crate::*;
+use super::FTP_SCHEME;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// FTP and FTPS services support.
 #[doc = include_str!("docs.md")]
@@ -335,8 +335,8 @@ impl FtpBackend {
 #[cfg(test)]
 mod build_test {
     use super::FtpBuilder;
-    use crate::services::FtpConfig;
-    use crate::*;
+    use crate::FtpConfig;
+    use opendal_core::{ErrorKind, OperatorUri, Result};
 
     #[test]
     fn test_build() {

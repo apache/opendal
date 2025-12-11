@@ -27,13 +27,12 @@ You can refer to [`FtpBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Ftp;
 use opendal_core::Operator;
+use opendal_service_ftp::Ftp;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Ftp::default()
-        .endpoint("127.0.0.1");
+    let mut builder = Ftp::default().endpoint("127.0.0.1");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

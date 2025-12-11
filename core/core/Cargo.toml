@@ -93,12 +93,6 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
-services-ftp = [
-  "dep:suppaftp",
-  "dep:fastpool",
-  "dep:futures-rustls",
-  "dep:rustls-native-certs",
-]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -254,14 +248,6 @@ redis = { version = "1.0", features = [
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-sled
 sled = { version = "0.34.7", optional = true }
-# for services-ftp
-futures-rustls = { version = "0.26.0", optional = true }
-rustls-native-certs = { version = "0.8", optional = true }
-suppaftp = { version = "6.3.0", default-features = false, features = [
-  "async-secure",
-  "rustls",
-  "async-rustls",
-], optional = true }
 # for services-tikv
 tikv-client = { version = "0.3.0", optional = true, default-features = false }
 # for services-hdfs-native

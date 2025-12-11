@@ -22,8 +22,8 @@ use futures::AsyncReadExt;
 
 use super::core::Manager;
 use super::err::format_ftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FtpReader {
     /// Keep the connection alive while data stream is alive.

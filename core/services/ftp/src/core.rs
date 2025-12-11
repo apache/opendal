@@ -15,20 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
-use futures_rustls::TlsConnector;
 use std::sync::Arc;
+use std::time::Duration;
+
+use fastpool::{bounded, ManageObject, ObjectStatus};
+use futures_rustls::TlsConnector;
+use suppaftp::rustls::ClientConfig;
+use suppaftp::types::FileType;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
 use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
-use suppaftp::rustls::ClientConfig;
-use suppaftp::types::FileType;
 
 use super::err::format_ftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FtpCore {
     info: Arc<AccessorInfo>,

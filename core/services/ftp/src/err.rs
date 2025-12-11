@@ -18,8 +18,8 @@
 use suppaftp::FtpError;
 use suppaftp::Status;
 
-use crate::Error;
-use crate::ErrorKind;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 
 pub(super) fn format_ftp_error(err: FtpError) -> Error {
     let (kind, retryable) = match err {

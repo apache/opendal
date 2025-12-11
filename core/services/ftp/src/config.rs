@@ -20,8 +20,10 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::FTP_SCHEME;
 use super::backend::FtpBuilder;
+use super::FTP_SCHEME;
+use opendal_core::OperatorUri;
+use opendal_core::Configurator;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -47,10 +49,10 @@ impl Debug for FtpConfig {
     }
 }
 
-impl crate::Configurator for FtpConfig {
+impl Configurator for FtpConfig {
     type Builder = FtpBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert(

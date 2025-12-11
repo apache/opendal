@@ -19,8 +19,8 @@ use bytes::Buf;
 use http::Response;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// the error response of b2
 #[derive(Default, Debug, Deserialize)]
@@ -86,13 +86,13 @@ mod test {
         let code = "already_hidden";
         assert_eq!(
             parse_b2_error_code(code),
-            Some((crate::ErrorKind::AlreadyExists, false))
+            Some((opendal_core::ErrorKind::AlreadyExists, false))
         );
 
         let code = "no_such_file";
         assert_eq!(
             parse_b2_error_code(code),
-            Some((crate::ErrorKind::NotFound, false))
+            Some((opendal_core::ErrorKind::NotFound, false))
         );
 
         let code = "not_found";

@@ -35,8 +35,8 @@ use super::error::parse_error;
 use super::lister::B2Lister;
 use super::writer::B2Writer;
 use super::writer::B2Writers;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [b2](https://www.backblaze.com/cloud-storage) services support.
 #[doc = include_str!("docs.md")]
@@ -394,6 +394,7 @@ impl Access for B2Backend {
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),
+            _ => todo!(),
         }
     }
 }

@@ -214,11 +214,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-sled")]
-mod sled;
-#[cfg(feature = "services-sled")]
-pub use self::sled::*;
-
 #[cfg(feature = "services-sqlite")]
 mod sqlite;
 #[cfg(feature = "services-sqlite")]

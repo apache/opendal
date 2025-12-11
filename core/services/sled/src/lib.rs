@@ -15,28 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for sled service.
+pub const SLED_SCHEME: &str = "sled";
 
-use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub struct SledDeleter {
-    core: Arc<SledCore>,
-    root: String,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod lister;
+mod writer;
 
-impl SledDeleter {
-    pub fn new(core: Arc<SledCore>, root: String) -> Self {
-        Self { core, root }
-    }
-}
+pub use backend::SledBuilder as Sled;
+pub use config::SledConfig;
 
-impl oio::OneShotDelete for SledDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p)?;
-        Ok(())
-    }
+#[ctor::ctor]
+fn register_sled_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Sled>(SLED_SCHEME);
 }

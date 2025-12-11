@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::*;
 
 pub struct SledWriter {
     core: Arc<SledCore>,

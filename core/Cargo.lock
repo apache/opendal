@@ -5506,6 +5506,7 @@ dependencies = [
  "opendal-service-mysql",
  "opendal-service-postgresql",
  "opendal-service-s3",
+ "opendal-service-sled",
  "opendal-service-vercel-blob",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5607,7 +5608,6 @@ dependencies = [
  "sha1",
  "sha2",
  "size",
- "sled",
  "sqlx",
  "suppaftp",
  "surrealdb",
@@ -5964,6 +5964,16 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-sled"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "serde",
+ "sled",
 ]
 
 [[package]]

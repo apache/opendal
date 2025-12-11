@@ -65,11 +65,6 @@ mod tracing;
 #[cfg(feature = "layers-tracing")]
 pub use self::tracing::TracingLayer;
 
-#[cfg(feature = "layers-fastrace")]
-mod fastrace;
-#[cfg(feature = "layers-fastrace")]
-pub use self::fastrace::FastraceLayer;
-
 #[cfg(feature = "layers-otel-trace")]
 mod oteltrace;
 #[cfg(feature = "layers-otel-trace")]

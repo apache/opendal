@@ -5485,6 +5485,7 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-fastmetrics",
+ "opendal-layer-fastrace",
  "opendal-layer-metrics",
  "opendal-layer-observe-metrics-common",
  "opendal-layer-otelmetrics",
@@ -5556,8 +5557,6 @@ dependencies = [
  "dotenvy",
  "etcd-client",
  "fastpool",
- "fastrace",
- "fastrace-jaeger",
  "flume",
  "foundationdb",
  "futures",
@@ -5693,6 +5692,18 @@ dependencies = [
  "fastmetrics",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+]
+
+[[package]]
+name = "opendal-layer-fastrace"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "fastrace",
+ "fastrace-jaeger",
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

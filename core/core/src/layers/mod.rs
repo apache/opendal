@@ -51,10 +51,6 @@ mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
 
-mod tail_cut;
-pub use self::tail_cut::TailCutLayer;
-pub use self::tail_cut::TailCutLayerBuilder;
-
 #[cfg(feature = "layers-fastrace")]
 mod fastrace;
 #[cfg(feature = "layers-fastrace")]

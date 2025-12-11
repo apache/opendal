@@ -18,12 +18,12 @@
 use std::sync::Arc;
 
 use bytes::Buf;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::CloudflareKvCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::services::cloudflare_kv::model::{CfKvListKey, CfKvListResponse};
-use crate::*;
+use super::model::{CfKvListKey, CfKvListResponse};
 
 pub struct CloudflareKvLister {
     core: Arc<CloudflareKvCore>,
@@ -59,7 +59,6 @@ impl CloudflareKvLister {
 
         let mut name = name.replace(root.trim_start_matches('/'), "");
 
-        // If it is the root directory, it needs to be processed as /
         if name.is_empty() {
             name = "/".to_string();
         }
@@ -149,7 +148,6 @@ impl oio::PageList for CloudflareKvLister {
                     name += "/";
                 }
 
-                // For non-recursive listing, filter out entries not in the current directory.
                 if !self.recursive {
                     if let Some(relative_path) = name.strip_prefix(&self.path) {
                         if relative_path.trim_end_matches('/').contains('/') {

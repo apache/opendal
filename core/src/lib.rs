@@ -35,6 +35,8 @@ pub mod services {
     pub use opendal_service_azdls::*;
     #[cfg(feature = "services-azfile")]
     pub use opendal_service_azfile::*;
+    #[cfg(feature = "services-cloudflare-kv")]
+    pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-hdfs-native")]

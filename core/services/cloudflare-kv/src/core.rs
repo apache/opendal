@@ -21,11 +21,11 @@ use http::Request;
 use http::Response;
 use http::header;
 use http::request;
+use opendal_core::raw::*;
+use opendal_core::{Buffer, Result};
 use serde_json::json;
 
-use crate::raw::*;
-use crate::services::cloudflare_kv::model::CfKvMetadata;
-use crate::{Buffer, Result};
+use crate::model::CfKvMetadata;
 
 #[derive(Debug, Clone)]
 pub struct CloudflareKvCore {

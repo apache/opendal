@@ -19,13 +19,13 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
+use opendal_core::raw::oio::BatchDeleteResult;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::BatchDeleteResult;
-use crate::raw::*;
-use crate::services::cloudflare_kv::model::CfKvDeleteResponse;
-use crate::*;
+use super::model::CfKvDeleteResponse;
 
 pub struct CloudflareKvDeleter {
     core: Arc<CloudflareKvCore>,

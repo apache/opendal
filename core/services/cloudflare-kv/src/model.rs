@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -53,12 +51,10 @@ pub struct CfKvDeleteResponse {
 pub struct CfKvListKey {
     pub name: String,
     pub metadata: CfKvMetadata,
-    // expiration: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CfKvListResultInfo {
-    // pub count: Option<usize>,
     pub cursor: Option<String>,
 }
 

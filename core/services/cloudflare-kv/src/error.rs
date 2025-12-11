@@ -18,12 +18,12 @@
 use bytes::Buf;
 use http::Response;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde_json::de;
 
 use super::model::CfKvError;
 use super::model::CfKvResponse;
-use crate::raw::*;
-use crate::*;
 
 /// Parse error response into Error.
 pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
@@ -32,9 +32,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        // Some services (like owncloud) return 403 while file locked.
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
-        // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -68,11 +66,8 @@ pub(super) fn parse_cfkv_error_code(errors: Vec<CfKvError>) -> Option<(ErrorKind
     }
 
     match errors[0].code {
-        // The request is malformed: failed to decode id.
         7400 => Some((ErrorKind::Unexpected, false)),
-        // no such column: Xxxx.
         7500 => Some((ErrorKind::NotFound, false)),
-        // Authentication error.
         10000 => Some((ErrorKind::PermissionDenied, false)),
         _ => None,
     }

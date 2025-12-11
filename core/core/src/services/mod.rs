@@ -34,11 +34,6 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
 
-#[cfg(feature = "services-cloudflare-kv")]
-mod cloudflare_kv;
-#[cfg(feature = "services-cloudflare-kv")]
-pub use self::cloudflare_kv::*;
-
 #[cfg(feature = "services-compfs")]
 mod compfs;
 #[cfg(feature = "services-compfs")]

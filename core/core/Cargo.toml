@@ -80,7 +80,6 @@ layers-dtrace = ["dep:probe"]
 services-alluxio = []
 services-b2 = []
 services-cacache = ["dep:cacache"]
-services-cloudflare-kv = []
 services-compfs = ["dep:compio"]
 services-cos = [
   "dep:reqsign",

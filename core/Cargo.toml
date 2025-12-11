@@ -110,7 +110,7 @@ services-azdls = ["dep:opendal-service-azdls"]
 services-azfile = ["dep:opendal-service-azfile"]
 services-b2 = ["opendal-core/services-b2"]
 services-cacache = ["opendal-core/services-cacache"]
-services-cloudflare-kv = ["opendal-core/services-cloudflare-kv"]
+services-cloudflare-kv = ["dep:opendal-service-cloudflare-kv"]
 services-compfs = ["opendal-core/services-compfs"]
 services-cos = ["opendal-core/services-cos"]
 services-d1 = ["opendal-core/services-d1"]
@@ -206,6 +206,7 @@ opendal-service-aliyun-drive = { path = "services/aliyun-drive", version = "0.55
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
+opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }

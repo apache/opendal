@@ -49,7 +49,7 @@ use crate::*;
 /// # use std::time::Duration;
 ///
 /// # use opendal_core::layers::RetryLayer;
-/// # use opendal_core::layers::TimeoutLayer;
+/// # use opendal_layer_timeout::TimeoutLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;

@@ -74,7 +74,7 @@ impl Executor {
     }
 
     /// Return the inner executor.
-    pub(crate) fn into_inner(self) -> Arc<dyn Execute> {
+    pub fn into_inner(self) -> Arc<dyn Execute> {
         self.executor
     }
 

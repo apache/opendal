@@ -17,9 +17,10 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add timeout for every operation to avoid slow or unexpected hang operations.
 ///
@@ -53,8 +54,8 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
+/// # use opendal_layer_timeout::TimeoutLayer;
 /// # use opendal_core::layers::RetryLayer;
-/// # use opendal_core::layers::TimeoutLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -79,7 +80,7 @@ use crate::*;
 /// ```no_run
 /// # use std::time::Duration;
 ///
-/// # use opendal_core::layers::TimeoutLayer;
+/// # use opendal_layer_timeout::TimeoutLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -355,15 +356,17 @@ mod tests {
     use std::future::Future;
     use std::future::pending;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use futures::StreamExt;
     use tokio::time::sleep;
     use tokio::time::timeout;
 
-    use crate::layers::TimeoutLayer;
-    use crate::layers::TypeEraseLayer;
-    use crate::raw::*;
-    use crate::*;
+    use opendal_core::layers::TypeEraseLayer;
+    use opendal_core::raw::*;
+    use opendal_core::*;
+
+    use super::TimeoutLayer;
 
     #[derive(Debug, Clone, Default)]
     struct MockService;

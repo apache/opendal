@@ -5490,6 +5490,7 @@ dependencies = [
  "opendal-layer-otelmetrics",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-timeout",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
@@ -5581,6 +5582,7 @@ dependencies = [
  "mongodb",
  "mongodb-internal-macros",
  "monoio",
+ "opendal-layer-timeout",
  "openssh",
  "openssh-sftp-client",
  "opentelemetry",
@@ -5738,6 +5740,15 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+]
+
+[[package]]
+name = "opendal-layer-timeout"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

@@ -32,7 +32,8 @@ use opendal_service_ftp::Ftp;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Ftp::default().endpoint("127.0.0.1");
+    let mut builder = Ftp::default()
+        .endpoint("127.0.0.1");
 
     let op: Operator = Operator::new(builder)?.finish();
     Ok(())

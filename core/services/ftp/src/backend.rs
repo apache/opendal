@@ -336,7 +336,7 @@ impl FtpBackend {
 mod build_test {
     use super::FtpBuilder;
     use crate::FtpConfig;
-    use opendal_core::{ErrorKind, OperatorUri, Result};
+    use opendal_core::*;
 
     #[test]
     fn test_build() {

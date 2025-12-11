@@ -22,8 +22,6 @@ use serde::Serialize;
 
 use super::FTP_SCHEME;
 use super::backend::FtpBuilder;
-use opendal_core::Configurator;
-use opendal_core::OperatorUri;
 
 /// Config for Ftp services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -49,10 +47,10 @@ impl Debug for FtpConfig {
     }
 }
 
-impl Configurator for FtpConfig {
+impl opendal_core::Configurator for FtpConfig {
     type Builder = FtpBuilder;
 
-    fn from_uri(uri: &OperatorUri) -> opendal_core::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert(

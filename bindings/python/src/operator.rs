@@ -33,11 +33,27 @@ fn build_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<ocore:
     Ok(op)
 }
 
+fn build_operator_from_uri(uri: &str, options: &HashMap<String, String>) -> PyResult<ocore::Operator> {
+    let op = ocore::Operator::from_uri((uri, options)).map_err(format_pyerr)?;
+    Ok(op)
+}
+
 fn build_blocking_operator(
     scheme: &str,
     map: HashMap<String, String>,
 ) -> PyResult<ocore::blocking::Operator> {
     let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
+
+    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let _guard = runtime.enter();
+    let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
+    Ok(op)
+}
+
+fn build_blocking_operator_from_uri(
+    uri: &str, options: &HashMap<String, String>
+) -> PyResult<ocore::blocking::Operator> {
+    let op = ocore::Operator::from_uri((uri, options)).map_err(format_pyerr)?;
 
     let runtime = pyo3_async_runtimes::tokio::get_runtime();
     let _guard = runtime.enter();
@@ -110,6 +126,29 @@ impl Operator {
             __scheme: scheme,
             __map: map,
         })
+    }
+
+    /// Create a new blocking `Operator` from a URI.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service.
+    /// **kwargs : dict
+    ///     The options for the service.
+    ///
+    /// Returns
+    /// -------
+    /// Operator
+    ///     The new operator.
+    #[staticmethod]
+    #[pyo3(signature = (uri, *, **kwargs))]
+    pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+        let map = kwargs
+            .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
+            .unwrap_or_default();
+        let core = build_blocking_operator_from_uri(&uri, options).map_err(format_pyerr)?;
+        Ok(Operator { core, __scheme: core.info().scheme().to_string(), __map: map })
     }
 
     /// Add a new layer to this operator.
@@ -756,6 +795,29 @@ impl AsyncOperator {
             __scheme: scheme,
             __map: map,
         })
+    }
+
+    /// Create a new `AsyncOperator` from a URI.
+    ///
+    /// Parameters
+    /// ----------
+    /// uri : str
+    ///     The URI of the service.
+    /// **kwargs : dict
+    ///     The options for the service.
+    ///
+    /// Returns
+    /// -------
+    /// AsyncOperator
+    ///     The new operator.
+    #[staticmethod]
+    #[pyo3(signature = (uri, *, **kwargs))]
+    pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+        let map = kwargs
+            .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
+            .unwrap_or_default();
+        let core = build_operator_from_uri(&uri, options).map_err(format_pyerr)?;
+        Ok(Operator { core, __scheme: core.info().scheme().to_string(), __map: map })
     }
 
     /// Add a new layer to the operator.

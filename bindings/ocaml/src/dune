@@ -23,17 +23,9 @@
   (progn
    (run sh -c "cd %{project_root}/../.. && cargo build --release")
    (run sh -c
-     "if [ -f %{project_root}/../../target/release/libopendal_ocaml.so ]; then \
-        cp %{project_root}/../../target/release/libopendal_ocaml.so ./dllopendal_core.so; \
-        cp %{project_root}/../../target/release/libopendal_ocaml.so ./libopendal_core.so; \
-      else \
-        cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so; \
-        cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./libopendal_core.so; \
-      fi")
+     "if [ -f %{project_root}/../../target/release/libopendal_ocaml.so ]; then cp %{project_root}/../../target/release/libopendal_ocaml.so ./dllopendal_core.so; cp %{project_root}/../../target/release/libopendal_ocaml.so ./libopendal_core.so; else cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./dllopendal_core.so; cp %{project_root}/../../target/release/libopendal_ocaml.dylib ./libopendal_core.so; fi")
    (run sh -c
-     "echo 'void __opendal_core_dummy(void) {}' | cc -c -x c - -o opendal_core_dummy.o && \
-      ar crs libopendal_core.a opendal_core_dummy.o && \
-      rm opendal_core_dummy.o"))))
+     "echo 'void __opendal_core_dummy(void) {}' | cc -c -x c - -o opendal_core_dummy.o && ar crs libopendal_core.a opendal_core_dummy.o && rm opendal_core_dummy.o"))))
 
 (library
  (name opendal_core)

@@ -19,8 +19,8 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::thread::available_parallelism;
 
 use jni::JNIEnv;
@@ -116,7 +116,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInter
 }
 
 pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {
-    let vm = env.get_java_vm().expect("JavaVM must be available");
+    let vm = Arc::new(env.get_java_vm().expect("JavaVM must be available"));
+    let stop_vm = vm.clone();
     let counter = AtomicUsize::new(0);
     let executor = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(cores)
@@ -134,6 +135,18 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
 
                 *cell.borrow_mut() = Some(env.get_raw());
             })
+        })
+        .on_thread_stop(move || {
+            ENV.with(|cell| {
+                *cell.borrow_mut() = None;
+            });
+
+            // `jni` will normally detach daemon threads via a TLS destructor, which can lead to
+            // deadlocks on Windows during DLL unload. Detach explicitly while the thread is
+            // still running to clear the TLS guard.
+            unsafe {
+                stop_vm.detach_current_thread();
+            }
         })
         .enable_all()
         .build()

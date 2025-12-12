@@ -148,17 +148,18 @@ impl Operator {
     #[staticmethod]
     #[pyo3(signature = (uri, *, **kwargs))]
     pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
-        let map = kwargs
+        let __map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
                     .expect("must be a valid hashmap")
             })
             .unwrap_or_default();
-        let core = build_blocking_operator_from_uri(&uri, &map)?;
+        let core = build_blocking_operator_from_uri(&uri, &__map)?;
+        let __scheme = core.info().scheme().to_string();
         Ok(Operator {
             core,
-            __scheme: core.info().scheme().to_string(),
-            __map: map,
+            __scheme,
+            __map,
         })
     }
 
@@ -824,17 +825,18 @@ impl AsyncOperator {
     #[staticmethod]
     #[pyo3(signature = (uri, *, **kwargs))]
     pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
-        let map = kwargs
+        let __map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
                     .expect("must be a valid hashmap")
             })
             .unwrap_or_default();
-        let core = build_operator_from_uri(&uri, &map)?;
+        let core = build_operator_from_uri(&uri, &__map)?;
+        let __scheme = core.info().scheme().to_string();
         Ok(AsyncOperator {
             core,
-            __scheme: core.info().scheme().to_string(),
-            __map: map,
+            __scheme,
+            __map,
         })
     }
 

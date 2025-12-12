@@ -62,6 +62,8 @@ pub mod layers {
     pub use opendal_layer_await_tree::*;
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
+    #[cfg(feature = "layers-dtrace")]
+    pub use opendal_layer_dtrace::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]

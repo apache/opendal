@@ -22,9 +22,9 @@ use std::fmt::Formatter;
 use bytes::Buf;
 use probe::probe_lazy;
 
-use crate::raw::Access;
-use crate::raw::*;
-use crate::*;
+use opendal-core::raw::Access;
+use opendal-core::raw::*;
+use opendal-coare::*;
 
 /// Support User Statically-Defined Tracing(aka USDT) on Linux
 ///

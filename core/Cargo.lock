@@ -5484,6 +5484,7 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-metrics",
@@ -5685,6 +5686,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-dtrace"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "probe",
 ]
 
 [[package]]

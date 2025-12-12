@@ -74,8 +74,6 @@ executors-tokio = ["tokio/rt"]
 layers-chaos = ["dep:rand"]
 # Enable layers throttle support.
 layers-throttle = ["dep:governor"]
-# Enable dtrace support.
-layers-dtrace = ["dep:probe"]
 
 services-alluxio = []
 services-b2 = []
@@ -302,8 +300,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
 # Layers
 # for layers-throttle
 governor = { version = "0.10.1", optional = true, features = ["std"] }
-# for layers-dtrace
-probe = { version = "0.5.1", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 backon = { version = "1.6", features = ["gloo-timers-sleep"] }

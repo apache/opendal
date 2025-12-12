@@ -134,6 +134,7 @@ runs:
       run: |
         set -euo pipefail
         echo "${PROTOC_ROOT}/bin" >> "${GITHUB_PATH}"
+        export PATH="${PROTOC_ROOT}/bin:${PATH}"
         protoc --version
 
     - name: Install cargo-nextest

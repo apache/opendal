@@ -147,7 +147,7 @@ impl Operator {
         let map = kwargs
             .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
             .unwrap_or_default();
-        let core = build_blocking_operator_from_uri(&uri, options).map_err(format_pyerr)?;
+        let core = build_blocking_operator_from_uri(&uri, &map)?;
         Ok(Operator { core, __scheme: core.info().scheme().to_string(), __map: map })
     }
 
@@ -816,7 +816,7 @@ impl AsyncOperator {
         let map = kwargs
             .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
             .unwrap_or_default();
-        let core = build_operator_from_uri(&uri, options).map_err(format_pyerr)?;
+        let core = build_operator_from_uri(&uri, &map)?;
         Ok(AsyncOperator { core, __scheme: core.info().scheme().to_string(), __map: map })
     }
 

@@ -32,9 +32,6 @@ pub use simulate::SimulateLayer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-mod immutable_index;
-pub use immutable_index::ImmutableIndexLayer;
-
 mod logging;
 pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
@@ -50,11 +47,6 @@ pub use chaos::ChaosLayer;
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
-
-#[cfg(feature = "layers-throttle")]
-mod throttle;
-#[cfg(feature = "layers-throttle")]
-pub use self::throttle::ThrottleLayer;
 
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;

@@ -2711,7 +2711,6 @@ dependencies = [
 name = "edge_test_file_write_on_full_disk"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "rand 0.8.5",
  "tokio",
@@ -2723,7 +2722,6 @@ version = "0.55.0"
 dependencies = [
  "opendal",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "wasm-bindgen-test",
 ]
 
@@ -5627,7 +5625,6 @@ dependencies = [
 name = "opendal-examples-basic"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5636,7 +5633,6 @@ dependencies = [
 name = "opendal-examples-concurrent-upload"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5645,7 +5641,6 @@ dependencies = [
 name = "opendal-examples-multipart-upload"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5700,12 +5695,8 @@ dependencies = [
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
- "anyhow",
- "dotenvy",
  "fastrace",
- "fastrace-jaeger",
  "opendal-core",
- "tokio",
 ]
 
 [[package]]
@@ -5799,7 +5790,6 @@ dependencies = [
  "log",
  "mea",
  "opendal-core",
- "pretty_assertions",
  "serde",
  "serde_json",
 ]
@@ -5871,7 +5861,6 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "opendal-core",
  "serde",
  "serde_json",

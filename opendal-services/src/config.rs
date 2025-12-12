@@ -21,6 +21,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::MongodbBuilder;
+use opendal_core::{types::OperatorUri, Configurator, Result};
 
 /// Config for Mongodb service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -53,10 +54,10 @@ impl Debug for MongodbConfig {
     }
 }
 
-impl crate::Configurator for MongodbConfig {
+impl Configurator for MongodbConfig {
     type Builder = MongodbBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
@@ -67,18 +68,21 @@ impl crate::Configurator for MongodbConfig {
         if let Some(path) = uri.root() {
             if !path.is_empty() {
                 let mut segments = path.splitn(3, '/');
+
                 if let Some(db) = segments.next() {
                     if !db.is_empty() {
                         map.entry("database".to_string())
                             .or_insert_with(|| db.to_string());
                     }
                 }
+
                 if let Some(collection) = segments.next() {
                     if !collection.is_empty() {
                         map.entry("collection".to_string())
                             .or_insert_with(|| collection.to_string());
                     }
                 }
+
                 if let Some(rest) = segments.next() {
                     if !rest.is_empty() {
                         map.insert("root".to_string(), rest.to_string());
@@ -98,8 +102,7 @@ impl crate::Configurator for MongodbConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::{Configurator, types::OperatorUri};
 
     #[test]
     fn from_uri_sets_connection_string_database_collection_and_root() {

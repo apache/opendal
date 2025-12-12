@@ -15,21 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for mongodb service.
-pub const MONGODB_SCHEME: &str = "mongodb";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use super::core::*;
+use opendal_core::*;
+use opendal_core::raw::*;
+use opendal_core::raw::oio;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod writer;
 
-pub use backend::MongodbBuilder as Mongodb;
-pub use config::MongodbConfig;
+pub struct MongodbDeleter {
+    core: Arc<MongodbCore>,
+    root: String,
+}
 
-#[ctor::ctor]
-fn register_mongodb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Mongodb>(MONGODB_SCHEME);
+impl MongodbDeleter {
+    pub fn new(core: Arc<MongodbCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for MongodbDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

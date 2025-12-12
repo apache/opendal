@@ -1,0 +1,19 @@
+[package]
+name = "opendal-services-mongodb"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "MongoDB service backend for Apache OpenDAL"
+
+[dependencies]
+opendal-core = { path = "../../core" }
+mongodb = "2"
+mea = "0.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[features]
+default = []

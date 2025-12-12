@@ -136,14 +136,12 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
                 *cell.borrow_mut() = Some(env.get_raw());
             })
         })
+        // See https://github.com/apache/opendal/issues/6869 for more details.
         .on_thread_stop(move || {
             ENV.with(|cell| {
                 *cell.borrow_mut() = None;
             });
 
-            // `jni` will normally detach daemon threads via a TLS destructor, which can lead to
-            // deadlocks on Windows during DLL unload. Detach explicitly while the thread is
-            // still running to clear the TLS guard.
             unsafe {
                 stop_vm.detach_current_thread();
             }

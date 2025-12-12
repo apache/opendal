@@ -17,12 +17,12 @@
 
 use std::fmt::Debug;
 
+use opendal_core::raw::*;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::CLOUDFLARE_KV_SCHEME;
 use super::backend::CloudflareKvBuilder;
-use crate::raw::*;
 
 /// Cloudflare KV Service Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -51,21 +51,21 @@ impl Debug for CloudflareKvConfig {
     }
 }
 
-impl crate::Configurator for CloudflareKvConfig {
+impl opendal_core::Configurator for CloudflareKvConfig {
     type Builder = CloudflareKvBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let account_id = uri.name().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "uri host must contain account id",
             )
             .with_context("service", CLOUDFLARE_KV_SCHEME)
         })?;
 
         let raw_root = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "uri path must contain namespace id",
             )
             .with_context("service", CLOUDFLARE_KV_SCHEME)
@@ -73,8 +73,8 @@ impl crate::Configurator for CloudflareKvConfig {
 
         let mut segments = raw_root.splitn(2, '/');
         let namespace_id = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "namespace id is required in uri path",
             )
             .with_context("service", CLOUDFLARE_KV_SCHEME)
@@ -101,8 +101,8 @@ impl crate::Configurator for CloudflareKvConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_ids_and_root() {

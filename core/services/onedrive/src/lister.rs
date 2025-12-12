@@ -19,14 +19,15 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::OneDriveCore;
 use super::error::parse_error;
 use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
 
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,

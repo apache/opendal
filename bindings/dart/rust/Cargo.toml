@@ -21,7 +21,7 @@ name = "opendal-dart"
 version = "0.1.0"
 
 [dependencies]
-flutter_rust_bridge = "=2.8.0"
+flutter_rust_bridge = "=2.11.1"
 opendal = { path = "../../../core", features = [
   "blocking",
 

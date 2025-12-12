@@ -179,7 +179,7 @@ async fn test_blocking_remove_all_with_objects(
         op.write(&path, content).await.expect("write must succeed");
     }
 
-    op.remove_all(&parent).await?;
+    op.delete_with(&parent).recursive(true).await?;
 
     let found = op
         .lister_with(&format!("{parent}/"))

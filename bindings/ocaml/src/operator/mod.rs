@@ -148,7 +148,14 @@ pub fn blocking_remove(operator: &mut Operator, path: Vec<String>) -> Result<(),
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (unit, string) Result.t ")]
 pub fn blocking_remove_all(operator: &mut Operator, path: String) -> Result<(), String> {
-    map_res_error(operator.0.remove_all(path.as_str()))
+    use opendal::options::DeleteOptions;
+    map_res_error(operator.0.delete_options(
+        path.as_str(),
+        DeleteOptions {
+            recursive: true,
+            ..Default::default()
+        },
+    ))
 }
 
 #[ocaml::func]

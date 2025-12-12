@@ -516,7 +516,8 @@ impl Operator {
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
         self.async_op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map_err(format_napi_error)
     }
@@ -532,8 +533,15 @@ impl Operator {
     /// ```
     #[napi]
     pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        use opendal::options::DeleteOptions;
         self.blocking_op
-            .remove_all(&path)
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_napi_error)
     }
 

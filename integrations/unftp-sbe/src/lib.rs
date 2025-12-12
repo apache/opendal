@@ -263,7 +263,8 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
     async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .remove_all(convert_path(path.as_ref())?)
+            .delete_with(convert_path(path.as_ref())?)
+            .recursive(true)
             .await
             .map_err(convert_err)
     }

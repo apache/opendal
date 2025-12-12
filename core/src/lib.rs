@@ -53,6 +53,8 @@ pub mod services {
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
+    #[cfg(feature = "services-sled")]
+    pub use opendal_service_sled::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
 }

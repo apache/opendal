@@ -24,7 +24,7 @@ You can refer to [`SledBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Sled;
+use opendal_service_sled::Sled;
 use opendal_core::Operator;
 
 #[tokio::main]

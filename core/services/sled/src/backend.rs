@@ -23,8 +23,8 @@ use super::core::*;
 use super::deleter::SledDeleter;
 use super::lister::SledLister;
 use super::writer::SledWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 // https://github.com/spacejam/sled/blob/69294e59c718289ab3cb6bd03ac3b9e1e072a1e7/src/db.rs#L5
 const DEFAULT_TREE_ID: &str = r#"__sled__default"#;

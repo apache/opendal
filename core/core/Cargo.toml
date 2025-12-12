@@ -119,11 +119,6 @@ services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
-services-obs = [
-  "dep:reqsign",
-  "reqsign?/services-huaweicloud",
-  "reqsign?/reqwest_request",
-]
 services-onedrive = []
 services-opfs = [
   "dep:js-sys",

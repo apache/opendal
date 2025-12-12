@@ -52,10 +52,10 @@ impl Debug for ObsConfig {
     }
 }
 
-impl crate::Configurator for ObsConfig {
+impl opendal_core::Configurator for ObsConfig {
     type Builder = ObsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -77,8 +77,8 @@ impl crate::Configurator for ObsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

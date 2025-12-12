@@ -18,7 +18,7 @@
 /// Default scheme for obs service.
 pub const OBS_SCHEME: &str = "obs";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

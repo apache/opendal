@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for ipfs service.
-pub const IPFS_SCHEME: &str = "ipfs";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! IPFS service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +28,10 @@ mod ipld;
 pub use backend::IpfsBuilder as Ipfs;
 pub use config::IpfsConfig;
 
+/// Default scheme for ipfs service.
+pub const IPFS_SCHEME: &str = "ipfs";
+
 #[ctor::ctor]
 fn register_ipfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Ipfs>(IPFS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Ipfs>(IPFS_SCHEME);
 }

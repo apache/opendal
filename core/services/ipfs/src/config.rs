@@ -18,7 +18,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::IpfsBuilder;
+use crate::backend::IpfsBuilder;
 
 /// Config for IPFS file system support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -31,10 +31,10 @@ pub struct IpfsConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for IpfsConfig {
+impl opendal_core::Configurator for IpfsConfig {
     type Builder = IpfsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert("endpoint".to_string(), format!("http://{authority}"));
@@ -57,8 +57,8 @@ impl crate::Configurator for IpfsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_endpoint_and_root() {

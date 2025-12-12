@@ -5483,6 +5483,7 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
@@ -5598,7 +5599,6 @@ dependencies = [
  "percent-encoding",
  "persy",
  "pretty_assertions",
- "probe",
  "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
@@ -5684,6 +5684,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-dtrace"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "probe",
 ]
 
 [[package]]

@@ -5504,6 +5504,7 @@ dependencies = [
  "opendal-service-hdfs-native",
  "opendal-service-moka",
  "opendal-service-mysql",
+ "opendal-service-oss",
  "opendal-service-postgresql",
  "opendal-service-s3",
  "opendal-service-vercel-blob",
@@ -5928,6 +5929,26 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+]
+
+[[package]]
+name = "opendal-service-oss"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "pretty_assertions",
+ "quick-xml",
+ "reqsign",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

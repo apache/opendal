@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for oss service.
-pub const OSS_SCHEME: &str = "oss";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Aliyun Object Storage Service (OSS) implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +30,10 @@ mod writer;
 pub use backend::OssBuilder as Oss;
 pub use config::OssConfig;
 
+/// Default scheme for oss service.
+pub const OSS_SCHEME: &str = "oss";
+
 #[ctor::ctor]
 fn register_oss_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Oss>(OSS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Oss>(OSS_SCHEME);
 }

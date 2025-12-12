@@ -22,9 +22,9 @@ use quick_xml::de;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::PageContext;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio::PageContext;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type OssListers = TwoWays<oio::PageLister<OssLister>, oio::PageLister<OssObjectVersionsLister>>;
 

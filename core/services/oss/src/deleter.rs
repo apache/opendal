@@ -23,9 +23,9 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::BatchDeleteResult;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio::BatchDeleteResult;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct OssDeleter {
     core: Arc<OssCore>,

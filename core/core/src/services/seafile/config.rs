@@ -87,12 +87,8 @@ impl crate::Configurator for SeafileConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        SeafileBuilder {
-            config: self,
-            http_client: None,
-        }
+        SeafileBuilder { config: self }
     }
 }
 

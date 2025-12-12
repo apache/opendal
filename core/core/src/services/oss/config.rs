@@ -129,13 +129,8 @@ impl crate::Configurator for OssConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        OssBuilder {
-            config: self,
-
-            http_client: None,
-        }
+        OssBuilder { config: self }
     }
 }
 

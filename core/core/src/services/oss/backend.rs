@@ -46,9 +46,6 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 #[derive(Default)]
 pub struct OssBuilder {
     pub(super) config: OssConfig,
-
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    pub(super) http_client: Option<HttpClient>,
 }
 
 impl Debug for OssBuilder {
@@ -175,19 +172,6 @@ impl OssBuilder {
             self.config.security_token = Some(security_token.to_string())
         }
 
-        self
-    }
-
-    /// Specify the http client that used by this service.
-    ///
-    /// # Notes
-    ///
-    /// This API is part of OpenDAL's Raw API. `HttpClient` could be changed
-    /// during minor updates.
-    #[deprecated(since = "0.53.0", note = "Use `Operator::update_http_client` instead")]
-    #[allow(deprecated)]
-    pub fn http_client(mut self, client: HttpClient) -> Self {
-        self.http_client = Some(client);
         self
     }
 
@@ -560,12 +544,6 @@ impl Builder for OssBuilder {
 
                             ..Default::default()
                         });
-
-                    // allow deprecated api here for compatibility
-                    #[allow(deprecated)]
-                    if let Some(client) = self.http_client {
-                        am.update_http_client(|_| client);
-                    }
 
                     am.into()
                 },

@@ -561,7 +561,7 @@ mod tests {
         let reader = op.reader_with(path).gap(1).await.unwrap();
 
         let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
-        let merged = reader.merge_ranges(ranges.clone());
+        let merged = reader.merge_ranges(ranges);
         assert_eq!(merged, vec![0..30, 40..60]);
         Ok(())
     }

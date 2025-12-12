@@ -62,12 +62,8 @@ impl crate::Configurator for GdriveConfig {
         Self::from_iter(map)
     }
 
-    #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        GdriveBuilder {
-            config: self,
-            http_client: None,
-        }
+        GdriveBuilder { config: self }
     }
 }
 

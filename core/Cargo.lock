@@ -5504,6 +5504,7 @@ dependencies = [
  "opendal-service-ftp",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
+ "opendal-service-ipfs",
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
@@ -5934,6 +5935,20 @@ dependencies = [
  "log",
  "opendal-core",
  "serde",
+]
+
+[[package]]
+name = "opendal-service-ipfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "prost 0.13.5",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

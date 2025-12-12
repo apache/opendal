@@ -114,11 +114,6 @@ mod huggingface;
 #[cfg(feature = "services-huggingface")]
 pub use huggingface::*;
 
-#[cfg(feature = "services-ipfs")]
-mod ipfs;
-#[cfg(feature = "services-ipfs")]
-pub use self::ipfs::*;
-
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]

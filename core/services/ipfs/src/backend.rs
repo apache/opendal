@@ -23,13 +23,13 @@ use http::StatusCode;
 use log::debug;
 use prost::Message;
 
-use super::IPFS_SCHEME;
-use super::config::IpfsConfig;
-use super::core::IpfsCore;
-use super::error::parse_error;
-use super::ipld::PBNode;
-use crate::raw::*;
-use crate::*;
+use crate::IPFS_SCHEME;
+use crate::config::IpfsConfig;
+use crate::core::IpfsCore;
+use crate::error::parse_error;
+use crate::ipld::PBNode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// IPFS file system support based on [IPFS HTTP Gateway](https://docs.ipfs.tech/concepts/ipfs-gateway/).
 #[doc = include_str!("docs.md")]

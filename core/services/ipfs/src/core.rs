@@ -22,9 +22,9 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use crate::error::parse_error;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct IpfsCore {
     pub info: Arc<AccessorInfo>,

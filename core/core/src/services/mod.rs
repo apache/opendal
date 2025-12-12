@@ -79,11 +79,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::*;
-
 #[cfg(feature = "services-gcs")]
 mod gcs;
 #[cfg(feature = "services-gcs")]
@@ -118,11 +113,6 @@ pub use self::http::*;
 mod huggingface;
 #[cfg(feature = "services-huggingface")]
 pub use huggingface::*;
-
-#[cfg(feature = "services-ipfs")]
-mod ipfs;
-#[cfg(feature = "services-ipfs")]
-pub use self::ipfs::*;
 
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
@@ -163,11 +153,6 @@ pub use self::mongodb::*;
 mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
-
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::*;
 
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
@@ -213,11 +198,6 @@ pub use seafile::*;
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
-
-#[cfg(feature = "services-sled")]
-mod sled;
-#[cfg(feature = "services-sled")]
-pub use self::sled::*;
 
 #[cfg(feature = "services-sqlite")]
 mod sqlite;

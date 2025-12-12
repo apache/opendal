@@ -42,4 +42,3 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = "1"

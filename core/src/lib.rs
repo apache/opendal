@@ -37,18 +37,26 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-ftp")]
+    pub use opendal_service_ftp::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-ipfs")]
+    pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
+    #[cfg(feature = "services-obs")]
+    pub use opendal_service_obs::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
+    #[cfg(feature = "services-sled")]
+    pub use opendal_service_sled::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
 }
@@ -66,6 +74,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-immutable-index")]
+    pub use opendal_layer_immutable_index::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]
@@ -80,6 +90,8 @@ pub mod layers {
     pub use opendal_layer_prometheus_client::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
+    #[cfg(feature = "layers-throttle")]
+    pub use opendal_layer_throttle::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

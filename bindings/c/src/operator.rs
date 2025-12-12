@@ -88,7 +88,9 @@ fn build_operator(
     schema: &str,
     map: HashMap<String, String>,
 ) -> core::Result<core::blocking::Operator> {
-    let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
+    let op = core::Operator::via_iter(schema, map)?
+        .layer(core::layers::LoggingLayer::default())
+        .layer(core::layers::RetryLayer::new());
 
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());

@@ -79,11 +79,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::*;
-
 #[cfg(feature = "services-gcs")]
 mod gcs;
 #[cfg(feature = "services-gcs")]

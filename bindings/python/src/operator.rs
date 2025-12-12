@@ -33,7 +33,10 @@ fn build_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<ocore:
     Ok(op)
 }
 
-fn build_operator_from_uri(uri: &str, options: &HashMap<String, String>) -> PyResult<ocore::Operator> {
+fn build_operator_from_uri(
+    uri: &str,
+    options: &HashMap<String, String>,
+) -> PyResult<ocore::Operator> {
     let op = ocore::Operator::from_uri((uri, options)).map_err(format_pyerr)?;
     Ok(op)
 }
@@ -51,7 +54,8 @@ fn build_blocking_operator(
 }
 
 fn build_blocking_operator_from_uri(
-    uri: &str, options: &HashMap<String, String>
+    uri: &str,
+    options: &HashMap<String, String>,
 ) -> PyResult<ocore::blocking::Operator> {
     let op = ocore::Operator::from_uri((uri, options)).map_err(format_pyerr)?;
 
@@ -145,10 +149,17 @@ impl Operator {
     #[pyo3(signature = (uri, *, **kwargs))]
     pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let map = kwargs
-            .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
+            .map(|v| {
+                v.extract::<HashMap<String, String>>()
+                    .expect("must be a valid hashmap")
+            })
             .unwrap_or_default();
         let core = build_blocking_operator_from_uri(&uri, &map)?;
-        Ok(Operator { core, __scheme: core.info().scheme().to_string(), __map: map })
+        Ok(Operator {
+            core,
+            __scheme: core.info().scheme().to_string(),
+            __map: map,
+        })
     }
 
     /// Add a new layer to this operator.
@@ -814,10 +825,17 @@ impl AsyncOperator {
     #[pyo3(signature = (uri, *, **kwargs))]
     pub fn from_uri(uri: String, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
         let map = kwargs
-            .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
+            .map(|v| {
+                v.extract::<HashMap<String, String>>()
+                    .expect("must be a valid hashmap")
+            })
             .unwrap_or_default();
         let core = build_operator_from_uri(&uri, &map)?;
-        Ok(AsyncOperator { core, __scheme: core.info().scheme().to_string(), __map: map })
+        Ok(AsyncOperator {
+            core,
+            __scheme: core.info().scheme().to_string(),
+            __map: map,
+        })
     }
 
     /// Add a new layer to the operator.

@@ -5486,6 +5486,7 @@ dependencies = [
  "opendal-layer-capability-check",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
+ "opendal-layer-immutable-index",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5706,6 +5707,18 @@ dependencies = [
  "fastrace-jaeger",
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-immutable-index"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "log",
+ "opendal-core",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

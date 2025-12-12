@@ -32,9 +32,6 @@ pub use simulate::SimulateLayer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-mod immutable_index;
-pub use immutable_index::ImmutableIndexLayer;
-
 mod logging;
 pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;

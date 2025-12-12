@@ -18,7 +18,7 @@
 /// Default scheme for tikv service.
 pub const TIKV_SCHEME: &str = "tikv";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

@@ -25,8 +25,9 @@ use super::config::TikvConfig;
 use super::core::*;
 use super::deleter::TikvDeleter;
 use super::writer::TikvWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// TiKV backend builder
 #[doc = include_str!("docs.md")]

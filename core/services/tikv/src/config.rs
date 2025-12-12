@@ -51,10 +51,10 @@ impl Debug for TikvConfig {
     }
 }
 
-impl crate::Configurator for TikvConfig {
+impl opendal_core::Configurator for TikvConfig {
     type Builder = TikvBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let map = uri.options().clone();
 
         let mut endpoints = Vec::new();
@@ -96,8 +96,8 @@ impl crate::Configurator for TikvConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_collects_endpoints() {

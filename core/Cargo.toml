@@ -156,7 +156,7 @@ services-sled = ["dep:opendal-service-sled"]
 services-sqlite = ["opendal-core/services-sqlite"]
 services-surrealdb = ["opendal-core/services-surrealdb"]
 services-swift = ["opendal-core/services-swift"]
-services-tikv = ["opendal-core/services-tikv"]
+services-tikv = ["dep:opendal-service-tikv"]
 services-upyun = ["opendal-core/services-upyun"]
 services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
@@ -216,6 +216,7 @@ opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = tr
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
+opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
 
 [dev-dependencies]

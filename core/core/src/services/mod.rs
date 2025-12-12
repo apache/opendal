@@ -214,11 +214,6 @@ mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::*;
 
-#[cfg(feature = "services-tikv")]
-mod tikv;
-#[cfg(feature = "services-tikv")]
-pub use self::tikv::*;
-
 #[cfg(feature = "services-upyun")]
 mod upyun;
 #[cfg(feature = "services-upyun")]

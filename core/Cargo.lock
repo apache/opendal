@@ -5578,6 +5578,7 @@ dependencies = [
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
+ "opendal-service-onedrive",
  "opendal-service-oss",
  "opendal-service-postgresql",
  "opendal-service-s3",
@@ -6111,6 +6112,25 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+]
+
+[[package]]
+name = "opendal-service-onedrive"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

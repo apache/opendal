@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for onedrive service.
-pub const ONEDRIVE_SCHEME: &str = "onedrive";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Microsoft OneDrive service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod builder;
@@ -33,7 +32,10 @@ mod writer;
 pub use builder::OnedriveBuilder as Onedrive;
 pub use config::OnedriveConfig;
 
+/// Default scheme for onedrive service.
+pub const ONEDRIVE_SCHEME: &str = "onedrive";
+
 #[ctor::ctor]
 fn register_onedrive_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Onedrive>(ONEDRIVE_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Onedrive>(ONEDRIVE_SCHEME);
 }

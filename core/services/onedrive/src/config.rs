@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::{Configurator, OperatorUri, Result};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -50,10 +51,10 @@ impl Debug for OnedriveConfig {
     }
 }
 
-impl crate::Configurator for OnedriveConfig {
+impl Configurator for OnedriveConfig {
     type Builder = OnedriveBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(root) = uri.root() {
@@ -79,8 +80,8 @@ impl crate::Configurator for OnedriveConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_root() {

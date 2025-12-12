@@ -20,14 +20,14 @@ use std::sync::Arc;
 
 use log::debug;
 use mea::mutex::Mutex;
-use services::onedrive::core::OneDriveCore;
-use services::onedrive::core::OneDriveSigner;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::ONEDRIVE_SCHEME;
 use super::backend::OnedriveBackend;
 use super::config::OnedriveConfig;
-use crate::raw::*;
-use crate::*;
+use super::core::OneDriveCore;
+use super::core::OneDriveSigner;
 
 /// Microsoft [OneDrive](https://onedrive.com) backend support.
 #[doc = include_str!("docs.md")]

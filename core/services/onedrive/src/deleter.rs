@@ -19,10 +19,11 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::OneDriveCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
 
 /// Delete operation
 /// Documentation: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_delete?view=odsp-graph-online

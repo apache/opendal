@@ -817,7 +817,7 @@ impl AsyncOperator {
             .map(|v| v.extract::<HashMap<String, String>>().expect("must be a valid hashmap"))
             .unwrap_or_default();
         let core = build_operator_from_uri(&uri, options).map_err(format_pyerr)?;
-        Ok(Operator { core, __scheme: core.info().scheme().to_string(), __map: map })
+        Ok(AsyncOperator { core, __scheme: core.info().scheme().to_string(), __map: map })
     }
 
     /// Add a new layer to the operator.

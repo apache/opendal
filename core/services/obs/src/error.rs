@@ -21,8 +21,8 @@ use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// ObsError is the error returned by obs service.
 #[derive(Default, Debug, Deserialize)]

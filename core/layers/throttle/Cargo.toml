@@ -16,13 +16,20 @@
 # under the License.
 
 [package]
-name = "opendal-examples-multipart-upload"
-publish = false
+description = "Apache OpenDAL throttle layer"
+name = "opendal-layer-throttle"
 
-edition.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
-opendal = { path = "../..", features = ["tests"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+governor = { version = "0.10.1", features = ["std"] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

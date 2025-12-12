@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL Cloudflare KV service implementation"
-name = "opendal-service-cloudflare-kv"
+description = "Apache OpenDAL Huawei Cloud OBS service implementation"
+name = "opendal-service-obs"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -36,5 +36,10 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 bytes = { workspace = true }
 ctor = { workspace = true }
 http = { workspace = true }
+log = { workspace = true }
+quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
+reqsign = { workspace = true, default-features = false, features = [
+  "services-huaweicloud",
+  "reqwest_request",
+] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }

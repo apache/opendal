@@ -18,7 +18,7 @@
 /// Default scheme for ftp service.
 pub const FTP_SCHEME: &str = "ftp";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

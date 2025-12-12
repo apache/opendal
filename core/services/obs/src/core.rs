@@ -33,8 +33,8 @@ use reqsign::HuaweicloudObsSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub mod constants {
     pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";

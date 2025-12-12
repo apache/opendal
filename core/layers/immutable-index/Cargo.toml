@@ -16,13 +16,27 @@
 # under the License.
 
 [package]
-name = "opendal-examples-multipart-upload"
-publish = false
+description = "Apache OpenDAL immutable-index layer"
+name = "opendal-layer-immutable-index"
 
-edition.workspace = true
-rust-version.workspace = true
-version.workspace = true
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
-opendal = { path = "../..", features = ["tests"] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
+anyhow = { version = "1.0.100", features = ["std"] }
+futures = { workspace = true, default-features = true }
+log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log"] }

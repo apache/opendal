@@ -47,10 +47,10 @@ impl Debug for FtpConfig {
     }
 }
 
-impl crate::Configurator for FtpConfig {
+impl opendal_core::Configurator for FtpConfig {
     type Builder = FtpBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert(

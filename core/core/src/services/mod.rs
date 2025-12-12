@@ -79,11 +79,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::*;
-
 #[cfg(feature = "services-gcs")]
 mod gcs;
 #[cfg(feature = "services-gcs")]
@@ -163,11 +158,6 @@ pub use self::mongodb::*;
 mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
-
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::*;
 
 #[cfg(feature = "services-onedrive")]
 mod onedrive;

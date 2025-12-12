@@ -2722,6 +2722,7 @@ version = "0.55.0"
 dependencies = [
  "opendal",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-test",
 ]
 

@@ -100,9 +100,8 @@ mod iterator {
     fn contiguous(b: Bencher) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000]))
             .bench_refs(|buffer| {
-                loop {
-                    let Some(_) = buffer.next() else { break };
-                }
+                // Fully consume the iterator, ignoring each item.
+                for _ in buffer.by_ref() {}
             });
     }
 
@@ -110,9 +109,8 @@ mod iterator {
     fn non_contiguous(b: Bencher, parts: usize) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000 / parts].repeat(parts)))
             .bench_refs(|buffer| {
-                loop {
-                    let Some(_) = buffer.next() else { break };
-                }
+                // Fully consume the iterator, ignoring each item.
+                for _ in buffer.by_ref() {}
             });
     }
 }

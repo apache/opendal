@@ -99,18 +99,12 @@ mod iterator {
     #[divan::bench]
     fn contiguous(b: Bencher) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000]))
-            .bench_refs(|buffer| {
-                // Fully consume the iterator, ignoring each item.
-                for _ in buffer.by_ref() {}
-            });
+            .bench_refs(|buffer| for _ in buffer {});
     }
 
     #[divan::bench(args = [10, 1_000, 1_000_000])]
     fn non_contiguous(b: Bencher, parts: usize) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000 / parts].repeat(parts)))
-            .bench_refs(|buffer| {
-                // Fully consume the iterator, ignoring each item.
-                for _ in buffer.by_ref() {}
-            });
+            .bench_refs(|buffer| for _ in buffer {});
     }
 }

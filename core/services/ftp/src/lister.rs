@@ -21,8 +21,8 @@ use std::vec::IntoIter;
 
 use suppaftp::list::File;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FtpLister {
     path: String,

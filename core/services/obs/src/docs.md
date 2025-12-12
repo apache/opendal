@@ -28,8 +28,8 @@ You can refer to [`ObsBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Obs;
 use opendal_core::Operator;
+use opendal_service_obs::Obs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

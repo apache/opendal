@@ -23,8 +23,8 @@ use suppaftp::types::Response;
 
 use super::core::FtpCore;
 use super::err::format_ftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FtpDeleter {
     core: Arc<FtpCore>,

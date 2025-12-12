@@ -36,8 +36,8 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
@@ -382,6 +382,10 @@ impl Access for ObsBackend {
                     .obs_put_object_request(path, None, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

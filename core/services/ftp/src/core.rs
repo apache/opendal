@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
-use std::sync::Arc;
 use suppaftp::AsyncRustlsConnector;
 use suppaftp::AsyncRustlsFtpStream;
 use suppaftp::FtpError;
@@ -27,8 +28,8 @@ use suppaftp::rustls::ClientConfig;
 use suppaftp::types::FileType;
 
 use super::err::format_ftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct FtpCore {
     info: Arc<AccessorInfo>,

@@ -94,6 +94,7 @@ layers-dtrace = ["opendal-core/layers-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
 layers-metrics = ["dep:opendal-layer-metrics"]
+layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-mime-guess = ["dep:opendal-layer-mime-guess"]
 layers-otel-metrics = ["dep:opendal-layer-otelmetrics"]
 layers-otel-trace = ["dep:opendal-layer-oteltrace"]
@@ -120,7 +121,7 @@ services-dropbox = ["opendal-core/services-dropbox"]
 services-etcd = ["opendal-core/services-etcd"]
 services-foundationdb = ["opendal-core/services-foundationdb"]
 services-fs = ["opendal-core/services-fs"]
-services-ftp = ["opendal-core/services-ftp"]
+services-ftp = ["dep:opendal-service-ftp"]
 services-gcs = ["opendal-core/services-gcs"]
 services-gdrive = ["opendal-core/services-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
@@ -141,7 +142,7 @@ services-moka = ["dep:opendal-service-moka"]
 services-mongodb = ["opendal-core/services-mongodb"]
 services-monoiofs = ["opendal-core/services-monoiofs"]
 services-mysql = ["dep:opendal-service-mysql"]
-services-obs = ["opendal-core/services-obs"]
+services-obs = ["dep:opendal-service-obs"]
 services-onedrive = ["opendal-core/services-onedrive"]
 services-opfs = ["opendal-core/services-opfs"]
 services-oss = ["opendal-core/services-oss"]
@@ -193,6 +194,7 @@ opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", opt
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-mime-guess = { path = "layers/mime-guess", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-observe-metrics-common = { path = "layers/observe-metrics-common", version = "0.55.0", optional = true, default-features = false }
@@ -209,8 +211,10 @@ opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optiona
 opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
+opendal-service-ftp = { path = "services/ftp", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
+opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }

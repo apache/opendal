@@ -394,7 +394,6 @@ impl Access for B2Backend {
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),
-            _ => todo!(),
         }
     }
 }

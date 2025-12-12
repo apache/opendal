@@ -25,8 +25,8 @@ use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add a bandwidth rate limiter to the underlying services.
 ///
@@ -49,7 +49,7 @@ use crate::*;
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 ///
 /// ```no_run
-/// # use opendal_core::layers::ThrottleLayer;
+/// # use opendal_layer_throttle::ThrottleLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;

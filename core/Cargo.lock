@@ -5494,6 +5494,7 @@ dependencies = [
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
  "opendal-layer-tail-cut",
+ "opendal-layer-throttle",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
@@ -5570,7 +5571,6 @@ dependencies = [
  "foundationdb",
  "futures",
  "getrandom 0.2.16",
- "governor",
  "hdfs-native",
  "hdrs",
  "hmac",
@@ -5781,6 +5781,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-throttle"
+version = "0.55.0"
+dependencies = [
+ "governor",
+ "opendal-core",
 ]
 
 [[package]]

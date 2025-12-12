@@ -1175,6 +1175,7 @@ class AsyncOperator:
         scheme: opendal.services.Scheme.Huggingface | typing.Literal["huggingface"],
         /,
         *,
+        endpoint: builtins.str = ...,
         repo_id: builtins.str = ...,
         repo_type: builtins.str = ...,
         revision: builtins.str = ...,
@@ -1186,13 +1187,17 @@ class AsyncOperator:
 
         Parameters
         ----------
+        endpoint : builtins.str, optional
+            Endpoint of the Huggingface Hub.
+            Default is "https://huggingface.co".
         repo_id : builtins.str, optional
             Repo id of this backend.
             This is required.
         repo_type : builtins.str, optional
             Repo type of this backend.
             Default is model.
-            Available values: - model - dataset
+            Available values: - model - dataset - datasets
+            (alias for dataset)
         revision : builtins.str, optional
             Revision of this backend.
             Default is main.
@@ -1896,7 +1901,7 @@ class AsyncOperator:
             HTTP headers.
             This is necessary when writing to AWS S3 Buckets
             with Object Lock enabled for example.
-            Available options: - "crc32c"
+            Available options: - "crc32c" - "md5"
         default_storage_class : builtins.str, optional
             default storage_class for this backend.
             Available values: - `DEEP_ARCHIVE` - `GLACIER` -
@@ -1920,7 +1925,7 @@ class AsyncOperator:
             Disable load credential from ec2 metadata.
             This option is used to disable the default behavior
             of opendal to load credential from ec2 metadata,
-            a.k.a, IMDSv2
+            a.k.a., IMDSv2
         disable_list_objects_v2 : builtins.bool, optional
             OpenDAL uses List Objects V2 by default to list
             objects.
@@ -1936,7 +1941,7 @@ class AsyncOperator:
             Disable write with if match so that opendal will not
             send write request with if match headers.
             For example, Ceph RADOS S3 doesn't support write
-            with if match.
+            with if matched.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
@@ -3415,6 +3420,7 @@ class Operator:
         scheme: opendal.services.Scheme.Huggingface | typing.Literal["huggingface"],
         /,
         *,
+        endpoint: builtins.str = ...,
         repo_id: builtins.str = ...,
         repo_type: builtins.str = ...,
         revision: builtins.str = ...,
@@ -3426,13 +3432,17 @@ class Operator:
 
         Parameters
         ----------
+        endpoint : builtins.str, optional
+            Endpoint of the Huggingface Hub.
+            Default is "https://huggingface.co".
         repo_id : builtins.str, optional
             Repo id of this backend.
             This is required.
         repo_type : builtins.str, optional
             Repo type of this backend.
             Default is model.
-            Available values: - model - dataset
+            Available values: - model - dataset - datasets
+            (alias for dataset)
         revision : builtins.str, optional
             Revision of this backend.
             Default is main.
@@ -4136,7 +4146,7 @@ class Operator:
             HTTP headers.
             This is necessary when writing to AWS S3 Buckets
             with Object Lock enabled for example.
-            Available options: - "crc32c"
+            Available options: - "crc32c" - "md5"
         default_storage_class : builtins.str, optional
             default storage_class for this backend.
             Available values: - `DEEP_ARCHIVE` - `GLACIER` -
@@ -4160,7 +4170,7 @@ class Operator:
             Disable load credential from ec2 metadata.
             This option is used to disable the default behavior
             of opendal to load credential from ec2 metadata,
-            a.k.a, IMDSv2
+            a.k.a., IMDSv2
         disable_list_objects_v2 : builtins.bool, optional
             OpenDAL uses List Objects V2 by default to list
             objects.
@@ -4176,7 +4186,7 @@ class Operator:
             Disable write with if match so that opendal will not
             send write request with if match headers.
             For example, Ceph RADOS S3 doesn't support write
-            with if match.
+            with if matched.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.

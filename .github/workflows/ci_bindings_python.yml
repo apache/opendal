@@ -46,6 +46,11 @@ jobs:
         with:
           working-directory: "bindings/python"
       - uses: taiki-e/install-action@just
+      - name: Generate stubs
+        working-directory: "bindings/python"
+        run: just stub-gen
+      - name: Check diff
+        run: git diff --exit-code
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint

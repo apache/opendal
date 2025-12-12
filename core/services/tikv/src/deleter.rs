@@ -18,42 +18,25 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub struct TikvWriter {
+pub struct TikvDeleter {
     core: Arc<TikvCore>,
-    path: String,
-    buffer: oio::QueueBuf,
+    root: String,
 }
 
-impl TikvWriter {
-    pub fn new(core: Arc<TikvCore>, path: String) -> Self {
-        Self {
-            core,
-            path,
-            buffer: oio::QueueBuf::new(),
-        }
+impl TikvDeleter {
+    pub fn new(core: Arc<TikvCore>, root: String) -> Self {
+        Self { core, root }
     }
 }
 
-impl oio::Write for TikvWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.buffer.push(bs);
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        let buf = self.buffer.clone().collect();
-        let length = buf.len() as u64;
-        self.core.set(&self.path, buf).await?;
-
-        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
-        Ok(meta)
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.buffer.clear();
+impl oio::OneShotDelete for TikvDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
         Ok(())
     }
 }

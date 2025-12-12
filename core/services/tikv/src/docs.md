@@ -28,7 +28,7 @@ You can refer to [`TikvBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Tikv;
+use opendal_service_tikv::Tikv;
 use opendal_core::Operator;
 
 #[tokio::main]

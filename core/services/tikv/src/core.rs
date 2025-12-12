@@ -22,7 +22,7 @@ use tikv_client::Config;
 use tikv_client::RawClient;
 
 use super::TIKV_SCHEME;
-use crate::*;
+use opendal_core::*;
 
 /// TikvCore holds the configuration and client for interacting with TiKV.
 #[derive(Clone)]

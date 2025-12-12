@@ -2711,7 +2711,6 @@ dependencies = [
 name = "edge_test_file_write_on_full_disk"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "rand 0.8.5",
  "tokio",
@@ -5487,6 +5486,7 @@ dependencies = [
  "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
+ "opendal-layer-immutable-index",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5495,18 +5495,24 @@ dependencies = [
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
  "opendal-layer-tail-cut",
+ "opendal-layer-throttle",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
+ "opendal-service-ftp",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
+ "opendal-service-ipfs",
  "opendal-service-moka",
  "opendal-service-mysql",
+ "opendal-service-obs",
  "opendal-service-postgresql",
  "opendal-service-s3",
+ "opendal-service-sled",
+ "opendal-service-tikv",
  "opendal-service-vercel-blob",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5568,9 +5574,7 @@ dependencies = [
  "flume",
  "foundationdb",
  "futures",
- "futures-rustls",
  "getrandom 0.2.16",
- "governor",
  "hdfs-native",
  "hdrs",
  "hmac",
@@ -5602,17 +5606,13 @@ dependencies = [
  "reqsign",
  "reqwest",
  "rocksdb",
- "rustls-native-certs 0.8.2",
  "serde",
  "serde_json",
  "sha1",
  "sha2",
  "size",
- "sled",
  "sqlx",
- "suppaftp",
  "surrealdb",
- "tikv-client",
  "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -5628,7 +5628,6 @@ dependencies = [
 name = "opendal-examples-basic"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5637,7 +5636,6 @@ dependencies = [
 name = "opendal-examples-concurrent-upload"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5646,7 +5644,6 @@ dependencies = [
 name = "opendal-examples-multipart-upload"
 version = "0.55.0"
 dependencies = [
- "futures",
  "opendal",
  "tokio",
 ]
@@ -5709,12 +5706,20 @@ dependencies = [
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
- "anyhow",
- "dotenvy",
  "fastrace",
- "fastrace-jaeger",
+ "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-immutable-index"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "log",
  "opendal-core",
  "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5789,6 +5794,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-throttle"
+version = "0.55.0"
+dependencies = [
+ "governor",
+ "opendal-core",
+]
+
+[[package]]
 name = "opendal-layer-tracing"
 version = "0.55.0"
 dependencies = [
@@ -5808,7 +5821,6 @@ dependencies = [
  "log",
  "mea",
  "opendal-core",
- "pretty_assertions",
  "serde",
  "serde_json",
 ]
@@ -5880,10 +5892,27 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-ftp"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "fastpool",
+ "futures",
+ "futures-rustls",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "rustls-native-certs 0.8.2",
+ "serde",
+ "suppaftp",
+ "tokio",
 ]
 
 [[package]]
@@ -5918,6 +5947,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-ipfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "prost 0.13.5",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-moka"
 version = "0.55.0"
 dependencies = [
@@ -5937,6 +5980,20 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+]
+
+[[package]]
+name = "opendal-service-obs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "reqsign",
+ "serde",
 ]
 
 [[package]]
@@ -5973,6 +6030,27 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-sled"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "serde",
+ "sled",
+]
+
+[[package]]
+name = "opendal-service-tikv"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "tikv-client",
 ]
 
 [[package]]

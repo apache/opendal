@@ -43,11 +43,6 @@ mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
 
-#[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
-mod dtrace;
-#[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
-pub use self::dtrace::DtraceLayer;
-
 mod correctness_check;
 pub(crate) use correctness_check::CorrectnessCheckLayer;
 

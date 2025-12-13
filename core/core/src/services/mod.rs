@@ -24,11 +24,6 @@ mod alluxio;
 #[cfg(feature = "services-alluxio")]
 pub use alluxio::*;
 
-#[cfg(feature = "services-b2")]
-mod b2;
-#[cfg(feature = "services-b2")]
-pub use b2::*;
-
 #[cfg(feature = "services-cacache")]
 mod cacache;
 #[cfg(feature = "services-cacache")]

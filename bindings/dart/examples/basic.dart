@@ -18,7 +18,7 @@
 import '../lib/opendal.dart';
 
 void main() async {
-  final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final storage = await Storage.init(scheme: "fs", map: {"root": "/tmp"});
   final File = storage.initFile();
   // drop-in style 
   var testFile = File("test_1.txt");

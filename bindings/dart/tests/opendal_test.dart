@@ -5,7 +5,7 @@ void main() {
   group('opendal unit test', () {
     group('opendal fs schema', () {
       test('File and Directory functions in fs schema', () async {
-        final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+        final storage = await Storage.init(scheme: "fs", map: {"root": "/tmp"});
         final File = storage.initFile();
         var testFile = File("test_1.txt");
         expect(await testFile.exists(), false);
@@ -23,7 +23,7 @@ void main() {
 
     group('opendal memory schema', () {
       test('File and Directory functions in memory schema', () async {
-        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(scheme: "memory", map: {"root": "/tmp"});
         final Directory = storage.initDir();
 
         var testDir = Directory("test/");

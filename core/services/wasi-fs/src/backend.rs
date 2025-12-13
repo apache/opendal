@@ -20,15 +20,16 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use super::WASI_FS_SCHEME;
 use super::config::WasiFsConfig;
 use super::core::WasiFsCore;
 use super::deleter::WasiFsDeleter;
 use super::lister::WasiFsLister;
 use super::reader::WasiFsReader;
 use super::writer::WasiFsWriter;
-use super::WASI_FS_SCHEME;
 
-/// WASI Filesystem service builder.
+/// WASI Filesystem service support.
+#[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct WasiFsBuilder {
     pub(super) config: WasiFsConfig,

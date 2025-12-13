@@ -79,11 +79,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-gcs")]
-mod gcs;
-#[cfg(feature = "services-gcs")]
-pub use gcs::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]

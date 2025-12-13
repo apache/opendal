@@ -24,8 +24,8 @@ use super::core::CompleteMultipartUploadRequestPart;
 use super::core::GcsCore;
 use super::core::InitiateMultipartUploadResult;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type GcsWriters = oio::MultipartWriter<GcsWriter>;
 

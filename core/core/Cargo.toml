@@ -91,11 +91,6 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
-services-gcs = [
-  "dep:reqsign",
-  "reqsign?/services-google",
-  "reqsign?/reqwest_request",
-]
 services-gdrive = ["internal-path-cache"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]

@@ -39,6 +39,8 @@ pub mod services {
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-ftp")]
     pub use opendal_service_ftp::*;
+    #[cfg(feature = "services-gcs")]
+    pub use opendal_service_gcs::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-hdfs-native")]

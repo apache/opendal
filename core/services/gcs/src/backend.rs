@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use http::Response;
 use http::StatusCode;
@@ -34,8 +35,10 @@ use super::error::parse_error;
 use super::lister::GcsLister;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -446,6 +449,10 @@ impl Access for GcsBackend {
                     .gcs_insert_object_xml_request(path, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

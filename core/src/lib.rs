@@ -77,7 +77,7 @@ pub mod layers {
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
     #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
-    pub use opendal_layer_dtrace::DtraceLayer;
+    pub use opendal_layer_dtrace::*;
 
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;

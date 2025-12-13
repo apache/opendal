@@ -5690,6 +5690,7 @@ dependencies = [
 name = "opendal-layer-dtrace"
 version = "0.55.0"
 dependencies = [
+ "bytes",
  "opendal-core",
  "probe",
 ]

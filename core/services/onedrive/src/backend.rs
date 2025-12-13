@@ -20,13 +20,14 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::OneDriveCore;
 use super::deleter::OneDriveDeleter;
 use super::error::parse_error;
 use super::lister::OneDriveLister;
 use super::writer::OneDriveWriter;
-use crate::raw::*;
-use crate::*;
 
 #[derive(Clone, Debug)]
 pub struct OnedriveBackend {

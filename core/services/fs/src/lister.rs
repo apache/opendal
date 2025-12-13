@@ -18,10 +18,10 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::*;
+use opendal_core::EntryMode;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub struct FsLister<P> {
     root: PathBuf,

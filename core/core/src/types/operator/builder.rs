@@ -28,11 +28,11 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal_core::services::Fs;
+/// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
-///     // Create fs backend builder.
-///     let builder = Fs::default().root("/tmp");
+///     // Create memory backend builder.
+///     let builder = Memory::default();
 ///
 ///     // Build an `Operator` to start operating the storage.
 ///     let op: Operator = Operator::new(builder)?.finish();
@@ -52,11 +52,11 @@ impl Operator {
     ///
     /// ```
     /// # use anyhow::Result;
-    /// use opendal_core::services::Fs;
+    /// use opendal_core::services::Memory;
     /// use opendal_core::Operator;
     /// async fn test() -> Result<()> {
-    ///     // Create fs backend builder.
-    ///     let builder = Fs::default().root("/tmp");
+    ///     // Create memory backend builder.
+    ///     let builder = Memory::default();
     ///
     ///     // Build an `Operator` to start operating the storage.
     ///     let op: Operator = Operator::new(builder)?.finish();
@@ -107,18 +107,13 @@ impl Operator {
     /// # use anyhow::Result;
     /// use std::collections::HashMap;
     ///
-    /// use opendal_core::services::Fs;
+    /// use opendal_core::services::Memory;
     /// use opendal_core::Operator;
     /// async fn test() -> Result<()> {
-    ///     let map = HashMap::from([
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ]);
+    ///     let map = HashMap::new();
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::from_iter::<Fs>(map)?.finish();
+    ///     let op: Operator = Operator::from_iter::<Memory>(map)?.finish();
     ///
     ///     Ok(())
     /// }
@@ -166,15 +161,10 @@ impl Operator {
     /// use opendal_core::services;
     ///
     /// async fn test() -> Result<()> {
-    ///     let map = [
-    ///         // Set the root for fs, all operations will happen under this root.
-    ///         //
-    ///         // NOTE: the root must be absolute path.
-    ///         ("root".to_string(), "/tmp".to_string()),
-    ///     ];
+    ///     let map: Vec<(String, String)> = vec![];
     ///
     ///     // Build an `Operator` to start operating the storage.
-    ///     let op: Operator = Operator::via_iter(services::FS_SCHEME, map)?;
+    ///     let op: Operator = Operator::via_iter(services::MEMORY_SCHEME, map)?;
     ///
     ///     Ok(())
     /// }

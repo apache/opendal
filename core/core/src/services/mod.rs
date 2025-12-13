@@ -74,8 +74,6 @@ mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::*;
 
-
-
 #[cfg(feature = "services-gcs")]
 mod gcs;
 #[cfg(feature = "services-gcs")]

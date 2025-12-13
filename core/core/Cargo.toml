@@ -77,7 +77,6 @@ layers-dtrace = ["dep:probe"]
 
 services-alluxio = []
 services-b2 = []
-services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
 services-cos = [
   "dep:reqsign",
@@ -193,11 +192,6 @@ reqsign = { workspace = true, default-features = false, optional = true }
 # for self-referencing structs
 ouroboros = { version = "0.18.4", optional = true }
 
-# for services-cacache
-cacache = { version = "13.0", default-features = false, features = [
-  "tokio-runtime",
-  "mmap",
-], optional = true }
 # for services-dashmap
 dashmap = { version = "6", optional = true }
 # for services-etcd

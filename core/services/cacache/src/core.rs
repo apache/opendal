@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct CacacheCore {
@@ -33,14 +33,14 @@ impl Debug for CacacheCore {
 }
 
 impl CacacheCore {
-    pub async fn get(&self, key: &str) -> Result<Option<bytes::Bytes>> {
+    pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let cache_path = self.path.clone();
         let cache_key = key.to_string();
 
         let data = cacache::read(&cache_path, &cache_key).await;
 
         match data {
-            Ok(bs) => Ok(Some(bytes::Bytes::from(bs))),
+            Ok(bs) => Ok(Some(Buffer::from(bs))),
             Err(cacache::Error::EntryNotFound(_, _)) => Ok(None),
             Err(err) => Err(Error::new(ErrorKind::Unexpected, "cacache get failed")
                 .with_operation("CacacheCore::get")
@@ -48,7 +48,7 @@ impl CacacheCore {
         }
     }
 
-    pub async fn set(&self, key: &str, value: bytes::Bytes) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
         let cache_path = self.path.clone();
         let cache_key = key.to_string();
 

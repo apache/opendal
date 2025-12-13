@@ -22,8 +22,8 @@ use super::config::CacacheConfig;
 use super::core::CacacheCore;
 use super::deleter::CacacheDeleter;
 use super::writer::CacacheWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// cacache service support.
 #[doc = include_str!("docs.md")]
@@ -117,14 +117,14 @@ impl Access for CacacheBackend {
             Some(bytes) => {
                 let range = args.range();
                 let buffer = if range.is_full() {
-                    Buffer::from(bytes)
+                    bytes
                 } else {
                     let start = range.offset() as usize;
                     let end = match range.size() {
                         Some(size) => (range.offset() + size) as usize,
                         None => bytes.len(),
                     };
-                    Buffer::from(bytes.slice(start..end.min(bytes.len())))
+                    bytes.slice(start..end.min(bytes.len()))
                 };
                 Ok((RpRead::new(), buffer))
             }

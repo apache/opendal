@@ -5500,6 +5500,7 @@ dependencies = [
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
+ "opendal-service-cacache",
  "opendal-service-cloudflare-kv",
  "opendal-service-ftp",
  "opendal-service-ghac",
@@ -5561,7 +5562,6 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "cacache",
  "compio",
  "criterion",
  "ctor",
@@ -5874,6 +5874,16 @@ dependencies = [
  "http 1.4.0",
  "opendal-core",
  "reqsign",
+]
+
+[[package]]
+name = "opendal-service-cacache"
+version = "0.55.0"
+dependencies = [
+ "cacache",
+ "ctor",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

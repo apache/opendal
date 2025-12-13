@@ -17,8 +17,8 @@
 
 use std::sync::Arc;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::CacacheCore;
 

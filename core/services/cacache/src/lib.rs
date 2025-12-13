@@ -18,7 +18,7 @@
 /// Default scheme for cacache service.
 pub const CACACHE_SCHEME: &str = "cacache";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

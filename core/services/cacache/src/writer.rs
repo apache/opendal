@@ -17,8 +17,8 @@
 
 use std::sync::Arc;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::CacacheCore;
 
@@ -48,7 +48,7 @@ impl oio::Write for CacacheWriter {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
 
-        self.core.set(&self.path, buf.to_bytes()).await?;
+        self.core.set(&self.path, buf).await?;
 
         let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
         Ok(meta)

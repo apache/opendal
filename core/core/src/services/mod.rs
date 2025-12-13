@@ -29,10 +29,6 @@ mod b2;
 #[cfg(feature = "services-b2")]
 pub use b2::*;
 
-#[cfg(feature = "services-cacache")]
-mod cacache;
-#[cfg(feature = "services-cacache")]
-pub use self::cacache::*;
 
 #[cfg(feature = "services-compfs")]
 mod compfs;

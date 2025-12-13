@@ -19,6 +19,9 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::CacacheBuilder;
+use opendal_core::Configurator;
+use opendal_core::OperatorUri;
+use opendal_core::Result;
 
 /// cacache service support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -27,9 +30,9 @@ pub struct CacacheConfig {
     pub datadir: Option<String>,
 }
 
-impl crate::Configurator for CacacheConfig {
+impl Configurator for CacacheConfig {
     type Builder = CacacheBuilder;
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(root) = uri.root() {
@@ -50,8 +53,7 @@ impl crate::Configurator for CacacheConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
 
     #[test]
     fn from_uri_sets_datadir_from_authority() {

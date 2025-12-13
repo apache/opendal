@@ -24,7 +24,7 @@ You can refer to [`CacacheBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Cacache;
+use opendal_service_cacache::Cacache;
 use opendal_core::Operator;
 
 #[tokio::main]

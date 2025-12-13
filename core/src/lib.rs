@@ -35,6 +35,8 @@ pub mod services {
     pub use opendal_service_azdls::*;
     #[cfg(feature = "services-azfile")]
     pub use opendal_service_azfile::*;
+    #[cfg(feature = "services-cacache")]
+    pub use opendal_service_cacache::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-ftp")]
@@ -59,8 +61,6 @@ pub mod services {
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
-    #[cfg(feature = "services-cacache")]
-    pub use opendal_service_cacache::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
 }

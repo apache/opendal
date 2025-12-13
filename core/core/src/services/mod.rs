@@ -29,7 +29,6 @@ mod b2;
 #[cfg(feature = "services-b2")]
 pub use b2::*;
 
-
 #[cfg(feature = "services-compfs")]
 mod compfs;
 #[cfg(feature = "services-compfs")]

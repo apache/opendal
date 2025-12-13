@@ -29,7 +29,7 @@ class Storage {
   Storage._(this._operator);
 
   static Future<Storage> init({
-    required String schemeStr,
+    required String scheme,
     required Map<String, String> map,
   }) async {
     if (!RustLib.instance.initialized) {
@@ -86,7 +86,7 @@ class Storage {
       );
       await RustLib.init(externalLibrary: await loadExternalLibrary(config));
     }
-    return Storage._(Operator(schemeStr: schemeStr, map: map));
+    return Storage._(Operator(scheme: scheme, map: map));
   }
 
   /// Creates a factory function for creating File objects

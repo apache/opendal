@@ -1240,6 +1240,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-ghac",
+ "opendal-service-obs",
  "opendal-service-s3",
 ]
 
@@ -1355,6 +1356,20 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "opendal-service-obs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "reqsign",
+ "serde",
 ]
 
 [[package]]

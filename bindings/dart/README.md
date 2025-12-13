@@ -28,7 +28,7 @@ This is opendal
 import 'package:opendal/opendal.dart';
 
 void main() async {
-  final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+  final storage = await Storage.init(scheme: "fs", map: {"root": "/tmp"});
   final File = storage.initFile();
   // drop-in
   final file = File('file.txt');

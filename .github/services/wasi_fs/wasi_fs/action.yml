@@ -21,8 +21,14 @@ description: 'Behavior test for WASI filesystem service'
 runs:
   using: "composite"
   steps:
-    - name: Setup wasmtime
-      uses: bytecodealliance/actions/wasmtime/setup@v1
+    - name: Install wasmtime
+      shell: bash
+      run: |
+        WASMTIME_VERSION="39.0.1"
+        curl -fsSL "https://github.com/bytecodealliance/wasmtime/releases/download/v${WASMTIME_VERSION}/wasmtime-v${WASMTIME_VERSION}-x86_64-linux.tar.xz" -o wasmtime.tar.xz
+        tar -xf wasmtime.tar.xz
+        sudo mv "wasmtime-v${WASMTIME_VERSION}-x86_64-linux/wasmtime" /usr/local/bin/
+        wasmtime --version
 
     - name: Add wasm32-wasip2 target
       shell: bash

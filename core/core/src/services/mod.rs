@@ -69,8 +69,6 @@ mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::*;
 
-
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]

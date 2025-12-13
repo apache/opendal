@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-alluxio")]
-mod alluxio;
-#[cfg(feature = "services-alluxio")]
-pub use alluxio::*;
-
 #[cfg(feature = "services-b2")]
 mod b2;
 #[cfg(feature = "services-b2")]

@@ -15,24 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for alluxio service.
+pub const ALLUXIO_SCHEME: &str = "alluxio";
 
-use super::core::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub struct AlluxioDeleter {
-    core: Arc<AlluxioCore>,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-impl AlluxioDeleter {
-    pub fn new(core: Arc<AlluxioCore>) -> Self {
-        AlluxioDeleter { core }
-    }
-}
+pub use backend::AlluxioBuilder as Alluxio;
+pub use config::AlluxioConfig;
 
-impl oio::OneShotDelete for AlluxioDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        self.core.delete(&path).await
-    }
+#[ctor::ctor]
+fn register_alluxio_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Alluxio>(ALLUXIO_SCHEME);
 }

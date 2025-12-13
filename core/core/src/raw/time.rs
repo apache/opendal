@@ -24,9 +24,11 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::str::FromStr;
 
 pub use std::time::{Duration, UNIX_EPOCH};
-#[cfg(not(target_arch = "wasm32"))]
+// For native and WASI targets, use std::time
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use std::time::{Instant, SystemTime};
-#[cfg(target_arch = "wasm32")]
+// For browser wasm (target_os = "unknown"), use web_time
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 pub use web_time::{Instant, SystemTime};
 
 /// An instant in time represented as the number of nanoseconds since the Unix epoch.
@@ -179,12 +181,14 @@ impl From<jiff::Timestamp> for Timestamp {
 
 impl From<Timestamp> for SystemTime {
     fn from(ts: Timestamp) -> Self {
-        #[cfg(not(target_arch = "wasm32"))]
+        // For native and WASI targets, use std::time directly
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         {
             SystemTime::from(ts.0)
         }
 
-        #[cfg(target_arch = "wasm32")]
+        // For browser wasm (target_os = "unknown"), use web_time
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
         {
             use std::time::SystemTime as StdSystemTime;
 
@@ -199,12 +203,14 @@ impl TryFrom<SystemTime> for Timestamp {
 
     fn try_from(t: SystemTime) -> Result<Self> {
         let t = {
-            #[cfg(not(target_arch = "wasm32"))]
+            // For native and WASI targets, use std::time directly
+            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
             {
                 t
             }
 
-            #[cfg(target_arch = "wasm32")]
+            // For browser wasm (target_os = "unknown"), use web_time
+            #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
             {
                 <web_time::SystemTime as web_time::web::SystemTimeExt>::to_std(t)
             }

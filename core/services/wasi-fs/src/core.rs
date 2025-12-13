@@ -35,7 +35,7 @@ pub struct WasiFsCore {
 
 impl WasiFsCore {
     pub fn new(root: &str) -> Result<Self> {
-        let preopens = get_directories();
+        let mut preopens = get_directories();
 
         if preopens.is_empty() {
             return Err(Error::new(
@@ -44,7 +44,8 @@ impl WasiFsCore {
             ));
         }
 
-        let (descriptor, preopen_path) = Self::find_preopened_dir(&preopens, root)?;
+        let (idx, preopen_path) = Self::find_preopened_dir_index(&preopens, root)?;
+        let (descriptor, _) = preopens.swap_remove(idx);
 
         let root_path = if root.starts_with(&preopen_path) {
             root.strip_prefix(&preopen_path)
@@ -61,21 +62,25 @@ impl WasiFsCore {
         })
     }
 
-    fn find_preopened_dir(
+    fn find_preopened_dir_index(
         preopens: &[(Descriptor, String)],
         root: &str,
-    ) -> Result<(Descriptor, String)> {
-        for (desc, path) in preopens {
+    ) -> Result<(usize, String)> {
+        for (idx, (_, path)) in preopens.iter().enumerate() {
             if root.starts_with(path) || path == "/" || root == "/" || root.is_empty() {
-                return Ok((desc.clone(), path.clone()));
+                return Ok((idx, path.clone()));
             }
         }
 
-        let (desc, path) = preopens
-            .first()
-            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "No preopened directories"))?;
+        // Fall back to first preopened directory
+        if preopens.is_empty() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "No preopened directories",
+            ));
+        }
 
-        Ok((desc.clone(), path.clone()))
+        Ok((0, preopens[0].1.clone()))
     }
 
     fn build_path(&self, path: &str) -> String {
@@ -113,8 +118,8 @@ impl WasiFsCore {
         let mut metadata = Metadata::new(mode).with_content_length(stat.size);
 
         if let Some(mtime) = stat.data_modification_timestamp {
-            let nanos = mtime.seconds as i128 * 1_000_000_000 + mtime.nanoseconds as i128;
-            if let Ok(ts) = Timestamp::from_unix_nanos(nanos) {
+            // Convert WASI timestamp (seconds + nanoseconds) to Timestamp
+            if let Ok(ts) = Timestamp::new(mtime.seconds as i64, mtime.nanoseconds as i32) {
                 metadata = metadata.with_last_modified(ts);
             }
         }
@@ -145,7 +150,15 @@ impl WasiFsCore {
         let abs_path = self.build_path(path);
 
         let dir_desc = if abs_path.is_empty() {
-            self.root_descriptor.clone()
+            // For the root, we need to open the same directory again
+            // since we can't clone the descriptor
+            self.root_descriptor
+                .read_directory()
+                .map_err(parse_wasi_error)?;
+            return self
+                .root_descriptor
+                .read_directory()
+                .map_err(parse_wasi_error);
         } else {
             self.root_descriptor
                 .open_at(

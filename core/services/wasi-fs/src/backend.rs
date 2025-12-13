@@ -57,7 +57,7 @@ impl Builder for WasiFsBuilder {
 
         let core = WasiFsCore::new(&root)?;
 
-        let mut info = AccessorInfo::default();
+        let info = AccessorInfo::default();
         info.set_scheme(WASI_FS_SCHEME)
             .set_root(&root)
             .set_native_capability(Capability {

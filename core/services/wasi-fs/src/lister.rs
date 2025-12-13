@@ -55,36 +55,40 @@ impl oio::List for WasiFsLister {
             return Ok(Some(entry));
         }
 
-        match self.stream.read_directory_entry() {
-            Ok(Some(entry)) => {
-                let name = entry.name;
+        // Use a loop to skip . and .. entries instead of recursion
+        loop {
+            match self.stream.read_directory_entry() {
+                Ok(Some(entry)) => {
+                    let name = entry.name;
 
-                if name == "." || name == ".." {
-                    return self.next().await;
+                    // Skip . and .. entries
+                    if name == "." || name == ".." {
+                        continue;
+                    }
+
+                    let mode = match entry.type_ {
+                        DescriptorType::Directory => EntryMode::DIR,
+                        DescriptorType::RegularFile => EntryMode::FILE,
+                        _ => EntryMode::Unknown,
+                    };
+
+                    let path = if self.path.ends_with('/') || self.path.is_empty() {
+                        format!("{}{}", self.path, name)
+                    } else {
+                        format!("{}/{}", self.path, name)
+                    };
+
+                    let path = if mode == EntryMode::DIR {
+                        format!("{}/", path)
+                    } else {
+                        path
+                    };
+
+                    return Ok(Some(oio::Entry::new(&path, Metadata::new(mode))));
                 }
-
-                let mode = match entry.type_ {
-                    DescriptorType::Directory => EntryMode::DIR,
-                    DescriptorType::RegularFile => EntryMode::FILE,
-                    _ => EntryMode::Unknown,
-                };
-
-                let path = if self.path.ends_with('/') || self.path.is_empty() {
-                    format!("{}{}", self.path, name)
-                } else {
-                    format!("{}/{}", self.path, name)
-                };
-
-                let path = if mode == EntryMode::DIR {
-                    format!("{}/", path)
-                } else {
-                    path
-                };
-
-                Ok(Some(oio::Entry::new(&path, Metadata::new(mode))))
+                Ok(None) => return Ok(None),
+                Err(e) => return Err(parse_wasi_error(e)),
             }
-            Ok(None) => Ok(None),
-            Err(e) => Err(parse_wasi_error(e)),
         }
     }
 }

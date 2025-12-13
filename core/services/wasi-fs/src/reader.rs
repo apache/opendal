@@ -35,13 +35,14 @@ impl WasiFsReader {
         let file = core.open_file(path, OpenFlags::empty(), DescriptorFlags::READ)?;
 
         let stat = file.stat().map_err(parse_wasi_error)?;
-        let (offset, size) = range.to_offset_size(stat.size);
+        let offset = range.offset();
+        let size = range.size().unwrap_or(stat.size - offset);
 
         let stream = file.read_via_stream(offset).map_err(parse_wasi_error)?;
 
         Ok(Self {
             stream,
-            remaining: size.unwrap_or(stat.size - offset),
+            remaining: size,
         })
     }
 }

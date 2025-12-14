@@ -15,34 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for cos service.
+pub const COS_SCHEME: &str = "cos";
 
-use http::StatusCode;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-use super::core::*;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-pub struct CosDeleter {
-    core: Arc<CosCore>,
-}
+pub use backend::CosBuilder as Cos;
+pub use config::CosConfig;
 
-impl CosDeleter {
-    pub fn new(core: Arc<CosCore>) -> Self {
-        Self { core }
-    }
-}
-
-impl oio::OneShotDelete for CosDeleter {
-    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        let resp = self.core.cos_delete_object(&path, &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
+#[ctor::ctor]
+fn register_cos_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Cos>(COS_SCHEME);
 }

@@ -79,6 +79,8 @@ pub mod services {
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
+    #[cfg(feature = "services-cos")]
+    pub use opendal_service_cos::*;
 }
 
 /// Re-export of layers.

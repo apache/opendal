@@ -74,11 +74,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-gcs")]
-mod gcs;
-#[cfg(feature = "services-gcs")]
-pub use gcs::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
@@ -153,11 +148,6 @@ pub use monoiofs::*;
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
-
-#[cfg(feature = "services-oss")]
-mod oss;
-#[cfg(feature = "services-oss")]
-pub use oss::*;
 
 #[cfg(feature = "services-pcloud")]
 mod pcloud;

@@ -47,8 +47,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::uri::percent_encode_path;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";

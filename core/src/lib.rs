@@ -41,6 +41,8 @@ pub mod services {
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-ftp")]
     pub use opendal_service_ftp::*;
+    #[cfg(feature = "services-gcs")]
+    pub use opendal_service_gcs::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-hdfs-native")]
@@ -53,6 +55,8 @@ pub mod services {
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
     pub use opendal_service_obs::*;
+    #[cfg(feature = "services-oss")]
+    pub use opendal_service_oss::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]

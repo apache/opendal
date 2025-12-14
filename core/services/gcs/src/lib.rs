@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for gcs service.
-pub const GCS_SCHEME: &str = "gcs";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Google Cloud Storage service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -32,7 +31,10 @@ mod writer;
 pub use backend::GcsBuilder as Gcs;
 pub use config::GcsConfig;
 
+/// Default scheme for gcs service.
+pub const GCS_SCHEME: &str = "gcs";
+
 #[ctor::ctor]
 fn register_gcs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Gcs>(GCS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Gcs>(GCS_SCHEME);
 }

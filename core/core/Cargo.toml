@@ -72,15 +72,12 @@ executors-tokio = ["tokio/rt"]
 
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
-# Enable layers throttle support.
-layers-throttle = ["dep:governor"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
 services-alluxio = []
 services-b2 = []
 services-cacache = ["dep:cacache"]
-services-cloudflare-kv = []
 services-compfs = ["dep:compio"]
 services-cos = [
   "dep:reqsign",
@@ -94,12 +91,6 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
-services-ftp = [
-  "dep:suppaftp",
-  "dep:fastpool",
-  "dep:futures-rustls",
-  "dep:rustls-native-certs",
-]
 services-gcs = [
   "dep:reqsign",
   "reqsign?/services-google",
@@ -111,7 +102,6 @@ services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
 services-http = []
 services-huggingface = []
-services-ipfs = ["dep:prost"]
 services-ipmfs = []
 services-koofr = []
 services-lakefs = []
@@ -120,11 +110,6 @@ services-memory = []
 services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
-services-obs = [
-  "dep:reqsign",
-  "reqsign?/services-huaweicloud",
-  "reqsign?/reqwest_request",
-]
 services-onedrive = []
 services-opfs = [
   "dep:js-sys",
@@ -141,11 +126,9 @@ services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
-services-sled = ["dep:sled", "internal-tokio-rt"]
 services-sqlite = ["dep:sqlx", "sqlx?/sqlite", "dep:ouroboros"]
 services-surrealdb = ["dep:surrealdb"]
 services-swift = []
-services-tikv = ["tikv-client"]
 services-upyun = ["dep:hmac", "dep:sha1"]
 services-vercel-artifacts = []
 services-webdav = []
@@ -249,18 +232,6 @@ redis = { version = "1.0", features = [
 ], optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
-# for services-sled
-sled = { version = "0.34.7", optional = true }
-# for services-ftp
-futures-rustls = { version = "0.26.0", optional = true }
-rustls-native-certs = { version = "0.8", optional = true }
-suppaftp = { version = "6.3.0", default-features = false, features = [
-  "async-secure",
-  "rustls",
-  "async-rustls",
-], optional = true }
-# for services-tikv
-tikv-client = { version = "0.3.0", optional = true, default-features = false }
 # for services-hdfs-native
 hdfs-native = { version = "0.13", optional = true }
 # for services-surrealdb
@@ -297,8 +268,6 @@ web-sys = { version = "0.3.77", optional = true, features = [
 ] }
 
 # Layers
-# for layers-throttle
-governor = { version = "0.10.1", optional = true, features = ["std"] }
 # for layers-dtrace
 probe = { version = "0.5.1", optional = true }
 

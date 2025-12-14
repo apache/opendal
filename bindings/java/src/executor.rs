@@ -19,8 +19,8 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::thread::available_parallelism;
 
 use jni::JNIEnv;
@@ -116,7 +116,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInter
 }
 
 pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Executor> {
-    let vm = env.get_java_vm().expect("JavaVM must be available");
+    let vm = Arc::new(env.get_java_vm().expect("JavaVM must be available"));
     let counter = AtomicUsize::new(0);
     let executor = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(cores)
@@ -124,16 +124,37 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
             let id = counter.fetch_add(1, Ordering::SeqCst);
             format!("opendal-tokio-worker-{id}")
         })
-        .on_thread_start(move || {
+        .on_thread_start({
+            let vm = vm.clone();
+            move || {
+                ENV.with(|cell| {
+                    let mut env = vm
+                        .attach_current_thread_permanently()
+                        .expect("attach thread must succeed");
+
+                    set_current_thread_name(&mut env)
+                        .expect("current thread name has been set above");
+
+                    *cell.borrow_mut() = Some(env.get_raw());
+                })
+            }
+        })
+        .on_thread_stop(move || {
+            // Typically, the thread attached to the JVM will be detached automatically when the thread exits
+            // and the corresponding thread-local AttachGuard is dropped.
+            //
+            // However, there are some edge cases on Windows that may lead to deadlocks. To mitigate this,
+            // we explicitly detach the thread here.
+            //
+            // See https://github.com/apache/opendal/issues/6869 and https://github.com/jni-rs/jni-rs/issues/701
+            // for more details.
+
             ENV.with(|cell| {
-                let mut env = vm
-                    .attach_current_thread_as_daemon()
-                    .expect("attach thread must succeed");
+                *cell.borrow_mut() = None;
+            });
 
-                set_current_thread_name(&mut env).expect("current thread name has been set above");
-
-                *cell.borrow_mut() = Some(env.get_raw());
-            })
+            // SAFETY: JNIEnv is unset above and we do not use AttachGuard anywhere.
+            unsafe { vm.detach_current_thread() };
         })
         .enable_all()
         .build()

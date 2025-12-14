@@ -34,11 +34,6 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
 
-#[cfg(feature = "services-cloudflare-kv")]
-mod cloudflare_kv;
-#[cfg(feature = "services-cloudflare-kv")]
-pub use self::cloudflare_kv::*;
-
 #[cfg(feature = "services-compfs")]
 mod compfs;
 #[cfg(feature = "services-compfs")]
@@ -84,11 +79,6 @@ mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
 
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::*;
-
 #[cfg(feature = "services-gcs")]
 mod gcs;
 #[cfg(feature = "services-gcs")]
@@ -123,11 +113,6 @@ pub use self::http::*;
 mod huggingface;
 #[cfg(feature = "services-huggingface")]
 pub use huggingface::*;
-
-#[cfg(feature = "services-ipfs")]
-mod ipfs;
-#[cfg(feature = "services-ipfs")]
-pub use self::ipfs::*;
 
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
@@ -169,11 +154,6 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::*;
-
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
@@ -214,11 +194,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-sled")]
-mod sled;
-#[cfg(feature = "services-sled")]
-pub use self::sled::*;
-
 #[cfg(feature = "services-sqlite")]
 mod sqlite;
 #[cfg(feature = "services-sqlite")]
@@ -233,11 +208,6 @@ pub use surrealdb::*;
 mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::*;
-
-#[cfg(feature = "services-tikv")]
-mod tikv;
-#[cfg(feature = "services-tikv")]
-pub use self::tikv::*;
 
 #[cfg(feature = "services-upyun")]
 mod upyun;

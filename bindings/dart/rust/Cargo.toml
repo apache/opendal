@@ -46,3 +46,6 @@ tokio = { version = "1.0", features = ["full"] }
 
 [lib]
 crate-type = ["staticlib", "cdylib"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

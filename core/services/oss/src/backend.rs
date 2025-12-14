@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::LazyLock;
 
 use http::Response;
 use http::StatusCode;
@@ -40,12 +39,10 @@ use super::writer::OssWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
-
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
 /// Aliyun Object Storage Service (OSS) support
-#[doc = include_str!("../docs.md")]
+#[doc = include_str!("docs.md")]
 #[derive(Default)]
 pub struct OssBuilder {
     pub(super) config: OssConfig,

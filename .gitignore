@@ -5,7 +5,6 @@
 **/target
 **/vendor
 dist/
-*~
 
 # env files for backends
 .env

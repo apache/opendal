@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Vercel Artifacts service support for OpenDAL.
+
 /// Default scheme for vercel-artifacts service.
 pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod builder;

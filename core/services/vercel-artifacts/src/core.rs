@@ -22,8 +22,8 @@ use http::Request;
 use http::Response;
 use http::header;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct VercelArtifactsCore {
     pub info: Arc<AccessorInfo>,

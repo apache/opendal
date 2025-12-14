@@ -38,10 +38,10 @@ impl Debug for VercelArtifactsConfig {
     }
 }
 
-impl crate::Configurator for VercelArtifactsConfig {
+impl opendal_core::Configurator for VercelArtifactsConfig {
     type Builder = VercelArtifactsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         Self::from_iter(uri.options().clone())
     }
 
@@ -53,8 +53,8 @@ impl crate::Configurator for VercelArtifactsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_loads_access_token() {

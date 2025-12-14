@@ -134,7 +134,7 @@ services-sqlite = ["dep:sqlx", "sqlx?/sqlite", "dep:ouroboros"]
 services-surrealdb = ["dep:surrealdb"]
 services-swift = []
 services-upyun = ["dep:hmac", "dep:sha1"]
-services-vercel-artifacts = []
+
 services-webdav = []
 services-webhdfs = []
 services-yandex-disk = []

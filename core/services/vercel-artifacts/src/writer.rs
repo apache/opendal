@@ -21,8 +21,8 @@ use http::StatusCode;
 
 use super::core::VercelArtifactsCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct VercelArtifactsWriter {
     core: Arc<VercelArtifactsCore>,

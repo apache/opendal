@@ -43,11 +43,11 @@ use opendal_core::*;
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use opendal_layer_chaos::ChaosLayer;
-/// use opendal_core::services;
-/// use opendal_core::Operator;
-/// use opendal_core::Result;
+/// ```no_run
+/// # use opendal_layer_chaos::ChaosLayer;
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?

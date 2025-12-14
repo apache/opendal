@@ -39,11 +39,6 @@ pub use logging::LoggingLayer;
 mod timeout;
 pub use timeout::TimeoutLayer;
 
-#[cfg(feature = "layers-chaos")]
-mod chaos;
-#[cfg(feature = "layers-chaos")]
-pub use chaos::ChaosLayer;
-
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;

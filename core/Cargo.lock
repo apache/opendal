@@ -5483,6 +5483,7 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-layer-chaos",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
@@ -5684,6 +5685,14 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-chaos"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "rand 0.8.5",
 ]
 
 [[package]]

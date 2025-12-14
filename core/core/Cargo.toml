@@ -70,8 +70,6 @@ internal-tokio-rt = ["tokio/rt-multi-thread"]
 # Enable tokio executors support.
 executors-tokio = ["tokio/rt"]
 
-# Enable layers chaos support
-layers-chaos = ["dep:rand"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 

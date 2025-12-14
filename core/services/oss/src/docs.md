@@ -1,5 +1,3 @@
-
-
 # Capabilities
 
 This service can be used to:
@@ -38,7 +36,7 @@ Refer to [`OssBuilder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::Oss;
+use opendal_service_oss::Oss;
 use opendal_core::Operator;
 
 #[tokio::main]

@@ -159,11 +159,6 @@ mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
 
-#[cfg(feature = "services-oss")]
-mod oss;
-#[cfg(feature = "services-oss")]
-pub use oss::*;
-
 #[cfg(feature = "services-pcloud")]
 mod pcloud;
 #[cfg(feature = "services-pcloud")]

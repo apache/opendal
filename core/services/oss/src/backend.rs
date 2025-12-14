@@ -36,8 +36,8 @@ use super::lister::OssListers;
 use super::lister::OssObjectVersionsLister;
 use super::writer::OssWriter;
 use super::writer::OssWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 
@@ -681,6 +681,10 @@ impl Access for OssBackend {
                     .oss_put_object_request(path, None, v, Buffer::new(), true)
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

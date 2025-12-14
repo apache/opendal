@@ -117,11 +117,7 @@ services-opfs = [
   "dep:wasm-bindgen-futures",
   "dep:web-sys",
 ]
-services-oss = [
-  "dep:reqsign",
-  "reqsign?/services-aliyun",
-  "reqsign?/reqwest_request",
-]
+
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
 services-redb = ["dep:redb", "internal-tokio-rt"]

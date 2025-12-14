@@ -20,6 +20,8 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use opendal_core::OperatorUri;
+
 use super::backend::OssBuilder;
 
 /// Config for Aliyun Object Storage Service (OSS) support.
@@ -56,17 +58,17 @@ pub struct OssConfig {
     /// Access key id for oss.
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
+    /// - env value: `ALIBABA_CLOUD_ACCESS_KEY_ID`
     pub access_key_id: Option<String>,
     /// Access key secret for oss.
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
+    /// - env value: `ALIBABA_CLOUD_ACCESS_KEY_SECRET`
     pub access_key_secret: Option<String>,
     /// `security_token` will be loaded from
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+    /// - env value: `ALIBABA_CLOUD_SECURITY_TOKEN`
     pub security_token: Option<String>,
     /// The size of max batch operations.
     #[deprecated(
@@ -80,24 +82,24 @@ pub struct OssConfig {
     /// credential to assume role with `role_arn`.
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_ROLE_ARN`]
+    /// - env value: `ALIBABA_CLOUD_ROLE_ARN`
     pub role_arn: Option<String>,
     /// role_session_name for this backend.
     pub role_session_name: Option<String>,
     /// `oidc_provider_arn` will be loaded from
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+    /// - env value: `ALIBABA_CLOUD_OIDC_PROVIDER_ARN`
     pub oidc_provider_arn: Option<String>,
     /// `oidc_token_file` will be loaded from
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+    /// - env value: `ALIBABA_CLOUD_OIDC_TOKEN_FILE`
     pub oidc_token_file: Option<String>,
     /// `sts_endpoint` will be loaded from
     ///
     /// - this field if it's `is_some`
-    /// - env value: [`ALIBABA_CLOUD_STS_ENDPOINT`]
+    /// - env value: `ALIBABA_CLOUD_STS_ENDPOINT`
     pub sts_endpoint: Option<String>,
 }
 
@@ -112,10 +114,10 @@ impl Debug for OssConfig {
     }
 }
 
-impl crate::Configurator for OssConfig {
+impl opendal_core::Configurator for OssConfig {
     type Builder = OssBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -137,8 +139,8 @@ impl crate::Configurator for OssConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

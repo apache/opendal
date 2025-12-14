@@ -112,8 +112,7 @@ impl opendal_core::Configurator for GcsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Configurator;
-    use opendal_core::types::OperatorUri;
+    use opendal_core::{Configurator, OperatorUri};
 
     #[test]
     fn test_bucket_aliases() {

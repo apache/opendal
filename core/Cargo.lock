@@ -5502,6 +5502,7 @@ dependencies = [
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
  "opendal-service-ftp",
+ "opendal-service-gcs",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
@@ -5905,6 +5906,28 @@ dependencies = [
  "serde",
  "suppaftp",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-gcs"
+version = "0.55.0"
+dependencies = [
+ "backon",
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "percent-encoding",
+ "pretty_assertions",
+ "quick-xml",
+ "reqsign",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

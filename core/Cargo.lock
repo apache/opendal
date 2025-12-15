@@ -5497,17 +5497,20 @@ dependencies = [
  "opendal-layer-throttle",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
+ "opendal-service-alluxio",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
  "opendal-service-ftp",
+ "opendal-service-gcs",
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
+ "opendal-service-oss",
  "opendal-service-postgresql",
  "opendal-service-s3",
  "opendal-service-sled",
@@ -5817,6 +5820,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-alluxio"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "opendal-service-azblob"
 version = "0.55.0"
 dependencies = [
@@ -5907,6 +5923,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-gcs"
+version = "0.55.0"
+dependencies = [
+ "backon",
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "percent-encoding",
+ "pretty_assertions",
+ "quick-xml",
+ "reqsign",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opendal-service-ghac"
 version = "0.55.0"
 dependencies = [
@@ -5985,6 +6023,26 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+]
+
+[[package]]
+name = "opendal-service-oss"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "pretty_assertions",
+ "quick-xml",
+ "reqsign",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]

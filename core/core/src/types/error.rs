@@ -450,6 +450,11 @@ impl Error {
         self.status == ErrorStatus::Persistent
     }
 
+    /// Return error's message.
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+
     /// Return error's backtrace.
     ///
     /// Note: the standard way of exposing backtrace is the unstable feature [`error_generic_member_access`](https://github.com/rust-lang/rust/issues/99301).

@@ -75,7 +75,6 @@ layers-chaos = ["dep:rand"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-alluxio = []
 services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
@@ -91,11 +90,6 @@ services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
 services-foundationdb = ["dep:foundationdb"]
 services-fs = ["tokio/fs", "internal-tokio-rt"]
-services-gcs = [
-  "dep:reqsign",
-  "reqsign?/services-google",
-  "reqsign?/reqwest_request",
-]
 services-gdrive = ["internal-path-cache"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
@@ -117,11 +111,7 @@ services-opfs = [
   "dep:wasm-bindgen-futures",
   "dep:web-sys",
 ]
-services-oss = [
-  "dep:reqsign",
-  "reqsign?/services-aliyun",
-  "reqsign?/reqwest_request",
-]
+
 services-pcloud = []
 services-persy = ["dep:persy", "internal-tokio-rt"]
 services-redb = ["dep:redb", "internal-tokio-rt"]

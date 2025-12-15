@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-alluxio")]
-mod alluxio;
-#[cfg(feature = "services-alluxio")]
-pub use alluxio::*;
-
 #[cfg(feature = "services-b2")]
 mod b2;
 #[cfg(feature = "services-b2")]
@@ -78,11 +73,6 @@ pub use self::foundationdb::*;
 mod fs;
 #[cfg(feature = "services-fs")]
 pub use fs::*;
-
-#[cfg(feature = "services-gcs")]
-mod gcs;
-#[cfg(feature = "services-gcs")]
-pub use gcs::*;
 
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
@@ -158,11 +148,6 @@ pub use monoiofs::*;
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
-
-#[cfg(feature = "services-oss")]
-mod oss;
-#[cfg(feature = "services-oss")]
-pub use oss::*;
 
 #[cfg(feature = "services-pcloud")]
 mod pcloud;

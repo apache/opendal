@@ -5497,6 +5497,7 @@ dependencies = [
  "opendal-layer-throttle",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
+ "opendal-service-alluxio",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
@@ -5813,6 +5814,19 @@ dependencies = [
  "http 1.4.0",
  "log",
  "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "opendal-service-alluxio"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
  "opendal-core",
  "serde",
  "serde_json",

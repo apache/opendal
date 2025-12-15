@@ -29,6 +29,8 @@ pub mod services {
     pub use opendal_core::services::*;
     #[cfg(feature = "services-aliyun-drive")]
     pub use opendal_service_aliyun_drive::*;
+    #[cfg(feature = "services-alluxio")]
+    pub use opendal_service_alluxio::*;
     #[cfg(feature = "services-azblob")]
     pub use opendal_service_azblob::*;
     #[cfg(feature = "services-azdls")]

@@ -15,24 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Fs service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
-use super::core::*;
-use crate::raw::*;
-use crate::*;
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod reader;
+mod writer;
 
-pub struct AlluxioDeleter {
-    core: Arc<AlluxioCore>,
-}
+pub use backend::FsBuilder as Fs;
+pub use config::FsConfig;
 
-impl AlluxioDeleter {
-    pub fn new(core: Arc<AlluxioCore>) -> Self {
-        AlluxioDeleter { core }
-    }
-}
+/// Default scheme for fs service.
+pub const FS_SCHEME: &str = "fs";
 
-impl oio::OneShotDelete for AlluxioDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        self.core.delete(&path).await
-    }
+#[ctor::ctor]
+fn register_fs_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
 }

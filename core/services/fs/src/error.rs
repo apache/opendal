@@ -15,24 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for fs service.
-pub const FS_SCHEME: &str = "fs";
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
-
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod error;
-mod lister;
-mod reader;
-mod writer;
-
-pub use backend::FsBuilder as Fs;
-pub use config::FsConfig;
-
-#[ctor::ctor]
-fn register_fs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
+/// Parse error response into Error.
+pub(super) fn parse_error(e: std::io::Error) -> Error {
+    match e.kind() {
+        std::io::ErrorKind::AlreadyExists => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The file already exists in the filesystem",
+        )
+        .set_source(e),
+        _ => new_std_io_error(e),
+    }
 }

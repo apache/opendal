@@ -72,11 +72,11 @@ use crate::*;
 ///
 /// Example:
 ///
-/// ```no_run
-/// # use opendal_core::layers::DtraceLayer;
-/// # use opendal_core::services;
-/// # use opendal_core::Operator;
-/// # use opendal_core::Result;
+/// ```ignore
+/// # use opendal::layers::DtraceLayer;
+/// # use opendal::services;
+/// # use opendal::Operator;
+/// # use opendal::Result;
 ///
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {

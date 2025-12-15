@@ -53,6 +53,7 @@ anyhow = "1.0.86"
 datafusion = "51.0.0"
 libtest-mimic = "0.8.1"
 opendal = { version = "0.55.0", path = "../../core", features = [
+  "services-fs",
   "services-memory",
   "services-s3",
   "tests",

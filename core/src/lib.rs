@@ -29,6 +29,8 @@ pub mod services {
     pub use opendal_core::services::*;
     #[cfg(feature = "services-aliyun-drive")]
     pub use opendal_service_aliyun_drive::*;
+    #[cfg(feature = "services-alluxio")]
+    pub use opendal_service_alluxio::*;
     #[cfg(feature = "services-azblob")]
     pub use opendal_service_azblob::*;
     #[cfg(feature = "services-azdls")]
@@ -37,6 +39,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-fs")]
+    pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
     pub use opendal_service_ftp::*;
     #[cfg(feature = "services-gcs")]
@@ -76,6 +80,8 @@ pub mod layers {
     pub use opendal_layer_await_tree::*;
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
+    #[cfg(feature = "layers-chaos")]
+    pub use opendal_layer_chaos::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]

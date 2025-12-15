@@ -18,7 +18,7 @@
 /// Default scheme for alluxio service.
 pub const ALLUXIO_SCHEME: &str = "alluxio";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

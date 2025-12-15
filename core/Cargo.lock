@@ -5483,6 +5483,7 @@ dependencies = [
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
+ "opendal-layer-chaos",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
@@ -5497,10 +5498,12 @@ dependencies = [
  "opendal-layer-throttle",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
+ "opendal-service-alluxio",
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
+ "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
  "opendal-service-ghac",
@@ -5687,6 +5690,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-chaos"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
@@ -5819,6 +5830,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-alluxio"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "opendal-service-azblob"
 version = "0.55.0"
 dependencies = [
@@ -5888,6 +5912,18 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-fs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

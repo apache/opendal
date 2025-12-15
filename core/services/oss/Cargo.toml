@@ -38,8 +38,13 @@ ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, features = ["services-aliyun", "reqwest_request"] }
-reqwest = { version = "0.12.24", features = ["stream"], default-features = false }
+reqsign = { workspace = true, features = [
+  "services-aliyun",
+  "reqwest_request",
+] }
+reqwest = { version = "0.12.24", features = [
+  "stream",
+], default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

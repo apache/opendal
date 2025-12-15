@@ -23,12 +23,12 @@ You can refer to [`FsBuilder`]'s docs for more information
 ### Via Builder
 
 
-```rust,no_run
+```rust,ignore
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::Fs;
-use opendal_core::Operator;
+use opendal::services::Fs;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {

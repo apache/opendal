@@ -21,8 +21,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::error::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Debug)]
 pub struct FsCore {

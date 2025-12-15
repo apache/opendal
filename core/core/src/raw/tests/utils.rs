@@ -71,9 +71,6 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     let scheme = scheme.replace('_', "-");
     let op = Operator::via_iter(scheme, cfg).expect("must succeed");
 
-    #[cfg(feature = "layers-chaos")]
-    let op = { op.layer(layers::ChaosLayer::new(0.1)) };
-
     let op = op
         .layer(layers::LoggingLayer::default())
         .layer(layers::TimeoutLayer::new())

@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for fs service.
-pub const FS_SCHEME: &str = "fs";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Fs service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -32,7 +31,10 @@ mod writer;
 pub use backend::FsBuilder as Fs;
 pub use config::FsConfig;
 
+/// Default scheme for fs service.
+pub const FS_SCHEME: &str = "fs";
+
 #[ctor::ctor]
 fn register_fs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
 }

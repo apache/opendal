@@ -21,8 +21,8 @@ use std::sync::Mutex;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Inject chaos into underlying services for robustness test.
 ///
@@ -44,7 +44,7 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::ChaosLayer;
+/// # use opendal_layer_chaos::ChaosLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;

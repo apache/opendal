@@ -24,12 +24,12 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use opendal_core::raw::*;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
 use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub type CosWriters = TwoWays<oio::MultipartWriter<CosWriter>, oio::AppendWriter<CosWriter>>;
 

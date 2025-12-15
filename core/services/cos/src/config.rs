@@ -21,8 +21,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use opendal_core::Configurator;
-use opendal_core::Result;
 use opendal_core::OperatorUri;
+use opendal_core::Result;
 
 use super::backend::CosBuilder;
 

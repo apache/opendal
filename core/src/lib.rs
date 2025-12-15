@@ -41,6 +41,8 @@ pub mod services {
     pub use opendal_service_b2::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-cos")]
+    pub use opendal_service_cos::*;
     #[cfg(feature = "services-dashmap")]
     pub use opendal_service_dashmap::*;
     #[cfg(feature = "services-fs")]
@@ -79,8 +81,6 @@ pub mod services {
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
-    #[cfg(feature = "services-cos")]
-    pub use opendal_service_cos::*;
 }
 
 /// Re-export of layers.

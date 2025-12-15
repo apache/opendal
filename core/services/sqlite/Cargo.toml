@@ -40,4 +40,3 @@ sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "sqlite"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-

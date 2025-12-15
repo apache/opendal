@@ -31,6 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-probe = { version = "0.5.1", optional = false }
+bytes = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-bytes = { workspace = true}
+probe = { version = "0.5.1", optional = false }

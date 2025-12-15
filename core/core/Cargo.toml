@@ -161,7 +161,6 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 # Test only dependencies
 dotenvy = { version = "0.15", optional = true }
 rand = { workspace = true, optional = true }
-probe = { version = "0.5.1", optional = true }
 
 # Optional dependencies
 

@@ -29,7 +29,7 @@ mod writer;
 pub use backend::GhacBuilder as Ghac;
 pub use config::GhacConfig;
 
-#[ctor::ctor]
-fn register_ghac_service() {
+#[small_ctor::ctor]
+unsafe fn register_ghac_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Ghac>(GHAC_SCHEME);
 }

@@ -31,7 +31,7 @@ mod writer;
 pub use backend::VercelBlobBuilder as VercelBlob;
 pub use config::VercelBlobConfig;
 
-#[ctor::ctor]
-fn register_vercelblob_service() {
+#[small_ctor::ctor]
+unsafe fn register_vercelblob_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<VercelBlob>(VERCEL_BLOB_SCHEME);
 }

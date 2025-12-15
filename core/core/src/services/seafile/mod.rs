@@ -31,7 +31,7 @@ mod writer;
 pub use backend::SeafileBuilder as Seafile;
 pub use config::SeafileConfig;
 
-#[ctor::ctor]
-fn register_seafile_service() {
+#[small_ctor::ctor]
+unsafe fn register_seafile_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Seafile>(SEAFILE_SCHEME);
 }

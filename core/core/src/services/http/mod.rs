@@ -28,7 +28,7 @@ mod error;
 pub use backend::HttpBuilder as Http;
 pub use config::HttpConfig;
 
-#[ctor::ctor]
-fn register_http_service() {
+#[small_ctor::ctor]
+unsafe fn register_http_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
 }

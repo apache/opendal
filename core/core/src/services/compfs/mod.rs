@@ -31,7 +31,7 @@ mod writer;
 pub use backend::CompfsBuilder as Compfs;
 pub use config::CompfsConfig;
 
-#[ctor::ctor]
-fn register_compfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_compfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Compfs>(COMPFS_SCHEME);
 }

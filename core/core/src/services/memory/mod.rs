@@ -30,7 +30,7 @@ mod writer;
 pub use backend::MemoryBuilder as Memory;
 pub use config::MemoryConfig;
 
-#[ctor::ctor]
-fn register_memory_service() {
+#[small_ctor::ctor]
+unsafe fn register_memory_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Memory>(MEMORY_SCHEME);
 }

@@ -31,7 +31,7 @@ mod writer;
 pub use backend::GithubBuilder as Github;
 pub use config::GithubConfig;
 
-#[ctor::ctor]
-fn register_github_service() {
+#[small_ctor::ctor]
+unsafe fn register_github_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Github>(GITHUB_SCHEME);
 }

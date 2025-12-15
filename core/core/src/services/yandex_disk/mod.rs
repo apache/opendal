@@ -31,7 +31,7 @@ mod writer;
 pub use backend::YandexDiskBuilder as YandexDisk;
 pub use config::YandexDiskConfig;
 
-#[ctor::ctor]
-fn register_yandexdisk_service() {
+#[small_ctor::ctor]
+unsafe fn register_yandexdisk_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<YandexDisk>(YANDEX_DISK_SCHEME);
 }

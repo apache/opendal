@@ -32,7 +32,7 @@ mod writer;
 pub use backend::WebhdfsBuilder as Webhdfs;
 pub use config::WebhdfsConfig;
 
-#[ctor::ctor]
-fn register_webhdfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_webhdfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Webhdfs>(WEBHDFS_SCHEME);
 }

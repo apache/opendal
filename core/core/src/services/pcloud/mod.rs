@@ -31,7 +31,7 @@ mod writer;
 pub use backend::PcloudBuilder as Pcloud;
 pub use config::PcloudConfig;
 
-#[ctor::ctor]
-fn register_pcloud_service() {
+#[small_ctor::ctor]
+unsafe fn register_pcloud_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Pcloud>(PCLOUD_SCHEME);
 }

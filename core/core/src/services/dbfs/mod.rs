@@ -31,7 +31,7 @@ mod writer;
 pub use backend::DbfsBuilder as Dbfs;
 pub use config::DbfsConfig;
 
-#[ctor::ctor]
-fn register_dbfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_dbfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Dbfs>(DBFS_SCHEME);
 }

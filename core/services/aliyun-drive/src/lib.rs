@@ -31,7 +31,7 @@ mod writer;
 pub use backend::AliyunDriveBuilder as AliyunDrive;
 pub use config::AliyunDriveConfig;
 
-#[ctor::ctor]
-fn register_aliyun_drive_service() {
+#[small_ctor::ctor]
+unsafe fn register_aliyun_drive_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<AliyunDrive>(ALIYUN_DRIVE_SCHEME);
 }

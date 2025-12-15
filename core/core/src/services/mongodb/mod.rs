@@ -29,7 +29,7 @@ mod writer;
 pub use backend::MongodbBuilder as Mongodb;
 pub use config::MongodbConfig;
 
-#[ctor::ctor]
-fn register_mongodb_service() {
+#[small_ctor::ctor]
+unsafe fn register_mongodb_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Mongodb>(MONGODB_SCHEME);
 }

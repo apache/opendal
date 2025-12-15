@@ -31,7 +31,7 @@ mod writer;
 pub use backend::HdfsBuilder as Hdfs;
 pub use config::HdfsConfig;
 
-#[ctor::ctor]
-fn register_hdfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_hdfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Hdfs>(HDFS_SCHEME);
 }

@@ -31,7 +31,7 @@ mod writer;
 pub use backend::LakefsBuilder as Lakefs;
 pub use config::LakefsConfig;
 
-#[ctor::ctor]
-fn register_lakefs_service() {
+#[small_ctor::ctor]
+unsafe fn register_lakefs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Lakefs>(LAKEFS_SCHEME);
 }

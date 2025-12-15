@@ -32,7 +32,7 @@ mod writer;
 pub use backend::HdfsNativeBuilder as HdfsNative;
 pub use config::HdfsNativeConfig;
 
-#[ctor::ctor]
-fn register_hdfs_native_service() {
+#[small_ctor::ctor]
+unsafe fn register_hdfs_native_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<HdfsNative>(HDFS_NATIVE_SCHEME);
 }

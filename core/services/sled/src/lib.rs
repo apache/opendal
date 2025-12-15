@@ -30,7 +30,7 @@ mod writer;
 pub use backend::SledBuilder as Sled;
 pub use config::SledConfig;
 
-#[ctor::ctor]
-fn register_sled_service() {
+#[small_ctor::ctor]
+unsafe fn register_sled_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Sled>(SLED_SCHEME);
 }

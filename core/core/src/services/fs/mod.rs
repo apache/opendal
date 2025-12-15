@@ -32,7 +32,7 @@ mod writer;
 pub use backend::FsBuilder as Fs;
 pub use config::FsConfig;
 
-#[ctor::ctor]
-fn register_fs_service() {
+#[small_ctor::ctor]
+unsafe fn register_fs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
 }

@@ -29,7 +29,7 @@ mod writer;
 pub use backend::TikvBuilder as Tikv;
 pub use config::TikvConfig;
 
-#[ctor::ctor]
-fn register_tikv_service() {
+#[small_ctor::ctor]
+unsafe fn register_tikv_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Tikv>(TIKV_SCHEME);
 }

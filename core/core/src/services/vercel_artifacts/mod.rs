@@ -30,7 +30,7 @@ mod writer;
 pub use builder::VercelArtifactsBuilder as VercelArtifacts;
 pub use config::VercelArtifactsConfig;
 
-#[ctor::ctor]
-fn register_vercelartifacts_service() {
+#[small_ctor::ctor]
+unsafe fn register_vercelartifacts_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<VercelArtifacts>(VERCEL_ARTIFACTS_SCHEME);
 }

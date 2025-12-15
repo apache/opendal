@@ -36,7 +36,7 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 backon = "1.6"
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
+small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 percent-encoding = "2.3"

@@ -29,7 +29,7 @@ mod writer;
 pub use backend::SqliteBuilder as Sqlite;
 pub use config::SqliteConfig;
 
-#[ctor::ctor]
-fn register_sqlite_service() {
+#[small_ctor::ctor]
+unsafe fn register_sqlite_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Sqlite>(SQLITE_SCHEME);
 }

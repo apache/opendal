@@ -2233,22 +2233,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctor"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "424e0138278faeb2b401f174ad17e715c829512d74f3d1e81eb43365c2e0590e"
-dependencies = [
- "ctor-proc-macro",
- "dtor",
-]
-
-[[package]]
-name = "ctor-proc-macro"
-version = "0.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
-
-[[package]]
 name = "ctr"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2641,21 +2625,6 @@ checksum = "cd1511a7b6a56299bd043a9c167a6d2bfb37bf84a6dfceaba651168adfb43c87"
 dependencies = [
  "dtoa",
 ]
-
-[[package]]
-name = "dtor"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "404d02eeb088a82cfd873006cb713fe411306c7d182c344905e101fb1167d301"
-dependencies = [
- "dtor-proc-macro",
-]
-
-[[package]]
-name = "dtor-proc-macro"
-version = "0.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f678cf4a922c215c63e0de95eb1ff08a958a81d47e485cf9da1e27bf6305cfa5"
 
 [[package]]
 name = "dunce"
@@ -5566,7 +5535,6 @@ dependencies = [
  "cacache",
  "compio",
  "criterion",
- "ctor",
  "dashmap 6.1.0",
  "divan",
  "dotenvy",
@@ -5612,6 +5580,7 @@ dependencies = [
  "sha1",
  "sha2",
  "size",
+ "small_ctor",
  "sqlx",
  "surrealdb",
  "tokio",
@@ -5809,13 +5778,13 @@ name = "opendal-service-aliyun-drive"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
  "opendal-core",
  "serde",
  "serde_json",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5824,7 +5793,6 @@ version = "0.55.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5835,6 +5803,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "small_ctor",
  "uuid",
 ]
 
@@ -5843,7 +5812,6 @@ name = "opendal-service-azdls"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5852,6 +5820,7 @@ dependencies = [
  "reqsign",
  "serde",
  "serde_json",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5859,7 +5828,6 @@ name = "opendal-service-azfile"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5867,6 +5835,7 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5883,11 +5852,11 @@ name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "opendal-core",
  "serde",
  "serde_json",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5895,7 +5864,6 @@ name = "opendal-service-ftp"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "fastpool",
  "futures",
  "futures-rustls",
@@ -5904,6 +5872,7 @@ dependencies = [
  "opendal-core",
  "rustls-native-certs 0.8.2",
  "serde",
+ "small_ctor",
  "suppaftp",
  "tokio",
 ]
@@ -5915,7 +5884,6 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5926,6 +5894,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "small_ctor",
  "tokio",
  "tracing-subscriber",
 ]
@@ -5935,7 +5904,6 @@ name = "opendal-service-ghac"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "ghac",
  "http 1.4.0",
  "log",
@@ -5946,6 +5914,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5953,12 +5922,12 @@ name = "opendal-service-hdfs-native"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "futures",
  "hdfs-native",
  "log",
  "opendal-core",
  "serde",
+ "small_ctor",
 ]
 
 [[package]]
@@ -5966,12 +5935,12 @@ name = "opendal-service-ipfs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "prost 0.13.5",
  "serde",
+ "small_ctor",
  "tokio",
 ]
 
@@ -5979,21 +5948,21 @@ dependencies = [
 name = "opendal-service-moka"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "log",
  "moka",
  "opendal-core",
  "serde",
+ "small_ctor",
 ]
 
 [[package]]
 name = "opendal-service-mysql"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
+ "small_ctor",
  "sqlx",
 ]
 
@@ -6002,13 +5971,13 @@ name = "opendal-service-obs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "quick-xml",
  "reqsign",
  "serde",
+ "small_ctor",
 ]
 
 [[package]]
@@ -6017,7 +5986,6 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6027,6 +5995,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "small_ctor",
  "tokio",
  "tracing-subscriber",
 ]
@@ -6035,10 +6004,10 @@ dependencies = [
 name = "opendal-service-postgresql"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
+ "small_ctor",
  "sqlx",
 ]
 
@@ -6049,7 +6018,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "crc32c",
- "ctor",
  "http 1.4.0",
  "log",
  "md-5",
@@ -6063,6 +6031,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "small_ctor",
  "tokio",
  "tracing-subscriber",
 ]
@@ -6071,20 +6040,20 @@ dependencies = [
 name = "opendal-service-sled"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "opendal-core",
  "serde",
  "sled",
+ "small_ctor",
 ]
 
 [[package]]
 name = "opendal-service-tikv"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
+ "small_ctor",
  "tikv-client",
 ]
 
@@ -6093,13 +6062,13 @@ name = "opendal-service-vercel-blob"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "quick-xml",
  "serde",
  "serde_json",
+ "small_ctor",
  "tokio",
 ]
 

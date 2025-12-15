@@ -31,7 +31,7 @@ mod writer;
 pub use backend::AzdlsBuilder as Azdls;
 pub use config::AzdlsConfig;
 
-#[ctor::ctor]
-fn register_azdls_service() {
+#[small_ctor::ctor]
+unsafe fn register_azdls_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Azdls>(AZDLS_SCHEME);
 }

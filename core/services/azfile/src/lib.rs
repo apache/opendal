@@ -31,7 +31,7 @@ mod writer;
 pub use backend::AzfileBuilder as Azfile;
 pub use config::AzfileConfig;
 
-#[ctor::ctor]
-fn register_azfile_service() {
+#[small_ctor::ctor]
+unsafe fn register_azfile_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Azfile>(AZFILE_SCHEME);
 }

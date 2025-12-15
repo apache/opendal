@@ -32,7 +32,7 @@ mod writer;
 pub use builder::GdriveBuilder as Gdrive;
 pub use config::GdriveConfig;
 
-#[ctor::ctor]
-fn register_gdrive_service() {
+#[small_ctor::ctor]
+unsafe fn register_gdrive_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Gdrive>(GDRIVE_SCHEME);
 }

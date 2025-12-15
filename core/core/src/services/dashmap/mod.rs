@@ -30,7 +30,7 @@ mod writer;
 pub use backend::DashmapBuilder as Dashmap;
 pub use config::DashmapConfig;
 
-#[ctor::ctor]
-fn register_dashmap_service() {
+#[small_ctor::ctor]
+unsafe fn register_dashmap_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Dashmap>(DASHMAP_SCHEME);
 }

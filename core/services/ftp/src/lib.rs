@@ -32,7 +32,7 @@ mod writer;
 pub use backend::FtpBuilder as Ftp;
 pub use config::FtpConfig;
 
-#[ctor::ctor]
-fn register_ftp_service() {
+#[small_ctor::ctor]
+unsafe fn register_ftp_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Ftp>(FTP_SCHEME);
 }

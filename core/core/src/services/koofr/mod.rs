@@ -31,7 +31,7 @@ mod writer;
 pub use backend::KoofrBuilder as Koofr;
 pub use config::KoofrConfig;
 
-#[ctor::ctor]
-fn register_koofr_service() {
+#[small_ctor::ctor]
+unsafe fn register_koofr_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Koofr>(KOOFR_SCHEME);
 }

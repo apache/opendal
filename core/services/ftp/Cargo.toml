@@ -34,7 +34,7 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-ctor = { workspace = true }
+small_ctor = { workspace = true }
 fastpool = "1.0.2"
 futures = { workspace = true, default-features = false, features = [
   "std",

@@ -31,7 +31,7 @@ mod writer;
 pub use backend::SwiftBuilder as Swift;
 pub use config::SwiftConfig;
 
-#[ctor::ctor]
-fn register_swift_service() {
+#[small_ctor::ctor]
+unsafe fn register_swift_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Swift>(SWIFT_SCHEME);
 }

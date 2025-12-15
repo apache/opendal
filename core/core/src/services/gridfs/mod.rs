@@ -29,7 +29,7 @@ mod writer;
 pub use backend::GridfsBuilder as Gridfs;
 pub use config::GridfsConfig;
 
-#[ctor::ctor]
-fn register_gridfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_gridfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
 }

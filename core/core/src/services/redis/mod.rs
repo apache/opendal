@@ -29,7 +29,7 @@ mod writer;
 pub use backend::RedisBuilder as Redis;
 pub use config::RedisConfig;
 
-#[ctor::ctor]
-fn register_redis_service() {
+#[small_ctor::ctor]
+unsafe fn register_redis_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Redis>(REDIS_SCHEME);
 }

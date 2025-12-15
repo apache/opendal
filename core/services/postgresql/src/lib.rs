@@ -29,7 +29,7 @@ mod writer;
 pub use backend::PostgresqlBuilder as Postgresql;
 pub use config::PostgresqlConfig;
 
-#[ctor::ctor]
-fn register_postgresql_service() {
+#[small_ctor::ctor]
+unsafe fn register_postgresql_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Postgresql>(POSTGRESQL_SCHEME);
 }

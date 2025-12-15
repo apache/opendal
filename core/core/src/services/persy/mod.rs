@@ -29,7 +29,7 @@ mod writer;
 pub use backend::PersyBuilder as Persy;
 pub use config::PersyConfig;
 
-#[ctor::ctor]
-fn register_persy_service() {
+#[small_ctor::ctor]
+unsafe fn register_persy_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Persy>(PERSY_SCHEME);
 }

@@ -32,7 +32,7 @@ mod writer;
 pub use builder::DropboxBuilder as Dropbox;
 pub use config::DropboxConfig;
 
-#[ctor::ctor]
-fn register_dropbox_service() {
+#[small_ctor::ctor]
+unsafe fn register_dropbox_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Dropbox>(DROPBOX_SCHEME);
 }

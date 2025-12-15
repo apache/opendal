@@ -35,6 +35,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
   "internal-tokio-rt",
 ] }
 
-ctor = { workspace = true }
+small_ctor = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 sled = "0.34.7"

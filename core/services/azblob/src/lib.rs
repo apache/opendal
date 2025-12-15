@@ -31,7 +31,7 @@ pub mod writer;
 pub use backend::AzblobBuilder as Azblob;
 pub use config::AzblobConfig;
 
-#[ctor::ctor]
-fn register_azblob_service() {
+#[small_ctor::ctor]
+unsafe fn register_azblob_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Azblob>(AZBLOB_SCHEME);
 }

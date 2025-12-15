@@ -31,7 +31,7 @@ mod writer;
 pub use backend::UpyunBuilder as Upyun;
 pub use config::UpyunConfig;
 
-#[ctor::ctor]
-fn register_upyun_service() {
+#[small_ctor::ctor]
+unsafe fn register_upyun_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Upyun>(UPYUN_SCHEME);
 }

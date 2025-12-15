@@ -29,7 +29,7 @@ mod writer;
 pub use backend::SurrealdbBuilder as Surrealdb;
 pub use config::SurrealdbConfig;
 
-#[ctor::ctor]
-fn register_surrealdb_service() {
+#[small_ctor::ctor]
+unsafe fn register_surrealdb_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Surrealdb>(SURREALDB_SCHEME);
 }

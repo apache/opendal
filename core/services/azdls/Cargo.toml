@@ -35,7 +35,7 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 
 bytes = { workspace = true }
-ctor = { workspace = true }
+small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }

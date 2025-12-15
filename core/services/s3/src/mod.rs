@@ -31,7 +31,7 @@ mod writer;
 pub use backend::S3Builder as S3;
 pub use config::S3Config;
 
-#[ctor::ctor]
-fn register_s3_service() {
+#[small_ctor::ctor]
+unsafe fn register_s3_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<S3>(S3_SCHEME);
 }

@@ -32,7 +32,7 @@ mod writer;
 pub use builder::IpmfsBuilder as Ipmfs;
 pub use config::IpmfsConfig;
 
-#[ctor::ctor]
-fn register_ipmfs_service() {
+#[small_ctor::ctor]
+unsafe fn register_ipmfs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Ipmfs>(IPMFS_SCHEME);
 }

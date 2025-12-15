@@ -31,7 +31,7 @@ mod writer;
 pub use backend::ObsBuilder as Obs;
 pub use config::ObsConfig;
 
-#[ctor::ctor]
-fn register_obs_service() {
+#[small_ctor::ctor]
+unsafe fn register_obs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Obs>(OBS_SCHEME);
 }

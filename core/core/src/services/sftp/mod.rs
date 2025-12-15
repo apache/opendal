@@ -33,7 +33,7 @@ mod writer;
 pub use backend::SftpBuilder as Sftp;
 pub use config::SftpConfig;
 
-#[ctor::ctor]
-fn register_sftp_service() {
+#[small_ctor::ctor]
+unsafe fn register_sftp_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Sftp>(SFTP_SCHEME);
 }

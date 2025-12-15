@@ -31,7 +31,7 @@ mod writer;
 pub use backend::WebdavBuilder as Webdav;
 pub use config::WebdavConfig;
 
-#[ctor::ctor]
-fn register_webdav_service() {
+#[small_ctor::ctor]
+unsafe fn register_webdav_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Webdav>(WEBDAV_SCHEME);
 }

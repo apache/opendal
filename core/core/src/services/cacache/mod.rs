@@ -29,7 +29,7 @@ mod writer;
 pub use backend::CacacheBuilder as Cacache;
 pub use config::CacacheConfig;
 
-#[ctor::ctor]
-fn register_cacache_service() {
+#[small_ctor::ctor]
+unsafe fn register_cacache_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Cacache>(CACACHE_SCHEME);
 }

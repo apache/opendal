@@ -31,7 +31,7 @@ mod writer;
 pub use backend::CosBuilder as Cos;
 pub use config::CosConfig;
 
-#[ctor::ctor]
-fn register_cos_service() {
+#[small_ctor::ctor]
+unsafe fn register_cos_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Cos>(COS_SCHEME);
 }

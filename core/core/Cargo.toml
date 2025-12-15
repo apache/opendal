@@ -140,7 +140,7 @@ anyhow = { version = "1.0.100", features = ["std"] }
 backon = { version = "1.6", features = ["tokio-sleep"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
+small_ctor = { workspace = true }
 futures = { workspace = true, default-features = false, features = [
   "std",
   "async-await",

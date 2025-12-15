@@ -31,7 +31,7 @@ mod writer;
 pub use backend::EtcdBuilder as Etcd;
 pub use config::EtcdConfig;
 
-#[ctor::ctor]
-fn register_etcd_service() {
+#[small_ctor::ctor]
+unsafe fn register_etcd_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Etcd>(ETCD_SCHEME);
 }

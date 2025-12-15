@@ -29,7 +29,7 @@ mod lister;
 pub use backend::HuggingfaceBuilder as Huggingface;
 pub use config::HuggingfaceConfig;
 
-#[ctor::ctor]
-fn register_huggingface_service() {
+#[small_ctor::ctor]
+unsafe fn register_huggingface_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Huggingface>(HUGGINGFACE_SCHEME);
 }

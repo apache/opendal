@@ -31,7 +31,7 @@ mod writer;
 pub use backend::D1Builder as D1;
 pub use config::D1Config;
 
-#[ctor::ctor]
-fn register_d1_service() {
+#[small_ctor::ctor]
+unsafe fn register_d1_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<D1>(D1_SCHEME);
 }

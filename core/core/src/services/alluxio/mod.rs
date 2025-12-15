@@ -31,7 +31,7 @@ mod writer;
 pub use backend::AlluxioBuilder as Alluxio;
 pub use config::AlluxioConfig;
 
-#[ctor::ctor]
-fn register_alluxio_service() {
+#[small_ctor::ctor]
+unsafe fn register_alluxio_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Alluxio>(ALLUXIO_SCHEME);
 }

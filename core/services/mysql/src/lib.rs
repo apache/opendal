@@ -29,7 +29,7 @@ mod writer;
 pub use backend::MysqlBuilder as Mysql;
 pub use config::MysqlConfig;
 
-#[ctor::ctor]
-fn register_mysql_service() {
+#[small_ctor::ctor]
+unsafe fn register_mysql_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Mysql>(MYSQL_SCHEME);
 }

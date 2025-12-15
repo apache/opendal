@@ -30,7 +30,7 @@ mod writer;
 pub use backend::RocksdbBuilder as Rocksdb;
 pub use config::RocksdbConfig;
 
-#[ctor::ctor]
-fn register_rocksdb_service() {
+#[small_ctor::ctor]
+unsafe fn register_rocksdb_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Rocksdb>(ROCKSDB_SCHEME);
 }

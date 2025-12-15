@@ -29,7 +29,7 @@ mod writer;
 pub use backend::RedbBuilder as Redb;
 pub use config::RedbConfig;
 
-#[ctor::ctor]
-fn register_redb_service() {
+#[small_ctor::ctor]
+unsafe fn register_redb_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Redb>(REDB_SCHEME);
 }

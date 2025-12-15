@@ -30,7 +30,7 @@ mod writer;
 pub use backend::MemcachedBuilder as Memcached;
 pub use config::MemcachedConfig;
 
-#[ctor::ctor]
-fn register_memcached_service() {
+#[small_ctor::ctor]
+unsafe fn register_memcached_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Memcached>(MEMCACHED_SCHEME);
 }

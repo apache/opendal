@@ -33,7 +33,7 @@ mod writer;
 pub use builder::OnedriveBuilder as Onedrive;
 pub use config::OnedriveConfig;
 
-#[ctor::ctor]
-fn register_onedrive_service() {
+#[small_ctor::ctor]
+unsafe fn register_onedrive_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Onedrive>(ONEDRIVE_SCHEME);
 }

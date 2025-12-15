@@ -31,7 +31,7 @@ mod writer;
 pub use backend::B2Builder as B2;
 pub use config::B2Config;
 
-#[ctor::ctor]
-fn register_b2_service() {
+#[small_ctor::ctor]
+unsafe fn register_b2_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<B2>(B2_SCHEME);
 }

@@ -30,7 +30,7 @@ mod writer;
 pub use backend::MiniMokaBuilder as MiniMoka;
 pub use config::MiniMokaConfig;
 
-#[ctor::ctor]
-fn register_minimoka_service() {
+#[small_ctor::ctor]
+unsafe fn register_minimoka_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<MiniMoka>(MINI_MOKA_SCHEME);
 }

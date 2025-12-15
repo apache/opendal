@@ -30,7 +30,7 @@ mod writer;
 pub use backend::MonoiofsBuilder as Monoiofs;
 pub use config::MonoiofsConfig;
 
-#[ctor::ctor]
-fn register_monoiofs_service() {
+#[small_ctor::ctor]
+unsafe fn register_monoiofs_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Monoiofs>(MONOIOFS_SCHEME);
 }

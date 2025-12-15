@@ -29,7 +29,7 @@ mod writer;
 pub use backend::FoundationdbBuilder as Foundationdb;
 pub use config::FoundationdbConfig;
 
-#[ctor::ctor]
-fn register_foundationdb_service() {
+#[small_ctor::ctor]
+unsafe fn register_foundationdb_service() {
     DEFAULT_OPERATOR_REGISTRY.register::<Foundationdb>(FOUNDATIONDB_SCHEME);
 }

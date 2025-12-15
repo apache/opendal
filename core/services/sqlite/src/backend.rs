@@ -26,9 +26,9 @@ use super::config::SqliteConfig;
 use super::core::SqliteCore;
 use super::deleter::SqliteDeleter;
 use super::writer::SqliteWriter;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
@@ -242,7 +242,7 @@ impl Access for SqliteBackend {
                     .bind(format!("{}%", dir_path))
                     .fetch_one(self.core.get_client().await?)
                     .await
-                    .map_err(crate::services::sqlite::backend::parse_sqlite_error)?;
+                    .map_err(parse_sqlite_error)?;
 
                     if count > 0 {
                         // Directory exists (has children)

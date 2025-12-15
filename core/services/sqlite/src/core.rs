@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 use mea::once::OnceCell;
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqliteConnectOptions;
-use std::fmt::Debug;
 
-use crate::services::sqlite::backend::parse_sqlite_error;
-use crate::*;
+use super::backend::parse_sqlite_error;
+use opendal_core::*;
 
 #[derive(Debug, Clone)]
 pub struct SqliteCore {

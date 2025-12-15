@@ -65,6 +65,8 @@ pub mod services {
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
+    #[cfg(feature = "services-sqlite")]
+    pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-vercel-blob")]

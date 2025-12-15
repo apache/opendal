@@ -79,7 +79,7 @@ jobs:
         with:
           tool: taplo-cli
       - name: TOML format
-        run: taplo fmt --check --config .taplo.toml
+        run: taplo format --check
 
   dependencies:
     runs-on: ubuntu-latest

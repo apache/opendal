@@ -7,7 +7,7 @@ This service can be used to:
 - [x] read
 - [x] write
 - [x] delete
-- [ ] list
+- [x] list
 - [ ] copy
 - [ ] rename
 - [ ] ~~presign~~

@@ -88,8 +88,77 @@ impl MysqlCore {
 
         Ok(())
     }
+
+    pub async fn list(&self, path: &str) -> Result<Vec<String>> {
+        let pool = self.get_client().await?;
+
+        let mut sql = format!(
+            "SELECT `{}` FROM `{}` WHERE `{}` LIKE ? ESCAPE '{}'",
+            self.key_field, self.table, self.key_field, ESCAPE_CHAR
+        );
+        sql.push_str(&format!(" ORDER BY `{}`", self.key_field));
+
+        let escaped = escape_like(path);
+        sqlx::query_scalar(&sql)
+            .bind(format!("{escaped}%"))
+            .fetch_all(pool)
+            .await
+            .map_err(parse_mysql_error)
+    }
+}
+
+const ESCAPE_CHAR: char = '\\';
+
+fn escape_like(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            c if c == ESCAPE_CHAR => {
+                out.push(ESCAPE_CHAR);
+                out.push(ESCAPE_CHAR);
+            }
+            '%' | '_' => {
+                out.push(ESCAPE_CHAR);
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    out
 }
 
 fn parse_mysql_error(err: sqlx::Error) -> Error {
     Error::new(ErrorKind::Unexpected, "unhandled error from mysql").set_source(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::core::escape_like;
+
+    #[test]
+    fn test_escape_like_basic() {
+        assert_eq!(escape_like("abc"), "abc");
+        assert_eq!(escape_like("foo"), "foo");
+    }
+
+    #[test]
+    fn test_escape_like_wildcards() {
+        assert_eq!(escape_like("%"), r"\%");
+        assert_eq!(escape_like("_"), r"\_");
+        assert_eq!(escape_like("a%b_c"), r"a\%b\_c");
+    }
+
+    #[test]
+    fn test_escape_like_escape_char() {
+        assert_eq!(escape_like(r"\"), r"\\");
+        assert_eq!(escape_like(r"\%"), r"\\\%");
+    }
+
+    #[test]
+    fn test_escape_like_mixed() {
+        let input = r"foo\%bar_baz%";
+        let expected = r"foo\\\%bar\_baz\%";
+
+        assert_eq!(escape_like(input), expected);
+    }
 }

@@ -33,7 +33,7 @@ all-features = true
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
-small_ctor = { workspace = true }
 log = { workspace = true }
 moka = { version = "0.12", features = ["future", "sync"] }
 serde = { workspace = true, features = ["derive"] }
+small_ctor = { workspace = true }

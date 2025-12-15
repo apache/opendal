@@ -34,7 +34,6 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
@@ -43,3 +42,4 @@ reqsign = { workspace = true, default-features = false, features = [
   "reqwest_request",
 ] }
 serde = { workspace = true, features = ["derive"] }
+small_ctor = { workspace = true }

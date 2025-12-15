@@ -36,15 +36,21 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 backon = "1.6"
 base64 = { workspace = true }
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 percent-encoding = "2.3"
 quick-xml = { workspace = true, features = ["serialize"] }
-reqsign = { workspace = true, features = ["services-google", "reqwest_request"] }
-reqwest = { version = "0.12.24", features = ["json", "stream"], default-features = false }
+reqsign = { workspace = true, features = [
+  "services-google",
+  "reqwest_request",
+] }
+reqwest = { version = "0.12.24", features = [
+  "json",
+  "stream",
+], default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+small_ctor = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]

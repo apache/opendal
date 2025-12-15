@@ -34,7 +34,6 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 fastpool = "1.0.2"
 futures = { workspace = true, default-features = false, features = [
   "std",
@@ -45,6 +44,7 @@ http = { workspace = true }
 log = { workspace = true }
 rustls-native-certs = "0.8"
 serde = { workspace = true, features = ["derive"] }
+small_ctor = { workspace = true }
 suppaftp = { version = "6.3.0", default-features = false, features = [
   "async-secure",
   "rustls",

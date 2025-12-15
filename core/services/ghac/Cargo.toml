@@ -35,7 +35,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 opendal-service-azblob = { path = "../azblob", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 ghac = { version = "0.2.0", default-features = false }
 http = { workspace = true }
 log = { workspace = true }
@@ -44,3 +43,4 @@ reqsign = { workspace = true, default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+small_ctor = { workspace = true }

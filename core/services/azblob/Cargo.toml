@@ -36,7 +36,6 @@ opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 
 base64 = { workspace = true }
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
@@ -46,6 +45,7 @@ reqsign = { workspace = true, default-features = false, features = [
 ] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
+small_ctor = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
 [dev-dependencies]

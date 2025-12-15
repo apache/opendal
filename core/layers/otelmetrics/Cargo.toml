@@ -33,4 +33,6 @@ all-features = true
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.55.0", default-features = false }
-opentelemetry = { version = "0.31.0", default-features = false, features = ["metrics"] }
+opentelemetry = { version = "0.31.0", default-features = false, features = [
+  "metrics",
+] }

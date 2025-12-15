@@ -36,7 +36,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 base64 = { workspace = true }
 bytes = { workspace = true }
 crc32c = "0.6.6"
-small_ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 md-5 = "0.10"
@@ -49,6 +48,7 @@ reqwest = { version = "0.12.24", features = [
   "stream",
 ], default-features = false }
 serde = { workspace = true, features = ["derive"] }
+small_ctor = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1"

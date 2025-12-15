@@ -34,8 +34,8 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 futures = { workspace = true }
 hdfs-native = { version = "0.13" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+small_ctor = { workspace = true }

@@ -34,7 +34,7 @@ all-features = true
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 bytes = { workspace = true }
-small_ctor = { workspace = true }
 http = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+small_ctor = { workspace = true }

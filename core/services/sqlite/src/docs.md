@@ -26,8 +26,8 @@ This service can be used to:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Sqlite;
 use opendal_core::Operator;
+use opendal_service_sqlite::Sqlite;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,3 +44,4 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+

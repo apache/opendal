@@ -189,11 +189,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-sqlite")]
-mod sqlite;
-#[cfg(feature = "services-sqlite")]
-pub use self::sqlite::*;
-
 #[cfg(feature = "services-surrealdb")]
 mod surrealdb;
 #[cfg(feature = "services-surrealdb")]

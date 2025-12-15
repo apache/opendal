@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::oio;
-use crate::services::sqlite::core::SqliteCore;
-use crate::{Buffer, EntryMode, Metadata};
+use opendal_core::raw::oio;
+use opendal_core::{Buffer, EntryMode, Metadata};
+
+use super::core::SqliteCore;
 
 pub struct SqliteWriter {
     core: std::sync::Arc<SqliteCore>,
@@ -36,12 +37,12 @@ impl SqliteWriter {
 }
 
 impl oio::Write for SqliteWriter {
-    async fn write(&mut self, bs: Buffer) -> crate::Result<()> {
+    async fn write(&mut self, bs: Buffer) -> opendal_core::Result<()> {
         self.buffer.push(bs);
         Ok(())
     }
 
-    async fn close(&mut self) -> crate::Result<Metadata> {
+    async fn close(&mut self) -> opendal_core::Result<Metadata> {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
         self.core.set(&self.path, buf).await?;
@@ -50,7 +51,7 @@ impl oio::Write for SqliteWriter {
         Ok(meta)
     }
 
-    async fn abort(&mut self) -> crate::Result<()> {
+    async fn abort(&mut self) -> opendal_core::Result<()> {
         self.buffer.clear();
         Ok(())
     }

@@ -18,7 +18,7 @@
 /// Default scheme for sqlite service.
 pub const SQLITE_SCHEME: &str = "sqlite";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

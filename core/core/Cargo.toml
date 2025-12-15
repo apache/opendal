@@ -121,7 +121,6 @@ services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-seafile = []
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
-services-sqlite = ["dep:sqlx", "sqlx?/sqlite", "dep:ouroboros"]
 services-surrealdb = ["dep:surrealdb"]
 services-swift = []
 services-upyun = ["dep:hmac", "dep:sha1"]
@@ -174,16 +173,11 @@ fastpool = { version = "1.0.2", optional = true }
 prost = { version = "0.13", optional = true }
 sha1 = { version = "0.10.6", optional = true }
 sha2 = { workspace = true, optional = true }
-sqlx = { version = "0.8.0", features = [
-  "runtime-tokio-rustls",
-], optional = true }
 
 # For http based services.
 reqsign = { workspace = true, default-features = false, optional = true }
 
 # for self-referencing structs
-ouroboros = { version = "0.18.4", optional = true }
-
 # for services-cacache
 cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",

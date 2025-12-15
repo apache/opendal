@@ -15,8 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::{OpDelete, build_abs_path, oio};
-use crate::services::sqlite::core::SqliteCore;
+use opendal_core::raw::{OpDelete, build_abs_path, oio};
+
+use super::core::SqliteCore;
 
 pub struct SqliteDeleter {
     pub core: std::sync::Arc<SqliteCore>,
@@ -30,7 +31,7 @@ impl SqliteDeleter {
 }
 
 impl oio::OneShotDelete for SqliteDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> crate::Result<()> {
+    async fn delete_once(&self, path: String, _: OpDelete) -> opendal_core::Result<()> {
         let p = build_abs_path(&self.root, &path);
         self.core.delete(&p).await?;
         Ok(())

@@ -31,6 +31,9 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+futures = { version = "0.3", default-features = false, features = [
+  "std",
+  "async-await",
+] }
 http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

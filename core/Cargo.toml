@@ -116,7 +116,7 @@ services-dbfs = ["opendal-core/services-dbfs"]
 services-dropbox = ["opendal-core/services-dropbox"]
 services-etcd = ["opendal-core/services-etcd"]
 services-foundationdb = ["opendal-core/services-foundationdb"]
-services-fs = ["opendal-core/services-fs"]
+services-fs = ["dep:opendal-service-fs"]
 services-ftp = ["dep:opendal-service-ftp"]
 services-gcs = ["dep:opendal-service-gcs"]
 services-gdrive = ["opendal-core/services-gdrive"]
@@ -214,6 +214,7 @@ opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0
 opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
+opendal-service-fs = { path = "services/fs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }

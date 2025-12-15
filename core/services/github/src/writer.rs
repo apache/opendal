@@ -22,8 +22,8 @@ use http::StatusCode;
 
 use super::core::GithubCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type GithubWriters = oio::OneShotWriter<GithubWriter>;
 

@@ -15,17 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::raw::*;
-use crate::*;
+use std::sync::Arc;
 
-/// Parse error response into Error.
-pub(super) fn parse_error(e: std::io::Error) -> Error {
-    match e.kind() {
-        std::io::ErrorKind::AlreadyExists => Error::new(
-            ErrorKind::ConditionNotMatch,
-            "The file already exists in the filesystem",
-        )
-        .set_source(e),
-        _ => new_std_io_error(e),
+use super::core::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+pub struct AlluxioDeleter {
+    core: Arc<AlluxioCore>,
+}
+
+impl AlluxioDeleter {
+    pub fn new(core: Arc<AlluxioCore>) -> Self {
+        AlluxioDeleter { core }
+    }
+}
+
+impl oio::OneShotDelete for AlluxioDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        self.core.delete(&path).await
     }
 }

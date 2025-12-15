@@ -25,7 +25,7 @@ You can refer to [`AlluxioBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Alluxio;
+use opendal_service_alluxio::Alluxio;
 use opendal_core::Operator;
 
 #[tokio::main]

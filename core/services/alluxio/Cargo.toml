@@ -16,23 +16,28 @@
 # under the License.
 
 [package]
-description = "OpenDAL Benchmark vs s3"
-edition = "2024"
-license = "Apache-2.0"
-name = "opendal-benchmark-vs-s3"
-publish = false
-rust-version = "1.85"
-version = "0.0.0"
+description = "Apache OpenDAL Alluxio service implementation"
+name = "opendal-service-alluxio"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
-aws-config = { version = "1.0.1", features = ["behavior-version-latest"] }
-aws-credential-types = { version = "1.2.8", features = [
-  "hardcoded-credentials",
-] }
-aws-sdk-s3 = "1.91.0"
-criterion = { version = "0.7", features = ["async", "async_tokio"] }
-dotenvy = "0.15"
-logforth = { version = "0.29.1", features = ["starter-log"] }
-opendal = { path = "../..", features = ["tests"] }
-rand = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+bytes = { workspace = true }
+ctor = { workspace = true }
+http = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]

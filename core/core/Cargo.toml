@@ -55,7 +55,6 @@ tests = [
   "dep:rand",
   "dep:sha2",
   "dep:dotenvy",
-  "services-fs",
   "services-http",
   "services-memory",
   "internal-tokio-rt",
@@ -70,12 +69,9 @@ internal-tokio-rt = ["tokio/rt-multi-thread"]
 # Enable tokio executors support.
 executors-tokio = ["tokio/rt"]
 
-# Enable layers chaos support
-layers-chaos = ["dep:rand"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-alluxio = []
 services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
@@ -90,7 +86,6 @@ services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
 services-foundationdb = ["dep:foundationdb"]
-services-fs = ["tokio/fs", "internal-tokio-rt"]
 services-gdrive = ["internal-path-cache"]
 services-github = []
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]

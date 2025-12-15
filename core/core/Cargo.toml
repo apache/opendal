@@ -72,7 +72,6 @@ executors-tokio = ["tokio/rt"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
 services-cos = [

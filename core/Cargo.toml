@@ -105,7 +105,7 @@ services-alluxio = ["dep:opendal-service-alluxio"]
 services-azblob = ["dep:opendal-service-azblob"]
 services-azdls = ["dep:opendal-service-azdls"]
 services-azfile = ["dep:opendal-service-azfile"]
-services-b2 = ["opendal-core/services-b2"]
+services-b2 = ["dep:opendal-service-b2"]
 services-cacache = ["opendal-core/services-cacache"]
 services-cloudflare-kv = ["dep:opendal-service-cloudflare-kv"]
 services-compfs = ["opendal-core/services-compfs"]
@@ -208,6 +208,7 @@ opendal-service-alluxio = { path = "services/alluxio", version = "0.55.0", optio
 opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
+opendal-service-b2 = { path = "services/b2", version = "0.55.0", optional = true, default-features = false }
 opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-fs = { path = "services/fs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ftp = { path = "services/ftp", version = "0.55.0", optional = true, default-features = false }

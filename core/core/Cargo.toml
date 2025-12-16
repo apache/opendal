@@ -74,7 +74,6 @@ layers-dtrace = ["dep:probe"]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 
-services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
 services-cos = [

@@ -19,7 +19,6 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
-#![deny(unused_crate_dependencies)]
 
 mod backend;
 mod config;

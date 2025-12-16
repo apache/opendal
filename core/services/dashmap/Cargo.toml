@@ -36,3 +36,6 @@ dashmap = "6"
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

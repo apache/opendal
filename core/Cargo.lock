@@ -5976,6 +5976,7 @@ dependencies = [
  "log",
  "opendal-core",
  "serde",
+ "tokio",
 ]
 
 [[package]]

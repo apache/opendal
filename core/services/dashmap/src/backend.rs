@@ -19,6 +19,8 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::DASHMAP_SCHEME;
 use super::config::DashmapConfig;
@@ -26,8 +28,6 @@ use super::core::DashmapCore;
 use super::deleter::DashmapDeleter;
 use super::lister::DashmapLister;
 use super::writer::DashmapWriter;
-use crate::raw::*;
-use crate::*;
 
 /// [dashmap](https://github.com/xacrimon/dashmap) backend support.
 #[doc = include_str!("docs.md")]

@@ -17,40 +17,26 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use super::core::*;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use super::core::MiniMokaCore;
 
-pub struct B2Deleter {
-    core: Arc<B2Core>,
+pub struct MiniMokaDeleter {
+    core: Arc<MiniMokaCore>,
+    root: String,
 }
 
-impl B2Deleter {
-    pub fn new(core: Arc<B2Core>) -> Self {
-        Self { core }
+impl MiniMokaDeleter {
+    pub fn new(core: Arc<MiniMokaCore>, root: String) -> Self {
+        Self { core, root }
     }
 }
 
-impl oio::OneShotDelete for B2Deleter {
+impl oio::OneShotDelete for MiniMokaDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.hide_file(&path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(()),
-            _ => {
-                let err = parse_error(resp);
-                match err.kind() {
-                    ErrorKind::NotFound => Ok(()),
-                    // Representative deleted
-                    ErrorKind::AlreadyExists => Ok(()),
-                    _ => Err(err),
-                }
-            }
-        }
+        let p = build_abs_path(&self.root, &path);
+        self.core.cache.invalidate(&p);
+        Ok(())
     }
 }

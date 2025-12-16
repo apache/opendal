@@ -15,28 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+//! Dashmap service implementation for Apache OpenDAL.
 
-use super::core::MiniMokaCore;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
-pub struct MiniMokaDeleter {
-    core: Arc<MiniMokaCore>,
-    root: String,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod lister;
+mod writer;
 
-impl MiniMokaDeleter {
-    pub fn new(core: Arc<MiniMokaCore>, root: String) -> Self {
-        Self { core, root }
-    }
-}
+pub use backend::DashmapBuilder as Dashmap;
+pub use config::DashmapConfig;
 
-impl oio::OneShotDelete for MiniMokaDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.cache.invalidate(&p);
-        Ok(())
-    }
+/// Default scheme for dashmap service.
+pub const DASHMAP_SCHEME: &str = "dashmap";
+
+#[ctor::ctor]
+fn register_dashmap_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Dashmap>(DASHMAP_SCHEME);
 }

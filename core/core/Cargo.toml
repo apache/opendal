@@ -72,7 +72,6 @@ executors-tokio = ["tokio/rt"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
 services-cos = [
@@ -81,7 +80,6 @@ services-cos = [
   "reqsign?/reqwest_request",
 ]
 services-d1 = []
-services-dashmap = ["dep:dashmap"]
 services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
@@ -96,7 +94,6 @@ services-ipmfs = []
 services-koofr = []
 services-lakefs = []
 services-memory = []
-services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-onedrive = []
@@ -177,8 +174,6 @@ cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-# for services-dashmap
-dashmap = { version = "6", optional = true }
 # for services-etcd
 etcd-client = { version = "0.17", optional = true, features = ["tls"] }
 # for services-foundationdb
@@ -190,8 +185,6 @@ foundationdb = { version = "0.9.0", features = [
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-upyun
 hmac = { version = "0.12.1", optional = true }
-# for services-mini-moka
-mini-moka = { version = "0.10", optional = true }
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb

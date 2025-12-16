@@ -15,22 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for mini-moka service.
-pub const MINI_MOKA_SCHEME: &str = "mini-moka";
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! B2 service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+/// Default scheme for b2 service.
+pub const B2_SCHEME: &str = "b2";
+
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;
 mod core;
 mod deleter;
+mod error;
 mod lister;
 mod writer;
 
-pub use backend::MiniMokaBuilder as MiniMoka;
-pub use config::MiniMokaConfig;
+pub use backend::B2Builder as B2;
+pub use config::B2Config;
 
 #[ctor::ctor]
-fn register_minimoka_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<MiniMoka>(MINI_MOKA_SCHEME);
+fn register_b2_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<B2>(B2_SCHEME);
 }

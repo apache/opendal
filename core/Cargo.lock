@@ -5556,7 +5556,9 @@ dependencies = [
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
+ "opendal-service-b2",
  "opendal-service-cloudflare-kv",
+ "opendal-service-dashmap",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
@@ -5564,6 +5566,7 @@ dependencies = [
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
  "opendal-service-memcached",
+ "opendal-service-mini-moka",
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
@@ -5626,7 +5629,6 @@ dependencies = [
  "compio",
  "criterion",
  "ctor",
- "dashmap 6.1.0",
  "divan",
  "dotenvy",
  "etcd-client",
@@ -5646,7 +5648,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "mini-moka",
  "moka",
  "mongodb",
  "mongodb-internal-macros",
@@ -5957,6 +5958,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-b2"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
@@ -5966,6 +5982,18 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-dashmap"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "dashmap 6.1.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6075,6 +6103,17 @@ dependencies = [
  "opendal-core",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-mini-moka"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "log",
+ "mini-moka",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-b2")]
-mod b2;
-#[cfg(feature = "services-b2")]
-pub use b2::*;
-
 #[cfg(feature = "services-cacache")]
 mod cacache;
 #[cfg(feature = "services-cacache")]
@@ -43,11 +38,6 @@ pub use cos::*;
 mod d1;
 #[cfg(feature = "services-d1")]
 pub use self::d1::*;
-
-#[cfg(feature = "services-dashmap")]
-mod dashmap;
-#[cfg(feature = "services-dashmap")]
-pub use self::dashmap::*;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
@@ -118,11 +108,6 @@ pub use lakefs::*;
 mod memory;
 #[cfg(feature = "services-memory")]
 pub use self::memory::*;
-
-#[cfg(feature = "services-mini-moka")]
-mod mini_moka;
-#[cfg(feature = "services-mini-moka")]
-pub use self::mini_moka::*;
 
 #[cfg(feature = "services-mongodb")]
 mod mongodb;

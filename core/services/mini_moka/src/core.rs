@@ -17,44 +17,34 @@
 
 use std::fmt::Debug;
 
-use dashmap::DashMap;
+use mini_moka::sync::Cache;
+use opendal_core::*;
 
-use crate::*;
-
-/// Value stored in dashmap cache containing both metadata and content
+/// Value stored in mini-moka cache containing both metadata and content
 #[derive(Clone)]
-pub struct DashmapValue {
-    /// Stored metadata in dashmap cache.
+pub struct MiniMokaValue {
+    /// Stored metadata in mini-moka cache.
     pub metadata: Metadata,
-    /// Stored content in dashmap cache.
+    /// Stored content in mini-moka cache.
     pub content: Buffer,
 }
 
 #[derive(Clone)]
-pub struct DashmapCore {
-    pub cache: DashMap<String, DashmapValue>,
+pub struct MiniMokaCore {
+    pub cache: Cache<String, MiniMokaValue>,
 }
 
-impl Debug for DashmapCore {
+impl Debug for MiniMokaCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DashmapCore")
-            .field("size", &self.cache.len())
+        f.debug_struct("MiniMokaCore")
+            .field("size", &self.cache.weighted_size())
+            .field("count", &self.cache.entry_count())
             .finish()
     }
 }
 
-impl DashmapCore {
-    pub fn get(&self, key: &str) -> Result<Option<DashmapValue>> {
-        Ok(self.cache.get(key).map(|v| v.value().clone()))
-    }
-
-    pub fn set(&self, key: &str, value: DashmapValue) -> Result<()> {
-        self.cache.insert(key.to_string(), value);
-        Ok(())
-    }
-
-    pub fn delete(&self, key: &str) -> Result<()> {
-        self.cache.remove(key);
-        Ok(())
+impl MiniMokaCore {
+    pub fn get(&self, key: &str) -> Option<MiniMokaValue> {
+        self.cache.get(&key.to_string())
     }
 }

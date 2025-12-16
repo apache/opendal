@@ -22,9 +22,9 @@ use compio::buf::buf_try;
 use compio::fs::File;
 use compio::io::AsyncWriteExt;
 
-use super::core::CompfsCore;
-use crate::raw::*;
-use crate::*;
+use super::core::{CompfsBuffer, CompfsCore};
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Debug)]
 pub struct CompfsWriter {
@@ -47,10 +47,11 @@ impl oio::Write for CompfsWriter {
             return Err(Error::new(ErrorKind::Unexpected, "file has closed"));
         };
 
+        let compfs_buf = CompfsBuffer::from(bs);
         let pos = self
             .core
             .exec(move || async move {
-                buf_try!(@try file.write_vectored_all(bs).await);
+                buf_try!(@try file.write_vectored_all(compfs_buf).await);
                 Ok(file.position())
             })
             .await?;

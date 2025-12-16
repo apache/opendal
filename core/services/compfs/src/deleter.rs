@@ -18,25 +18,36 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub struct RedbDeleter {
-    core: Arc<RedbCore>,
-    root: String,
+pub struct CompfsDeleter {
+    core: Arc<CompfsCore>,
 }
 
-impl RedbDeleter {
-    pub fn new(core: Arc<RedbCore>, root: String) -> Self {
-        Self { core, root }
+impl CompfsDeleter {
+    pub fn new(core: Arc<CompfsCore>) -> Self {
+        Self { core }
     }
 }
 
-impl oio::OneShotDelete for RedbDeleter {
+impl oio::OneShotDelete for CompfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p)?;
-        Ok(())
+        let res = if path.ends_with('/') {
+            let path = self.core.prepare_path(&path);
+            self.core
+                .exec(move || async move { compio::fs::remove_dir(path).await })
+                .await
+        } else {
+            let path = self.core.prepare_path(&path);
+            self.core
+                .exec(move || async move { compio::fs::remove_file(path).await })
+                .await
+        };
+        match res {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 }

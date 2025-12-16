@@ -28,8 +28,8 @@ use super::deleter::CompfsDeleter;
 use super::lister::CompfsLister;
 use super::reader::CompfsReader;
 use super::writer::CompfsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [`compio`]-based file system support.
 #[derive(Debug, Default)]

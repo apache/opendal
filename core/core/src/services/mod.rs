@@ -24,11 +24,6 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
 
-#[cfg(feature = "services-compfs")]
-mod compfs;
-#[cfg(feature = "services-compfs")]
-pub use compfs::*;
-
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
 #[cfg(feature = "services-dbfs")]
@@ -113,11 +108,6 @@ pub use onedrive::*;
 mod pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::*;
-
-#[cfg(feature = "services-redb")]
-mod redb;
-#[cfg(feature = "services-redb")]
-pub use self::redb::*;
 
 #[cfg(feature = "services-redis")]
 mod redis;

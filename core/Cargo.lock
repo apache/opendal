@@ -5558,6 +5558,7 @@ dependencies = [
  "opendal-service-azfile",
  "opendal-service-b2",
  "opendal-service-cloudflare-kv",
+ "opendal-service-compfs",
  "opendal-service-cos",
  "opendal-service-d1",
  "opendal-service-dashmap",
@@ -5576,6 +5577,7 @@ dependencies = [
  "opendal-service-oss",
  "opendal-service-persy",
  "opendal-service-postgresql",
+ "opendal-service-redb",
  "opendal-service-s3",
  "opendal-service-sftp",
  "opendal-service-sled",
@@ -5632,7 +5634,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cacache",
- "compio",
  "criterion",
  "ctor",
  "divan",
@@ -5663,7 +5664,6 @@ dependencies = [
  "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
- "redb",
  "redis",
  "reqsign",
  "reqwest",
@@ -5987,6 +5987,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-compfs"
+version = "0.55.0"
+dependencies = [
+ "compio",
+ "ctor",
+ "opendal-core",
+ "serde",
+]
+
+[[package]]
 name = "opendal-service-cos"
 version = "0.55.0"
 dependencies = [
@@ -6243,6 +6253,16 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+]
+
+[[package]]
+name = "opendal-service-redb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "redb",
+ "serde",
 ]
 
 [[package]]

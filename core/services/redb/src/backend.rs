@@ -23,8 +23,8 @@ use super::config::RedbConfig;
 use super::core::*;
 use super::deleter::RedbDeleter;
 use super::writer::RedbWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Redb service support.
 #[doc = include_str!("docs.md")]

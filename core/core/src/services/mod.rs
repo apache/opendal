@@ -39,11 +39,6 @@ mod d1;
 #[cfg(feature = "services-d1")]
 pub use self::d1::*;
 
-#[cfg(feature = "services-dashmap")]
-mod dashmap;
-#[cfg(feature = "services-dashmap")]
-pub use self::dashmap::*;
-
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
 #[cfg(feature = "services-dbfs")]

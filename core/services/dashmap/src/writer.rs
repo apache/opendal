@@ -17,10 +17,10 @@
 
 use std::sync::Arc;
 
-use super::core::DashmapCore;
-use super::core::DashmapValue;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+use super::core::*;
 
 pub struct DashmapWriter {
     core: Arc<DashmapCore>,

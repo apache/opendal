@@ -111,7 +111,7 @@ services-cloudflare-kv = ["dep:opendal-service-cloudflare-kv"]
 services-compfs = ["opendal-core/services-compfs"]
 services-cos = ["opendal-core/services-cos"]
 services-d1 = ["opendal-core/services-d1"]
-services-dashmap = ["opendal-core/services-dashmap"]
+services-dashmap = ["dep:opendal-service-dashmap"]
 services-dbfs = ["opendal-core/services-dbfs"]
 services-dropbox = ["opendal-core/services-dropbox"]
 services-etcd = ["opendal-core/services-etcd"]
@@ -210,6 +210,7 @@ opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional 
 opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
 opendal-service-b2 = { path = "services/b2", version = "0.55.0", optional = true, default-features = false }
 opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.55.0", optional = true, default-features = false }
+opendal-service-dashmap = { path = "services/dashmap", version = "0.55.0", optional = true, default-features = false }
 opendal-service-fs = { path = "services/fs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ftp = { path = "services/ftp", version = "0.55.0", optional = true, default-features = false }
 opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = true, default-features = false }

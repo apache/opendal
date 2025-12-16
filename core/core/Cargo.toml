@@ -97,7 +97,6 @@ services-koofr = []
 services-lakefs = []
 services-memcached = ["dep:fastpool"]
 services-memory = []
-services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-onedrive = []
@@ -191,8 +190,6 @@ foundationdb = { version = "0.9.0", features = [
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-upyun
 hmac = { version = "0.12.1", optional = true }
-# for services-mini-moka
-mini-moka = { version = "0.10", optional = true }
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb

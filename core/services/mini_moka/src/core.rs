@@ -18,8 +18,7 @@
 use std::fmt::Debug;
 
 use mini_moka::sync::Cache;
-
-use crate::*;
+use opendal_core::*;
 
 /// Value stored in mini-moka cache containing both metadata and content
 #[derive(Clone)]

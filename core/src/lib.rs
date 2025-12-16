@@ -51,6 +51,8 @@ pub mod services {
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-mini-moka")]
+    pub use opendal_service_mini_moka::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-mysql")]

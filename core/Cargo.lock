@@ -5563,6 +5563,7 @@ dependencies = [
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
+ "opendal-service-mini-moka",
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
@@ -5645,7 +5646,6 @@ dependencies = [
  "log",
  "md-5",
  "mea",
- "mini-moka",
  "moka",
  "mongodb",
  "mongodb-internal-macros",
@@ -6062,6 +6062,17 @@ dependencies = [
  "prost 0.13.5",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-mini-moka"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "log",
+ "mini-moka",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

@@ -15,6 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::Configurator;
+use opendal_core::OperatorUri;
+use opendal_core::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -42,10 +45,10 @@ pub struct MiniMokaConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for MiniMokaConfig {
+impl Configurator for MiniMokaConfig {
     type Builder = MiniMokaBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(root) = uri.root() {
@@ -65,19 +68,17 @@ impl crate::Configurator for MiniMokaConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_root_and_preserves_ttl() {
+    fn from_uri_sets_root_and_preserves_ttl() -> Result<()> {
         let uri = OperatorUri::new(
             "mini-moka:///session",
             vec![("time_to_live".to_string(), "300s".to_string())],
-        )
-        .unwrap();
+        )?;
 
-        let cfg = MiniMokaConfig::from_uri(&uri).unwrap();
+        let cfg = MiniMokaConfig::from_uri(&uri)?;
         assert_eq!(cfg.root.as_deref(), Some("session"));
         assert!(cfg.time_to_live.is_some());
+        Ok(())
     }
 }

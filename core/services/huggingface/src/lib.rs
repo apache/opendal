@@ -18,7 +18,7 @@
 /// Default scheme for huggingface service.
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

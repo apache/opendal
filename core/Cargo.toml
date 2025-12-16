@@ -146,7 +146,7 @@ services-oss = ["dep:opendal-service-oss"]
 services-pcloud = ["opendal-core/services-pcloud"]
 services-persy = ["dep:opendal-service-persy"]
 services-postgresql = ["dep:opendal-service-postgresql"]
-services-redb = ["opendal-core/services-redb"]
+services-redb = ["dep:opendal-service-redb"]
 services-redis = ["opendal-core/services-redis"]
 services-redis-native-tls = ["opendal-core/services-redis-native-tls"]
 services-rocksdb = ["opendal-core/services-rocksdb"]
@@ -229,6 +229,7 @@ opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = tr
 opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }
 opendal-service-persy = { path = "services/persy", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
+opendal-service-redb = { path = "services/redb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optional = true, default-features = false }

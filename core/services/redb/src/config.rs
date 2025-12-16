@@ -33,10 +33,10 @@ pub struct RedbConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for RedbConfig {
+impl opendal_core::Configurator for RedbConfig {
     type Builder = RedbBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(path) = uri.root() {
@@ -60,8 +60,8 @@ impl crate::Configurator for RedbConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_datadir_table_and_root() {

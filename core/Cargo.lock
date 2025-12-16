@@ -5577,6 +5577,7 @@ dependencies = [
  "opendal-service-oss",
  "opendal-service-persy",
  "opendal-service-postgresql",
+ "opendal-service-redb",
  "opendal-service-s3",
  "opendal-service-sled",
  "opendal-service-sqlite",
@@ -5664,7 +5665,6 @@ dependencies = [
  "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
- "redb",
  "redis",
  "reqsign",
  "reqwest",
@@ -6253,6 +6253,16 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+]
+
+[[package]]
+name = "opendal-service-redb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "redb",
+ "serde",
 ]
 
 [[package]]

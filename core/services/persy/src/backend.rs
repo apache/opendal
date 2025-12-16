@@ -23,8 +23,8 @@ use super::config::PersyConfig;
 use super::core::*;
 use super::deleter::PersyDeleter;
 use super::writer::PersyWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// persy service support.
 #[doc = include_str!("docs.md")]

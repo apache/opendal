@@ -67,6 +67,8 @@ pub mod services {
     pub use opendal_service_obs::*;
     #[cfg(feature = "services-oss")]
     pub use opendal_service_oss::*;
+    #[cfg(feature = "services-persy")]
+    pub use opendal_service_persy::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]

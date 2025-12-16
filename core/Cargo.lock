@@ -5571,6 +5571,7 @@ dependencies = [
  "opendal-service-mysql",
  "opendal-service-obs",
  "opendal-service-oss",
+ "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-s3",
  "opendal-service-sled",
@@ -5655,7 +5656,6 @@ dependencies = [
  "openssh",
  "openssh-sftp-client",
  "percent-encoding",
- "persy",
  "pretty_assertions",
  "probe",
  "prost 0.13.5",
@@ -6170,6 +6170,16 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-persy"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "persy",
+ "serde",
 ]
 
 [[package]]

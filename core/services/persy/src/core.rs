@@ -17,7 +17,7 @@
 
 use std::fmt::Debug;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct PersyCore {

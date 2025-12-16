@@ -129,11 +129,6 @@ mod pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::*;
 
-#[cfg(feature = "services-persy")]
-mod persy;
-#[cfg(feature = "services-persy")]
-pub use self::persy::*;
-
 #[cfg(feature = "services-redb")]
 mod redb;
 #[cfg(feature = "services-redb")]

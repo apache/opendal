@@ -19,7 +19,9 @@ use std::collections::HashMap;
 use std::env;
 use std::sync::LazyLock;
 
-use crate::*;
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_core::layers;
 
 /// TEST_RUNTIME is the runtime used for running tests.
 pub static TEST_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {

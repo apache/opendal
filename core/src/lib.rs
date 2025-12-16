@@ -24,6 +24,9 @@
 
 pub use opendal_core::*;
 
+#[cfg(feature = "tests")]
+pub use opendal_testkit as tests;
+
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;

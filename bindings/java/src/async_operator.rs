@@ -469,7 +469,8 @@ fn intern_remove_all(
 
     executor_or_default(env, executor)?.spawn(async move {
         let result = op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map(|_| JValueOwned::Void)
             .map_err(Into::into);

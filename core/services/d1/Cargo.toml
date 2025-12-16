@@ -42,7 +42,4 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = "1"
-tokio = { workspace = true, features = [
-  "macros",
-  "rt-multi-thread",
-] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

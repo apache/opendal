@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for memcached service.
-pub const MEMCACHED_SCHEME: &str = "memcached";
+//! Memcached service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod binary;
@@ -30,7 +30,10 @@ mod writer;
 pub use backend::MemcachedBuilder as Memcached;
 pub use config::MemcachedConfig;
 
+/// Default scheme for memcached service.
+pub const MEMCACHED_SCHEME: &str = "memcached";
+
 #[ctor::ctor]
 fn register_memcached_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Memcached>(MEMCACHED_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Memcached>(MEMCACHED_SCHEME);
 }

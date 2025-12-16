@@ -59,10 +59,10 @@ impl Debug for HdfsConfig {
     }
 }
 
-impl crate::Configurator for HdfsConfig {
+impl opendal_core::Configurator for HdfsConfig {
     type Builder = HdfsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert("name_node".to_string(), format!("hdfs://{authority}"));
@@ -85,8 +85,8 @@ impl crate::Configurator for HdfsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::types::OperatorUri;
 
     #[test]
     fn from_uri_sets_name_node_and_root() {

@@ -27,8 +27,8 @@ use super::deleter::HdfsDeleter;
 use super::lister::HdfsLister;
 use super::reader::HdfsReader;
 use super::writer::HdfsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]

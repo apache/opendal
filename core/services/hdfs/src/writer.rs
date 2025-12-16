@@ -20,8 +20,8 @@ use std::sync::Arc;
 use bytes::Buf;
 use futures::AsyncWriteExt;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HdfsWriter<F> {
     target_path: String,

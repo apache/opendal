@@ -5576,6 +5576,7 @@ dependencies = [
  "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-http",
  "opendal-service-huggingface",
@@ -5659,7 +5660,6 @@ dependencies = [
  "flume",
  "futures",
  "getrandom 0.2.16",
- "hdrs",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
@@ -6260,6 +6260,20 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-hdfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "hdrs",
+ "log",
+ "opendal-core",
+ "serde",
  "tokio",
 ]
 

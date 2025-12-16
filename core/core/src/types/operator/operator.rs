@@ -1375,6 +1375,23 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated since v0.55.0. Use [`Operator::delete_with`] with
+    /// `recursive(true)` instead.
+    ///
+    /// ## Migration Example
+    ///
+    /// Instead of:
+    /// ```ignore
+    /// op.remove_all("path/to/dir").await?;
+    /// ```
+    ///
+    /// Use:
+    /// ```ignore
+    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// ```
+    ///
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1392,28 +1409,12 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.55.0",
+        note = "Use `delete_with` with `recursive(true)` instead"
+    )]
     pub async fn remove_all(&self, path: &str) -> Result<()> {
-        match self.stat(path).await {
-            // If object exists.
-            Ok(metadata) => {
-                // If the object is a file, we can delete it.
-                if metadata.mode() != EntryMode::DIR {
-                    self.delete(path).await?;
-                    // There may still be objects prefixed with the path in some backend, so we can't return here.
-                }
-            }
-
-            // If dir not found, it may be a prefix in object store like S3,
-            // and we still need to delete objects under the prefix.
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
-
-            // Pass on any other error.
-            Err(e) => return Err(e),
-        };
-
-        let lister = self.lister_with(path).recursive(true).await?;
-        self.delete_try_stream(lister).await?;
-        Ok(())
+        self.delete_with(path).recursive(true).await
     }
 
     /// List entries whose paths start with the given prefix `path`.

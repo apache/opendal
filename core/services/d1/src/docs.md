@@ -27,12 +27,11 @@ This service can be used to:
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::D1;
+use opendal_service_d1::D1;
 use opendal_core::Operator;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = D1::default()
         .token("token")
         .account_id("account_id")

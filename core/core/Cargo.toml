@@ -61,7 +61,6 @@ layers-chaos = ["dep:rand"]
 
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
-services-d1 = []
 services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]

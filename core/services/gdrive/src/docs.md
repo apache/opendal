@@ -50,8 +50,8 @@ You can refer to [`GdriveBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Gdrive;
-use opendal_core::Operator;
+use opendal::services::Gdrive;
+use opendal::Operator;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -61,3 +61,4 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+```

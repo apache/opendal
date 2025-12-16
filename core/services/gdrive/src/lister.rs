@@ -22,8 +22,8 @@ use http::StatusCode;
 use super::core::GdriveCore;
 use super::core::GdriveFileList;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct GdriveLister {
     path: String,
@@ -58,13 +58,11 @@ impl oio::PageList for GdriveLister {
             _ => return Err(parse_error(resp)),
         };
 
-        // Google Drive returns an empty response when attempting to list a non-existent directory.
         if bytes.is_empty() {
             ctx.done = true;
             return Ok(());
         }
 
-        // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
             let path = build_rel_path(&self.core.root, &self.path);
             let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
@@ -94,9 +92,6 @@ impl oio::PageList for GdriveLister {
             let path = format!("{}{}", &self.path, file.name);
             let normalized_path = build_rel_path(root, &path);
 
-            // Update path cache when path doesn't exist.
-            // When Google Drive converts a format, for example, Microsoft PowerPoint,
-            // Google Drive keeps two entries with the same ID.
             if let Ok(None) = self.core.path_cache.get(&path).await {
                 self.core.path_cache.insert(&path, &file.id).await;
             }

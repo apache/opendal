@@ -130,7 +130,7 @@ services-foundationdb = ["dep:opendal-service-foundationdb"]
 services-fs = ["dep:opendal-service-fs"]
 services-ftp = ["dep:opendal-service-ftp"]
 services-gcs = ["dep:opendal-service-gcs"]
-services-gdrive = ["opendal-core/services-gdrive"]
+services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
@@ -235,6 +235,7 @@ opendal-service-foundationdb = { path = "services/foundationdb", version = "0.55
 opendal-service-fs = { path = "services/fs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ftp = { path = "services/ftp", version = "0.55.0", optional = true, default-features = false }
 opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = true, default-features = false }
+opendal-service-gdrive = { path = "services/gdrive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }

@@ -29,8 +29,8 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,
@@ -60,7 +60,6 @@ impl GdriveCore {
         ))?;
 
         // The file metadata in the Google Drive API is very complex.
-        // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
             "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
         ))
@@ -119,7 +118,6 @@ impl GdriveCore {
         self.info.http_client().send(req).await
     }
 
-    // Update with content and metadata
     pub async fn gdrive_patch_metadata_request(
         &self,
         source: &str,
@@ -174,7 +172,6 @@ impl GdriveCore {
         self.info.http_client().send(req).await
     }
 
-    /// Create a file with the content.
     pub async fn gdrive_upload_simple_request(
         &self,
         path: &str,
@@ -222,11 +219,6 @@ impl GdriveCore {
         self.info.http_client().send(req).await
     }
 
-    /// Overwrite the file with the content.
-    ///
-    /// # Notes
-    ///
-    /// - The file id is required. Do not use this method to create a file.
     pub async fn gdrive_upload_overwrite_simple_request(
         &self,
         file_id: &str,
@@ -308,7 +300,6 @@ pub struct GdriveSigner {
 }
 
 impl GdriveSigner {
-    /// Create a new signer.
     pub fn new(info: Arc<AccessorInfo>) -> Self {
         GdriveSigner {
             info,
@@ -321,7 +312,6 @@ impl GdriveSigner {
         }
     }
 
-    /// Sign a request.
     pub async fn sign<T>(&mut self, req: &mut Request<T>) -> Result<()> {
         if !self.access_token.is_empty() && self.expires_in > Timestamp::now() {
             let value = format!("Bearer {}", self.access_token)
@@ -387,9 +377,6 @@ impl PathQuery for GdrivePathQuery {
 
     async fn query(&self, parent_id: &str, name: &str) -> Result<Option<String>> {
         let mut queries = vec![
-            // Make sure name has been replaced with escaped name.
-            //
-            // ref: <https://developers.google.com/drive/api/guides/ref-search-terms>
             format!(
                 "name = '{}'",
                 name.replace('\'', "\\'").trim_end_matches('/')
@@ -439,7 +426,6 @@ impl PathQuery for GdrivePathQuery {
         let content = serde_json::to_vec(&json!({
             "name": name.trim_end_matches('/'),
             "mimeType": "application/vnd.google-apps.folder",
-            // If the parent is not provided, the folder will be created in the root folder.
             "parents": [parent_id],
         }))
         .map_err(new_json_serialize_error)?;
@@ -470,9 +456,6 @@ pub struct GdriveTokenResponse {
     expires_in: u64,
 }
 
-/// This is the file struct returned by the Google Drive API.
-/// This is a complex struct, but we only add the fields we need.
-/// refer to https://developers.google.com/drive/api/reference/rest/v3/files#File
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct GdriveFile {
@@ -480,15 +463,9 @@ pub struct GdriveFile {
     pub id: String,
     pub name: String,
     pub size: Option<String>,
-    // The modified time is not returned unless the `fields`
-    // query parameter contains `modifiedTime`.
-    // As we only need the modified time when we do `stat` operation,
-    // if other operations(such as search) do not specify the `fields` query parameter,
-    // try to access this field, it will be `None`.
     pub modified_time: Option<String>,
 }
 
-/// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GdriveFileList {

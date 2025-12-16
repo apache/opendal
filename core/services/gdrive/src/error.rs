@@ -19,8 +19,8 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Default, Debug, Deserialize)]
 struct GdriveError {
@@ -44,7 +44,6 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT
-        // Gdrive sometimes return METHOD_NOT_ALLOWED for our requests for abuse detection.
         | StatusCode::METHOD_NOT_ALLOWED => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
@@ -71,9 +70,6 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
 pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
     match message {
-        // > Please reduce your request rate.
-        //
-        // It's Ok to retry since later on the request rate may get reduced.
         "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
         _ => None,
     }

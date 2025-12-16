@@ -18,7 +18,7 @@
 /// Default scheme for gdrive service.
 pub const GDRIVE_SCHEME: &str = "gdrive";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod builder;

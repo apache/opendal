@@ -27,8 +27,8 @@ use super::config::GdriveConfig;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [GoogleDrive](https://drive.google.com/) backend support.
 #[derive(Default)]

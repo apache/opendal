@@ -5573,6 +5573,7 @@ dependencies = [
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
+ "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
  "opendal-service-hdfs-native",
@@ -6209,6 +6210,20 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-gdrive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

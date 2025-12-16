@@ -28,8 +28,8 @@ use super::deleter::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Clone, Debug)]
 pub struct GdriveBackend {

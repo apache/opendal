@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for d1 service.
-pub const D1_SCHEME: &str = "d1";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Cloudflare D1 service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +30,10 @@ mod writer;
 pub use backend::D1Builder as D1;
 pub use config::D1Config;
 
+/// Default scheme for d1 service.
+pub const D1_SCHEME: &str = "d1";
+
 #[ctor::ctor]
 fn register_d1_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<D1>(D1_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<D1>(D1_SCHEME);
 }

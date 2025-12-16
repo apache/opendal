@@ -56,21 +56,21 @@ impl Debug for D1Config {
     }
 }
 
-impl crate::Configurator for D1Config {
+impl opendal_core::Configurator for D1Config {
     type Builder = D1Builder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let account_id = uri.name().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "uri host must contain account id",
             )
             .with_context("service", D1_SCHEME)
         })?;
 
         let database_and_root = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "uri path must contain database id",
             )
             .with_context("service", D1_SCHEME)
@@ -78,8 +78,8 @@ impl crate::Configurator for D1Config {
 
         let mut segments = database_and_root.splitn(2, '/');
         let database_id = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "database id is required in uri path",
             )
             .with_context("service", D1_SCHEME)
@@ -106,8 +106,8 @@ impl crate::Configurator for D1Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_account_database_and_root() {

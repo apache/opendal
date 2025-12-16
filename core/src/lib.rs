@@ -46,6 +46,8 @@ pub mod services {
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-cos")]
     pub use opendal_service_cos::*;
+    #[cfg(feature = "services-d1")]
+    pub use opendal_service_d1::*;
     #[cfg(feature = "services-dashmap")]
     pub use opendal_service_dashmap::*;
     #[cfg(feature = "services-fs")]

@@ -5559,6 +5559,7 @@ dependencies = [
  "opendal-service-b2",
  "opendal-service-cloudflare-kv",
  "opendal-service-cos",
+ "opendal-service-d1",
  "opendal-service-dashmap",
  "opendal-service-fs",
  "opendal-service-ftp",
@@ -6004,6 +6005,21 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-d1"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

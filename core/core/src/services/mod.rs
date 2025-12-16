@@ -24,11 +24,6 @@ mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
 
-#[cfg(feature = "services-compfs")]
-mod compfs;
-#[cfg(feature = "services-compfs")]
-pub use compfs::*;
-
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
 #[cfg(feature = "services-dbfs")]

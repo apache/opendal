@@ -22,9 +22,9 @@ use compio::buf::IoBuf;
 use compio::buf::buf_try;
 use compio::io::AsyncReadAt;
 
-use super::core::CompfsCore;
-use crate::raw::*;
-use crate::*;
+use super::core::{CompfsBuffer, CompfsCore};
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Debug)]
 pub struct CompfsReader {
@@ -74,6 +74,6 @@ impl oio::Read for CompfsReader {
         let frozen = bs.split_to(n).freeze();
         self.offset += frozen.len() as u64;
         self.core.buf_pool.put(bs);
-        Ok(Buffer::from(frozen))
+        Ok(CompfsBuffer::from(Buffer::from(frozen)).into())
     }
 }

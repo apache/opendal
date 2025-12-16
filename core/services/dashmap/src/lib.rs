@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for dashmap service.
-pub const DASHMAP_SCHEME: &str = "dashmap";
+//! Dashmap service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -30,7 +30,10 @@ mod writer;
 pub use backend::DashmapBuilder as Dashmap;
 pub use config::DashmapConfig;
 
+/// Default scheme for dashmap service.
+pub const DASHMAP_SCHEME: &str = "dashmap";
+
 #[ctor::ctor]
 fn register_dashmap_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Dashmap>(DASHMAP_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Dashmap>(DASHMAP_SCHEME);
 }

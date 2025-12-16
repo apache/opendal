@@ -80,7 +80,6 @@ services-cos = [
   "reqsign?/reqwest_request",
 ]
 services-d1 = []
-services-dashmap = ["dep:dashmap"]
 services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
@@ -176,8 +175,6 @@ cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-# for services-dashmap
-dashmap = { version = "6", optional = true }
 # for services-etcd
 etcd-client = { version = "0.17", optional = true, features = ["tls"] }
 # for services-foundationdb

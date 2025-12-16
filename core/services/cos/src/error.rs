@@ -21,8 +21,10 @@ use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::Buffer;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
+use opendal_core::raw::*;
 
 /// CosError is the error returned by cos service.
 #[derive(Default, Debug, Deserialize)]

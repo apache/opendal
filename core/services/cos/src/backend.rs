@@ -36,8 +36,11 @@ use super::lister::CosListers;
 use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use std::sync::LazyLock;
+
+static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
+use opendal_core::*;
 
 /// Tencent-Cloud COS services support.
 #[doc = include_str!("docs.md")]
@@ -388,6 +391,10 @@ impl Access for CosBackend {
                     .cos_put_object_request(path, None, v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+            _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
             )),

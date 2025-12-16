@@ -29,11 +29,6 @@ mod compfs;
 #[cfg(feature = "services-compfs")]
 pub use compfs::*;
 
-#[cfg(feature = "services-cos")]
-mod cos;
-#[cfg(feature = "services-cos")]
-pub use cos::*;
-
 #[cfg(feature = "services-d1")]
 mod d1;
 #[cfg(feature = "services-d1")]

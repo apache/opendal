@@ -20,6 +20,10 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
+use opendal_core::Configurator;
+use opendal_core::OperatorUri;
+use opendal_core::Result;
+
 use super::backend::CosBuilder;
 
 /// Tencent-Cloud COS services support.
@@ -54,10 +58,10 @@ impl Debug for CosConfig {
     }
 }
 
-impl crate::Configurator for CosConfig {
+impl Configurator for CosConfig {
     type Builder = CosBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -79,8 +83,8 @@ impl crate::Configurator for CosConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

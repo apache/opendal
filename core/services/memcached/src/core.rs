@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
 use std::sync::Arc;
+
+use fastpool::ManageObject;
+use fastpool::ObjectStatus;
+use fastpool::bounded;
+use opendal_core::raw::*;
+use opendal_core::*;
 use tokio::net::TcpStream;
 
 use super::binary;
-use crate::raw::*;
-use crate::*;
 
 /// A connection manager for `memcache_async::ascii::Protocol`.
 #[derive(Clone)]

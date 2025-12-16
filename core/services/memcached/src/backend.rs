@@ -17,13 +17,14 @@
 
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::MEMCACHED_SCHEME;
 use super::config::MemcachedConfig;
 use super::core::*;
 use super::deleter::MemcachedDeleter;
 use super::writer::MemcachedWriter;
-use crate::raw::*;
-use crate::*;
 
 /// [Memcached](https://memcached.org/) service support.
 #[doc = include_str!("docs.md")]

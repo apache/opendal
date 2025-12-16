@@ -17,11 +17,14 @@
 
 use std::fmt::Debug;
 
+use opendal_core::Configurator;
+use opendal_core::OperatorUri;
+use opendal_core::Result;
+use opendal_core::raw::*;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::MemcachedBuilder;
-use crate::raw::*;
 
 /// Config for MemCached services support
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -59,10 +62,10 @@ impl Debug for MemcachedConfig {
     }
 }
 
-impl crate::Configurator for MemcachedConfig {
+impl Configurator for MemcachedConfig {
     type Builder = MemcachedBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert("endpoint".to_string(), format!("tcp://{authority}"));
@@ -85,19 +88,17 @@ impl crate::Configurator for MemcachedConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_endpoint_and_root() {
+    fn from_uri_sets_endpoint_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "memcached://cache.local:11211/app/session",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = MemcachedConfig::from_uri(&uri).unwrap();
+        let cfg = MemcachedConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("tcp://cache.local:11211"));
         assert_eq!(cfg.root.as_deref(), Some("app/session"));
+        Ok(())
     }
 }

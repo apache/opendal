@@ -15,14 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::raw::*;
+use opendal_core::*;
+use tokio::io;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
-use tokio::io::{self};
 use tokio::net::TcpStream;
-
-use crate::raw::*;
-use crate::*;
 
 pub(super) mod constants {
     pub const OK_STATUS: u16 = 0x0;

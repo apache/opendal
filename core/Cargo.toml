@@ -220,8 +220,8 @@ opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = tr
 opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
-opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.55.0", optional = true, default-features = false }
+opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optional = true, default-features = false }
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
 

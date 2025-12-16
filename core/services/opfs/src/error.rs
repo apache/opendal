@@ -17,7 +17,7 @@
 
 use wasm_bindgen::JsValue;
 
-use crate::{Error, ErrorKind};
+use opendal_core::{Error, ErrorKind};
 
 pub(crate) fn parse_js_error(msg: JsValue) -> Error {
     Error::new(

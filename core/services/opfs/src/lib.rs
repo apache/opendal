@@ -15,37 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-use std::sync::Arc;
+/// Default scheme for opfs service.
+pub const OPFS_SCHEME: &str = "opfs";
 
-use web_sys::FileSystemGetDirectoryOptions;
+pub mod backend;
+pub mod config;
+pub mod core;
+mod error;
+mod utils;
 
-use super::utils::*;
-use crate::raw::*;
-use crate::*;
-
-/// OPFS Service backend
-#[derive(Default, Debug, Clone)]
-pub struct OpfsBackend {}
-
-impl Access for OpfsBackend {
-    type Reader = ();
-
-    type Writer = ();
-
-    type Lister = ();
-
-    type Deleter = ();
-
-    fn info(&self) -> Arc<AccessorInfo> {
-        Arc::new(AccessorInfo::default())
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let opt = FileSystemGetDirectoryOptions::new();
-        opt.set_create(true);
-        get_directory_handle(path, &opt).await?;
-
-        Ok(RpCreateDir::default())
-    }
-}
+pub use backend::OpfsBackend;
+pub use config::OPFSConfig;

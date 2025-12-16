@@ -45,21 +45,6 @@ reqwest-rustls-tls = ["reqwest/rustls-tls"]
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
-# Build test utils or not.
-#
-# These features are used to control whether to build opendal's test utils.
-# And doesn't have any other effects.
-#
-# You should never enable this feature unless you are developing opendal.
-tests = [
-  "dep:rand",
-  "dep:sha2",
-  "dep:dotenvy",
-  "services-http",
-  "services-memory",
-  "internal-tokio-rt",
-]
-
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
 internal-path-cache = ["dep:moka"]
@@ -72,16 +57,9 @@ executors-tokio = ["tokio/rt"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-b2 = []
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
-services-cos = [
-  "dep:reqsign",
-  "reqsign?/services-tencent",
-  "reqsign?/reqwest_request",
-]
 services-d1 = []
-services-dashmap = ["dep:dashmap"]
 services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]
@@ -95,9 +73,7 @@ services-huggingface = []
 services-ipmfs = []
 services-koofr = []
 services-lakefs = []
-services-memcached = ["dep:fastpool"]
 services-memory = []
-services-mini-moka = ["dep:mini-moka"]
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-onedrive = []
@@ -109,7 +85,6 @@ services-opfs = [
 ]
 
 services-pcloud = []
-services-persy = ["dep:persy", "internal-tokio-rt"]
 services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -156,10 +131,6 @@ tokio = { workspace = true, features = ["macros", "io-util"] }
 url = "2.5"
 uuid = { workspace = true, features = ["serde", "v4"] }
 
-# Test only dependencies
-dotenvy = { version = "0.15", optional = true }
-rand = { workspace = true, optional = true }
-
 # Optional dependencies
 
 # Services
@@ -178,8 +149,6 @@ cacache = { version = "13.0", default-features = false, features = [
   "tokio-runtime",
   "mmap",
 ], optional = true }
-# for services-dashmap
-dashmap = { version = "6", optional = true }
 # for services-etcd
 etcd-client = { version = "0.17", optional = true, features = ["tls"] }
 # for services-foundationdb
@@ -191,8 +160,6 @@ foundationdb = { version = "0.9.0", features = [
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-upyun
 hmac = { version = "0.12.1", optional = true }
-# for services-mini-moka
-mini-moka = { version = "0.10", optional = true }
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb
@@ -204,8 +171,6 @@ openssh-sftp-client = { version = "0.15.3", optional = true, features = [
   "openssh",
   "tracing",
 ] }
-# for services-persy
-persy = { version = "1.7.1", optional = true }
 # for services-redb
 redb = { version = "2", optional = true }
 # for services-redis
@@ -266,7 +231,6 @@ web-time = { version = "1.1.0" }
 [dev-dependencies]
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
-dotenvy = "0.15"
 libtest-mimic = "0.8"
 pretty_assertions = "1"
 rand = { workspace = true }

@@ -24,6 +24,9 @@
 
 pub use opendal_core::*;
 
+#[cfg(feature = "tests")]
+pub use opendal_testkit as tests;
+
 /// Re-export of service implementations.
 pub mod services {
     pub use opendal_core::services::*;
@@ -37,8 +40,14 @@ pub mod services {
     pub use opendal_service_azdls::*;
     #[cfg(feature = "services-azfile")]
     pub use opendal_service_azfile::*;
+    #[cfg(feature = "services-b2")]
+    pub use opendal_service_b2::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-cos")]
+    pub use opendal_service_cos::*;
+    #[cfg(feature = "services-dashmap")]
+    pub use opendal_service_dashmap::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
@@ -51,6 +60,10 @@ pub mod services {
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-memcached")]
+    pub use opendal_service_memcached::*;
+    #[cfg(feature = "services-mini-moka")]
+    pub use opendal_service_mini_moka::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
     #[cfg(feature = "services-mysql")]
@@ -59,6 +72,8 @@ pub mod services {
     pub use opendal_service_obs::*;
     #[cfg(feature = "services-oss")]
     pub use opendal_service_oss::*;
+    #[cfg(feature = "services-persy")]
+    pub use opendal_service_persy::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-s3")]

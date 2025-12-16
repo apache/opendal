@@ -15,23 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for seafile service.
-pub const SEAFILE_SCHEME: &str = "seafile";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use super::core::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod error;
-mod lister;
-mod writer;
+pub struct SeafileDeleter {
+    core: Arc<SeafileCore>,
+}
 
-pub use backend::SeafileBuilder as Seafile;
-pub use config::SeafileConfig;
+impl SeafileDeleter {
+    pub fn new(core: Arc<SeafileCore>) -> Self {
+        Self { core }
+    }
+}
 
-#[ctor::ctor]
-fn register_seafile_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Seafile>(SEAFILE_SCHEME);
+impl oio::OneShotDelete for SeafileDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        self.core.delete(&path).await?;
+
+        Ok(())
+    }
 }

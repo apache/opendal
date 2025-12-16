@@ -5577,6 +5577,7 @@ dependencies = [
  "opendal-service-sqlite",
  "opendal-service-tikv",
  "opendal-service-vercel-blob",
+ "opendal-testkit",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -5630,7 +5631,6 @@ dependencies = [
  "criterion",
  "ctor",
  "divan",
- "dotenvy",
  "etcd-client",
  "fastpool",
  "flume",
@@ -6254,6 +6254,19 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "opendal-testkit"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "dotenvy",
+ "opendal-core",
+ "rand 0.8.5",
+ "sha2",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

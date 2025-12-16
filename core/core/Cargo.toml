@@ -45,21 +45,6 @@ reqwest-rustls-tls = ["reqwest/rustls-tls"]
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
-# Build test utils or not.
-#
-# These features are used to control whether to build opendal's test utils.
-# And doesn't have any other effects.
-#
-# You should never enable this feature unless you are developing opendal.
-tests = [
-  "dep:rand",
-  "dep:sha2",
-  "dep:dotenvy",
-  "services-http",
-  "services-memory",
-  "internal-tokio-rt",
-]
-
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
 internal-path-cache = ["dep:moka"]
@@ -151,10 +136,6 @@ serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }
 url = "2.5"
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-# Test only dependencies
-dotenvy = { version = "0.15", optional = true }
-rand = { workspace = true, optional = true }
 
 # Optional dependencies
 
@@ -258,7 +239,6 @@ web-time = { version = "1.1.0" }
 [dev-dependencies]
 criterion = { version = "0.7", features = ["async", "async_tokio"] }
 divan = { version = "0.1" }
-dotenvy = "0.15"
 libtest-mimic = "0.8"
 pretty_assertions = "1"
 rand = { workspace = true }

@@ -1,0 +1,24 @@
+[package]
+description = "Test harness and utilities for Apache OpenDAL"
+name = "opendal-testkit"
+publish = false
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+bytes = { workspace = true }
+dotenvy = "0.15"
+opendal-core = { path = "../core", version = "0.55.0", default-features = false }
+rand = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+uuid = { workspace = true }

@@ -83,5 +83,3 @@ pub use atomic_util::*;
 
 // Expose as a pub mod to avoid confusing.
 pub mod oio;
-#[cfg(feature = "tests")]
-pub mod tests;

@@ -5577,6 +5577,7 @@ dependencies = [
  "opendal-service-sqlite",
  "opendal-service-tikv",
  "opendal-service-vercel-blob",
+ "opendal-service-wasi-fs",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -6254,6 +6255,16 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-wasi-fs"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "serde",
+ "wasi 0.14.7+wasi-0.2.4",
 ]
 
 [[package]]
@@ -10476,6 +10487,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
+name = "wasi"
+version = "0.14.7+wasi-0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "883478de20367e224c0090af9cf5f9fa85bed63a95c1abf3afc5c083ebc06e8c"
+dependencies = [
+ "wasip2",
+]
+
+[[package]]
 name = "wasip2"
 version = "1.0.1+wasi-0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11157,6 +11177,9 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+dependencies = [
+ "bitflags 2.10.0",
+]
 
 [[package]]
 name = "writeable"

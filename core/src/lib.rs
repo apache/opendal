@@ -79,6 +79,12 @@ pub mod services {
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
+    #[cfg(all(
+        feature = "services-wasi-fs",
+        target_arch = "wasm32",
+        target_os = "wasi"
+    ))]
+    pub use opendal_service_wasi_fs::*;
 }
 
 /// Re-export of layers.

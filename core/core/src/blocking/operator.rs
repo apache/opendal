@@ -555,9 +555,31 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated since v0.55.0. Use [`blocking::Operator::delete_options`] with
+    /// `recursive: true` instead.
+    ///
+    /// ## Migration Example
+    ///
+    /// Instead of:
+    /// ```ignore
+    /// op.remove_all("path/to/dir")?;
+    /// ```
+    ///
+    /// Use:
+    /// ```ignore
+    /// use opendal_core::options::DeleteOptions;
+    /// op.delete_options("path/to/dir", DeleteOptions {
+    ///     recursive: true,
+    ///     ..Default::default()
+    /// })?;
+    /// ```
+    ///
     /// # Notes
     ///
-    /// We don't support batch delete now.
+    /// If underlying services support delete in batch, we will use batch
+    /// delete instead.
     ///
     /// # Examples
     ///
@@ -571,8 +593,19 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.55.0",
+        note = "Use `delete_options` with `recursive: true` instead"
+    )]
+    #[allow(deprecated)]
     pub fn remove_all(&self, path: &str) -> Result<()> {
-        self.handle.block_on(self.op.remove_all(path))
+        self.delete_options(
+            path,
+            options::DeleteOptions {
+                recursive: true,
+                ..Default::default()
+            },
+        )
     }
 
     /// List entries whose paths start with the given prefix `path`.

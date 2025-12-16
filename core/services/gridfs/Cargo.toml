@@ -35,13 +35,16 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
   "internal-tokio-rt",
 ] }
 
+ctor = { workspace = true }
+futures = { workspace = true, default-features = false, features = [
+  "std",
+  "async-await",
+] }
+mea = { version = "0.5.1" }
 mongodb = { workspace = true }
 mongodb-internal-macros = { workspace = true }
-tokio = { workspace = true, features = ["sync"] }
 serde = { workspace = true, features = ["derive"] }
-futures = { workspace = true, default-features = false, features = ["std", "async-await"] }
-mea = { version = "0.5.1" }
-ctor = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 anyhow = "1"

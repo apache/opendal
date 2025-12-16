@@ -114,11 +114,6 @@ mod pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::*;
 
-#[cfg(feature = "services-redb")]
-mod redb;
-#[cfg(feature = "services-redb")]
-pub use self::redb::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

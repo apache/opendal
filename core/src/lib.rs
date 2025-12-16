@@ -80,6 +80,8 @@ pub mod services {
     pub use opendal_service_persy::*;
     #[cfg(feature = "services-postgresql")]
     pub use opendal_service_postgresql::*;
+    #[cfg(feature = "services-redb")]
+    pub use opendal_service_redb::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-sled")]

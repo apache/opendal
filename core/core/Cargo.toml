@@ -59,11 +59,6 @@ layers-dtrace = ["dep:probe"]
 
 services-cacache = ["dep:cacache"]
 services-compfs = ["dep:compio"]
-services-cos = [
-  "dep:reqsign",
-  "reqsign?/services-tencent",
-  "reqsign?/reqwest_request",
-]
 services-d1 = []
 services-dbfs = []
 services-dropbox = []

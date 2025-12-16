@@ -21,8 +21,8 @@ use http::StatusCode;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub struct CosDeleter {
     core: Arc<CosCore>,

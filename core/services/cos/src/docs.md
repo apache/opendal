@@ -27,8 +27,8 @@ You can refer to [`CosBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Cos;
+use opendal_core::Result;
+use opendal_service_cos::Cos;
 use opendal_core::Operator;
 
 #[tokio::main]

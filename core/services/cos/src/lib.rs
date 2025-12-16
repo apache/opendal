@@ -18,7 +18,7 @@
 /// Default scheme for cos service.
 pub const COS_SCHEME: &str = "cos";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

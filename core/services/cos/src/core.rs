@@ -35,8 +35,11 @@ use reqsign::TencentCosSigner;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::Buffer;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";

@@ -5559,6 +5559,7 @@ dependencies = [
  "opendal-service-azfile",
  "opendal-service-b2",
  "opendal-service-cloudflare-kv",
+ "opendal-service-compfs",
  "opendal-service-cos",
  "opendal-service-d1",
  "opendal-service-dashmap",
@@ -5633,7 +5634,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cacache",
- "compio",
  "criterion",
  "ctor",
  "divan",
@@ -5994,6 +5994,16 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-compfs"
+version = "0.55.0"
+dependencies = [
+ "compio",
+ "ctor",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

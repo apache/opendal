@@ -19,8 +19,8 @@ use bytes::Buf;
 use http::Response;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Default, Debug, Deserialize)]
 #[allow(dead_code)]

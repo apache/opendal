@@ -59,11 +59,6 @@ mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::*;
 
-#[cfg(feature = "services-github")]
-mod github;
-#[cfg(feature = "services-github")]
-pub use github::*;
-
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
 #[cfg(feature = "services-gridfs")]

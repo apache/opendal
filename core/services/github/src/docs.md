@@ -26,12 +26,11 @@ You can refer to [`GithubBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Github;
+use opendal_service_github::Github;
 use opendal_core::Operator;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> opendal_core::Result<()> {
     // create backend builder
     let mut builder = Github::default()
         // set the storage root for OpenDAL

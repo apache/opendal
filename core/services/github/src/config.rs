@@ -22,6 +22,7 @@ use serde::Serialize;
 
 use super::GITHUB_SCHEME;
 use super::backend::GithubBuilder;
+use opendal_core::{Configurator, Error, ErrorKind, OperatorUri, Result};
 
 /// Config for GitHub services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -58,24 +59,18 @@ impl Debug for GithubConfig {
     }
 }
 
-impl crate::Configurator for GithubConfig {
+impl Configurator for GithubConfig {
     type Builder = GithubBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let owner = uri.name().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "uri host must contain owner",
-            )
-            .with_context("service", GITHUB_SCHEME)
+            Error::new(ErrorKind::ConfigInvalid, "uri host must contain owner")
+                .with_context("service", GITHUB_SCHEME)
         })?;
 
         let raw_path = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "uri path must contain repository",
-            )
-            .with_context("service", GITHUB_SCHEME)
+            Error::new(ErrorKind::ConfigInvalid, "uri path must contain repository")
+                .with_context("service", GITHUB_SCHEME)
         })?;
 
         let (repo, remainder) = match raw_path.split_once('/') {
@@ -84,11 +79,10 @@ impl crate::Configurator for GithubConfig {
         };
 
         if repo.is_empty() {
-            return Err(crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "repository name is required",
-            )
-            .with_context("service", GITHUB_SCHEME));
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "repository name is required")
+                    .with_context("service", GITHUB_SCHEME),
+            );
         }
 
         let mut map = uri.options().clone();
@@ -112,8 +106,8 @@ impl crate::Configurator for GithubConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_owner_repo_and_root() {

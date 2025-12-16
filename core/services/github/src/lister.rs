@@ -18,9 +18,9 @@
 use std::sync::Arc;
 
 use super::core::GithubCore;
-use crate::raw::oio::Entry;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio::Entry;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct GithubLister {
     core: Arc<GithubCore>,

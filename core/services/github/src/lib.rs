@@ -15,27 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for github service.
+pub const GITHUB_SCHEME: &str = "github";
 
-use super::core::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub struct GithubDeleter {
-    core: Arc<GithubCore>,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-impl GithubDeleter {
-    pub fn new(core: Arc<GithubCore>) -> Self {
-        Self { core }
-    }
-}
+pub use backend::GithubBuilder as Github;
+pub use config::GithubConfig;
 
-impl oio::OneShotDelete for GithubDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        match self.core.delete(&path).await {
-            Ok(_) => Ok(()),
-            Err(err) => Err(err),
-        }
-    }
+#[ctor::ctor]
+fn register_github_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Github>(GITHUB_SCHEME);
 }

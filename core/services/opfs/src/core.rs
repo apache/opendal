@@ -22,8 +22,8 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::File;
 use web_sys::FileSystemWritableFileStream;
 
-use crate::Error;
-use crate::Result;
+use opendal_core::Error;
+use opendal_core::Result;
 
 use super::error::*;
 use super::utils::*;
@@ -41,7 +41,6 @@ impl OpfsCore {
             .and_then(JsCast::dyn_into)
             .map_err(parse_js_error)?;
 
-        // QuotaExceeded or NotAllowed
         JsFuture::from(
             writable
                 .write_with_u8_array(content)

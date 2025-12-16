@@ -140,7 +140,7 @@ services-monoiofs = ["opendal-core/services-monoiofs"]
 services-mysql = ["dep:opendal-service-mysql"]
 services-obs = ["dep:opendal-service-obs"]
 services-onedrive = ["opendal-core/services-onedrive"]
-services-opfs = ["opendal-core/services-opfs"]
+services-opfs = ["dep:opendal-service-opfs"]
 services-oss = ["dep:opendal-service-oss"]
 services-pcloud = ["opendal-core/services-pcloud"]
 services-persy = ["opendal-core/services-persy"]
@@ -217,6 +217,7 @@ opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = 
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = true, default-features = false }
+opendal-service-opfs = { path = "services/opfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }

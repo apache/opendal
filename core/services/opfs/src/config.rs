@@ -15,11 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 use serde::Deserialize;
 use serde::Serialize;
+
+use super::backend::OpfsBuilder;
 
 /// Config for OPFS.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct OPFSConfig {}
+pub struct OpfsConfig {}
+
+impl Debug for OpfsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OpfsConfig").finish_non_exhaustive()
+    }
+}
+
+impl opendal_core::Configurator for OpfsConfig {
+    type Builder = OpfsBuilder;
+
+    fn into_builder(self) -> Self::Builder {
+        OpfsBuilder { config: self }
+    }
+}

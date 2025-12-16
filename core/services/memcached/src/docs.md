@@ -27,9 +27,9 @@ You can refer to [`MemcachedBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Memcached;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_memcached::Memcached;
 
 #[tokio::main]
 async fn main() -> Result<()> {

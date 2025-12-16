@@ -5563,6 +5563,7 @@ dependencies = [
  "opendal-service-ghac",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
+ "opendal-service-memcached",
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
@@ -6060,6 +6061,18 @@ dependencies = [
  "log",
  "opendal-core",
  "prost 0.13.5",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-memcached"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "fastpool",
+ "http 1.4.0",
+ "opendal-core",
  "serde",
  "tokio",
 ]

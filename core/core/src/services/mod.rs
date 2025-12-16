@@ -114,11 +114,6 @@ mod lakefs;
 #[cfg(feature = "services-lakefs")]
 pub use lakefs::*;
 
-#[cfg(feature = "services-memcached")]
-mod memcached;
-#[cfg(feature = "services-memcached")]
-pub use memcached::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]

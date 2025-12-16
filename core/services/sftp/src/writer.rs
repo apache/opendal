@@ -22,8 +22,8 @@ use openssh_sftp_client::file::File;
 use openssh_sftp_client::file::TokioCompatFile;
 use tokio::io::AsyncWriteExt;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SftpWriter {
     /// TODO: maybe we can use `File` directly?

@@ -18,10 +18,10 @@
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
-use crate::raw::*;
-use crate::*;
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;

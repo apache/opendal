@@ -134,11 +134,6 @@ mod seafile;
 #[cfg(feature = "services-seafile")]
 pub use seafile::*;
 
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::*;
-
 #[cfg(feature = "services-surrealdb")]
 mod surrealdb;
 #[cfg(feature = "services-surrealdb")]

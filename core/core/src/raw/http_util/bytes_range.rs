@@ -105,7 +105,7 @@ impl BytesRange {
     }
 
     /// Convert bytes range into rust range with usize.
-    pub(crate) fn to_range_as_usize(self) -> impl RangeBounds<usize> {
+    pub fn to_range_as_usize(self) -> impl RangeBounds<usize> {
         (
             Bound::Included(self.0 as usize),
             match self.1 {

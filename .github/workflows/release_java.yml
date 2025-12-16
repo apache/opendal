@@ -66,11 +66,11 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
         with:
-          version: "23.4"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          need-protoc: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup linux for zigbuild
         if: ${{ contains(matrix.os, 'ubuntu') }}

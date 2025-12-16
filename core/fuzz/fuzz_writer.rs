@@ -105,7 +105,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 }
 
 fuzz_target!(|input: FuzzInput| {
-    let _ = logforth::stderr().try_apply();
+    let _ = logforth::starter_log::stderr().try_apply();
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {

@@ -25,7 +25,7 @@
 mod client;
 /// temporary client used by several features
 #[allow(unused_imports)]
-pub(crate) use client::GLOBAL_REQWEST_CLIENT;
+pub use client::GLOBAL_REQWEST_CLIENT;
 pub use client::HttpClient;
 pub use client::HttpFetch;
 pub use client::HttpFetcher;

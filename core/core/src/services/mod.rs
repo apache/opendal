@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-alluxio")]
-mod alluxio;
-#[cfg(feature = "services-alluxio")]
-pub use alluxio::*;
-
 #[cfg(feature = "services-b2")]
 mod b2;
 #[cfg(feature = "services-b2")]
@@ -33,11 +28,6 @@ pub use b2::*;
 mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
-
-#[cfg(feature = "services-cloudflare-kv")]
-mod cloudflare_kv;
-#[cfg(feature = "services-cloudflare-kv")]
-pub use self::cloudflare_kv::*;
 
 #[cfg(feature = "services-compfs")]
 mod compfs;
@@ -79,21 +69,6 @@ mod foundationdb;
 #[cfg(feature = "services-foundationdb")]
 pub use self::foundationdb::*;
 
-#[cfg(feature = "services-fs")]
-mod fs;
-#[cfg(feature = "services-fs")]
-pub use fs::*;
-
-#[cfg(feature = "services-ftp")]
-mod ftp;
-#[cfg(feature = "services-ftp")]
-pub use ftp::*;
-
-#[cfg(feature = "services-gcs")]
-mod gcs;
-#[cfg(feature = "services-gcs")]
-pub use gcs::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
@@ -123,11 +98,6 @@ pub use self::http::*;
 mod huggingface;
 #[cfg(feature = "services-huggingface")]
 pub use huggingface::*;
-
-#[cfg(feature = "services-ipfs")]
-mod ipfs;
-#[cfg(feature = "services-ipfs")]
-pub use self::ipfs::*;
 
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
@@ -169,25 +139,10 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-mysql")]
-mod mysql;
-#[cfg(feature = "services-mysql")]
-pub use self::mysql::*;
-
-#[cfg(feature = "services-obs")]
-mod obs;
-#[cfg(feature = "services-obs")]
-pub use obs::*;
-
 #[cfg(feature = "services-onedrive")]
 mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
-
-#[cfg(feature = "services-oss")]
-mod oss;
-#[cfg(feature = "services-oss")]
-pub use oss::*;
 
 #[cfg(feature = "services-pcloud")]
 mod pcloud;
@@ -198,11 +153,6 @@ pub use pcloud::*;
 mod persy;
 #[cfg(feature = "services-persy")]
 pub use self::persy::*;
-
-#[cfg(feature = "services-postgresql")]
-mod postgresql;
-#[cfg(feature = "services-postgresql")]
-pub use self::postgresql::*;
 
 #[cfg(feature = "services-redb")]
 mod redb;
@@ -229,16 +179,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-sled")]
-mod sled;
-#[cfg(feature = "services-sled")]
-pub use self::sled::*;
-
-#[cfg(feature = "services-sqlite")]
-mod sqlite;
-#[cfg(feature = "services-sqlite")]
-pub use self::sqlite::*;
-
 #[cfg(feature = "services-surrealdb")]
 mod surrealdb;
 #[cfg(feature = "services-surrealdb")]
@@ -249,11 +189,6 @@ mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::*;
 
-#[cfg(feature = "services-tikv")]
-mod tikv;
-#[cfg(feature = "services-tikv")]
-pub use self::tikv::*;
-
 #[cfg(feature = "services-upyun")]
 mod upyun;
 #[cfg(feature = "services-upyun")]
@@ -263,11 +198,6 @@ pub use upyun::*;
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
 pub use vercel_artifacts::*;
-
-#[cfg(feature = "services-vercel-blob")]
-mod vercel_blob;
-#[cfg(feature = "services-vercel-blob")]
-pub use vercel_blob::*;
 
 #[cfg(feature = "services-webdav")]
 mod webdav;

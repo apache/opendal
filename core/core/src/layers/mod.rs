@@ -32,9 +32,6 @@ pub use simulate::SimulateLayer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-mod immutable_index;
-pub use immutable_index::ImmutableIndexLayer;
-
 mod logging;
 pub use logging::LoggingInterceptor;
 pub use logging::LoggingLayer;
@@ -42,43 +39,9 @@ pub use logging::LoggingLayer;
 mod timeout;
 pub use timeout::TimeoutLayer;
 
-#[cfg(feature = "layers-chaos")]
-mod chaos;
-#[cfg(feature = "layers-chaos")]
-pub use chaos::ChaosLayer;
-
-#[cfg(feature = "layers-mime-guess")]
-mod mime_guess;
-#[cfg(feature = "layers-mime-guess")]
-pub use self::mime_guess::MimeGuessLayer;
-
 mod retry;
 pub use self::retry::RetryInterceptor;
 pub use self::retry::RetryLayer;
-
-mod tail_cut;
-pub use self::tail_cut::TailCutLayer;
-pub use self::tail_cut::TailCutLayerBuilder;
-
-#[cfg(feature = "layers-tracing")]
-mod tracing;
-#[cfg(feature = "layers-tracing")]
-pub use self::tracing::TracingLayer;
-
-#[cfg(feature = "layers-fastrace")]
-mod fastrace;
-#[cfg(feature = "layers-fastrace")]
-pub use self::fastrace::FastraceLayer;
-
-#[cfg(feature = "layers-otel-trace")]
-mod oteltrace;
-#[cfg(feature = "layers-otel-trace")]
-pub use self::oteltrace::OtelTraceLayer;
-
-#[cfg(feature = "layers-throttle")]
-mod throttle;
-#[cfg(feature = "layers-throttle")]
-pub use self::throttle::ThrottleLayer;
 
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;

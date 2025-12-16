@@ -37,11 +37,11 @@ use crate::*;
 ///
 /// ```
 /// # use anyhow::Result;
-/// use opendal_core::services::Fs;
+/// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
 /// async fn test() -> Result<()> {
-///     // Create fs backend builder.
-///     let mut builder = Fs::default().root("/tmp");
+///     // Create memory backend builder.
+///     let builder = Memory::default();
 ///
 ///     // Build an `Operator` to start operating the storage.
 ///     let op: Operator = Operator::new(builder)?.finish();

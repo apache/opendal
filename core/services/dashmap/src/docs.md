@@ -24,8 +24,8 @@ You can refer to [`DashmapBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Dashmap;
 use opendal_core::Operator;
+use opendal_service_dashmap::Dashmap;
 
 #[tokio::main]
 async fn main() -> Result<()> {

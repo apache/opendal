@@ -18,8 +18,7 @@
 use std::fmt::Debug;
 
 use dashmap::DashMap;
-
-use crate::*;
+use opendal_core::*;
 
 /// Value stored in dashmap cache containing both metadata and content
 #[derive(Clone)]

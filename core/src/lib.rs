@@ -39,6 +39,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
+    #[cfg(feature = "services-dashmap")]
+    pub use opendal_service_dashmap::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]

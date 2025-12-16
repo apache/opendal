@@ -5557,6 +5557,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-cloudflare-kv",
+ "opendal-service-dashmap",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
@@ -5625,7 +5626,6 @@ dependencies = [
  "compio",
  "criterion",
  "ctor",
- "dashmap 6.1.0",
  "divan",
  "dotenvy",
  "etcd-client",
@@ -5965,6 +5965,17 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "opendal-service-dashmap"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "dashmap 6.1.0",
+ "log",
+ "opendal-core",
+ "serde",
 ]
 
 [[package]]

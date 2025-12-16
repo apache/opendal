@@ -17,9 +17,10 @@
 
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::DashmapCore;
-use crate::raw::{OpDelete, build_abs_path, oio};
-use crate::*;
 
 pub struct DashmapDeleter {
     core: Arc<DashmapCore>,

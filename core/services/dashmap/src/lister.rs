@@ -15,12 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::DashmapCore;
-use crate::raw::oio::Entry;
-use crate::raw::{build_abs_path, build_rel_path, oio};
-use crate::*;
 use std::sync::Arc;
 use std::vec::IntoIter;
+
+use opendal_core::raw::*;
+use opendal_core::*;
+
+use super::core::DashmapCore;
 
 pub struct DashmapLister {
     root: String,
@@ -42,7 +43,7 @@ impl DashmapLister {
 }
 
 impl oio::List for DashmapLister {
-    async fn next(&mut self) -> Result<Option<Entry>> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
         for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
                 let path = build_rel_path(&self.root, &key);
@@ -53,7 +54,7 @@ impl oio::List for DashmapLister {
                 } else {
                     EntryMode::FILE
                 };
-                let entry = Entry::new(&path, Metadata::new(mode));
+                let entry = oio::Entry::new(&path, Metadata::new(mode));
                 return Ok(Some(entry));
             }
         }

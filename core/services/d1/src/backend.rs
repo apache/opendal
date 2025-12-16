@@ -23,8 +23,8 @@ use super::config::D1Config;
 use super::core::*;
 use super::deleter::D1Deleter;
 use super::writer::D1Writer;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Default)]

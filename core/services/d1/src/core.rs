@@ -24,8 +24,8 @@ use serde_json::Value;
 
 use super::error::parse_error;
 use super::model::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct D1Core {

@@ -23,7 +23,7 @@ use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 
-use crate::*;
+use opendal_core::*;
 
 /// response data from d1
 #[derive(Deserialize, Debug)]
@@ -37,14 +37,14 @@ impl D1Response {
     pub fn parse(bs: &Bytes) -> Result<D1Response, Error> {
         let response: D1Response = serde_json::from_slice(bs).map_err(|e| {
             Error::new(
-                crate::ErrorKind::Unexpected,
+                opendal_core::ErrorKind::Unexpected,
                 format!("failed to parse error response: {e}"),
             )
         })?;
 
         if !response.success {
             return Err(Error::new(
-                crate::ErrorKind::Unexpected,
+                opendal_core::ErrorKind::Unexpected,
                 String::from_utf8_lossy(bs),
             ));
         }

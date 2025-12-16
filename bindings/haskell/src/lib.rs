@@ -706,9 +706,18 @@ pub unsafe extern "C" fn blocking_remove_all(
             }
         };
 
-        let res = match op.remove_all(path_str) {
-            Ok(()) => FFIResult::ok(()),
-            Err(e) => FFIResult::err_with_source("Failed to remove all", e),
+        let res = {
+            use od::options::DeleteOptions;
+            match op.delete_options(
+                path_str,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            ) {
+                Ok(()) => FFIResult::ok(()),
+                Err(e) => FFIResult::err_with_source("Failed to remove all", e),
+            }
         };
 
         *result = res;

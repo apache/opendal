@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for redb service.
-pub const REDB_SCHEME: &str = "redb";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Redb service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +28,10 @@ mod writer;
 pub use backend::RedbBuilder as Redb;
 pub use config::RedbConfig;
 
+/// Default scheme for redb service.
+pub const REDB_SCHEME: &str = "redb";
+
 #[ctor::ctor]
 fn register_redb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Redb>(REDB_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Redb>(REDB_SCHEME);
 }

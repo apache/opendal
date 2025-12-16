@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct RedbCore {

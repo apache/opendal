@@ -85,7 +85,6 @@ services-opfs = [
 ]
 
 services-pcloud = []
-services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
@@ -171,8 +170,6 @@ openssh-sftp-client = { version = "0.15.3", optional = true, features = [
   "openssh",
   "tracing",
 ] }
-# for services-redb
-redb = { version = "2", optional = true }
 # for services-redis
 redis = { version = "1.0", features = [
   "cluster-async",

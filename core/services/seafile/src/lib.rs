@@ -20,13 +20,13 @@ pub const SEAFILE_SCHEME: &str = "seafile";
 
 use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub mod backend;
-pub mod config;
-pub mod core;
-pub mod deleter;
+mod backend;
+mod config;
+mod core;
+mod deleter;
 mod error;
-pub mod lister;
-pub mod writer;
+mod lister;
+mod writer;
 
 pub use backend::SeafileBuilder as Seafile;
 pub use config::SeafileConfig;

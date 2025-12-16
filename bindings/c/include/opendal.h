@@ -1007,9 +1007,6 @@ struct opendal_result_operator_writer opendal_operator_writer(const struct opend
  */
 struct opendal_error *opendal_operator_delete(const struct opendal_operator *op, const char *path);
 
-struct opendal_error *opendal_operator_remove_all(const struct opendal_operator *op,
-                                                  const char *path);
-
 /**
  * \brief Check whether the path exists.
  *

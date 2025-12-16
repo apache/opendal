@@ -295,7 +295,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn stat_with(&self, path: &str) -> FutureStat<impl Future<Output = Result<Metadata>>> {
+    pub fn stat_with(
+        &self,
+        path: &str,
+    ) -> FutureStat<impl Future<Output = Result<Metadata>> + use<>> {
         let path = normalize_path(path);
         OperatorFuture::new(
             self.inner().clone(),
@@ -474,7 +477,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_with(&self, path: &str) -> FutureRead<impl Future<Output = Result<Buffer>>> {
+    pub fn read_with(
+        &self,
+        path: &str,
+    ) -> FutureRead<impl Future<Output = Result<Buffer>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -580,7 +586,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn reader_with(&self, path: &str) -> FutureReader<impl Future<Output = Result<Reader>>> {
+    pub fn reader_with(
+        &self,
+        path: &str,
+    ) -> FutureReader<impl Future<Output = Result<Reader>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -883,7 +892,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn writer_with(&self, path: &str) -> FutureWriter<impl Future<Output = Result<Writer>>> {
+    pub fn writer_with(
+        &self,
+        path: &str,
+    ) -> FutureWriter<impl Future<Output = Result<Writer>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -1049,7 +1061,11 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy_with(&self, from: &str, to: &str) -> FutureCopy<impl Future<Output = Result<()>>> {
+    pub fn copy_with(
+        &self,
+        from: &str,
+        to: &str,
+    ) -> FutureCopy<impl Future<Output = Result<()>> + use<>> {
         let from = normalize_path(from);
         let to = normalize_path(to);
 
@@ -1244,7 +1260,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn delete_with(&self, path: &str) -> FutureDelete<impl Future<Output = Result<()>>> {
+    pub fn delete_with(
+        &self,
+        path: &str,
+    ) -> FutureDelete<impl Future<Output = Result<()>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -1499,7 +1518,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn list_with(&self, path: &str) -> FutureList<impl Future<Output = Result<Vec<Entry>>>> {
+    pub fn list_with(
+        &self,
+        path: &str,
+    ) -> FutureList<impl Future<Output = Result<Vec<Entry>>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -1639,7 +1661,10 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn lister_with(&self, path: &str) -> FutureLister<impl Future<Output = Result<Lister>>> {
+    pub fn lister_with(
+        &self,
+        path: &str,
+    ) -> FutureLister<impl Future<Output = Result<Lister>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -1758,7 +1783,7 @@ impl Operator {
         &self,
         path: &str,
         expire: Duration,
-    ) -> FuturePresignStat<impl Future<Output = Result<PresignedRequest>>> {
+    ) -> FuturePresignStat<impl Future<Output = Result<PresignedRequest>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -1890,7 +1915,7 @@ impl Operator {
         &self,
         path: &str,
         expire: Duration,
-    ) -> FuturePresignRead<impl Future<Output = Result<PresignedRequest>>> {
+    ) -> FuturePresignRead<impl Future<Output = Result<PresignedRequest>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -2024,7 +2049,7 @@ impl Operator {
         &self,
         path: &str,
         expire: Duration,
-    ) -> FuturePresignWrite<impl Future<Output = Result<PresignedRequest>>> {
+    ) -> FuturePresignWrite<impl Future<Output = Result<PresignedRequest>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(
@@ -2132,7 +2157,7 @@ impl Operator {
         &self,
         path: &str,
         expire: Duration,
-    ) -> FuturePresignDelete<impl Future<Output = Result<PresignedRequest>>> {
+    ) -> FuturePresignDelete<impl Future<Output = Result<PresignedRequest>> + use<>> {
         let path = normalize_path(path);
 
         OperatorFuture::new(

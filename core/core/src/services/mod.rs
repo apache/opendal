@@ -74,11 +74,6 @@ mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::*;
 
-#[cfg(feature = "services-koofr")]
-mod koofr;
-#[cfg(feature = "services-koofr")]
-pub use koofr::*;
-
 #[cfg(feature = "services-lakefs")]
 mod lakefs;
 #[cfg(feature = "services-lakefs")]

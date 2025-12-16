@@ -31,10 +31,10 @@ pub struct IpmfsConfig {
     pub endpoint: Option<String>,
 }
 
-impl crate::Configurator for IpmfsConfig {
+impl opendal_core::Configurator for IpmfsConfig {
     type Builder = IpmfsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
             map.insert("endpoint".to_string(), format!("http://{authority}"));
@@ -57,8 +57,8 @@ impl crate::Configurator for IpmfsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::types::OperatorUri;
 
     #[test]
     fn from_uri_sets_endpoint_and_root() {

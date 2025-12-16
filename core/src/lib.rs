@@ -82,6 +82,8 @@ pub mod services {
     pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-ipmfs")]
+    pub use opendal_service_ipmfs::*;
     #[cfg(feature = "services-koofr")]
     pub use opendal_service_koofr::*;
     #[cfg(feature = "services-lakefs")]

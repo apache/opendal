@@ -29,10 +29,25 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-ipmfs")]
-mod ipmfs;
-#[cfg(feature = "services-ipmfs")]
-pub use ipmfs::*;
+#[cfg(feature = "services-http")]
+mod http;
+#[cfg(feature = "services-http")]
+pub use self::http::*;
+
+#[cfg(feature = "services-huggingface")]
+mod huggingface;
+#[cfg(feature = "services-huggingface")]
+pub use huggingface::*;
+
+#[cfg(feature = "services-koofr")]
+mod koofr;
+#[cfg(feature = "services-koofr")]
+pub use koofr::*;
+
+#[cfg(feature = "services-lakefs")]
+mod lakefs;
+#[cfg(feature = "services-lakefs")]
+pub use lakefs::*;
 
 #[cfg(feature = "services-memory")]
 mod memory;

@@ -24,8 +24,8 @@ use super::IPMFS_SCHEME;
 use super::backend::IpmfsBackend;
 use super::config::IpmfsConfig;
 use super::core::IpmfsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///

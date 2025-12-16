@@ -21,28 +21,27 @@ use http::StatusCode;
 
 use super::core::IpmfsCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub struct IpmfsWriter {
+pub struct IpmfsDeleter {
     core: Arc<IpmfsCore>,
-    path: String,
 }
 
-impl IpmfsWriter {
-    pub fn new(core: Arc<IpmfsCore>, path: String) -> Self {
-        IpmfsWriter { core, path }
+impl IpmfsDeleter {
+    pub fn new(core: Arc<IpmfsCore>) -> Self {
+        Self { core }
     }
 }
 
-impl oio::OneShotWrite for IpmfsWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.ipmfs_write(&self.path, bs).await?;
+impl oio::OneShotDelete for IpmfsDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let resp = self.core.ipmfs_rm(&path).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
+            StatusCode::OK => Ok(()),
             _ => Err(parse_error(resp)),
         }
     }

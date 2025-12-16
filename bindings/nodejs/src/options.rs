@@ -16,7 +16,7 @@
 // under the License.
 
 use napi::bindgen_prelude::BigInt;
-use opendal::raw::{parse_datetime_from_rfc3339, BytesRange};
+use opendal::raw::{BytesRange, Timestamp};
 use std::collections::HashMap;
 
 #[napi(object)]
@@ -79,10 +79,10 @@ impl From<StatOptions> for opendal::options::StatOptions {
     fn from(value: StatOptions) -> Self {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             if_modified_since,
@@ -215,10 +215,10 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
         let range = value.make_range();
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             version: value.version,
@@ -329,10 +329,10 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
     fn from(value: ReaderOptions) -> Self {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| parse_datetime_from_rfc3339(&v).ok());
+            .and_then(|v| v.parse::<Timestamp>().ok());
 
         Self {
             version: value.version,
@@ -508,12 +508,15 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
 #[derive(Default)]
 pub struct DeleteOptions {
     pub version: Option<String>,
+    /// Whether to delete recursively.
+    pub recursive: Option<bool>,
 }
 
 impl From<DeleteOptions> for opendal::options::DeleteOptions {
     fn from(value: DeleteOptions) -> Self {
         Self {
             version: value.version,
+            recursive: value.recursive.unwrap_or_default(),
         }
     }
 }

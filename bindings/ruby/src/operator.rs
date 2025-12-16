@@ -23,18 +23,17 @@
 #![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use magnus::method;
-use magnus::prelude::*;
-use magnus::scan_args::get_kwargs;
-use magnus::scan_args::scan_args;
 use magnus::Error;
 use magnus::RHash;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Ruby;
 use magnus::Value;
+use magnus::method;
+use magnus::prelude::*;
+use magnus::scan_args::get_kwargs;
+use magnus::scan_args::scan_args;
 
 use crate::capability::Capability;
 use crate::io::Io;
@@ -88,12 +87,6 @@ impl Operator {
         scheme: String,
         options: Option<HashMap<String, String>>,
     ) -> Result<Self, Error> {
-        let scheme = ocore::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
-                    .set_source(err)
-            })
-            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         let options = options.unwrap_or_default();
 
         let op = ocore::Operator::via_iter(scheme, options)

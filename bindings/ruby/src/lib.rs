@@ -17,9 +17,10 @@
 
 use std::sync::LazyLock;
 
-use magnus::function;
 use magnus::Error;
+use magnus::Module;
 use magnus::Ruby;
+use magnus::function;
 
 // We will use `ocore::` to represents opendal rust core functionalities.
 // This convention aligns with the Python binding.
@@ -54,7 +55,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     let _ = io::include(ruby, &gem_module);
     let _ = lister::include(ruby, &gem_module);
     let _ = operator_info::include(ruby, &gem_module);
-    let _ = middlewares::include(ruby, &gem_module);
+
+    let middleware_module = gem_module.define_module("Middleware")?;
+    let _ = middlewares::include(ruby, &middleware_module);
 
     Ok(())
 }

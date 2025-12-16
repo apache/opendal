@@ -16,16 +16,15 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
-use object_store::path::Path as ObjectStorePath;
 use object_store::ObjectStore;
+use object_store::path::Path as ObjectStorePath;
+use opendal::Error;
+use opendal::ErrorKind;
 use opendal::raw::oio::BatchDeleter;
 use opendal::raw::oio::MultipartWriter;
 use opendal::raw::*;
-use opendal::Error;
-use opendal::ErrorKind;
 use opendal::*;
 
 mod core;
@@ -44,6 +43,8 @@ use writer::ObjectStoreWriter;
 use crate::service::core::format_metadata as parse_metadata;
 use crate::service::core::parse_op_stat;
 
+pub const OBJECT_STORE_SCHEME: &str = "object_store";
+
 /// ObjectStore backend builder
 #[derive(Default)]
 pub struct ObjectStoreBuilder {
@@ -51,7 +52,7 @@ pub struct ObjectStoreBuilder {
 }
 
 impl Debug for ObjectStoreBuilder {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("ObjectStoreBuilder");
         d.finish_non_exhaustive()
     }
@@ -70,7 +71,7 @@ impl Builder for ObjectStoreBuilder {
     fn build(self) -> Result<impl Access> {
         let store = self.store.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "object store is required")
-                .with_context("service", Scheme::Custom("object_store"))
+                .with_context("service", OBJECT_STORE_SCHEME)
         })?;
 
         Ok(ObjectStoreService { store })
@@ -83,7 +84,7 @@ pub struct ObjectStoreService {
 }
 
 impl Debug for ObjectStoreService {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut d = f.debug_struct("ObjectStoreBackend");
         d.finish_non_exhaustive()
     }
@@ -97,7 +98,7 @@ impl Access for ObjectStoreService {
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();
-        info.set_scheme("object_store")
+        info.set_scheme(OBJECT_STORE_SCHEME)
             .set_root("/")
             .set_name("object_store")
             .set_native_capability(Capability {
@@ -142,7 +143,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()));
+        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()), Some(1000));
         Ok((RpDelete::default(), deleter))
     }
 
@@ -156,8 +157,8 @@ impl Access for ObjectStoreService {
 mod tests {
     use super::*;
     use object_store::memory::InMemory;
-    use opendal::raw::oio::{Delete, List, Read, Write};
     use opendal::Buffer;
+    use opendal::raw::oio::{Delete, List, Read, Write};
 
     #[tokio::test]
     async fn test_object_store_backend_builder() {
@@ -165,7 +166,7 @@ mod tests {
         let builder = ObjectStoreBuilder::new(store);
 
         let backend = builder.build().expect("build should succeed");
-        assert!(backend.info().scheme() == "object_store");
+        assert!(backend.info().scheme() == OBJECT_STORE_SCHEME);
     }
 
     #[tokio::test]
@@ -354,8 +355,9 @@ mod tests {
         let (_, mut deleter) = backend.delete().await.expect("delete should succeed");
         deleter
             .delete(path, OpDelete::default())
+            .await
             .expect("delete should succeed");
-        deleter.flush().await.expect("flush should succeed");
+        deleter.close().await.expect("close should succeed");
 
         // Verify file is deleted
         let result = backend.stat(path, OpStat::default()).await;

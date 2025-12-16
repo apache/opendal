@@ -20,12 +20,12 @@
 use libfuzzer_sys::arbitrary::Arbitrary;
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
-use opendal::raw::tests::init_test_service;
-use opendal::raw::tests::WriteAction;
-use opendal::raw::tests::WriteChecker;
-use opendal::raw::tests::TEST_RUNTIME;
 use opendal::Operator;
 use opendal::Result;
+use opendal::raw::tests::TEST_RUNTIME;
+use opendal::raw::tests::WriteAction;
+use opendal::raw::tests::WriteChecker;
+use opendal::raw::tests::init_test_service;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 
@@ -105,7 +105,7 @@ async fn fuzz_writer(op: Operator, input: FuzzInput) -> Result<()> {
 }
 
 fuzz_target!(|input: FuzzInput| {
-    let _ = logforth::stderr().try_apply();
+    let _ = logforth::starter_log::stderr().try_apply();
 
     let op = init_test_service().expect("operator init must succeed");
     if let Some(op) = op {

@@ -22,7 +22,8 @@ require "json"
 Gem::Specification.new do |spec|
   spec.name = "opendal"
   # RubyGems integrates and expects `cargo`.
-  # Read more about [Gem::Ext::CargoBuilder](https://github.com/rubygems/rubygems/blob/v3.5.23/lib/rubygems/ext/cargo_builder.rb)
+  # Read more about
+  # [Gem::Ext::CargoBuilder](https://github.com/rubygems/rubygems/blob/v3.5.23/lib/rubygems/ext/cargo_builder.rb)
   #
   # OpenDAL relies on "version" in `Cargo.toml` for the release process. You can read this gem spec with:
   # `bundle exec ruby -e 'puts Gem::Specification.load("opendal.gemspec")'`
@@ -39,30 +40,56 @@ Gem::Specification.new do |spec|
 
   spec.summary = "OpenDAL Ruby Binding"
   spec.homepage = "https://opendal.apache.org/"
+  spec.license = "Apache-2.0"
 
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
+  spec.metadata = {
+    "bug_tracker_uri" => "https://github.com/apache/opendal/issues",
+    "changelog_uri" => "https://github.com/apache/opendal/releases",
+    "documentation_uri" => "https://opendal.apache.org/docs/ruby/",
+    "homepage_uri" => spec.homepage,
+    "source_code_uri" => "https://github.com/apache/opendal",
+    "rubygems_mfa_required" => "true"
+  }
 
-  spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/apache/opendal"
-  spec.metadata["changelog_uri"] = "https://github.com/apache/opendal/releases"
-
-  # Specify which files should be added to the gem when it is released.
+  # Specify which files should be added to a source release gem when we release OpenDAL Ruby gem.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
   spec.files = Dir.chdir(__dir__) do
-    `git ls-files -z`.split("\x0").reject do |f|
-      (File.expand_path(f) == __FILE__) || f.start_with?(*%w[bin/ test/ spec/ features/ .git .circleci appveyor])
+    git_files = `git ls-files -z`.split("\x0").reject do |f|
+      f.start_with?(*%w[gems/ pkg/ target/ tmp/ .git])
+    end
+
+    # When building release package, include core directory files for rake build
+    core_dir = "../../core"
+    distributed_core_dir = "core"
+
+    if Dir.exist?(distributed_core_dir)
+      # Core files should already be copied by the Rakefile's copy_core task
+      core_files = `git -C #{File.expand_path(core_dir, __dir__)} ls-files -z`
+        .split("\x0")
+        .filter_map do |f|
+          full_path = "#{distributed_core_dir}/#{f}"
+          full_path if File.exist?(full_path)
+        end
+
+      git_files + core_files
+    else
+      git_files
     end
   end
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
+
   spec.require_paths = ["lib"]
 
   spec.extensions = ["./extconf.rb"]
 
-  spec.requirements = ["Rust >= 1.82"]
+  # Exclude non-Ruby files from RDoc to prevent parsing errors
+  spec.rdoc_options = ["--exclude", "Cargo\\..*", "--exclude", "core/", "--exclude", "\\.rs$"]
+
+  spec.requirements = ["Rust >= 1.85"]
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life
+  #
+  # keep in sync with `Rakefile`.
   spec.required_ruby_version = ">= 3.2"
 
   # intentionally skipping rb_sys gem because newer Rubygems will be present

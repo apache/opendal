@@ -40,6 +40,10 @@ on:
       - ".github/workflows/ci_bindings_nodejs.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -50,7 +54,7 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -60,7 +64,7 @@ jobs:
           run_install: false
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: pnpm
@@ -72,6 +76,9 @@ jobs:
       - name: Check format
         run: pnpm exec prettier --check .
 
+      - name: Check Clippy
+        run: cargo clippy -- -D warnings
+
       - name: Build
         run: pnpm build
 
@@ -80,6 +87,3 @@ jobs:
 
       - name: Test
         run: cargo test --no-fail-fast
-
-      - name: Check Clippy
-        run: cargo clippy -- -D warnings

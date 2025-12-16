@@ -17,8 +17,8 @@
 
 use bytes::Buf;
 use bytes::Bytes;
-use divan::black_box;
 use divan::Bencher;
+use divan::black_box;
 use opendal::Buffer;
 
 mod chunk {
@@ -99,16 +99,12 @@ mod iterator {
     #[divan::bench]
     fn contiguous(b: Bencher) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000]))
-            .bench_refs(|buffer| loop {
-                let Some(_) = buffer.next() else { break };
-            });
+            .bench_refs(|buffer| for _ in buffer {});
     }
 
     #[divan::bench(args = [10, 1_000, 1_000_000])]
     fn non_contiguous(b: Bencher, parts: usize) {
         b.with_inputs(|| Buffer::from(vec![1; 1_000_000 / parts].repeat(parts)))
-            .bench_refs(|buffer| loop {
-                let Some(_) = buffer.next() else { break };
-            });
+            .bench_refs(|buffer| for _ in buffer {});
     }
 }

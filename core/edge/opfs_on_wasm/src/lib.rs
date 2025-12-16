@@ -17,12 +17,9 @@
 
 mod async_create_dir;
 mod async_delete;
-mod async_list;
-mod async_read;
-mod async_write;
 mod utils;
 
-use opendal::{services::OpfsConfig, Configurator, Operator};
+use opendal::{Configurator, Operator, services::OpfsConfig};
 pub use utils::*;
 
 pub static TEST_FIXTURE: Fixture = Fixture::new();

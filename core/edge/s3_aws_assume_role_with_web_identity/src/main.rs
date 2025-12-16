@@ -15,14 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::raw::tests::init_test_service;
 use opendal::Result;
-use opendal::Scheme;
+use opendal::raw::tests::init_test_service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .pretty()
+        .with_test_writer()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
     let op = init_test_service()?.expect("service must be init");
-    assert_eq!(op.info().scheme(), Scheme::S3);
+    assert_eq!(op.info().scheme(), opendal::services::S3_SCHEME);
 
     let result = op
         .exists(&uuid::Uuid::new_v4().to_string())

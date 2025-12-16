@@ -78,9 +78,11 @@ impl opendal_entry {
     /// \brief Frees the heap memory used by the opendal_list_entry
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_free(ptr: *mut opendal_entry) {
-        if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::Entry));
-            drop(Box::from_raw(ptr));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut core::Entry));
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 }

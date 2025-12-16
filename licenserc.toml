@@ -18,9 +18,6 @@
 headerPath = "Apache-2.0-ASF.txt"
 
 excludes = [
-  # Examples are served as public domain content.
-  "examples",
-
   # Well known generated files
   "**/Cargo.lock",
   "**/pnpm-lock.yaml",

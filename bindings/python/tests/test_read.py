@@ -98,7 +98,7 @@ def test_sync_reader_readline(service_name, operator, async_operator):
     filename = f"random_file_{str(uuid4())}"
     content = bytearray(os.urandom(size))
 
-    for idx in choices(range(0, size), k=lines):
+    for idx in choices(range(size), k=lines):
         content[idx] = ord("\n")
     operator.write(filename, content)
 

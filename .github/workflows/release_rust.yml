@@ -46,20 +46,15 @@ jobs:
           - "integrations/object_store"
           - "integrations/parquet"
           - "integrations/dav-server"
-          - "integrations/fuse3"
           - "integrations/unftp-sbe"
-          - "integrations/cloud_filter"
-          - "bin/oay" # depends on integrations/dav-server
-          - "bin/oli"
-          - "bin/ofs" # depends on integrations/{fuse3,cloud_filter}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Checkout python env
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Checkout java env
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "11"
@@ -78,7 +73,7 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
-      - uses: rust-lang/crates-io-auth-action@v1
+      - uses: rust-lang/crates-io-auth-action@e919bc7605cde86df457cf5b93c5e103838bd879
         id: auth
       - name: Publish ${{ matrix.package }}
         working-directory: ${{ matrix.package }}

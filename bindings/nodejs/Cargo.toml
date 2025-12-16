@@ -20,11 +20,11 @@ name = "opendal-nodejs"
 publish = false
 
 authors = ["Apache OpenDAL <dev@opendal.apache.org>"]
-edition = "2021"
+edition = "2024"
 homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
-rust-version = "1.82"
+rust-version = "1.85"
 
 [features]
 default = [
@@ -82,7 +82,6 @@ services-all = [
   "services-mongodb",
   "services-gridfs",
   "services-sqlite",
-  "services-alluxio",
   "services-b2",
   "services-seafile",
   "services-upyun",
@@ -112,6 +111,7 @@ services-alluxio = ["opendal/services-alluxio"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
 services-cacache = ["opendal/services-cacache"]
+services-compfs = ["opendal/services-compfs"]
 services-dashmap = ["opendal/services-dashmap"]
 services-dropbox = ["opendal/services-dropbox"]
 services-etcd = ["opendal/services-etcd"]
@@ -145,7 +145,6 @@ services-tikv = ["opendal/services-tikv"]
 services-upyun = ["opendal/services-upyun"]
 services-vercel-artifacts = ["opendal/services-vercel-artifacts"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
-services-compfs = ["opendal/services-compfs"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -161,6 +160,7 @@ napi-derive = "3.2.2"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
+  "layers-throttle",
 ] }
 tokio = "1"
 

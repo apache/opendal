@@ -17,16 +17,16 @@
 
 use std::sync::Arc;
 
-use object_store::path::Path as ObjectStorePath;
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutPayload;
+use object_store::path::Path as ObjectStorePath;
 use object_store::{Attribute, AttributeValue};
 
+use mea::mutex::Mutex;
 use opendal::raw::oio::MultipartPart;
 use opendal::raw::*;
 use opendal::*;
-use tokio::sync::Mutex;
 
 use super::core::{format_put_multipart_options, format_put_result, parse_op_write};
 use super::error::parse_error;
@@ -160,11 +160,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         Ok(multipart_part)
     }
 
-    async fn complete_part(
-        &self,
-        _upload_id: &str,
-        parts: &[oio::MultipartPart],
-    ) -> Result<Metadata> {
+    async fn complete_part(&self, _upload_id: &str, parts: &[MultipartPart]) -> Result<Metadata> {
         // Validate that we have parts to complete
         if parts.is_empty() {
             return Err(Error::new(

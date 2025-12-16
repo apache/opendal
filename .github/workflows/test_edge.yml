@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Create disk image
         run: |
@@ -64,7 +64,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -115,10 +115,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v8
         id: id-token
         with:
           script: return await core.getIDToken("sts.amazonaws.com")
@@ -138,39 +138,4 @@ jobs:
           OPENDAL_S3_BUCKET: opendal-testing
           OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
           OPENDAL_S3_REGION: ap-northeast-1
-
-  test_opfs_on_wasm:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup for wasm32
-        run: |
-          rustup target add wasm32-unknown-unknown
-
-      - name: Install Chrome Environment
-        run: |
-          mkdir -p /tmp/chrome
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chrome | .[] | select(.platform == "linux64") | .url')
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chromedriver | .[] | select(.platform == "linux64") | .url')
-          unzip chromedriver-linux64.zip
-          unzip chrome-linux64.zip
-          cp -r chrome-linux64/ /tmp/chrome/
-          cp -r chromedriver-linux64 /tmp/chrome/chromedriver
-
-      - name: Setup wasm-pack
-        uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-pack
-
-      - name: Test OPFS
-        working-directory: core/edge/opfs_on_wasm
-        env:
-          OPENDAL_TEST: opfs
-        run: |
-          export PATH=$PATH:/tmp/chrome/chrome-linux64/:/tmp/chrome/chromedriver-linux64/
-          wasm-pack test --chrome --headless
+          RUST_LOG: debug

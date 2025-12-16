@@ -22,21 +22,43 @@ use std::sync::Arc;
 use compio::buf::{IoBuf, IoBuffer, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-unsafe impl IoBuf for Buffer {
+// Wrapper type to avoid orphan rules
+#[derive(Debug, Clone)]
+pub struct CompfsBuffer(pub opendal_core::Buffer);
+
+unsafe impl IoBuf for CompfsBuffer {
     fn as_buf_ptr(&self) -> *const u8 {
-        self.current().as_ptr()
+        self.0.current().as_ptr()
     }
 
     fn buf_len(&self) -> usize {
-        self.current().len()
+        self.0.current().len()
     }
 
     fn buf_capacity(&self) -> usize {
         // `Bytes` doesn't expose uninitialized capacity, so treat it as the same as `len`
-        self.current().len()
+        self.0.current().len()
+    }
+}
+
+impl From<CompfsBuffer> for opendal_core::Buffer {
+    fn from(buf: CompfsBuffer) -> Self {
+        buf.0
+    }
+}
+
+impl From<opendal_core::Buffer> for CompfsBuffer {
+    fn from(buf: opendal_core::Buffer) -> Self {
+        Self(buf)
+    }
+}
+
+impl IoVectoredBuf for CompfsBuffer {
+    unsafe fn iter_io_buffer(&self) -> impl Iterator<Item = IoBuffer> {
+        self.0.clone().map(|b| unsafe { b.as_io_buffer() })
     }
 }
 
@@ -54,7 +76,7 @@ impl CompfsCore {
         self.root.join(path.trim_end_matches('/'))
     }
 
-    pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> crate::Result<R>
+    pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> opendal_core::Result<R>
     where
         Fn: FnOnce() -> Fut + Send + 'static,
         Fut: Future<Output = std::io::Result<R>> + 'static,
@@ -78,12 +100,6 @@ impl CompfsCore {
             .map_err(|_| Error::new(ErrorKind::Unexpected, "compio spawn blocking task failed"))?
             .await
             .map_err(|_| Error::new(ErrorKind::Unexpected, "compio task cancelled"))
-    }
-}
-
-impl IoVectoredBuf for Buffer {
-    unsafe fn iter_io_buffer(&self) -> impl Iterator<Item = IoBuffer> {
-        self.clone().map(|b| unsafe { b.as_io_buffer() })
     }
 }
 

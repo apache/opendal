@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for compfs service.
-pub const COMPFS_SCHEME: &str = "compfs";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Compfs service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +30,10 @@ mod writer;
 pub use backend::CompfsBuilder as Compfs;
 pub use config::CompfsConfig;
 
+/// Default scheme for compfs service.
+pub const COMPFS_SCHEME: &str = "compfs";
+
 #[ctor::ctor]
 fn register_compfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Compfs>(COMPFS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Compfs>(COMPFS_SCHEME);
 }

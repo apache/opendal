@@ -58,7 +58,6 @@ executors-tokio = ["tokio/rt"]
 layers-dtrace = ["dep:probe"]
 
 services-cacache = ["dep:cacache"]
-services-compfs = ["dep:compio"]
 services-dbfs = []
 services-dropbox = []
 services-etcd = ["dep:etcd-client", "dep:fastpool"]

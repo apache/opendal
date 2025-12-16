@@ -18,6 +18,8 @@
 use std::sync::Arc;
 
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::MINI_MOKA_SCHEME;
 use super::config::MiniMokaConfig;
@@ -25,8 +27,6 @@ use super::core::*;
 use super::deleter::MiniMokaDeleter;
 use super::lister::MiniMokaLister;
 use super::writer::MiniMokaWriter;
-use crate::raw::*;
-use crate::*;
 
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]

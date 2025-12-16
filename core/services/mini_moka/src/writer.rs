@@ -15,11 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::{MiniMokaCore, MiniMokaValue};
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
 use std::sync::Arc;
+
+use opendal_core::raw::*;
+use opendal_core::*;
+
+use super::core::*;
 
 pub struct MiniMokaWriter {
     core: Arc<MiniMokaCore>,

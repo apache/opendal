@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for persy service.
-pub const PERSY_SCHEME: &str = "persy";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Persy service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +28,10 @@ mod writer;
 pub use backend::PersyBuilder as Persy;
 pub use config::PersyConfig;
 
+/// Default scheme for persy service.
+pub const PERSY_SCHEME: &str = "persy";
+
 #[ctor::ctor]
 fn register_persy_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Persy>(PERSY_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Persy>(PERSY_SCHEME);
 }

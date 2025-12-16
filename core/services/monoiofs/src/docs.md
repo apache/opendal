@@ -24,7 +24,7 @@ You can refer to [`MonoiofsBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Monoiofs;
+use opendal_service_monoiofs::Monoiofs;
 use opendal_core::Operator;
 
 #[tokio::main]

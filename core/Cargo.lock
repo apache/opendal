@@ -5571,6 +5571,7 @@ dependencies = [
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
  "opendal-service-oss",
@@ -6178,6 +6179,21 @@ dependencies = [
  "moka",
  "opendal-core",
  "serde",
+]
+
+[[package]]
+name = "opendal-service-monoiofs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "flume",
+ "futures",
+ "monoio",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

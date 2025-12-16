@@ -1,0 +1,35 @@
+[package]
+description = "Apache OpenDAL Monoiofs service implementation"
+name = "opendal-service-monoiofs"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
+  "internal-tokio-rt",
+] }
+
+flume = "0.11"
+monoio = { version = "0.2.4", features = [
+  "sync",
+  "mkdirat",
+  "unlinkat",
+  "renameat",
+] }
+bytes = { workspace = true }
+futures = { workspace = true, default-features = false, features = ["std", "async-await"] }
+serde = { workspace = true, features = ["derive"] }
+ctor = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1"
+tokio = { workspace = true, features = ["macros"] }

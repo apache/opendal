@@ -27,8 +27,8 @@ use monoio::fs::OpenOptions;
 
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 enum ReaderRequest {
     Read {

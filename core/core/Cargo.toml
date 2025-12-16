@@ -73,7 +73,6 @@ services-koofr = []
 services-lakefs = []
 services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
-services-monoiofs = ["dep:monoio", "dep:flume"]
 services-onedrive = []
 services-opfs = [
   "dep:js-sys",
@@ -186,14 +185,6 @@ compio = { version = "0.16.0", optional = true, features = [
   "bytes",
   "polling",
   "dispatcher",
-] }
-# for services-monoiofs
-flume = { version = "0.11", optional = true }
-monoio = { version = "0.2.4", optional = true, features = [
-  "sync",
-  "mkdirat",
-  "unlinkat",
-  "renameat",
 ] }
 # for service-opfs
 js-sys = { version = "0.3.77", optional = true }

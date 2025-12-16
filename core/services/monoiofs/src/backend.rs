@@ -28,8 +28,8 @@ use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]

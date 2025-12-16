@@ -62,8 +62,8 @@ pub mod services {
     pub use opendal_service_github::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
-    #[cfg(feature = "services-ipfs")]
-    pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-monoiofs")]
+    pub use opendal_service_monoiofs::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]

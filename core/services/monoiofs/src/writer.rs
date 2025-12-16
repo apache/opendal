@@ -27,8 +27,8 @@ use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
 
 use super::core::MonoiofsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 enum WriterRequest {
     Write {

@@ -137,7 +137,7 @@ services-memory = ["opendal-core/services-memory"]
 services-mini-moka = ["dep:opendal-service-mini-moka"]
 services-moka = ["dep:opendal-service-moka"]
 services-mongodb = ["opendal-core/services-mongodb"]
-services-monoiofs = ["opendal-core/services-monoiofs"]
+services-monoiofs = ["dep:opendal-service-monoiofs"]
 services-mysql = ["dep:opendal-service-mysql"]
 services-obs = ["dep:opendal-service-obs"]
 services-onedrive = ["opendal-core/services-onedrive"]
@@ -223,6 +223,7 @@ opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = 
 opendal-service-memcached = { path = "services/memcached", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mini-moka = { path = "services/mini_moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }
+opendal-service-monoiofs = { path = "services/monoiofs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mysql = { path = "services/mysql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-obs = { path = "services/obs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-oss = { path = "services/oss", version = "0.55.0", optional = true, default-features = false }

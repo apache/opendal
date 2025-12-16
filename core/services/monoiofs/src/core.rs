@@ -28,8 +28,8 @@ use monoio::FusionDriver;
 use monoio::RuntimeBuilder;
 
 use super::MONOIOFS_SCHEME;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub const BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 

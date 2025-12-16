@@ -25,8 +25,8 @@ use mongodb::gridfs::GridFsBucket;
 use mongodb::options::ClientOptions;
 use mongodb::options::GridFsBucketOptions;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct GridfsCore {

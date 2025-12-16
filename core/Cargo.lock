@@ -5566,6 +5566,7 @@ dependencies = [
  "opendal-service-gcs",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-gridfs",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
  "opendal-service-memcached",
@@ -6116,6 +6117,21 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-gridfs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "futures",
+ "mea",
+ "mongodb",
+ "mongodb-internal-macros",
+ "opendal-core",
+ "serde",
  "tokio",
 ]
 

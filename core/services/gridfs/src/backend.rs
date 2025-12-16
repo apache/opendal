@@ -24,8 +24,8 @@ use super::config::GridfsConfig;
 use super::core::*;
 use super::deleter::GridfsDeleter;
 use super::writer::GridfsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
@@ -51,7 +51,6 @@ impl GridfsBuilder {
     /// ## Options
     ///
     /// - `authMechanism`: Specifies the authentication method to use. Examples include `SCRAM-SHA-1`, `SCRAM-SHA-256`, and `MONGODB-AWS`.
-    /// - ... (any other options you wish to highlight)
     ///
     /// For more information, please refer to [MongoDB Connection String URI Format](https://docs.mongodb.com/manual/reference/connection-string/).
     pub fn connection_string(mut self, v: &str) -> Self {

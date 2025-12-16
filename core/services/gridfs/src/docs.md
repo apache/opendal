@@ -26,7 +26,7 @@ This service can be used to:
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Gridfs;
+use opendal_service_gridfs::Gridfs;
 use opendal_core::Operator;
 
 #[tokio::main]

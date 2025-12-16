@@ -15,21 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for gridfs service.
-pub const GRIDFS_SCHEME: &str = "gridfs";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use super::core::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod writer;
+pub struct GridfsDeleter {
+    core: Arc<GridfsCore>,
+    root: String,
+}
 
-pub use backend::GridfsBuilder as Gridfs;
-pub use config::GridfsConfig;
+impl GridfsDeleter {
+    pub fn new(core: Arc<GridfsCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
 
-#[ctor::ctor]
-fn register_gridfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
+impl oio::OneShotDelete for GridfsDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

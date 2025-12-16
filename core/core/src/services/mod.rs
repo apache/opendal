@@ -54,10 +54,6 @@ mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::*;
 
-#[cfg(feature = "services-gridfs")]
-mod gridfs;
-#[cfg(feature = "services-gridfs")]
-pub use gridfs::*;
 
 #[cfg(feature = "services-hdfs")]
 mod hdfs;

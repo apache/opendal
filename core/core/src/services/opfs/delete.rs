@@ -37,7 +37,7 @@ impl OpfsDeleter {
 }
 
 impl oio::OneShotDelete for OpfsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, op: OpDelete) -> Result<()> {
         let handle = match self.core.parent_dir_handle(&path).await {
             Ok(handle) => handle,
             Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
@@ -52,7 +52,7 @@ impl oio::OneShotDelete for OpfsDeleter {
             .unwrap_or("/");
 
         let opt = FileSystemRemoveOptions::new();
-        opt.set_recursive(false);
+        opt.set_recursive(op.recursive());
 
         match JsFuture::from(handle.remove_entry_with_options(entry_name, &opt))
             .await

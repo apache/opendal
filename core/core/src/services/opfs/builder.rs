@@ -32,6 +32,7 @@ impl Configurator for OpfsConfig {
     }
 }
 
+/// OPFS[https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system] backend support.
 #[derive(Default)]
 pub struct OpfsBuilder {
     config: OpfsConfig,
@@ -71,6 +72,7 @@ impl Builder for OpfsBuilder {
                 stat: true,
                 create_dir: true,
                 delete: true,
+                delete_with_recursive: true,
                 ..Default::default()
             });
 

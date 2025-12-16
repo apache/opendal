@@ -216,3 +216,5 @@ pub use yandex_disk::*;
 
 #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
 mod opfs;
+#[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
+pub use opfs::*;

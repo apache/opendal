@@ -18,25 +18,42 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::*;
 
-pub struct PersyDeleter {
+pub struct PersyWriter {
     core: Arc<PersyCore>,
-    root: String,
+    path: String,
+    buffer: oio::QueueBuf,
 }
 
-impl PersyDeleter {
-    pub fn new(core: Arc<PersyCore>, root: String) -> Self {
-        Self { core, root }
+impl PersyWriter {
+    pub fn new(core: Arc<PersyCore>, path: String) -> Self {
+        Self {
+            core,
+            path,
+            buffer: oio::QueueBuf::new(),
+        }
     }
 }
 
-impl oio::OneShotDelete for PersyDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p)?;
+impl oio::Write for PersyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.buffer.push(bs);
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let buf = self.buffer.clone().collect();
+        let length = buf.len() as u64;
+        self.core.set(&self.path, buf)?;
+
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        Ok(meta)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.buffer.clear();
         Ok(())
     }
 }

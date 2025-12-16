@@ -92,7 +92,6 @@ services-opfs = [
 ]
 
 services-pcloud = []
-services-persy = ["dep:persy", "internal-tokio-rt"]
 services-redb = ["dep:redb", "internal-tokio-rt"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -179,8 +178,6 @@ openssh-sftp-client = { version = "0.15.3", optional = true, features = [
   "openssh",
   "tracing",
 ] }
-# for services-persy
-persy = { version = "1.7.1", optional = true }
 # for services-redb
 redb = { version = "2", optional = true }
 # for services-redis

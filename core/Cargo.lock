@@ -5556,6 +5556,7 @@ dependencies = [
  "opendal-service-azblob",
  "opendal-service-azdls",
  "opendal-service-azfile",
+ "opendal-service-b2",
  "opendal-service-cloudflare-kv",
  "opendal-service-fs",
  "opendal-service-ftp",
@@ -5953,6 +5954,21 @@ dependencies = [
  "http 1.4.0",
  "opendal-core",
  "reqsign",
+]
+
+[[package]]
+name = "opendal-service-b2"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

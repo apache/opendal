@@ -15,10 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! B2 service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
+
 /// Default scheme for b2 service.
 pub const B2_SCHEME: &str = "b2";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

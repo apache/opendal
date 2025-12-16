@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL SQLite service implementation"
-name = "opendal-service-sqlite"
+description = "Apache OpenDAL B2 service implementation"
+name = "opendal-service-b2"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -33,10 +33,17 @@ all-features = true
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
+bytes = { workspace = true }
 ctor = { workspace = true }
+http = { workspace = true }
+log = { workspace = true }
 mea = { version = "0.5.1" }
 serde = { workspace = true, features = ["derive"] }
-sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "sqlite"] }
+serde_json = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = [
+  "macros",
+  "rt-multi-thread",
+  "io-util",
+] }

@@ -23,8 +23,8 @@ use super::core::B2Core;
 use super::core::ListFileNamesResponse;
 use super::core::parse_file_info;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct B2Lister {
     core: Arc<B2Core>,

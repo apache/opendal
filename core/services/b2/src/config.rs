@@ -62,10 +62,10 @@ impl Debug for B2Config {
     }
 }
 
-impl crate::Configurator for B2Config {
+impl opendal_core::Configurator for B2Config {
     type Builder = B2Builder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -87,8 +87,8 @@ impl crate::Configurator for B2Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_extracts_bucket_and_root() {

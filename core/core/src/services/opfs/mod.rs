@@ -15,24 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
 /// Default scheme for opfs service.
 pub const OPFS_SCHEME: &str = "opfs";
 
+use crate::types::DEFAULT_OPERATOR_REGISTRY;
+
 mod backend;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
 mod builder;
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
+mod config;
 mod core;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
 mod delete;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
 mod error;
-
-#[cfg(all(feature = "services-opfs", target_arch = "wasm32"))]
 mod utils;
 
-mod config;
+pub use builder::OpfsBuilder as OPFS;
 pub use config::OpfsConfig;
+
+#[ctor::ctor]
+fn register_memory_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<OPFS>(OPFS_SCHEME);
+}

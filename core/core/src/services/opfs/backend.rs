@@ -18,9 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use web_sys::FileSystemGetDirectoryOptions;
-
-use super::utils::*;
 use crate::raw::*;
 use crate::services::opfs::core::OpfsCore;
 use crate::services::opfs::delete::OpfsDeleter;
@@ -48,25 +45,7 @@ impl Access for OpfsBackend {
     type Deleter = oio::OneShotDeleter<OpfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let info = AccessorInfo::default();
-        info.set_native_capability(Capability {
-            stat: true,
-
-            read: true,
-
-            write: true,
-            write_can_empty: true,
-            write_can_append: true,
-            write_can_multi: true,
-
-            create_dir: true,
-            delete: true,
-
-            list: true,
-
-            ..Default::default()
-        });
-        Arc::new(info)
+        self.core.info.clone()
     }
 
     async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {

@@ -18,7 +18,7 @@
 use crate::Result;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{FileSystemDirectoryHandle, FileSystemGetDirectoryOptions, window};
+use web_sys::{FileSystemDirectoryHandle, window};
 
 use super::error::*;
 
@@ -29,21 +29,4 @@ pub(crate) async fn get_root_directory_handle() -> Result<FileSystemDirectoryHan
         .await
         .and_then(JsCast::dyn_into)
         .map_err(parse_js_error)
-}
-
-pub(crate) async fn get_directory_handle(
-    dir: &str,
-    dir_opt: &FileSystemGetDirectoryOptions,
-) -> Result<FileSystemDirectoryHandle> {
-    let dirs: Vec<&str> = dir.trim_matches('/').split('/').collect();
-
-    let mut handle = get_root_directory_handle().await?;
-    for dir in dirs {
-        handle = JsFuture::from(handle.get_directory_handle_with_options(dir, dir_opt))
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
-    }
-
-    Ok(handle)
 }

@@ -17,9 +17,12 @@
 
 use std::sync::Arc;
 
-use crate::{Builder, Configurator, Error, ErrorKind, Result, raw::Access};
+use crate::{
+    Builder, Capability, Configurator, Error, ErrorKind, Result,
+    raw::{Access, AccessorInfo},
+};
 
-use super::{backend::OpfsBackend, config::OpfsConfig, core::OpfsCore};
+use super::{OPFS_SCHEME, backend::OpfsBackend, config::OpfsConfig, core::OpfsCore};
 
 impl Configurator for OpfsConfig {
     type Builder = OpfsBuilder;
@@ -40,6 +43,7 @@ impl OpfsBuilder {
     }
 
     /// Set root for backend.
+    #[allow(unused)]
     pub fn root(mut self, root: &str) -> Self {
         self.config.root = if root.is_empty() {
             None
@@ -60,7 +64,18 @@ impl Builder for OpfsBuilder {
                 .with_operation("Builder::build"),
         )?;
 
-        let core = Arc::new(OpfsCore::new(root));
+        let info = AccessorInfo::default();
+        info.set_scheme(OPFS_SCHEME)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                create_dir: true,
+                delete: true,
+                ..Default::default()
+            });
+
+        let core = Arc::new(OpfsCore::new(Arc::new(info), root));
+
         Ok(OpfsBackend::new(core))
     }
 }

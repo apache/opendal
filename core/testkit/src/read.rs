@@ -16,12 +16,11 @@
 // under the License.
 
 use bytes::Bytes;
+use opendal_core::*;
 use rand::RngCore;
 use rand::thread_rng;
 use sha2::Digest;
 use sha2::Sha256;
-
-use crate::*;
 
 /// ReadAction represents a read action.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

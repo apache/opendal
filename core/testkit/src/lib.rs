@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Utilities for opendal testing.
+//! Test harness and utilities for Apache OpenDAL.
 
 mod read;
 pub use read::ReadAction;

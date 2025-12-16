@@ -22,8 +22,8 @@ use aws_config::Region;
 use aws_credential_types::Credentials;
 use criterion::Criterion;
 use opendal::Operator;
-use opendal::raw::tests::TEST_RUNTIME;
 use opendal::services;
+use opendal::tests::TEST_RUNTIME;
 use rand::prelude::*;
 use tokio::io::AsyncReadExt;
 

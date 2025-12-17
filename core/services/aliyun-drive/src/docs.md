@@ -21,7 +21,7 @@ This service can be used to:
 - `refresh_token`: Set the refresh_token for backend.
 - `drive_type`: Set the drive_type for backend.
 
-Refer to [`AliyunDriveBuilder`]`s public API docs for more information.
+Refer to [`AliyunDriveBuilder`]'s public API docs for more information.
 
 ## Example
 

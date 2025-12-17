@@ -46,4 +46,7 @@ suppaftp = { version = "6.3.0", default-features = false, features = [
   "rustls",
   "async-rustls",
 ] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["macros", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

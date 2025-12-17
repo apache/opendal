@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for sftp service.
-pub const SFTP_SCHEME: &str = "sftp";
+//! Sftp service implementation for Apache OpenDAL.
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -32,6 +32,11 @@ mod writer;
 
 pub use backend::SftpBuilder as Sftp;
 pub use config::SftpConfig;
+
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+
+/// Default scheme for sftp service.
+pub const SFTP_SCHEME: &str = "sftp";
 
 #[ctor::ctor]
 fn register_sftp_service() {

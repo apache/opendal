@@ -22,6 +22,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::PCLOUD_SCHEME;
 use super::config::PcloudConfig;
@@ -32,8 +34,6 @@ use super::error::parse_error;
 use super::lister::PcloudLister;
 use super::writer::PcloudWriter;
 use super::writer::PcloudWriters;
-use crate::raw::*;
-use crate::*;
 
 /// [pCloud](https://www.pcloud.com/) services support.
 #[doc = include_str!("docs.md")]

@@ -18,10 +18,9 @@
 use std::fmt::Debug;
 
 use http::Response;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
-
-use crate::raw::*;
-use crate::*;
 
 /// PcloudError is the error returned by Pcloud service.
 #[derive(Default, Deserialize)]

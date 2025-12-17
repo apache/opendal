@@ -94,6 +94,8 @@ pub mod services {
     pub use opendal_service_opfs::*;
     #[cfg(feature = "services-oss")]
     pub use opendal_service_oss::*;
+    #[cfg(feature = "services-pcloud")]
+    pub use opendal_service_pcloud::*;
     #[cfg(feature = "services-persy")]
     pub use opendal_service_persy::*;
     #[cfg(feature = "services-postgresql")]

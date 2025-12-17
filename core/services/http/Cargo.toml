@@ -16,24 +16,24 @@
 # under the License.
 
 [package]
-name = "opendal-service-http"
-version = "0.55.0"
+description = "Apache OpenDAL HTTP service implementation"
 edition = "2024"
 license = "Apache-2.0"
+name = "opendal-service-http"
 repository = "https://github.com/apache/opendal"
-description = "Apache OpenDAL HTTP service implementation"
+version = "0.55.0"
 
 [package.metadata.docs.rs]
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 ctor = "0.6"
 http = "1.1"
 log = "0.4"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

@@ -19,31 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-cacache")]
-mod cacache;
-#[cfg(feature = "services-cacache")]
-pub use self::cacache::*;
-
-#[cfg(feature = "services-dbfs")]
-mod dbfs;
-#[cfg(feature = "services-dbfs")]
-pub use self::dbfs::*;
-
-#[cfg(feature = "services-dropbox")]
-mod dropbox;
-#[cfg(feature = "services-dropbox")]
-pub use dropbox::*;
-
-#[cfg(feature = "services-etcd")]
-mod etcd;
-#[cfg(feature = "services-etcd")]
-pub use self::etcd::*;
-
-#[cfg(feature = "services-foundationdb")]
-mod foundationdb;
-#[cfg(feature = "services-foundationdb")]
-pub use self::foundationdb::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
@@ -63,11 +38,6 @@ pub use self::hdfs::*;
 mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::*;
-
-#[cfg(feature = "services-huggingface")]
-mod huggingface;
-#[cfg(feature = "services-huggingface")]
-pub use huggingface::*;
 
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;

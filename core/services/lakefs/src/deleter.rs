@@ -24,7 +24,6 @@ use opendal_core::*;
 use super::core::*;
 use super::error::parse_error;
 
-/// Deleter for lakefs service operations.
 pub struct LakefsDeleter {
     core: Arc<LakefsCore>,
 }

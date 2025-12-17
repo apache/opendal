@@ -26,7 +26,6 @@ use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
 
-/// Writer for lakefs service operations.
 pub struct LakefsWriter {
     core: Arc<LakefsCore>,
     op: OpWrite,

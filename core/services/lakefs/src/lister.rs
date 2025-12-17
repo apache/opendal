@@ -25,7 +25,6 @@ use super::core::LakefsCore;
 use super::core::LakefsListResponse;
 use super::error::parse_error;
 
-/// Lister for lakefs service operations.
 pub struct LakefsLister {
     core: Arc<LakefsCore>,
     path: String,

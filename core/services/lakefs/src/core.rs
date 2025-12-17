@@ -26,7 +26,6 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use serde::Deserialize;
 
-/// Core shared state for lakefs service.
 pub struct LakefsCore {
     pub info: Arc<AccessorInfo>,
     pub endpoint: String,

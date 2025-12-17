@@ -5583,6 +5583,7 @@ dependencies = [
  "opendal-service-s3",
  "opendal-service-sled",
  "opendal-service-sqlite",
+ "opendal-service-surrealdb",
  "opendal-service-tikv",
  "opendal-service-vercel-blob",
  "opendal-testkit",
@@ -5674,7 +5675,6 @@ dependencies = [
  "sha1",
  "sha2",
  "size",
- "surrealdb",
  "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -6330,6 +6330,17 @@ dependencies = [
  "serde",
  "sqlx",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-surrealdb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "surrealdb",
 ]
 
 [[package]]

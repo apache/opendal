@@ -23,7 +23,7 @@ use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct SurrealdbCore {

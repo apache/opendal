@@ -89,10 +89,7 @@ backon = { version = "1.6", features = ["tokio-sleep"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
 ctor = { workspace = true }
-futures = { workspace = true, default-features = false, features = [
-  "std",
-  "async-await",
-] }
+futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
 http-body = "1"
 jiff = { version = "0.2.15", features = ["serde"] }
@@ -115,12 +112,10 @@ uuid = { workspace = true, features = ["serde", "v4"] }
 # Services
 # general dependencies.
 fastpool = { version = "1.0.2", optional = true }
-prost = { version = "0.13", optional = true }
 sha2 = { workspace = true, optional = true }
 
 # For http based services.
-reqsign = { workspace = true, default-features = false, optional = true }
-
+reqsign = { workspace = true, features = ["reqwest_request"], optional = true }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-moka
@@ -142,8 +137,6 @@ redis = { version = "1.0", features = [
 ], optional = true }
 # for services-rocksdb
 rocksdb = { version = "0.21.0", default-features = false, optional = true }
-# for services-hdfs-native
-hdfs-native = { version = "0.13", optional = true }
 # for services-monoiofs
 flume = { version = "0.11", optional = true }
 monoio = { version = "0.2.4", optional = true, features = [
@@ -166,15 +159,10 @@ uuid = { workspace = true, features = ["serde", "v4", "js"] }
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]
-criterion = { version = "0.7", features = ["async", "async_tokio"] }
-divan = { version = "0.1" }
-libtest-mimic = "0.8"
 pretty_assertions = "1"
 rand = { workspace = true }
 sha2 = { workspace = true }
-size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",

@@ -25,9 +25,9 @@ This service can be used to:
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_mysql::Mysql;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_mysql::Mysql;
 
 #[tokio::main]
 async fn main() -> Result<()> {

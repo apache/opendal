@@ -21,18 +21,16 @@ This service can be used to:
 - `refresh_token`: Set the refresh_token for backend.
 - `drive_type`: Set the drive_type for backend.
 
-Refer to [`AliyunDriveBuilder`]`s  public API docs for more information.
+Refer to [`AliyunDriveBuilder`]`s public API docs for more information.
 
 ## Example
 
 ### Basic Setup
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_service_aliyun_drive::AliyunDrive;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_aliyun_drive::AliyunDrive;
 
 #[tokio::main]
 async fn main() -> Result<()> {

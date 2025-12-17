@@ -26,9 +26,9 @@ You can refer to [`FoundationdbBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Foundationdb;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_foundationdb::Foundationdb;
 
 #[tokio::main]
 async fn main() -> Result<()> {

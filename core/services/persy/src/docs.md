@@ -25,9 +25,9 @@ You can refer to [`PersyBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Persy;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_persy::Persy;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -31,9 +31,11 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 ctor = { workspace = true }
 mea = { version = "0.5.1" }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "mysql"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

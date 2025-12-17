@@ -20,7 +20,7 @@ This service can be used to:
 #### Just provide Access Token (Temporary)
 
 - `access_token`: set the access_token for this backend.
-Please notice its expiration.
+  Please notice its expiration.
 
 #### Or provide Client ID and Client Secret and refresh token (Long Term)
 
@@ -45,10 +45,9 @@ You can refer to [`DropboxBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::raw::OpWrite;
-use opendal_core::services::Dropbox;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_dropbox::Dropbox;
 
 #[tokio::main]
 async fn main() -> Result<()> {

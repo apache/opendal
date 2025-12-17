@@ -19,11 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-compfs")]
-mod compfs;
-#[cfg(feature = "services-compfs")]
-pub use compfs::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]

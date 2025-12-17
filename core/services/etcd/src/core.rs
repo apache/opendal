@@ -23,8 +23,8 @@ use fastpool::bounded;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use opendal_core::raw::*;
 use super::error::format_etcd_error;
+use opendal_core::raw::*;
 use opendal_core::{Buffer, Error, ErrorKind, Result};
 
 pub mod constants {

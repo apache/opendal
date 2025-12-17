@@ -23,13 +23,13 @@ use log::debug;
 use serde::Deserialize;
 
 use super::DBFS_SCHEME;
+use super::config::DbfsConfig;
 use super::core::DbfsCore;
 use super::deleter::DbfsDeleter;
 use super::error::parse_error;
 use super::lister::DbfsLister;
 use super::writer::DbfsWriter;
 use opendal_core::raw::*;
-use super::config::DbfsConfig;
 use opendal_core::*;
 
 /// [Dbfs](https://docs.databricks.com/api/azure/workspace/dbfs)'s REST API support.

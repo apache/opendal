@@ -33,7 +33,10 @@ all-features = true
 [dependencies]
 bytes = { workspace = true }
 ctor = { workspace = true }
-foundationdb = { version = "0.9.0", features = ["embedded-fdb-include", "fdb-7_3"] }
+foundationdb = { version = "0.9.0", features = [
+  "embedded-fdb-include",
+  "fdb-7_3",
+] }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }

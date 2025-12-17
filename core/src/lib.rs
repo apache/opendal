@@ -42,6 +42,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-b2")]
     pub use opendal_service_b2::*;
+    #[cfg(feature = "services-cacache")]
+    pub use opendal_service_cacache::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-compfs")]
@@ -52,6 +54,14 @@ pub mod services {
     pub use opendal_service_d1::*;
     #[cfg(feature = "services-dashmap")]
     pub use opendal_service_dashmap::*;
+    #[cfg(feature = "services-dbfs")]
+    pub use opendal_service_dbfs::*;
+    #[cfg(feature = "services-dropbox")]
+    pub use opendal_service_dropbox::*;
+    #[cfg(feature = "services-etcd")]
+    pub use opendal_service_etcd::*;
+    #[cfg(feature = "services-foundationdb")]
+    pub use opendal_service_foundationdb::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]

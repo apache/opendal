@@ -48,10 +48,10 @@ impl Debug for SwiftConfig {
     }
 }
 
-impl crate::Configurator for SwiftConfig {
+impl opendal_core::Configurator for SwiftConfig {
     type Builder = SwiftBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
@@ -59,7 +59,7 @@ impl crate::Configurator for SwiftConfig {
                 .or_insert_with(|| format!("https://{authority}"));
         } else if !map.contains_key("endpoint") {
             return Err(
-                crate::Error::new(crate::ErrorKind::ConfigInvalid, "endpoint is required")
+                opendal_core::Error::new(opendal_core::ErrorKind::ConfigInvalid, "endpoint is required")
                     .with_context("service", SWIFT_SCHEME),
             );
         }
@@ -78,8 +78,8 @@ impl crate::Configurator for SwiftConfig {
         }
 
         if !map.contains_key("container") {
-            return Err(crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "container is required",
             )
             .with_context("service", SWIFT_SCHEME));
@@ -96,8 +96,8 @@ impl crate::Configurator for SwiftConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_endpoint_container_and_root() {

@@ -89,10 +89,7 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-swift")]
-mod swift;
-#[cfg(feature = "services-swift")]
-pub use self::swift::*;
+
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;

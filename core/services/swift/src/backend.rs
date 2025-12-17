@@ -28,9 +28,9 @@ use super::deleter::SwfitDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
-use crate::raw::*;
-use crate::services::SwiftConfig;
-use crate::*;
+use opendal_core::raw::*;
+use super::SwiftConfig;
+use opendal_core::*;
 
 /// [OpenStack Swift](https://docs.openstack.org/api-ref/object-store/#)'s REST API support.
 /// For more information about swift-compatible services, refer to [Compatible Services](#compatible-services).

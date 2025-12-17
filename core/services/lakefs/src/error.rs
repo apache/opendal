@@ -71,7 +71,6 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 #[cfg(test)]
 mod test {
     use super::*;
-    use opendal_core::raw::new_json_deserialize_error;
 
     #[test]
     fn test_parse_error() -> Result<()> {

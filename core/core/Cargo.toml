@@ -76,13 +76,6 @@ services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
 services-onedrive = []
-services-opfs = [
-  "dep:js-sys",
-  "dep:wasm-bindgen",
-  "dep:wasm-bindgen-futures",
-  "dep:web-sys",
-]
-
 services-pcloud = []
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
@@ -188,21 +181,6 @@ monoio = { version = "0.2.4", optional = true, features = [
   "mkdirat",
   "unlinkat",
   "renameat",
-] }
-# for service-opfs
-js-sys = { version = "0.3.77", optional = true }
-wasm-bindgen = { version = "0.2.100", optional = true }
-wasm-bindgen-futures = { version = "0.4.50", optional = true }
-web-sys = { version = "0.3.77", optional = true, features = [
-  "Window",
-  "File",
-  "FileSystemDirectoryHandle",
-  "FileSystemFileHandle",
-  "FileSystemGetDirectoryOptions",
-  "FileSystemGetFileOptions",
-  "FileSystemWritableFileStream",
-  "Navigator",
-  "StorageManager",
 ] }
 
 # Layers

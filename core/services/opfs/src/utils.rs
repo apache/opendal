@@ -15,13 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::Result;
+use opendal_core::Result;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{
-    FileSystemDirectoryHandle, FileSystemFileHandle, FileSystemGetDirectoryOptions,
-    FileSystemGetFileOptions, window,
-};
+use web_sys::FileSystemDirectoryHandle;
+use web_sys::FileSystemFileHandle;
+use web_sys::FileSystemGetDirectoryOptions;
+use web_sys::FileSystemGetFileOptions;
+use web_sys::window;
 
 use super::error::*;
 
@@ -59,7 +60,6 @@ pub(crate) async fn get_handle_by_filename(filename: &str) -> Result<FileSystemF
         .and_then(JsCast::dyn_into)
         .map_err(parse_js_error)?;
 
-    // maybe the option should be exposed?
     let opt = FileSystemGetFileOptions::new();
     opt.set_create(true);
 

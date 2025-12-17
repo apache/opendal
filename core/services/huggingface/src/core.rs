@@ -294,9 +294,9 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+    use http::{Request, Response, StatusCode};
     use opendal_core::raw::new_json_deserialize_error;
     use opendal_core::types::Result;
-    use http::{Request, Response, StatusCode};
     use std::sync::{Arc, Mutex};
 
     // Mock HTTP client that captures the request URL and headers

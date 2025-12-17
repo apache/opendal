@@ -201,55 +201,6 @@ impl Operator {
     pub fn update_executor(&self, f: impl FnOnce(Executor) -> Executor) {
         self.accessor.info().update_executor(f);
     }
-
-    /// Get the http client used by current operator.
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version."
-    )]
-    pub fn http_client(&self) -> HttpClient {
-        self.accessor.info().http_client()
-    }
-
-    /// Update http client for the context.
-    ///
-    /// All cloned `Operator` instances share the same internal state, such as
-    /// `HttpClient` and `Runtime`. Some layers may modify the internal state of
-    /// the `Operator` too like inject logging and metrics for `HttpClient`.
-    ///
-    /// # Note
-    ///
-    /// Tasks must be forwarded to the old executor after the update. Otherwise, features such as retry, timeout, and metrics may not function properly.
-    ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated since v0.54.0. Use [`HttpClientLayer`] instead.
-    ///
-    /// ## Migration Example
-    ///
-    /// Instead of:
-    /// ```ignore
-    /// let operator = Operator::new(service)?;
-    /// operator.update_http_client(|_| custom_client);
-    /// ```
-    ///
-    /// Use:
-    /// ```ignore
-    /// use opendal_core::layers::HttpClientLayer;
-    ///
-    /// let operator = Operator::new(service)?
-    ///     .layer(HttpClientLayer::new(custom_client))
-    ///     .finish();
-    /// ```
-    ///
-    /// [`HttpClientLayer`]: crate::layers::HttpClientLayer
-    #[deprecated(
-        since = "0.54.0",
-        note = "Use HttpClientLayer instead. This method will be removed in next version"
-    )]
-    pub fn update_http_client(&self, f: impl FnOnce(HttpClient) -> HttpClient) {
-        self.accessor.info().update_http_client(f);
-    }
 }
 
 /// # Operator async API.
@@ -1424,6 +1375,23 @@ impl Operator {
 
     /// Remove the path and all nested dirs and files recursively.
     ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated since v0.55.0. Use [`Operator::delete_with`] with
+    /// `recursive(true)` instead.
+    ///
+    /// ## Migration Example
+    ///
+    /// Instead of:
+    /// ```ignore
+    /// op.remove_all("path/to/dir").await?;
+    /// ```
+    ///
+    /// Use:
+    /// ```ignore
+    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// ```
+    ///
     /// # Notes
     ///
     /// If underlying services support delete in batch, we will use batch
@@ -1441,28 +1409,12 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
+    #[deprecated(
+        since = "0.55.0",
+        note = "Use `delete_with` with `recursive(true)` instead"
+    )]
     pub async fn remove_all(&self, path: &str) -> Result<()> {
-        match self.stat(path).await {
-            // If object exists.
-            Ok(metadata) => {
-                // If the object is a file, we can delete it.
-                if metadata.mode() != EntryMode::DIR {
-                    self.delete(path).await?;
-                    // There may still be objects prefixed with the path in some backend, so we can't return here.
-                }
-            }
-
-            // If dir not found, it may be a prefix in object store like S3,
-            // and we still need to delete objects under the prefix.
-            Err(e) if e.kind() == ErrorKind::NotFound => {}
-
-            // Pass on any other error.
-            Err(e) => return Err(e),
-        };
-
-        let lister = self.lister_with(path).recursive(true).await?;
-        self.delete_try_stream(lister).await?;
-        Ok(())
+        self.delete_with(path).recursive(true).await
     }
 
     /// List entries whose paths start with the given prefix `path`.

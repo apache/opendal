@@ -22,6 +22,7 @@ use http::Uri;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
+use redis::IntoConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::cluster::ClusterClientBuilder;
@@ -244,17 +245,27 @@ impl RedisBuilder {
             }
         };
 
-        let redis_info = RedisConnectionInfo {
-            db: self.config.db,
-            username: self.config.username.clone(),
-            password: self.config.password.clone(),
-            protocol: ProtocolVersion::RESP2,
-        };
+        let mut redis_info = RedisConnectionInfo::default()
+            .set_db(self.config.db)
+            .set_protocol(ProtocolVersion::RESP2);
+        if let Some(username) = &self.config.username {
+            redis_info = redis_info.set_username(username);
+        }
+        if let Some(password) = &self.config.password {
+            redis_info = redis_info.set_password(password);
+        }
+        let connection_info = con_addr
+            .clone()
+            .into_connection_info()
+            .map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid connection address")
+                    .with_context("service", REDIS_SCHEME)
+                    .with_context("address", con_addr)
+                    .with_context("error", err)
+            })?
+            .set_redis_settings(redis_info);
 
-        Ok(ConnectionInfo {
-            addr: con_addr,
-            redis: redis_info,
-        })
+        Ok(connection_info)
     }
 }
 

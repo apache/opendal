@@ -29,19 +29,6 @@
 mod accessor;
 pub use accessor::*;
 
-#[cfg(any(
-    feature = "services-azblob",
-    feature = "services-azdls",
-    feature = "services-azfile"
-))]
-mod azure;
-#[cfg(any(
-    feature = "services-azblob",
-    feature = "services-azdls",
-    feature = "services-azfile"
-))]
-pub(crate) use azure::*;
-
 mod layer;
 pub use layer::*;
 
@@ -96,5 +83,3 @@ pub use atomic_util::*;
 
 // Expose as a pub mod to avoid confusing.
 pub mod oio;
-#[cfg(feature = "tests")]
-pub mod tests;

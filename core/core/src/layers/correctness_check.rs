@@ -51,6 +51,11 @@ impl<A: Access> Layer<A> for CorrectnessCheckLayer {
     }
 }
 
+pub struct CorrectnessAccessor<A: Access> {
+    info: Arc<AccessorInfo>,
+    inner: A,
+}
+
 pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
     let scheme = info.scheme();
     let op = op.into_static();
@@ -60,11 +65,6 @@ pub(crate) fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &s
         format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
     )
     .with_operation(op)
-}
-
-pub struct CorrectnessAccessor<A: Access> {
-    info: Arc<AccessorInfo>,
-    inner: A,
 }
 
 impl<A: Access> Debug for CorrectnessAccessor<A> {

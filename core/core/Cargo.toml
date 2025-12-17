@@ -128,13 +128,6 @@ sha2 = { workspace = true, optional = true }
 # For http based services.
 reqsign = { workspace = true, default-features = false, optional = true }
 
-# for services-compfs
-compio = { version = "0.16.0", optional = true, features = [
-  "runtime",
-  "bytes",
-  "polling",
-  "dispatcher",
-] }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-upyun

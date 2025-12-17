@@ -39,11 +39,6 @@ mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::*;
 
-#[cfg(feature = "services-huggingface")]
-mod huggingface;
-#[cfg(feature = "services-huggingface")]
-pub use huggingface::*;
-
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]

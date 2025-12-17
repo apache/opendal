@@ -68,10 +68,10 @@ impl Debug for HuggingfaceConfig {
     }
 }
 
-impl crate::Configurator for HuggingfaceConfig {
+impl opendal_core::Configurator for HuggingfaceConfig {
     type Builder = HuggingfaceBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         map.retain(|_, v| !v.is_empty());
 
@@ -106,8 +106,8 @@ impl crate::Configurator for HuggingfaceConfig {
             } else if parts.is_empty() {
                 // no owner/repo provided, fall back to options-only
             } else {
-                return Err(crate::Error::new(
-                    crate::ErrorKind::ConfigInvalid,
+                return Err(opendal_core::Error::new(
+                    opendal_core::ErrorKind::ConfigInvalid,
                     "repository owner and name are required in uri path",
                 )
                 .with_context("service", HUGGINGFACE_SCHEME));
@@ -115,8 +115,8 @@ impl crate::Configurator for HuggingfaceConfig {
         }
 
         if !map.contains_key("repo_id") {
-            return Err(crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "repo_id is required via uri path or option",
             )
             .with_context("service", HUGGINGFACE_SCHEME));
@@ -133,8 +133,8 @@ impl crate::Configurator for HuggingfaceConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::types::OperatorUri;
 
     #[test]
     fn from_uri_sets_repo_type_id_and_revision() {

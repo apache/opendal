@@ -5593,6 +5593,7 @@ dependencies = [
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
  "opendal-service-tikv",
+ "opendal-service-upyun",
  "opendal-service-vercel-blob",
  "opendal-testkit",
  "opentelemetry",
@@ -5651,7 +5652,6 @@ dependencies = [
  "getrandom 0.2.16",
  "hdfs-native",
  "hdrs",
- "hmac",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
@@ -5676,7 +5676,6 @@ dependencies = [
  "rocksdb",
  "serde",
  "serde_json",
- "sha1",
  "sha2",
  "size",
  "tokio",
@@ -6474,6 +6473,25 @@ dependencies = [
  "opendal-core",
  "serde",
  "tikv-client",
+]
+
+[[package]]
+name = "opendal-service-upyun"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "hmac",
+ "http 1.4.0",
+ "log",
+ "md-5",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tokio",
 ]
 
 [[package]]

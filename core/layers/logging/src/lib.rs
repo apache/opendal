@@ -22,8 +22,8 @@ use std::sync::Arc;
 use log::Level;
 use log::log;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add [log](https://docs.rs/log/) for every operation.
 ///
@@ -41,7 +41,7 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::LoggingLayer;
+/// # use opendal_layer_logging::LoggingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -75,8 +75,8 @@ use crate::*;
 /// You can implement your own logging interceptor to customize the logging behavior.
 ///
 /// ```no_run
-/// # use opendal_core::layers::LoggingInterceptor;
-/// # use opendal_core::layers::LoggingLayer;
+/// # use opendal_layer_logging::LoggingInterceptor;
+/// # use opendal_layer_logging::LoggingLayer;
 /// # use opendal_core::raw;
 /// # use opendal_core::services;
 /// # use opendal_core::Error;
@@ -182,7 +182,6 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
         err: Option<&Error>,
     ) {
         if let Some(err) = err {
-            // Print error if it's unexpected, otherwise in warn.
             let lvl = if err.kind() == ErrorKind::Unexpected {
                 Level::Error
             } else {
@@ -196,10 +195,6 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                 info.scheme(),
                 info.name(),
                 LoggingContext(context),
-                // Print error message with debug output while unexpected happened.
-                //
-                // It's super sad that we can't bind `format_args!()` here.
-                // See: https://github.com/rust-lang/rust/issues/92698
                 if err.kind() != ErrorKind::Unexpected {
                    format!("{err}")
                 } else {

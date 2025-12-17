@@ -5541,6 +5541,7 @@ dependencies = [
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
+ "opendal-layer-logging",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5779,6 +5780,14 @@ dependencies = [
  "opendal-core",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-layer-logging"
+version = "0.55.0"
+dependencies = [
+ "log",
+ "opendal-core",
 ]
 
 [[package]]

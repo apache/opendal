@@ -117,6 +117,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
+    #[cfg(feature = "layers-logging")]
+    pub use opendal_layer_logging::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]

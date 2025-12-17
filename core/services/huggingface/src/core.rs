@@ -26,8 +26,8 @@ use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 
 use super::backend::RepoType;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 fn percent_encode_revision(revision: &str) -> String {
     utf8_percent_encode(revision, NON_ALPHANUMERIC).to_string()
@@ -294,9 +294,9 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
-    use crate::raw::new_json_deserialize_error;
-    use crate::types::Result;
     use http::{Request, Response, StatusCode};
+    use opendal_core::raw::new_json_deserialize_error;
+    use opendal_core::types::Result;
     use std::sync::{Arc, Mutex};
 
     // Mock HTTP client that captures the request URL and headers

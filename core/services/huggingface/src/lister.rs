@@ -22,8 +22,8 @@ use bytes::Buf;
 use super::core::HuggingfaceCore;
 use super::core::HuggingfaceStatus;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HuggingfaceLister {
     core: Arc<HuggingfaceCore>,

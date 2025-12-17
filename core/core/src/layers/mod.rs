@@ -32,7 +32,6 @@ pub use simulate::SimulateLayer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-
 mod timeout;
 pub use timeout::TimeoutLayer;
 

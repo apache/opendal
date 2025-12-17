@@ -36,4 +36,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 log = { workspace = true }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = ["services-memory"] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
+  "services-memory",
+] }

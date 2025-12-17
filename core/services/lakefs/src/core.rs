@@ -22,11 +22,11 @@ use std::sync::Arc;
 use http::Request;
 use http::Response;
 use http::header;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
-
+/// Core shared state for lakefs service.
 pub struct LakefsCore {
     pub info: Arc<AccessorInfo>,
     pub endpoint: String,

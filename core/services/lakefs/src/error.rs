@@ -19,10 +19,9 @@ use std::fmt::Debug;
 
 use http::Response;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
-
-use crate::raw::*;
-use crate::*;
 
 /// LakefsError is the error returned by Lakefs File System.
 #[derive(Default, Deserialize)]
@@ -72,8 +71,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::raw::new_json_deserialize_error;
-    use crate::types::Result;
+    use opendal_core::raw::new_json_deserialize_error;
 
     #[test]
     fn test_parse_error() -> Result<()> {

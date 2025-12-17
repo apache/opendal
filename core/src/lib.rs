@@ -66,6 +66,8 @@ pub mod services {
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-lakefs")]
+    pub use opendal_service_lakefs::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]

@@ -19,13 +19,14 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::LakefsCore;
 use super::core::LakefsStatus;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
 
+/// Writer for lakefs service operations.
 pub struct LakefsWriter {
     core: Arc<LakefsCore>,
     op: OpWrite,

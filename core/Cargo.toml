@@ -131,7 +131,7 @@ services-huggingface = ["opendal-core/services-huggingface"]
 services-ipfs = ["dep:opendal-service-ipfs"]
 services-ipmfs = ["opendal-core/services-ipmfs"]
 services-koofr = ["opendal-core/services-koofr"]
-services-lakefs = ["opendal-core/services-lakefs"]
+services-lakefs = ["dep:opendal-service-lakefs"]
 services-memcached = ["dep:opendal-service-memcached"]
 services-memory = ["opendal-core/services-memory"]
 services-mini-moka = ["dep:opendal-service-mini-moka"]
@@ -221,6 +221,7 @@ opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = 
 opendal-service-github = { path = "services/github", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = true, default-features = false }
+opendal-service-lakefs = { path = "services/lakefs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-memcached = { path = "services/memcached", version = "0.55.0", optional = true, default-features = false }
 opendal-service-mini-moka = { path = "services/mini_moka", version = "0.55.0", optional = true, default-features = false }
 opendal-service-moka = { path = "services/moka", version = "0.55.0", optional = true, default-features = false }

@@ -5569,6 +5569,7 @@ dependencies = [
  "opendal-service-github",
  "opendal-service-hdfs-native",
  "opendal-service-ipfs",
+ "opendal-service-lakefs",
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
@@ -6150,6 +6151,20 @@ dependencies = [
  "opendal-core",
  "prost 0.13.5",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-lakefs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

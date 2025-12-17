@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for lakefs service.
-pub const LAKEFS_SCHEME: &str = "lakefs";
+//! lakeFS service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +31,10 @@ mod writer;
 pub use backend::LakefsBuilder as Lakefs;
 pub use config::LakefsConfig;
 
+/// Default scheme for lakefs service.
+pub const LAKEFS_SCHEME: &str = "lakefs";
+
 #[ctor::ctor]
 fn register_lakefs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Lakefs>(LAKEFS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Lakefs>(LAKEFS_SCHEME);
 }

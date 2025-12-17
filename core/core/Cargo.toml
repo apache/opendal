@@ -145,7 +145,6 @@ rocksdb = { version = "0.21.0", default-features = false, optional = true }
 # for services-hdfs-native
 hdfs-native = { version = "0.13", optional = true }
 
-
 # Layers
 # for layers-dtrace
 probe = { version = "0.5.1", optional = true }

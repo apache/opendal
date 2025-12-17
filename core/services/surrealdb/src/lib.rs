@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for surrealdb service.
-pub const SURREALDB_SCHEME: &str = "surrealdb";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Surrealdb service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +28,10 @@ mod writer;
 pub use backend::SurrealdbBuilder as Surrealdb;
 pub use config::SurrealdbConfig;
 
+/// Default scheme for surrealdb service.
+pub const SURREALDB_SCHEME: &str = "surrealdb";
+
 #[ctor::ctor]
 fn register_surrealdb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Surrealdb>(SURREALDB_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Surrealdb>(SURREALDB_SCHEME);
 }

@@ -25,8 +25,8 @@ use super::config::SurrealdbConfig;
 use super::core::*;
 use super::deleter::SurrealdbDeleter;
 use super::writer::SurrealdbWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]

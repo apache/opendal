@@ -51,6 +51,9 @@ jobs:
         run: just stub-gen
       - name: Check diff
         run: git diff --exit-code
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: hawkeye,taplo-cli
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint

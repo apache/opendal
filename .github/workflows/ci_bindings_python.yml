@@ -46,6 +46,9 @@ jobs:
         with:
           working-directory: "bindings/python"
       - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: hawkeye,taplo-cli
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint

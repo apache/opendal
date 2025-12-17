@@ -6376,6 +6376,7 @@ dependencies = [
  "bytes",
  "dotenvy",
  "opendal-core",
+ "opendal-layer-logging",
  "rand 0.8.5",
  "sha2",
  "tokio",

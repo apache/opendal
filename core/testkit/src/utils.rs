@@ -22,6 +22,7 @@ use std::sync::LazyLock;
 use opendal_core::Operator;
 use opendal_core::Result;
 use opendal_core::layers;
+use opendal_layer_logging::LoggingLayer;
 
 /// TEST_RUNTIME is the runtime used for running tests.
 pub static TEST_RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
@@ -74,7 +75,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     let op = Operator::via_iter(scheme, cfg).expect("must succeed");
 
     let op = op
-        .layer(layers::LoggingLayer::default())
+        .layer(LoggingLayer::default())
         .layer(layers::TimeoutLayer::new())
         .layer(layers::RetryLayer::new().with_max_times(4));
 

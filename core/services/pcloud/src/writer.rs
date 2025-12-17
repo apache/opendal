@@ -19,30 +19,31 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use super::core::*;
+use super::core::PcloudCore;
 use super::error::PcloudError;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
 
-pub struct PcloudDeleter {
+pub type PcloudWriters = oio::OneShotWriter<PcloudWriter>;
+
+pub struct PcloudWriter {
     core: Arc<PcloudCore>,
+    path: String,
 }
 
-impl PcloudDeleter {
-    pub fn new(core: Arc<PcloudCore>) -> Self {
-        Self { core }
+impl PcloudWriter {
+    pub fn new(core: Arc<PcloudCore>, path: String) -> Self {
+        PcloudWriter { core, path }
     }
 }
 
-impl oio::OneShotDelete for PcloudDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = if path.ends_with('/') {
-            self.core.delete_folder(&path).await?
-        } else {
-            self.core.delete_file(&path).await?
-        };
+impl oio::OneShotWrite for PcloudWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        self.core.ensure_dir_exists(&self.path).await?;
+
+        let resp = self.core.upload_file(&self.path, bs).await?;
 
         let status = resp.status();
 
@@ -53,12 +54,11 @@ impl oio::OneShotDelete for PcloudDeleter {
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
 
-                // pCloud returns 2005 or 2009 if the file or folder is not found
-                if result != 0 && result != 2005 && result != 2009 {
+                if result != 0 {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                 }
 
-                Ok(())
+                Ok(Metadata::default())
             }
             _ => Err(parse_error(resp)),
         }

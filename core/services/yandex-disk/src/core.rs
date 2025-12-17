@@ -27,8 +27,8 @@ use http::request;
 use serde::Deserialize;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct YandexDiskCore {

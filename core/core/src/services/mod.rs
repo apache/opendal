@@ -93,8 +93,3 @@ pub use webdav::*;
 mod webhdfs;
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::*;
-
-#[cfg(feature = "services-yandex-disk")]
-mod yandex_disk;
-#[cfg(feature = "services-yandex-disk")]
-pub use yandex_disk::*;

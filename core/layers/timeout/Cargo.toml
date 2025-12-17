@@ -1,0 +1,24 @@
+[package]
+description = "Apache OpenDAL timeout layer"
+name = "opendal-layer-timeout"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+tokio = { workspace = true, features = ["time"] }
+
+[dev-dependencies]
+futures = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0" }
+opendal-layer-retry = { path = "../retry", version = "0.55.0", default-features = false }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

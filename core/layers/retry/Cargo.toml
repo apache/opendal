@@ -1,0 +1,31 @@
+[package]
+description = "Apache OpenDAL retry layer"
+name = "opendal-layer-retry"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+backon = { version = "1.6", features = ["tokio-sleep"] }
+log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
+bytes = { workspace = true }
+futures = { workspace = true, default-features = true }
+opendal-core = { path = "../../core", version = "0.55.0" }
+opendal-layer-logging = { path = "../logging", version = "0.55.0", default-features = false }
+opendal-layer-timeout = { path = "../timeout", version = "0.55.0", default-features = false }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }

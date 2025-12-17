@@ -5541,6 +5541,7 @@ dependencies = [
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
+ "opendal-layer-logging",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5548,8 +5549,10 @@ dependencies = [
  "opendal-layer-oteltrace",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-retry",
  "opendal-layer-tail-cut",
  "opendal-layer-throttle",
+ "opendal-layer-timeout",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-alluxio",
@@ -5787,6 +5790,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-logging"
+version = "0.55.0"
+dependencies = [
+ "log",
+ "opendal-core",
+]
+
+[[package]]
 name = "opendal-layer-metrics"
 version = "0.55.0"
 dependencies = [
@@ -5850,6 +5861,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-retry"
+version = "0.55.0"
+dependencies = [
+ "backon",
+ "bytes",
+ "futures",
+ "log",
+ "opendal-core",
+ "opendal-layer-logging",
+ "opendal-layer-timeout",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opendal-layer-tail-cut"
 version = "0.55.0"
 dependencies = [
@@ -5863,6 +5889,16 @@ version = "0.55.0"
 dependencies = [
  "governor",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-timeout"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "opendal-core",
+ "opendal-layer-retry",
+ "tokio",
 ]
 
 [[package]]

@@ -196,14 +196,17 @@ impl Operator {
     ///
     /// ```no_run
     /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// use opendal_core::layers::LoggingLayer;
-    /// use opendal_core::services::Memory;
-    /// use opendal_core::Operator;
-    ///
+    /// #
+    /// # use opendal_core::Result;
+    /// # use opendal_core::layers::HttpClientLayer;
+    /// # use opendal_core::raw::HttpClient;
+    /// # use opendal_core::services::Memory;
+    /// # use opendal_core::Operator;
+    /// #
     /// # async fn test() -> Result<()> {
+    /// let client = HttpClient::new()?;
     /// let op = Operator::new(Memory::default())?.finish();
-    /// let op = op.layer(LoggingLayer::default());
+    /// let op = op.layer(HttpClientLayer::new(client));
     /// // All operations will go through the new_layer
     /// let _ = op.read("test_file").await?;
     /// # Ok(())
@@ -234,8 +237,6 @@ impl Operator {
 /// ```
 /// use std::collections::HashMap;
 ///
-/// use opendal_core::layers::LoggingLayer;
-/// use opendal_core::layers::RetryLayer;
 /// use opendal_core::services;
 /// use opendal_core::Builder;
 /// use opendal_core::Operator;
@@ -243,8 +244,9 @@ impl Operator {
 ///
 /// fn init_service<B: Builder>(cfg: HashMap<String, String>) -> Result<Operator> {
 ///     let op = Operator::from_iter::<B>(cfg)?
-///         .layer(LoggingLayer::default())
-///         .layer(RetryLayer::new())
+///         // add layers
+///         // .layer(LoggingLayer::default())
+///         // .layer(RetryLayer::new())
 ///         .finish();
 ///
 ///     Ok(op)
@@ -290,14 +292,17 @@ impl<A: Access> OperatorBuilder<A> {
     ///
     /// ```no_run
     /// # use std::sync::Arc;
-    /// # use anyhow::Result;
-    /// use opendal_core::layers::LoggingLayer;
-    /// use opendal_core::services::Memory;
-    /// use opendal_core::Operator;
-    ///
+    /// #
+    /// # use opendal_core::Result;
+    /// # use opendal_core::layers::HttpClientLayer;
+    /// # use opendal_core::raw::HttpClient;
+    /// # use opendal_core::services::Memory;
+    /// # use opendal_core::Operator;
+    /// #
     /// # async fn test() -> Result<()> {
+    /// let client = HttpClient::new()?;
     /// let op = Operator::new(Memory::default())?
-    ///     .layer(LoggingLayer::default())
+    ///     .layer(HttpClientLayer::new(client))
     ///     .finish();
     /// // All operations will go through the new_layer
     /// let _ = op.read("test_file").await?;

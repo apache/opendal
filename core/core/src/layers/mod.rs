@@ -32,17 +32,6 @@ pub use simulate::SimulateLayer;
 mod concurrent_limit;
 pub use concurrent_limit::ConcurrentLimitLayer;
 
-mod logging;
-pub use logging::LoggingInterceptor;
-pub use logging::LoggingLayer;
-
-mod timeout;
-pub use timeout::TimeoutLayer;
-
-mod retry;
-pub use self::retry::RetryInterceptor;
-pub use self::retry::RetryLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

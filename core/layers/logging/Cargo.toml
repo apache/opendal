@@ -1,0 +1,21 @@
+[package]
+description = "Apache OpenDAL logging layer"
+name = "opendal-layer-logging"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
+opendal-core = { path = "../../core", version = "0.55.0" }

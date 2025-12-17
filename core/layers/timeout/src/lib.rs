@@ -17,9 +17,10 @@
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add timeout for every operation to avoid slow or unexpected hang operations.
 ///
@@ -52,13 +53,13 @@ use crate::*;
 ///
 /// ```no_run
 /// # use std::time::Duration;
-///
-/// # use opendal_core::layers::RetryLayer;
-/// # use opendal_core::layers::TimeoutLayer;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_retry::RetryLayer;
+/// # use opendal_layer_timeout::TimeoutLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
@@ -67,7 +68,7 @@ use crate::*;
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -78,12 +79,12 @@ use crate::*;
 ///
 /// ```no_run
 /// # use std::time::Duration;
-///
-/// # use opendal_core::layers::TimeoutLayer;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_timeout::TimeoutLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(
@@ -92,7 +93,7 @@ use crate::*;
 ///             .with_io_timeout(Duration::from_secs(3)),
 ///     )
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -354,25 +355,23 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
 mod tests {
     use std::future::Future;
     use std::future::pending;
-    use std::sync::Arc;
 
     use futures::StreamExt;
+    use opendal_core::raw::*;
+    use opendal_core::*;
     use tokio::time::sleep;
     use tokio::time::timeout;
 
-    use crate::layers::TimeoutLayer;
-    use crate::layers::TypeEraseLayer;
-    use crate::raw::*;
-    use crate::*;
+    use super::*;
 
     #[derive(Debug, Clone, Default)]
     struct MockService;
 
     impl Access for MockService {
-        type Reader = MockReader;
-        type Writer = ();
-        type Lister = MockLister;
-        type Deleter = ();
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();
@@ -387,18 +386,18 @@ mod tests {
 
         /// This function will build a reader that always return pending.
         async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
-            Ok((RpRead::new(), MockReader))
+            Ok((RpRead::new(), Box::new(MockReader)))
         }
 
         /// This function will never return.
         async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
             sleep(Duration::from_secs(u64::MAX)).await;
 
-            Ok((RpDelete::default(), ()))
+            Ok((RpDelete::default(), Box::new(())))
         }
 
         async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-            Ok((RpList::default(), MockLister))
+            Ok((RpList::default(), Box::new(MockLister)))
         }
     }
 
@@ -422,8 +421,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_operation_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
-        let op = Operator::from_inner(acc)
+        let srv = MockService;
+        let op = Operator::from_inner(Arc::new(srv))
             .layer(TimeoutLayer::new().with_timeout(Duration::from_secs(1)));
 
         let fut = async {
@@ -441,8 +440,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_io_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
-        let op = Operator::from_inner(acc)
+        let srv = MockService;
+        let op = Operator::from_inner(Arc::new(srv))
             .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
 
         let reader = op.reader("test").await.unwrap();
@@ -456,8 +455,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_timeout() {
-        let acc = Arc::new(TypeEraseLayer.layer(MockService)) as Accessor;
-        let op = Operator::from_inner(acc).layer(
+        let srv = MockService;
+        let op = Operator::from_inner(Arc::new(srv)).layer(
             TimeoutLayer::new()
                 .with_timeout(Duration::from_secs(1))
                 .with_io_timeout(Duration::from_secs(1)),

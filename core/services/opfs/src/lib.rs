@@ -15,13 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use wasm_bindgen::JsValue;
+/// Default scheme for opfs service.
+pub const OPFS_SCHEME: &str = "opfs";
 
-use crate::{Error, ErrorKind};
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub(crate) fn parse_js_error(msg: JsValue) -> Error {
-    Error::new(
-        ErrorKind::Unexpected,
-        msg.as_string().unwrap_or_else(String::new),
-    )
+mod backend;
+mod config;
+mod core;
+mod error;
+mod utils;
+
+pub use backend::OpfsBuilder as Opfs;
+pub use config::OpfsConfig;
+
+#[ctor::ctor]
+fn register_opfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Opfs>(OPFS_SCHEME);
 }

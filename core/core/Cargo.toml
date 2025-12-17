@@ -57,7 +57,6 @@ executors-tokio = ["tokio/rt"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-compfs = ["dep:compio"]
 services-gdrive = ["internal-path-cache"]
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]

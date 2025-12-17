@@ -623,7 +623,6 @@ mod tests {
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
-    use crate::layers::LoggingLayer;
 
     #[derive(Default, Clone)]
     struct MockBuilder {
@@ -852,7 +851,6 @@ mod tests {
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())
             .unwrap()
-            .layer(LoggingLayer::default())
             .layer(RetryLayer::new())
             .finish();
 
@@ -887,7 +885,6 @@ mod tests {
             )
             // Uncomment this to reproduce timeout layer panic.
             // .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
-            .layer(LoggingLayer::default())
             .finish();
 
         let mut w = op.writer("test_write").await.unwrap();

@@ -19,35 +19,10 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-b2")]
-mod b2;
-#[cfg(feature = "services-b2")]
-pub use b2::*;
-
 #[cfg(feature = "services-cacache")]
 mod cacache;
 #[cfg(feature = "services-cacache")]
 pub use self::cacache::*;
-
-#[cfg(feature = "services-compfs")]
-mod compfs;
-#[cfg(feature = "services-compfs")]
-pub use compfs::*;
-
-#[cfg(feature = "services-cos")]
-mod cos;
-#[cfg(feature = "services-cos")]
-pub use cos::*;
-
-#[cfg(feature = "services-d1")]
-mod d1;
-#[cfg(feature = "services-d1")]
-pub use self::d1::*;
-
-#[cfg(feature = "services-dashmap")]
-mod dashmap;
-#[cfg(feature = "services-dashmap")]
-pub use self::dashmap::*;
 
 #[cfg(feature = "services-dbfs")]
 mod dbfs;
@@ -73,11 +48,6 @@ pub use self::foundationdb::*;
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
 pub use gdrive::*;
-
-#[cfg(feature = "services-github")]
-mod github;
-#[cfg(feature = "services-github")]
-pub use github::*;
 
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
@@ -114,20 +84,10 @@ mod lakefs;
 #[cfg(feature = "services-lakefs")]
 pub use lakefs::*;
 
-#[cfg(feature = "services-memcached")]
-mod memcached;
-#[cfg(feature = "services-memcached")]
-pub use memcached::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]
 pub use self::memory::*;
-
-#[cfg(feature = "services-mini-moka")]
-mod mini_moka;
-#[cfg(feature = "services-mini-moka")]
-pub use self::mini_moka::*;
 
 #[cfg(feature = "services-mongodb")]
 mod mongodb;
@@ -148,16 +108,6 @@ pub use onedrive::*;
 mod pcloud;
 #[cfg(feature = "services-pcloud")]
 pub use pcloud::*;
-
-#[cfg(feature = "services-persy")]
-mod persy;
-#[cfg(feature = "services-persy")]
-pub use self::persy::*;
-
-#[cfg(feature = "services-redb")]
-mod redb;
-#[cfg(feature = "services-redb")]
-pub use self::redb::*;
 
 #[cfg(feature = "services-redis")]
 mod redis;

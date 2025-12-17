@@ -25,10 +25,10 @@ use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
 use opendal::Operator;
 use opendal::Result;
-use opendal::raw::tests::ReadAction;
-use opendal::raw::tests::ReadChecker;
-use opendal::raw::tests::TEST_RUNTIME;
-use opendal::raw::tests::init_test_service;
+use opendal::tests::ReadAction;
+use opendal::tests::ReadChecker;
+use opendal::tests::TEST_RUNTIME;
+use opendal::tests::init_test_service;
 
 const MAX_DATA_SIZE: usize = 16 * 1024 * 1024;
 

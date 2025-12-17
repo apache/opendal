@@ -110,6 +110,8 @@ pub mod services {
     pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-surrealdb")]
     pub use opendal_service_surrealdb::*;
+    #[cfg(feature = "services-swift")]
+    pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-upyun")]

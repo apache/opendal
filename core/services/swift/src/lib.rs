@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for swift service.
-pub const SWIFT_SCHEME: &str = "swift";
+//! Swift service implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
@@ -30,6 +32,9 @@ mod writer;
 
 pub use backend::SwiftBuilder as Swift;
 pub use config::SwiftConfig;
+
+/// Default scheme for swift service.
+pub const SWIFT_SCHEME: &str = "swift";
 
 #[ctor::ctor]
 fn register_swift_service() {

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,10 +50,10 @@ impl Debug for UpyunConfig {
     }
 }
 
-impl crate::Configurator for UpyunConfig {
+impl Configurator for UpyunConfig {
     type Builder = UpyunBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(name) = uri.name() {
@@ -74,18 +75,17 @@ impl crate::Configurator for UpyunConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_extracts_bucket_and_root() {
+    fn from_uri_extracts_bucket_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "upyun://example-bucket/path/to/root",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
-        let cfg = UpyunConfig::from_uri(&uri).unwrap();
+        )?;
+
+        let cfg = UpyunConfig::from_uri(&uri)?;
         assert_eq!(cfg.bucket, "example-bucket");
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+        Ok(())
     }
 }

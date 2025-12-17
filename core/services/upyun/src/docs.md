@@ -26,9 +26,9 @@ You can refer to [`UpyunBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Upyun;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_upyun::Upyun;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -17,11 +17,10 @@
 
 use bytes::Buf;
 use http::Response;
+use opendal_core::raw::*;
+use opendal_core::*;
 use quick_xml::de;
 use serde::Deserialize;
-
-use crate::raw::*;
-use crate::*;
 
 /// UpyunError is the error returned by upyun service.
 #[derive(Default, Debug, Deserialize)]

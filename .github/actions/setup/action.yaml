@@ -67,10 +67,10 @@ runs:
         PROTOC_ROOT="${RUNNER_TEMP}/protoc/${PROTOC_VERSION}"
 
         case "${RUNNER_OS}-${RUNNER_ARCH}" in
-          Linux-X64)
+          "Linux-X64")
             PROTOC_PLATFORM="linux-x86_64"
             ;;
-          Linux-ARM64)
+          "Linux-ARM64")
             PROTOC_PLATFORM="linux-aarch_64"
             ;;
           macOS-X64)

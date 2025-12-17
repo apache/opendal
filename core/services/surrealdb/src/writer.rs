@@ -18,25 +18,42 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::*;
 
-pub struct SurrealdbDeleter {
+pub struct SurrealdbWriter {
     core: Arc<SurrealdbCore>,
-    root: String,
+    path: String,
+    buffer: oio::QueueBuf,
 }
 
-impl SurrealdbDeleter {
-    pub fn new(core: Arc<SurrealdbCore>, root: String) -> Self {
-        Self { core, root }
+impl SurrealdbWriter {
+    pub fn new(core: Arc<SurrealdbCore>, path: String) -> Self {
+        Self {
+            core,
+            path,
+            buffer: oio::QueueBuf::new(),
+        }
     }
 }
 
-impl oio::OneShotDelete for SurrealdbDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p).await?;
+impl oio::Write for SurrealdbWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.buffer.push(bs);
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let buf = self.buffer.clone().collect();
+        let length = buf.len() as u64;
+        self.core.set(&self.path, buf).await?;
+
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        Ok(meta)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.buffer.clear();
         Ok(())
     }
 }

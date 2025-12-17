@@ -69,11 +69,6 @@ mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
 
-#[cfg(feature = "services-pcloud")]
-mod pcloud;
-#[cfg(feature = "services-pcloud")]
-pub use pcloud::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

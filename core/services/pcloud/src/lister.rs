@@ -19,12 +19,11 @@ use std::sync::Arc;
 
 use bytes::Buf;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::oio::Entry;
-use crate::raw::*;
-use crate::*;
 
 pub struct PcloudLister {
     core: Arc<PcloudCore>,
@@ -76,7 +75,7 @@ impl oio::PageList for PcloudLister {
                             let md = parse_list_metadata(content)?;
                             let path = build_rel_path(&self.core.root, &path);
 
-                            ctx.entries.push_back(Entry::new(&path, md))
+                            ctx.entries.push_back(oio::Entry::new(&path, md))
                         }
                     }
 

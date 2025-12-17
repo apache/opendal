@@ -5583,6 +5583,7 @@ dependencies = [
  "opendal-service-obs",
  "opendal-service-opfs",
  "opendal-service-oss",
+ "opendal-service-pcloud",
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
@@ -6345,6 +6346,20 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-pcloud"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

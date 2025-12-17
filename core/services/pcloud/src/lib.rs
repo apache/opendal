@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for pcloud service.
-pub const PCLOUD_SCHEME: &str = "pcloud";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+//! pCloud service implementation for Apache OpenDAL.
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +30,10 @@ mod writer;
 pub use backend::PcloudBuilder as Pcloud;
 pub use config::PcloudConfig;
 
+/// Default scheme for pcloud service.
+pub const PCLOUD_SCHEME: &str = "pcloud";
+
 #[ctor::ctor]
 fn register_pcloud_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Pcloud>(PCLOUD_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Pcloud>(PCLOUD_SCHEME);
 }

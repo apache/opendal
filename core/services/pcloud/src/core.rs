@@ -23,12 +23,12 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
 
 use super::error::PcloudError;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
 
 #[derive(Clone)]
 pub struct PcloudCore {

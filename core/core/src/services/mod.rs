@@ -19,36 +19,6 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-cacache")]
-mod cacache;
-#[cfg(feature = "services-cacache")]
-pub use self::cacache::*;
-
-#[cfg(feature = "services-compfs")]
-mod compfs;
-#[cfg(feature = "services-compfs")]
-pub use compfs::*;
-
-#[cfg(feature = "services-dbfs")]
-mod dbfs;
-#[cfg(feature = "services-dbfs")]
-pub use self::dbfs::*;
-
-#[cfg(feature = "services-dropbox")]
-mod dropbox;
-#[cfg(feature = "services-dropbox")]
-pub use dropbox::*;
-
-#[cfg(feature = "services-etcd")]
-mod etcd;
-#[cfg(feature = "services-etcd")]
-pub use self::etcd::*;
-
-#[cfg(feature = "services-foundationdb")]
-mod foundationdb;
-#[cfg(feature = "services-foundationdb")]
-pub use self::foundationdb::*;
-
 #[cfg(feature = "services-gdrive")]
 mod gdrive;
 #[cfg(feature = "services-gdrive")]
@@ -69,20 +39,10 @@ mod http;
 #[cfg(feature = "services-http")]
 pub use self::http::*;
 
-#[cfg(feature = "services-huggingface")]
-mod huggingface;
-#[cfg(feature = "services-huggingface")]
-pub use huggingface::*;
-
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::*;
-
-#[cfg(feature = "services-koofr")]
-mod koofr;
-#[cfg(feature = "services-koofr")]
-pub use koofr::*;
 
 #[cfg(feature = "services-lakefs")]
 mod lakefs;
@@ -109,16 +69,6 @@ mod onedrive;
 #[cfg(feature = "services-onedrive")]
 pub use onedrive::*;
 
-#[cfg(feature = "services-pcloud")]
-mod pcloud;
-#[cfg(feature = "services-pcloud")]
-pub use pcloud::*;
-
-#[cfg(feature = "services-redb")]
-mod redb;
-#[cfg(feature = "services-redb")]
-pub use self::redb::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
@@ -139,20 +89,10 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-surrealdb")]
-mod surrealdb;
-#[cfg(feature = "services-surrealdb")]
-pub use surrealdb::*;
-
 #[cfg(feature = "services-swift")]
 mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::*;
-
-#[cfg(feature = "services-upyun")]
-mod upyun;
-#[cfg(feature = "services-upyun")]
-pub use upyun::*;
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;
@@ -173,8 +113,3 @@ pub use webhdfs::*;
 mod yandex_disk;
 #[cfg(feature = "services-yandex-disk")]
 pub use yandex_disk::*;
-
-#[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
-mod opfs;
-#[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
-pub use opfs::*;

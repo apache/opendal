@@ -5679,7 +5679,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "size",
- "surrealdb",
  "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",

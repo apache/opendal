@@ -84,12 +84,6 @@ mod seafile;
 #[cfg(feature = "services-seafile")]
 pub use seafile::*;
 
-#[cfg(feature = "services-surrealdb")]
-mod surrealdb;
-#[cfg(feature = "services-surrealdb")]
-pub use surrealdb::*;
-
-
 #[cfg(feature = "services-swift")]
 mod swift;
 #[cfg(feature = "services-swift")]

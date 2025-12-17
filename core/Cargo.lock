@@ -5557,18 +5557,25 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-b2",
+ "opendal-service-cacache",
  "opendal-service-cloudflare-kv",
  "opendal-service-compfs",
  "opendal-service-cos",
  "opendal-service-d1",
  "opendal-service-dashmap",
+ "opendal-service-dbfs",
+ "opendal-service-dropbox",
+ "opendal-service-etcd",
+ "opendal-service-foundationdb",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
  "opendal-service-ghac",
  "opendal-service-github",
  "opendal-service-hdfs-native",
+ "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-koofr",
  "opendal-service-lakefs",
  "opendal-service-memcached",
  "opendal-service-mini-moka",
@@ -5577,12 +5584,14 @@ dependencies = [
  "opendal-service-obs",
  "opendal-service-opfs",
  "opendal-service-oss",
+ "opendal-service-pcloud",
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
  "opendal-service-s3",
  "opendal-service-sled",
  "opendal-service-sqlite",
+ "opendal-service-surrealdb",
  "opendal-service-tikv",
  "opendal-service-vercel-blob",
  "opendal-testkit",
@@ -5634,14 +5643,11 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "cacache",
  "criterion",
  "ctor",
  "divan",
- "etcd-client",
  "fastpool",
  "flume",
- "foundationdb",
  "futures",
  "getrandom 0.2.16",
  "hdfs-native",
@@ -5675,7 +5681,6 @@ dependencies = [
  "sha1",
  "sha2",
  "size",
- "surrealdb",
  "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -5974,6 +5979,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-cacache"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "cacache",
+ "ctor",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
@@ -6036,6 +6054,63 @@ version = "0.55.0"
 dependencies = [
  "ctor",
  "dashmap 6.1.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-dbfs"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-dropbox"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-etcd"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "etcd-client",
+ "fastpool",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-foundationdb"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "foundationdb",
  "log",
  "opendal-core",
  "serde",
@@ -6141,6 +6216,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-huggingface"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "opendal-service-ipfs"
 version = "0.55.0"
 dependencies = [
@@ -6152,6 +6241,20 @@ dependencies = [
  "prost 0.13.5",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-koofr"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6261,6 +6364,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-pcloud"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-persy"
 version = "0.55.0"
 dependencies = [
@@ -6336,6 +6453,17 @@ dependencies = [
  "serde",
  "sqlx",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-surrealdb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "surrealdb",
 ]
 
 [[package]]

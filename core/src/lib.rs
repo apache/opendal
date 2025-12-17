@@ -42,6 +42,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-b2")]
     pub use opendal_service_b2::*;
+    #[cfg(feature = "services-cacache")]
+    pub use opendal_service_cacache::*;
     #[cfg(feature = "services-cloudflare-kv")]
     pub use opendal_service_cloudflare_kv::*;
     #[cfg(feature = "services-compfs")]
@@ -52,6 +54,14 @@ pub mod services {
     pub use opendal_service_d1::*;
     #[cfg(feature = "services-dashmap")]
     pub use opendal_service_dashmap::*;
+    #[cfg(feature = "services-dbfs")]
+    pub use opendal_service_dbfs::*;
+    #[cfg(feature = "services-dropbox")]
+    pub use opendal_service_dropbox::*;
+    #[cfg(feature = "services-etcd")]
+    pub use opendal_service_etcd::*;
+    #[cfg(feature = "services-foundationdb")]
+    pub use opendal_service_foundationdb::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
@@ -64,6 +74,12 @@ pub mod services {
     pub use opendal_service_github::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-huggingface")]
+    pub use opendal_service_huggingface::*;
+    #[cfg(feature = "services-ipfs")]
+    pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-koofr")]
+    pub use opendal_service_koofr::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]
@@ -76,8 +92,12 @@ pub mod services {
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
     pub use opendal_service_obs::*;
+    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
+    pub use opendal_service_opfs::*;
     #[cfg(feature = "services-oss")]
     pub use opendal_service_oss::*;
+    #[cfg(feature = "services-pcloud")]
+    pub use opendal_service_pcloud::*;
     #[cfg(feature = "services-persy")]
     pub use opendal_service_persy::*;
     #[cfg(feature = "services-postgresql")]
@@ -90,6 +110,8 @@ pub mod services {
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]
     pub use opendal_service_sqlite::*;
+    #[cfg(feature = "services-surrealdb")]
+    pub use opendal_service_surrealdb::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-vercel-blob")]

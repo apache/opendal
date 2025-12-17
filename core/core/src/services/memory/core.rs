@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -53,6 +54,20 @@ impl MemoryCore {
 
     pub fn set(&self, key: &str, value: MemoryValue) -> Result<()> {
         self.data.lock().unwrap().insert(key.to_string(), value);
+        Ok(())
+    }
+
+    pub fn set_if_not_exists(&self, key: &str, value: MemoryValue) -> Result<()> {
+        let mut data = self.data.lock().unwrap();
+        match data.entry(key.to_string()) {
+            Entry::Vacant(entry) => entry.insert(value),
+            Entry::Occupied(_) => {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "key already exists",
+                ));
+            }
+        };
         Ok(())
     }
 

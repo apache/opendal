@@ -43,3 +43,7 @@ compio = { version = "0.16.0", features = [
 ] }
 ctor = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+bytes = { workspace = true }
+rand = { workspace = true }

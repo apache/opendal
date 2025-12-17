@@ -6005,9 +6005,11 @@ dependencies = [
 name = "opendal-service-compfs"
 version = "0.55.0"
 dependencies = [
+ "bytes",
  "compio",
  "ctor",
  "opendal-core",
+ "rand 0.8.5",
  "serde",
 ]
 

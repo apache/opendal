@@ -5664,8 +5664,6 @@ dependencies = [
  "mongodb",
  "mongodb-internal-macros",
  "monoio",
- "openssh",
- "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
  "probe",
@@ -5681,6 +5679,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "size",
+ "surrealdb",
  "tokio",
  "tracing-opentelemetry",
  "tracing-subscriber",
@@ -6423,6 +6422,7 @@ dependencies = [
 name = "opendal-service-sftp"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
  "bytes",
  "ctor",
  "fastpool",

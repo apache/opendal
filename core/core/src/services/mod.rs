@@ -89,10 +89,6 @@ mod surrealdb;
 #[cfg(feature = "services-surrealdb")]
 pub use surrealdb::*;
 
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::*;
 
 #[cfg(feature = "services-swift")]
 mod swift;

@@ -35,8 +35,8 @@ use super::error::parse_error;
 use super::lister::KoofrLister;
 use super::writer::KoofrWriter;
 use super::writer::KoofrWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [Koofr](https://app.koofr.net/) services support.
 #[doc = include_str!("docs.md")]

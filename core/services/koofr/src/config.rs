@@ -49,13 +49,13 @@ impl Debug for KoofrConfig {
     }
 }
 
-impl crate::Configurator for KoofrConfig {
+impl opendal_core::Configurator for KoofrConfig {
     type Builder = KoofrBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let raw_path = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "uri path must contain email",
             )
             .with_context("service", KOOFR_SCHEME)
@@ -63,8 +63,8 @@ impl crate::Configurator for KoofrConfig {
 
         let mut segments = raw_path.splitn(2, '/');
         let email = segments.next().filter(|s| !s.is_empty()).ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
                 "email is required in uri path",
             )
             .with_context("service", KOOFR_SCHEME)
@@ -93,8 +93,8 @@ impl crate::Configurator for KoofrConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::types::OperatorUri;
 
     #[test]
     fn from_uri_sets_endpoint_email_and_root() {

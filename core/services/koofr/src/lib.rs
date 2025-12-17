@@ -18,7 +18,7 @@
 /// Default scheme for koofr service.
 pub const KOOFR_SCHEME: &str = "koofr";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

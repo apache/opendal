@@ -18,15 +18,12 @@
 use std::sync::Arc;
 
 use bytes::Buf;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::ListObjectsResponse;
 use super::core::UpyunCore;
 use super::error::parse_error;
-use crate::EntryMode;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::oio::Entry;
-use crate::raw::*;
 
 pub struct UpyunLister {
     core: Arc<UpyunCore>,
@@ -84,13 +81,13 @@ impl oio::PageList for UpyunLister {
 
             let entry = if file.type_field == "folder" {
                 let path = format!("{path}/");
-                Entry::new(&path, Metadata::new(EntryMode::DIR))
+                oio::Entry::new(&path, Metadata::new(EntryMode::DIR))
             } else {
                 let m = Metadata::new(EntryMode::FILE)
                     .with_content_length(file.length)
                     .with_content_type(file.type_field)
                     .with_last_modified(Timestamp::from_second(file.last_modified)?);
-                Entry::new(&path, m)
+                oio::Entry::new(&path, m)
             };
 
             ctx.entries.push_back(entry);

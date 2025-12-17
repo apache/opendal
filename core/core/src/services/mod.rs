@@ -94,11 +94,6 @@ mod swift;
 #[cfg(feature = "services-swift")]
 pub use self::swift::*;
 
-#[cfg(feature = "services-upyun")]
-mod upyun;
-#[cfg(feature = "services-upyun")]
-pub use upyun::*;
-
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]

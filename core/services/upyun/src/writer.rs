@@ -18,12 +18,12 @@
 use std::sync::Arc;
 
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::UpyunCore;
 use super::core::constants::X_UPYUN_MULTI_UUID;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
 
 pub type UpyunWriters = oio::MultipartWriter<UpyunWriter>;
 

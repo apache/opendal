@@ -21,6 +21,8 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::UPYUN_SCHEME;
 use super::config::UpyunConfig;
@@ -30,8 +32,6 @@ use super::error::parse_error;
 use super::lister::UpyunLister;
 use super::writer::UpyunWriter;
 use super::writer::UpyunWriters;
-use crate::raw::*;
-use crate::*;
 
 /// [upyun](https://www.upyun.com/products/file-storage) services support.
 #[doc = include_str!("docs.md")]

@@ -5639,7 +5639,6 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "compio",
  "criterion",
  "ctor",
  "divan",

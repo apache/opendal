@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for upyun service.
-pub const UPYUN_SCHEME: &str = "upyun";
+//! Upyun service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +31,10 @@ mod writer;
 pub use backend::UpyunBuilder as Upyun;
 pub use config::UpyunConfig;
 
+/// Default scheme for upyun service.
+pub const UPYUN_SCHEME: &str = "upyun";
+
 #[ctor::ctor]
 fn register_upyun_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Upyun>(UPYUN_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Upyun>(UPYUN_SCHEME);
 }

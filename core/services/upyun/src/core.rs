@@ -26,12 +26,12 @@ use http::Request;
 use http::Response;
 use http::header;
 use md5::Digest;
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
 use sha1::Sha1;
 
 use self::constants::*;
-use crate::raw::*;
-use crate::*;
 
 pub(super) mod constants {
     pub const X_UPYUN_FILE_TYPE: &str = "x-upyun-file-type";

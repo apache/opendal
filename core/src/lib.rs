@@ -96,6 +96,8 @@ pub mod services {
     pub use opendal_service_surrealdb::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-upyun")]
+    pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
 }

@@ -57,7 +57,7 @@ pub mod services {
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
     pub use opendal_service_obs::*;
-    #[cfg(feature = "services-opfs")]
+    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
     pub use opendal_service_opfs::*;
     #[cfg(feature = "services-oss")]
     pub use opendal_service_oss::*;

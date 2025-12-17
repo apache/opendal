@@ -5558,11 +5558,16 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-b2",
+ "opendal-service-cacache",
  "opendal-service-cloudflare-kv",
  "opendal-service-compfs",
  "opendal-service-cos",
  "opendal-service-d1",
  "opendal-service-dashmap",
+ "opendal-service-dbfs",
+ "opendal-service-dropbox",
+ "opendal-service-etcd",
+ "opendal-service-foundationdb",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
@@ -5635,14 +5640,12 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "cacache",
+ "compio",
  "criterion",
  "ctor",
  "divan",
- "etcd-client",
  "fastpool",
  "flume",
- "foundationdb",
  "futures",
  "getrandom 0.2.16",
  "hdfs-native",
@@ -5982,6 +5985,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-cacache"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "cacache",
+ "ctor",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
@@ -6044,6 +6060,63 @@ version = "0.55.0"
 dependencies = [
  "ctor",
  "dashmap 6.1.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-dbfs"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-dropbox"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-etcd"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "etcd-client",
+ "fastpool",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-foundationdb"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "foundationdb",
  "log",
  "opendal-core",
  "serde",

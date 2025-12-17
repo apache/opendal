@@ -107,16 +107,16 @@ services-azblob = ["dep:opendal-service-azblob"]
 services-azdls = ["dep:opendal-service-azdls"]
 services-azfile = ["dep:opendal-service-azfile"]
 services-b2 = ["dep:opendal-service-b2"]
-services-cacache = ["opendal-core/services-cacache"]
+services-cacache = ["dep:opendal-service-cacache"]
 services-cloudflare-kv = ["dep:opendal-service-cloudflare-kv"]
 services-compfs = ["dep:opendal-service-compfs"]
 services-cos = ["dep:opendal-service-cos"]
 services-d1 = ["dep:opendal-service-d1"]
 services-dashmap = ["dep:opendal-service-dashmap"]
-services-dbfs = ["opendal-core/services-dbfs"]
-services-dropbox = ["opendal-core/services-dropbox"]
-services-etcd = ["opendal-core/services-etcd"]
-services-foundationdb = ["opendal-core/services-foundationdb"]
+services-dbfs = ["dep:opendal-service-dbfs"]
+services-dropbox = ["dep:opendal-service-dropbox"]
+services-etcd = ["dep:opendal-service-etcd"]
+services-foundationdb = ["dep:opendal-service-foundationdb"]
 services-fs = ["dep:opendal-service-fs"]
 services-ftp = ["dep:opendal-service-ftp"]
 services-gcs = ["dep:opendal-service-gcs"]
@@ -210,11 +210,16 @@ opendal-service-azblob = { path = "services/azblob", version = "0.55.0", optiona
 opendal-service-azdls = { path = "services/azdls", version = "0.55.0", optional = true, default-features = false }
 opendal-service-azfile = { path = "services/azfile", version = "0.55.0", optional = true, default-features = false }
 opendal-service-b2 = { path = "services/b2", version = "0.55.0", optional = true, default-features = false }
+opendal-service-cacache = { path = "services/cacache", version = "0.55.0", optional = true, default-features = false }
 opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-compfs = { path = "services/compfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-cos = { path = "services/cos", version = "0.55.0", optional = true, default-features = false }
 opendal-service-d1 = { path = "services/d1", version = "0.55.0", optional = true, default-features = false }
 opendal-service-dashmap = { path = "services/dashmap", version = "0.55.0", optional = true, default-features = false }
+opendal-service-dbfs = { path = "services/dbfs", version = "0.55.0", optional = true, default-features = false }
+opendal-service-dropbox = { path = "services/dropbox", version = "0.55.0", optional = true, default-features = false }
+opendal-service-etcd = { path = "services/etcd", version = "0.55.0", optional = true, default-features = false }
+opendal-service-foundationdb = { path = "services/foundationdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-fs = { path = "services/fs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ftp = { path = "services/ftp", version = "0.55.0", optional = true, default-features = false }
 opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = true, default-features = false }

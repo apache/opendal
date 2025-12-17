@@ -59,11 +59,6 @@ layers-dtrace = ["dep:probe"]
 # Enable layers chaos support
 layers-chaos = ["dep:rand"]
 
-services-cacache = ["dep:cacache"]
-services-dbfs = []
-services-dropbox = []
-services-etcd = ["dep:etcd-client", "dep:fastpool"]
-services-foundationdb = ["dep:foundationdb"]
 services-gdrive = ["internal-path-cache"]
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
@@ -133,19 +128,6 @@ sha2 = { workspace = true, optional = true }
 # For http based services.
 reqsign = { workspace = true, default-features = false, optional = true }
 
-# for self-referencing structs
-# for services-cacache
-cacache = { version = "13.0", default-features = false, features = [
-  "tokio-runtime",
-  "mmap",
-], optional = true }
-# for services-etcd
-etcd-client = { version = "0.17", optional = true, features = ["tls"] }
-# for services-foundationdb
-foundationdb = { version = "0.9.0", features = [
-  "embedded-fdb-include",
-  "fdb-7_3",
-], optional = true }
 # for services-hdfs
 hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
 # for services-upyun

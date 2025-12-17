@@ -58,10 +58,11 @@ impl opendal_core::Configurator for SwiftConfig {
             map.entry("endpoint".to_string())
                 .or_insert_with(|| format!("https://{authority}"));
         } else if !map.contains_key("endpoint") {
-            return Err(
-                opendal_core::Error::new(opendal_core::ErrorKind::ConfigInvalid, "endpoint is required")
-                    .with_context("service", SWIFT_SCHEME),
-            );
+            return Err(opendal_core::Error::new(
+                opendal_core::ErrorKind::ConfigInvalid,
+                "endpoint is required",
+            )
+            .with_context("service", SWIFT_SCHEME));
         }
 
         if let Some(path) = uri.root() {

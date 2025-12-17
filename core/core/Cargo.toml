@@ -1,0 +1,181 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[package]
+categories = ["filesystem"]
+description = "Apache OpenDAL™: One Layer, All Storage."
+exclude = ["/tests/"]
+keywords = ["storage", "fs", "s3", "azblob", "gcs"]
+name = "opendal-core"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[lints.clippy]
+unused_async = "warn"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[features]
+default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+
+# Enable reqwest rustls tls support.
+reqwest-rustls-tls = ["reqwest/rustls-tls"]
+
+# Enable opendal's blocking support.
+blocking = ["internal-tokio-rt"]
+
+# Enable path cache.
+# This is an internal feature, and should not be used by users.
+internal-path-cache = ["dep:moka"]
+# Enable tokio runtime.
+internal-tokio-rt = ["tokio/rt-multi-thread"]
+
+# Enable tokio executors support.
+executors-tokio = ["tokio/rt"]
+
+# Enable dtrace support.
+layers-dtrace = ["dep:probe"]
+
+services-gdrive = ["internal-path-cache"]
+services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
+services-hdfs = ["dep:hdrs"]
+services-http = []
+services-ipmfs = []
+services-lakefs = []
+services-memory = []
+services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
+services-monoiofs = ["dep:monoio", "dep:flume"]
+services-onedrive = []
+services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
+services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
+services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
+services-seafile = []
+services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
+services-swift = []
+services-vercel-artifacts = []
+services-webdav = []
+services-webhdfs = []
+services-yandex-disk = []
+
+[lib]
+bench = false
+doctest = false
+
+[dependencies]
+# Required dependencies
+anyhow = { version = "1.0.100", features = ["std"] }
+backon = { version = "1.6", features = ["tokio-sleep"] }
+base64 = { workspace = true }
+bytes = { workspace = true }
+ctor = { workspace = true }
+futures = { workspace = true, default-features = false, features = [
+  "std",
+  "async-await",
+] }
+http = { workspace = true }
+http-body = "1"
+jiff = { version = "0.2.15", features = ["serde"] }
+log = { workspace = true }
+md-5 = "0.10"
+mea = { version = "0.5.1" }
+percent-encoding = "2"
+quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
+reqwest = { version = "0.12.24", features = [
+  "stream",
+], default-features = false }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "io-util"] }
+url = "2.5"
+uuid = { workspace = true, features = ["serde", "v4"] }
+
+# Optional dependencies
+
+# Services
+# general dependencies.
+fastpool = { version = "1.0.2", optional = true }
+prost = { version = "0.13", optional = true }
+sha2 = { workspace = true, optional = true }
+
+# For http based services.
+reqsign = { workspace = true, default-features = false, optional = true }
+
+# for services-hdfs
+hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
+# for services-moka
+moka = { version = "0.12", optional = true, features = ["future", "sync"] }
+# for services-mongodb
+mongodb = { version = "3.3.0", optional = true }
+mongodb-internal-macros = { version = "3.2.4", optional = true }
+# for services-sftp
+openssh = { version = "0.11.0", optional = true }
+openssh-sftp-client = { version = "0.15.3", optional = true, features = [
+  "openssh",
+  "tracing",
+] }
+# for services-redis
+redis = { version = "1.0", features = [
+  "cluster-async",
+  "tokio-comp",
+  "connection-manager",
+], optional = true }
+# for services-rocksdb
+rocksdb = { version = "0.21.0", default-features = false, optional = true }
+# for services-hdfs-native
+hdfs-native = { version = "0.13", optional = true }
+# for services-monoiofs
+flume = { version = "0.11", optional = true }
+monoio = { version = "0.2.4", optional = true, features = [
+  "sync",
+  "mkdirat",
+  "unlinkat",
+  "renameat",
+] }
+
+# Layers
+# for layers-dtrace
+probe = { version = "0.5.1", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+backon = { version = "1.6", features = ["gloo-timers-sleep"] }
+getrandom = { version = "0.2", features = ["js"] }
+jiff = { version = "0.2.15", features = ["serde", "js"] }
+tokio = { workspace = true, features = ["time"] }
+uuid = { workspace = true, features = ["serde", "v4", "js"] }
+web-time = { version = "1.1.0" }
+
+[dev-dependencies]
+criterion = { version = "0.7", features = ["async", "async_tokio"] }
+divan = { version = "0.1" }
+libtest-mimic = "0.8"
+pretty_assertions = "1"
+rand = { workspace = true }
+sha2 = { workspace = true }
+size = "0.5"
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.32.0"
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }

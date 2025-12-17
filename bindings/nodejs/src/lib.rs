@@ -21,7 +21,6 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
-use std::str::FromStr;
 use std::time::Duration;
 
 use futures::AsyncReadExt;
@@ -51,12 +50,6 @@ impl Operator {
     /// Note that the current options key is snake_case.
     #[napi(constructor, async_runtime)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let scheme = opendal::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
         let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
@@ -523,7 +516,8 @@ impl Operator {
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
         self.async_op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map_err(format_napi_error)
     }
@@ -539,8 +533,15 @@ impl Operator {
     /// ```
     #[napi]
     pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        use opendal::options::DeleteOptions;
         self.blocking_op
-            .remove_all(&path)
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_napi_error)
     }
 

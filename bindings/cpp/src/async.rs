@@ -23,7 +23,6 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::ops::Deref;
 use std::pin::Pin;
-use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
@@ -148,8 +147,6 @@ fn get_lister_counter() -> &'static Mutex<usize> {
 }
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
-    let scheme = od::Scheme::from_str(scheme)?;
-
     let map: HashMap<String, String> = configs
         .into_iter()
         .map(|value| (value.key, value.value))

@@ -22,9 +22,8 @@ use std::sync::Arc;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use log::warn;
-
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add retry for temporary failed operations.
 ///
@@ -47,13 +46,13 @@ use crate::*;
 ///
 /// ```no_run
 /// # use std::time::Duration;
-///
-/// # use opendal_core::layers::RetryLayer;
-/// # use opendal_core::layers::TimeoutLayer;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_retry::RetryLayer;
+/// # use opendal_layer_timeout::TimeoutLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
@@ -62,23 +61,23 @@ use crate::*;
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
 ///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::RetryLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_retry::RetryLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(RetryLayer::new())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -89,14 +88,14 @@ use crate::*;
 ///
 /// ```no_run
 /// # use std::time::Duration;
-///
-/// # use opendal_core::layers::RetryInterceptor;
-/// # use opendal_core::layers::RetryLayer;
+/// #
 /// # use opendal_core::services;
 /// # use opendal_core::Error;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_retry::RetryInterceptor;
+/// # use opendal_layer_retry::RetryLayer;
+/// #
 /// struct MyRetryInterceptor;
 ///
 /// impl RetryInterceptor for MyRetryInterceptor {
@@ -109,7 +108,7 @@ use crate::*;
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(RetryLayer::new().with_notify(MyRetryInterceptor))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 pub struct RetryLayer<I: RetryInterceptor = DefaultRetryInterceptor> {
@@ -140,10 +139,9 @@ impl RetryLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// use anyhow::Result;
-    /// use opendal_core::layers::RetryLayer;
     /// use opendal_core::services;
     /// use opendal_core::Operator;
+    /// use opendal_layer_retry::RetryLayer;
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
@@ -158,9 +156,9 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     /// Set the retry interceptor as new notify.
     ///
     /// ```no_run
-    /// use opendal_core::layers::RetryLayer;
     /// use opendal_core::services;
     /// use opendal_core::Operator;
+    /// use opendal_layer_retry::RetryLayer;
     ///
     /// fn notify(_err: &opendal_core::Error, _dur: std::time::Duration) {}
     ///
@@ -614,16 +612,15 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::Mutex;
 
     use bytes::Bytes;
     use futures::TryStreamExt;
     use futures::stream;
+    use opendal_layer_logging::LoggingLayer;
     use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
-    use crate::layers::LoggingLayer;
 
     #[derive(Default, Clone)]
     struct MockBuilder {

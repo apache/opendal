@@ -6455,6 +6455,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

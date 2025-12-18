@@ -41,7 +41,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 
-
 [dev-dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }

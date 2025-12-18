@@ -32,10 +32,10 @@ OpenDAL supports the following authentication options:
 1. Provide a base64-ed JSON key string with `credential`
 2. Provide a JSON key file at explicit path with `credential_path`
 3. Provide a JSON key file at implicit path
-    - `GcsBackend` will attempt to load Service Account key from [ADC well-known places](https://cloud.google.com/docs/authentication/application-default-credentials).
+   - `GcsBackend` will attempt to load Service Account key from [ADC well-known places](https://cloud.google.com/docs/authentication/application-default-credentials).
 4. Fetch access token from [VM metadata](https://cloud.google.com/docs/authentication/rest#metadata-server)
-    - Only works when running inside Google Cloud.
-    - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
+   - Only works when running inside Google Cloud.
+   - If a non-default Service Account name is required, set with `service_account`. Otherwise, nothing need to be set.
 5. A custom `TokenLoader` via `GcsBuilder.customized_token_loader()`
 
 Notes:
@@ -49,9 +49,9 @@ Notes:
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Gcs;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_gcs::Gcs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

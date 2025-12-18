@@ -31,34 +31,26 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 backon = "1.6"
-base64 = { workspace = true }
 bytes = { workspace = true }
 ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2.3"
 quick-xml = { workspace = true, features = ["serialize"] }
 reqsign = { workspace = true, features = [
-  "services-google",
   "reqwest_request",
+  "services-google",
 ] }
-reqwest = { version = "0.12.24", features = [
+reqwest = { version = "0.12.24", default-features = false, features = [
   "json",
   "stream",
-], default-features = false }
+] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
-pretty_assertions = "1"
 serde_json = { workspace = true }
-tokio = { workspace = true, features = [
-  "macros",
-  "rt-multi-thread",
-  "io-util",
-] }
-tracing-subscriber = "0.3"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

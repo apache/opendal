@@ -32,11 +32,9 @@ Refer to [`HuggingfaceBuilder`]'s public API docs for more information.
 ### Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_core::services::Huggingface;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_huggingface::Huggingface;
 
 #[tokio::main]
 async fn main() -> Result<()> {

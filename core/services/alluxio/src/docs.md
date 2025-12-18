@@ -24,9 +24,9 @@ You can refer to [`AlluxioBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_alluxio::Alluxio;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_alluxio::Alluxio;
 
 #[tokio::main]
 async fn main() -> Result<()> {

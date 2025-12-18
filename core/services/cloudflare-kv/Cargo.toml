@@ -31,10 +31,9 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 bytes = { workspace = true }
 ctor = { workspace = true }
 http = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

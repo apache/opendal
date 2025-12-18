@@ -60,12 +60,10 @@ Refer to [`GhacBuilder`]'s public API docs for more information.
 
 ### Via Builder
 
-```no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_core::services::Ghac;
+```rust,no_run
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_ghac::Ghac;
 
 #[tokio::main]
 async fn main() -> Result<()> {

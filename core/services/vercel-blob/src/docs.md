@@ -24,8 +24,8 @@ You can refer to [`VercelBlobBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
 use opendal_core::Operator;
+use opendal_core::Result;
 use opendal_service_vercel_blob::VercelBlob;
 
 #[tokio::main]

@@ -31,16 +31,18 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-opendal-service-azblob = { path = "../azblob", version = "0.55.0", default-features = false }
-
 bytes = { workspace = true }
 ctor = { workspace = true }
 ghac = { version = "0.2.0", default-features = false }
 http = { workspace = true }
 log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-service-azblob = { path = "../azblob", version = "0.55.0", default-features = false }
 prost = { version = "0.13", default-features = false }
-reqsign = { workspace = true, default-features = false }
+reqsign = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

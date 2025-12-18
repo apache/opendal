@@ -74,6 +74,8 @@ pub mod services {
     pub use opendal_service_github::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-http")]
+    pub use opendal_service_http::*;
     #[cfg(feature = "services-huggingface")]
     pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
@@ -90,6 +92,8 @@ pub mod services {
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
     pub use opendal_service_obs::*;
+    #[cfg(feature = "services-onedrive")]
+    pub use opendal_service_onedrive::*;
     #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
     pub use opendal_service_opfs::*;
     #[cfg(feature = "services-oss")]
@@ -104,14 +108,20 @@ pub mod services {
     pub use opendal_service_redb::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
+    #[cfg(feature = "services-seafile")]
+    pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]
     pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-surrealdb")]
     pub use opendal_service_surrealdb::*;
+    #[cfg(feature = "services-swift")]
+    pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-upyun")]
+    pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
 }

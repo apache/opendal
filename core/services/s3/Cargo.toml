@@ -31,8 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 base64 = { workspace = true }
 bytes = { workspace = true }
 crc32c = "0.6.6"
@@ -40,22 +38,19 @@ ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 md-5 = "0.10"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-aws-v4 = { version = "2.0.1", default-features = false }
 reqsign-core = { version = "2.0.1", default-features = false }
 reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
 reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
-reqwest = { version = "0.12.24", features = [
+reqwest = { version = "0.12.24", default-features = false, features = [
   "stream",
-], default-features = false }
+] }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 pretty_assertions = "1"
 serde_json = { workspace = true }
-tokio = { workspace = true, features = [
-  "macros",
-  "rt-multi-thread",
-  "io-util",
-] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = "0.3"

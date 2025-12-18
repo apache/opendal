@@ -15,35 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+//! Swift service implementation for Apache OpenDAL.
 
-use http::StatusCode;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
-use super::core::*;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-pub struct SwfitDeleter {
-    core: Arc<SwiftCore>,
-}
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-impl SwfitDeleter {
-    pub fn new(core: Arc<SwiftCore>) -> Self {
-        Self { core }
-    }
-}
+pub use backend::SwiftBuilder as Swift;
+pub use config::SwiftConfig;
 
-impl oio::OneShotDelete for SwfitDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.swift_delete(&path).await?;
+/// Default scheme for swift service.
+pub const SWIFT_SCHEME: &str = "swift";
 
-        let status = resp.status();
-
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::OK => Ok(()),
-            StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
+#[ctor::ctor]
+fn register_swift_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Swift>(SWIFT_SCHEME);
 }

@@ -82,6 +82,8 @@ pub mod services {
     pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-koofr")]
     pub use opendal_service_koofr::*;
+    #[cfg(feature = "services-lakefs")]
+    pub use opendal_service_lakefs::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]
@@ -124,6 +126,8 @@ pub mod services {
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
+    #[cfg(feature = "services-yandex-disk")]
+    pub use opendal_service_yandex_disk::*;
 }
 
 /// Re-export of layers.
@@ -146,6 +150,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
+    #[cfg(feature = "layers-logging")]
+    pub use opendal_layer_logging::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]
@@ -158,10 +164,14 @@ pub mod layers {
     pub use opendal_layer_prometheus::*;
     #[cfg(feature = "layers-prometheus-client")]
     pub use opendal_layer_prometheus_client::*;
+    #[cfg(feature = "layers-retry")]
+    pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]
     pub use opendal_layer_throttle::*;
+    #[cfg(feature = "layers-timeout")]
+    pub use opendal_layer_timeout::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

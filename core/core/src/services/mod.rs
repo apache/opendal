@@ -39,11 +39,6 @@ mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
 pub use ipmfs::*;
 
-#[cfg(feature = "services-lakefs")]
-mod lakefs;
-#[cfg(feature = "services-lakefs")]
-pub use lakefs::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]
@@ -74,11 +69,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-vercel-artifacts")]
-mod vercel_artifacts;
-#[cfg(feature = "services-vercel-artifacts")]
-pub use vercel_artifacts::*;
-
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]
@@ -88,8 +78,3 @@ pub use webdav::*;
 mod webhdfs;
 #[cfg(feature = "services-webhdfs")]
 pub use webhdfs::*;
-
-#[cfg(feature = "services-yandex-disk")]
-mod yandex_disk;
-#[cfg(feature = "services-yandex-disk")]
-pub use yandex_disk::*;

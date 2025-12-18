@@ -16,9 +16,8 @@
 # under the License.
 
 [package]
-description = "Test harness and utilities for Apache OpenDAL"
-name = "opendal-testkit"
-publish = false
+description = "Apache OpenDAL Vercel Artifacts service implementation"
+name = "opendal-service-vercel-artifacts"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -32,13 +31,16 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
 bytes = { workspace = true }
-dotenvy = "0.15"
-opendal-core = { path = "../core", version = "0.55.0", default-features = false }
-opendal-layer-logging = { path = "../layers/logging", version = "0.55.0", default-features = false }
-opendal-layer-retry = { path = "../layers/retry", version = "0.55.0", default-features = false }
-opendal-layer-timeout = { path = "../layers/timeout", version = "0.55.0", default-features = false }
-rand = { workspace = true }
-sha2 = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
-uuid = { workspace = true }
+ctor = { workspace = true }
+http = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+anyhow = { version = "1.0.100", features = ["std"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }

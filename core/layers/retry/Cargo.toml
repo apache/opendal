@@ -16,9 +16,8 @@
 # under the License.
 
 [package]
-description = "Test harness and utilities for Apache OpenDAL"
-name = "opendal-testkit"
-publish = false
+description = "Apache OpenDAL retry layer"
+name = "opendal-layer-retry"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -32,13 +31,18 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+backon = { version = "1.6", features = ["tokio-sleep"] }
+log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
 bytes = { workspace = true }
-dotenvy = "0.15"
-opendal-core = { path = "../core", version = "0.55.0", default-features = false }
-opendal-layer-logging = { path = "../layers/logging", version = "0.55.0", default-features = false }
-opendal-layer-retry = { path = "../layers/retry", version = "0.55.0", default-features = false }
-opendal-layer-timeout = { path = "../layers/timeout", version = "0.55.0", default-features = false }
-rand = { workspace = true }
-sha2 = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread"] }
-uuid = { workspace = true }
+futures = { workspace = true, default-features = true }
+opendal-core = { path = "../../core", version = "0.55.0" }
+opendal-layer-logging = { path = "../logging", version = "0.55.0", default-features = false }
+opendal-layer-timeout = { path = "../timeout", version = "0.55.0", default-features = false }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }

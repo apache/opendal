@@ -58,7 +58,6 @@ services-gdrive = ["internal-path-cache"]
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
 services-ipmfs = []
-services-lakefs = []
 services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
@@ -69,7 +68,6 @@ services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
 services-vercel-artifacts = []
 services-webdav = []
 services-webhdfs = []
-services-yandex-disk = []
 
 [lib]
 bench = false
@@ -78,7 +76,6 @@ doctest = false
 [dependencies]
 # Required dependencies
 anyhow = { version = "1.0.100", features = ["std"] }
-backon = { version = "1.6", features = ["tokio-sleep"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
 ctor = { workspace = true }

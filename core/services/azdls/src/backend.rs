@@ -199,7 +199,7 @@ impl AzdlsBuilder {
     /// # Example
     /// ```
     /// use opendal_core::Builder;
-    /// use opendal_core::services::Azdls;
+    /// use opendal_service_azdls::Azdls;
     ///
     /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
     ///

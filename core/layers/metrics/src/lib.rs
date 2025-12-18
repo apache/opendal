@@ -37,11 +37,11 @@ use opendal_layer_observe_metrics_common as observe;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_metrics::MetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_metrics::MetricsLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(MetricsLayer::default())

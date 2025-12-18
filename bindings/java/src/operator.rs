@@ -283,9 +283,16 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll(
 }
 
 fn intern_remove_all(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<()> {
+    use opendal::options::DeleteOptions;
     let path = jstring_to_string(env, &path)?;
 
-    Ok(op.remove_all(&path)?)
+    Ok(op.delete_options(
+        &path,
+        DeleteOptions {
+            recursive: true,
+            ..Default::default()
+        },
+    )?)
 }
 
 /// # Safety

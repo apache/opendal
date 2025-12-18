@@ -31,7 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 http = { workspace = true }
-reqsign = { workspace = true, default-features = false }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+reqsign = { workspace = true }

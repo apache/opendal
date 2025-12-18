@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -66,16 +67,13 @@ impl Debug for LakefsConfig {
     }
 }
 
-impl crate::Configurator for LakefsConfig {
+impl Configurator for LakefsConfig {
     type Builder = LakefsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let raw_path = uri.root().ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
-                "uri path must contain repository",
-            )
-            .with_context("service", LAKEFS_SCHEME)
+            Error::new(ErrorKind::ConfigInvalid, "uri path must contain repository")
+                .with_context("service", LAKEFS_SCHEME)
         })?;
 
         let (repository, remainder) = match raw_path.split_once('/') {
@@ -89,8 +87,8 @@ impl crate::Configurator for LakefsConfig {
             Some(repository)
         }
         .ok_or_else(|| {
-            crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            Error::new(
+                ErrorKind::ConfigInvalid,
                 "repository is required in uri path",
             )
             .with_context("service", LAKEFS_SCHEME)
@@ -136,42 +134,40 @@ impl crate::Configurator for LakefsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_endpoint_repository_branch_and_root() {
+    fn from_uri_sets_endpoint_repository_branch_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "lakefs://api.example.com/sample/main/data/dir",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = LakefsConfig::from_uri(&uri).unwrap();
+        let cfg = LakefsConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("https://api.example.com"));
         assert_eq!(cfg.repository.as_deref(), Some("sample"));
         assert_eq!(cfg.branch.as_deref(), Some("main"));
         assert_eq!(cfg.root.as_deref(), Some("data/dir"));
+        Ok(())
     }
 
     #[test]
-    fn from_uri_requires_repository() {
-        let uri =
-            OperatorUri::new("lakefs://api.example.com", Vec::<(String, String)>::new()).unwrap();
+    fn from_uri_requires_repository() -> Result<()> {
+        let uri = OperatorUri::new("lakefs://api.example.com", Vec::<(String, String)>::new())?;
 
         assert!(LakefsConfig::from_uri(&uri).is_err());
+        Ok(())
     }
 
     #[test]
-    fn from_uri_respects_branch_override_and_sets_root() {
+    fn from_uri_respects_branch_override_and_sets_root() -> Result<()> {
         let uri = OperatorUri::new(
             "lakefs://api.example.com/sample/content",
             vec![("branch".to_string(), "develop".to_string())],
-        )
-        .unwrap();
+        )?;
 
-        let cfg = LakefsConfig::from_uri(&uri).unwrap();
+        let cfg = LakefsConfig::from_uri(&uri)?;
         assert_eq!(cfg.branch.as_deref(), Some("develop"));
         assert_eq!(cfg.root.as_deref(), Some("content"));
+        Ok(())
     }
 }

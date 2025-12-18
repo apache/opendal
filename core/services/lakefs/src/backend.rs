@@ -21,6 +21,8 @@ use bytes::Buf;
 use http::Response;
 use http::StatusCode;
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::LAKEFS_SCHEME;
 use super::config::LakefsConfig;
@@ -30,8 +32,6 @@ use super::deleter::LakefsDeleter;
 use super::error::parse_error;
 use super::lister::LakefsLister;
 use super::writer::LakefsWriter;
-use crate::raw::*;
-use crate::*;
 
 /// [Lakefs](https://docs.lakefs.io/reference/api.html#/)'s API support.
 #[doc = include_str!("docs.md")]

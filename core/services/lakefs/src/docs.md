@@ -34,8 +34,8 @@ Refer to [`LakefsBuilder`]'s public API docs for more information.
 
 ```rust,no_run
 use opendal_core::Operator;
-use opendal_core::services::Lakefs;
-use anyhow::Result;
+use opendal_core::Result;
+use opendal_service_lakefs::Lakefs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

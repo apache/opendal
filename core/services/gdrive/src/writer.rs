@@ -62,6 +62,7 @@ impl oio::OneShotWrite for GdriveWriter {
         let status = resp.status();
         match status {
             StatusCode::OK | StatusCode::CREATED => {
+                // If we don't have the file id before, let's update the cache to avoid re-fetching.
                 if self.file_id.is_none() {
                     let bs = resp.into_body();
                     let file: GdriveFile =

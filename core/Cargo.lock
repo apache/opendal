@@ -5726,7 +5726,6 @@ version = "0.55.0"
 dependencies = [
  "async-backtrace",
  "opendal-core",
- "tokio",
 ]
 
 [[package]]
@@ -5736,7 +5735,6 @@ dependencies = [
  "await-tree",
  "futures",
  "opendal-core",
- "tokio",
 ]
 
 [[package]]
@@ -5753,7 +5751,6 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "rand 0.8.5",
- "tokio",
 ]
 
 [[package]]
@@ -5797,7 +5794,6 @@ dependencies = [
  "metrics",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
- "tokio",
 ]
 
 [[package]]
@@ -5826,7 +5822,6 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "opentelemetry",
- "tokio",
 ]
 
 [[package]]

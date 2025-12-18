@@ -22,6 +22,7 @@ import builtins
 import collections.abc
 import types
 import typing
+
 import typing_extensions
 
 @typing.final
@@ -31,6 +32,7 @@ class AsyncFile:
 
     Created by the `open` method of the `AsyncOperator` class.
     """
+
     @property
     def closed(self) -> collections.abc.Awaitable[builtins.bool]:
         r"""
@@ -42,7 +44,7 @@ class AsyncFile:
             An awaitable that returns True if this file is closed.
         """
     def read(
-        self, size: typing.Optional[builtins.int] = None
+        self, size: builtins.int | None = None
     ) -> collections.abc.Awaitable[builtins.bytes]:
         r"""
         Read at most `size` bytes from this file asynchronously.
@@ -162,6 +164,7 @@ class File:
 
     Created by the `open` method of the `Operator` class.
     """
+
     @property
     def closed(self) -> builtins.bool:
         r"""
@@ -172,7 +175,7 @@ class File:
         bool
             True if this file is closed.
         """
-    def read(self, size: typing.Optional[builtins.int] = None) -> builtins.bytes:
+    def read(self, size: builtins.int | None = None) -> builtins.bytes:
         r"""
         Read at most `size` bytes from this file.
 
@@ -193,7 +196,7 @@ class File:
         bytes
             The bytes read from this file.
         """
-    def readline(self, size: typing.Optional[builtins.int] = None) -> builtins.bytes:
+    def readline(self, size: builtins.int | None = None) -> builtins.bytes:
         r"""
         Read one line from this file.
 

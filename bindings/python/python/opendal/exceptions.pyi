@@ -21,78 +21,34 @@
 import builtins
 
 class AlreadyExists(builtins.Exception):
-    r"""
-    Already exists
-    """
-
-    ...
+    r"""Already exists."""
 
 class ConditionNotMatch(builtins.Exception):
-    r"""
-    Condition not match
-    """
-
-    ...
+    r"""Condition not match."""
 
 class ConfigInvalid(builtins.Exception):
-    r"""
-    Config is invalid
-    """
-
-    ...
+    r"""Config is invalid."""
 
 class Error(builtins.Exception):
-    r"""
-    OpenDAL Base Exception
-    """
-
-    ...
+    r"""OpenDAL Base Exception."""
 
 class IsADirectory(builtins.Exception):
-    r"""
-    Is a directory
-    """
-
-    ...
+    r"""Is a directory."""
 
 class IsSameFile(builtins.Exception):
-    r"""
-    Is same file
-    """
-
-    ...
+    r"""Is same file."""
 
 class NotADirectory(builtins.Exception):
-    r"""
-    Not a directory
-    """
-
-    ...
+    r"""Not a directory."""
 
 class NotFound(builtins.Exception):
-    r"""
-    Not found
-    """
-
-    ...
+    r"""Not found."""
 
 class PermissionDenied(builtins.Exception):
-    r"""
-    Permission denied
-    """
-
-    ...
+    r"""Permission denied."""
 
 class Unexpected(builtins.Exception):
-    r"""
-    Unexpected errors
-    """
-
-    ...
+    r"""Unexpected errors."""
 
 class Unsupported(builtins.Exception):
-    r"""
-    Unsupported operation
-    """
-
-    ...
+    r"""Unsupported operation."""

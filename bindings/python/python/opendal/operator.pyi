@@ -21,13 +21,15 @@
 import builtins
 import collections.abc
 import datetime
-import opendal.file
-import opendal.services
-import opendal.types
 import os
 import pathlib
 import typing
+
 import typing_extensions
+
+import opendal.file
+import opendal.services
+import opendal.types
 from opendal.capability import Capability
 from opendal.file import File
 from opendal.layers import Layer
@@ -40,10 +42,11 @@ class AsyncOperator:
 
     `AsyncOperator` is the entry point for all async APIs.
 
-    See also
+    See Also
     --------
     Operator
     """
+
     def layer(self, layer: Layer) -> AsyncOperator:
         r"""
         Add a new layer to the operator.
@@ -87,20 +90,20 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        version: typing.Optional[builtins.str] = None,
-        concurrent: typing.Optional[builtins.int] = None,
-        chunk: typing.Optional[builtins.int] = None,
-        gap: typing.Optional[builtins.int] = None,
-        offset: typing.Optional[builtins.int] = None,
-        prefetch: typing.Optional[builtins.int] = None,
-        size: typing.Optional[builtins.int] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
+        version: builtins.str | None = None,
+        concurrent: builtins.int | None = None,
+        chunk: builtins.int | None = None,
+        gap: builtins.int | None = None,
+        offset: builtins.int | None = None,
+        prefetch: builtins.int | None = None,
+        size: builtins.int | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
         if_modified_since: datetime.datetime = None,
         if_unmodified_since: datetime.datetime = None,
-        content_type: typing.Optional[builtins.str] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> collections.abc.Awaitable[builtins.bytes]:
         r"""
         Read the entire contents of a file at the given path.
@@ -148,19 +151,17 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         bs: builtins.bytes,
         *,
-        append: typing.Optional[builtins.bool] = None,
-        chunk: typing.Optional[builtins.int] = None,
-        concurrent: typing.Optional[builtins.int] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_type: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
-        content_encoding: typing.Optional[builtins.str] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
-        if_not_exists: typing.Optional[builtins.bool] = None,
-        user_metadata: typing.Optional[
-            typing.Mapping[builtins.str, builtins.str]
-        ] = None,
+        append: builtins.bool | None = None,
+        chunk: builtins.int | None = None,
+        concurrent: builtins.int | None = None,
+        cache_control: builtins.str | None = None,
+        content_type: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+        content_encoding: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_not_exists: builtins.bool | None = None,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = None,
     ) -> collections.abc.Awaitable[None]:
         r"""
         Write bytes to a file at the given path.
@@ -206,14 +207,14 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        version: typing.Optional[builtins.str] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
         if_modified_since: datetime.datetime = None,
         if_unmodified_since: datetime.datetime = None,
-        content_type: typing.Optional[builtins.str] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> collections.abc.Awaitable[Metadata]:
         r"""
         Get the metadata of a file at the given path.
@@ -375,11 +376,11 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        limit: typing.Optional[builtins.int] = None,
-        start_after: typing.Optional[builtins.str] = None,
-        recursive: typing.Optional[builtins.bool] = None,
-        versions: typing.Optional[builtins.bool] = None,
-        deleted: typing.Optional[builtins.bool] = None,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
     ) -> collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]:
         r"""
         List entries in the given directory.
@@ -502,7 +503,6 @@ class AsyncOperator:
         Operator
             The blocking operator.
         """
-    def __repr__(self) -> builtins.str: ...
     @typing.overload
     def __new__(
         cls, scheme: builtins.str, /, **kwargs: builtins.str
@@ -510,7 +510,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
+        scheme: opendal.services.Scheme.Gdrive | typing.Literal["gdrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -534,6 +534,7 @@ class AsyncOperator:
             Refresh token for gdrive.
         root : builtins.str, optional
             The root for gdrive
+
         Returns
         -------
         AsyncOperator
@@ -542,7 +543,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
+        scheme: opendal.services.Scheme.Gridfs | typing.Literal["gridfs"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -570,6 +571,7 @@ class AsyncOperator:
         root : builtins.str, optional
             The working directory, all operations will be
             performed under it.
+
         Returns
         -------
         AsyncOperator
@@ -578,7 +580,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Http, typing.Literal["http"]],
+        scheme: opendal.services.Scheme.Http | typing.Literal["http"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -602,6 +604,7 @@ class AsyncOperator:
             token of this backend
         username : builtins.str, optional
             username of this backend
+
         Returns
         -------
         AsyncOperator
@@ -610,7 +613,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
+        scheme: opendal.services.Scheme.Ipmfs | typing.Literal["ipmfs"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -625,6 +628,7 @@ class AsyncOperator:
             Endpoint for ipfs.
         root : builtins.str, optional
             Root for ipfs.
+
         Returns
         -------
         AsyncOperator
@@ -633,7 +637,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Memory, typing.Literal["memory"]],
+        scheme: opendal.services.Scheme.Memory | typing.Literal["memory"],
         /,
         *,
         root: builtins.str = ...,
@@ -645,6 +649,7 @@ class AsyncOperator:
         ----------
         root : builtins.str, optional
             root of the backend.
+
         Returns
         -------
         AsyncOperator
@@ -653,9 +658,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]
-        ],
+        scheme: opendal.services.Scheme.Mongodb | typing.Literal["mongodb"],
         /,
         *,
         collection: builtins.str = ...,
@@ -682,6 +685,7 @@ class AsyncOperator:
             root of this backend
         value_field : builtins.str, optional
             value field of this backend
+
         Returns
         -------
         AsyncOperator
@@ -690,9 +694,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]
-        ],
+        scheme: opendal.services.Scheme.Onedrive | typing.Literal["onedrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -723,6 +725,7 @@ class AsyncOperator:
         root : builtins.str, optional
             The root path for the OneDrive service for the file
             access
+
         Returns
         -------
         AsyncOperator
@@ -731,7 +734,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
+        scheme: opendal.services.Scheme.Redis | typing.Literal["redis"],
         /,
         *,
         cluster_endpoints: builtins.str = ...,
@@ -777,6 +780,7 @@ class AsyncOperator:
         username : builtins.str, optional
             the username to connect redis service.
             default is None
+
         Returns
         -------
         AsyncOperator
@@ -785,9 +789,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Seafile, typing.Literal["seafile"]
-        ],
+        scheme: opendal.services.Scheme.Seafile | typing.Literal["seafile"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -813,6 +815,7 @@ class AsyncOperator:
             All operations will happen under this root.
         username : builtins.str, optional
             username of this backend.
+
         Returns
         -------
         AsyncOperator
@@ -821,7 +824,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Sftp, typing.Literal["sftp"]],
+        scheme: opendal.services.Scheme.Sftp | typing.Literal["sftp"],
         /,
         *,
         enable_copy: builtins.bool = ...,
@@ -848,6 +851,7 @@ class AsyncOperator:
             root of this backend
         user : builtins.str, optional
             user of this backend
+
         Returns
         -------
         AsyncOperator
@@ -856,7 +860,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
+        scheme: opendal.services.Scheme.Swift | typing.Literal["swift"],
         /,
         *,
         container: builtins.str = ...,
@@ -877,6 +881,7 @@ class AsyncOperator:
             The root for Swift.
         token : builtins.str, optional
             The token for Swift.
+
         Returns
         -------
         AsyncOperator
@@ -885,9 +890,8 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.VercelArtifacts, typing.Literal["vercel-artifacts"]
-        ],
+        scheme: opendal.services.Scheme.VercelArtifacts
+        | typing.Literal["vercel-artifacts"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -899,6 +903,7 @@ class AsyncOperator:
         ----------
         access_token : builtins.str, optional
             The access token for Vercel.
+
         Returns
         -------
         AsyncOperator
@@ -907,7 +912,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
+        scheme: opendal.services.Scheme.Webdav | typing.Literal["webdav"],
         /,
         *,
         disable_copy: builtins.bool = ...,
@@ -934,6 +939,7 @@ class AsyncOperator:
             token of this backend
         username : builtins.str, optional
             username of this backend
+
         Returns
         -------
         AsyncOperator
@@ -942,9 +948,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]
-        ],
+        scheme: opendal.services.Scheme.Webhdfs | typing.Literal["webhdfs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
@@ -971,6 +975,7 @@ class AsyncOperator:
             Root for webhdfs.
         user_name : builtins.str, optional
             Name of the user for webhdfs.
+
         Returns
         -------
         AsyncOperator
@@ -979,9 +984,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.YandexDisk, typing.Literal["yandex-disk"]
-        ],
+        scheme: opendal.services.Scheme.YandexDisk | typing.Literal["yandex-disk"],
         /,
         *,
         access_token: builtins.str,
@@ -997,6 +1000,7 @@ class AsyncOperator:
         root : builtins.str, optional
             root of this backend.
             All operations will happen under this root.
+
         Returns
         -------
         AsyncOperator
@@ -1010,10 +1014,11 @@ class Operator:
 
     `Operator` is the entry point for all blocking APIs.
 
-    See also
+    See Also
     --------
     AsyncOperator
     """
+
     def layer(self, layer: Layer) -> Operator:
         r"""
         Add a new layer to this operator.
@@ -1057,20 +1062,20 @@ class Operator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        version: typing.Optional[builtins.str] = None,
-        concurrent: typing.Optional[builtins.int] = None,
-        chunk: typing.Optional[builtins.int] = None,
-        gap: typing.Optional[builtins.int] = None,
-        offset: typing.Optional[builtins.int] = None,
-        prefetch: typing.Optional[builtins.int] = None,
-        size: typing.Optional[builtins.int] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
+        version: builtins.str | None = None,
+        concurrent: builtins.int | None = None,
+        chunk: builtins.int | None = None,
+        gap: builtins.int | None = None,
+        offset: builtins.int | None = None,
+        prefetch: builtins.int | None = None,
+        size: builtins.int | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
         if_modified_since: datetime.datetime = None,
         if_unmodified_since: datetime.datetime = None,
-        content_type: typing.Optional[builtins.str] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> builtins.bytes:
         r"""
         Read the entire contents of a file at the given path.
@@ -1118,19 +1123,17 @@ class Operator:
         path: builtins.str | os.PathLike | pathlib.Path,
         bs: builtins.bytes,
         *,
-        append: typing.Optional[builtins.bool] = None,
-        chunk: typing.Optional[builtins.int] = None,
-        concurrent: typing.Optional[builtins.int] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_type: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
-        content_encoding: typing.Optional[builtins.str] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
-        if_not_exists: typing.Optional[builtins.bool] = None,
-        user_metadata: typing.Optional[
-            typing.Mapping[builtins.str, builtins.str]
-        ] = None,
+        append: builtins.bool | None = None,
+        chunk: builtins.int | None = None,
+        concurrent: builtins.int | None = None,
+        cache_control: builtins.str | None = None,
+        content_type: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+        content_encoding: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_not_exists: builtins.bool | None = None,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = None,
     ) -> None:
         r"""
         Write bytes to a file at the given path.
@@ -1171,14 +1174,14 @@ class Operator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        version: typing.Optional[builtins.str] = None,
-        if_match: typing.Optional[builtins.str] = None,
-        if_none_match: typing.Optional[builtins.str] = None,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
         if_modified_since: datetime.datetime = None,
         if_unmodified_since: datetime.datetime = None,
-        content_type: typing.Optional[builtins.str] = None,
-        cache_control: typing.Optional[builtins.str] = None,
-        content_disposition: typing.Optional[builtins.str] = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> Metadata:
         r"""
         Get the metadata of a file at the given path.
@@ -1293,11 +1296,11 @@ class Operator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        limit: typing.Optional[builtins.int] = None,
-        start_after: typing.Optional[builtins.str] = None,
-        recursive: typing.Optional[builtins.bool] = None,
-        versions: typing.Optional[builtins.bool] = None,
-        deleted: typing.Optional[builtins.bool] = None,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
     ) -> collections.abc.Iterable[opendal.types.Entry]:
         r"""
         List entries in the given directory.
@@ -1326,10 +1329,10 @@ class Operator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         *,
-        limit: typing.Optional[builtins.int] = None,
-        start_after: typing.Optional[builtins.str] = None,
-        versions: typing.Optional[builtins.bool] = None,
-        deleted: typing.Optional[builtins.bool] = None,
+        limit: builtins.int | None = None,
+        start_after: builtins.str | None = None,
+        versions: builtins.bool | None = None,
+        deleted: builtins.bool | None = None,
     ) -> collections.abc.Iterable[opendal.types.Entry]:
         r"""
         Recursively list entries in the given directory.
@@ -1383,7 +1386,6 @@ class Operator:
         AsyncOperator
             The async operator.
         """
-    def __repr__(self) -> builtins.str: ...
     @typing.overload
     def __new__(
         cls, scheme: builtins.str, /, **kwargs: builtins.str
@@ -1391,7 +1393,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Gdrive, typing.Literal["gdrive"]],
+        scheme: opendal.services.Scheme.Gdrive | typing.Literal["gdrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -1415,6 +1417,7 @@ class Operator:
             Refresh token for gdrive.
         root : builtins.str, optional
             The root for gdrive
+
         Returns
         -------
         Operator
@@ -1423,7 +1426,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Gridfs, typing.Literal["gridfs"]],
+        scheme: opendal.services.Scheme.Gridfs | typing.Literal["gridfs"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -1451,6 +1454,7 @@ class Operator:
         root : builtins.str, optional
             The working directory, all operations will be
             performed under it.
+
         Returns
         -------
         Operator
@@ -1459,7 +1463,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Http, typing.Literal["http"]],
+        scheme: opendal.services.Scheme.Http | typing.Literal["http"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -1483,6 +1487,7 @@ class Operator:
             token of this backend
         username : builtins.str, optional
             username of this backend
+
         Returns
         -------
         Operator
@@ -1491,7 +1496,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Ipmfs, typing.Literal["ipmfs"]],
+        scheme: opendal.services.Scheme.Ipmfs | typing.Literal["ipmfs"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -1506,6 +1511,7 @@ class Operator:
             Endpoint for ipfs.
         root : builtins.str, optional
             Root for ipfs.
+
         Returns
         -------
         Operator
@@ -1514,7 +1520,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Memory, typing.Literal["memory"]],
+        scheme: opendal.services.Scheme.Memory | typing.Literal["memory"],
         /,
         *,
         root: builtins.str = ...,
@@ -1526,6 +1532,7 @@ class Operator:
         ----------
         root : builtins.str, optional
             root of the backend.
+
         Returns
         -------
         Operator
@@ -1534,9 +1541,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Mongodb, typing.Literal["mongodb"]
-        ],
+        scheme: opendal.services.Scheme.Mongodb | typing.Literal["mongodb"],
         /,
         *,
         collection: builtins.str = ...,
@@ -1563,6 +1568,7 @@ class Operator:
             root of this backend
         value_field : builtins.str, optional
             value field of this backend
+
         Returns
         -------
         Operator
@@ -1571,9 +1577,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Onedrive, typing.Literal["onedrive"]
-        ],
+        scheme: opendal.services.Scheme.Onedrive | typing.Literal["onedrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -1604,6 +1608,7 @@ class Operator:
         root : builtins.str, optional
             The root path for the OneDrive service for the file
             access
+
         Returns
         -------
         Operator
@@ -1612,7 +1617,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Redis, typing.Literal["redis"]],
+        scheme: opendal.services.Scheme.Redis | typing.Literal["redis"],
         /,
         *,
         cluster_endpoints: builtins.str = ...,
@@ -1658,6 +1663,7 @@ class Operator:
         username : builtins.str, optional
             the username to connect redis service.
             default is None
+
         Returns
         -------
         Operator
@@ -1666,9 +1672,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Seafile, typing.Literal["seafile"]
-        ],
+        scheme: opendal.services.Scheme.Seafile | typing.Literal["seafile"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -1694,6 +1698,7 @@ class Operator:
             All operations will happen under this root.
         username : builtins.str, optional
             username of this backend.
+
         Returns
         -------
         Operator
@@ -1702,7 +1707,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Sftp, typing.Literal["sftp"]],
+        scheme: opendal.services.Scheme.Sftp | typing.Literal["sftp"],
         /,
         *,
         enable_copy: builtins.bool = ...,
@@ -1729,6 +1734,7 @@ class Operator:
             root of this backend
         user : builtins.str, optional
             user of this backend
+
         Returns
         -------
         Operator
@@ -1737,7 +1743,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Swift, typing.Literal["swift"]],
+        scheme: opendal.services.Scheme.Swift | typing.Literal["swift"],
         /,
         *,
         container: builtins.str = ...,
@@ -1758,6 +1764,7 @@ class Operator:
             The root for Swift.
         token : builtins.str, optional
             The token for Swift.
+
         Returns
         -------
         Operator
@@ -1766,9 +1773,8 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.VercelArtifacts, typing.Literal["vercel-artifacts"]
-        ],
+        scheme: opendal.services.Scheme.VercelArtifacts
+        | typing.Literal["vercel-artifacts"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -1780,6 +1786,7 @@ class Operator:
         ----------
         access_token : builtins.str, optional
             The access token for Vercel.
+
         Returns
         -------
         Operator
@@ -1788,7 +1795,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[opendal.services.Scheme.Webdav, typing.Literal["webdav"]],
+        scheme: opendal.services.Scheme.Webdav | typing.Literal["webdav"],
         /,
         *,
         disable_copy: builtins.bool = ...,
@@ -1815,6 +1822,7 @@ class Operator:
             token of this backend
         username : builtins.str, optional
             username of this backend
+
         Returns
         -------
         Operator
@@ -1823,9 +1831,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.Webhdfs, typing.Literal["webhdfs"]
-        ],
+        scheme: opendal.services.Scheme.Webhdfs | typing.Literal["webhdfs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
@@ -1852,6 +1858,7 @@ class Operator:
             Root for webhdfs.
         user_name : builtins.str, optional
             Name of the user for webhdfs.
+
         Returns
         -------
         Operator
@@ -1860,9 +1867,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: typing.Union[
-            opendal.services.Scheme.YandexDisk, typing.Literal["yandex-disk"]
-        ],
+        scheme: opendal.services.Scheme.YandexDisk | typing.Literal["yandex-disk"],
         /,
         *,
         access_token: builtins.str,
@@ -1878,6 +1883,7 @@ class Operator:
         root : builtins.str, optional
             root of this backend.
             All operations will happen under this root.
+
         Returns
         -------
         Operator

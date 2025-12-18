@@ -158,10 +158,7 @@ services-yandex-disk = ["opendal/services-yandex-disk"]
 anyhow = { version = "1.0.100" }
 jni = { version = "0.21.1" }
 # this crate won't be published, we always use the local version
-opendal = { version = ">=0", path = "../../core", features = [
-  "blocking",
-  "layers-retry",
-] }
+opendal = { version = ">=0", path = "../../core", features = ["blocking"] }
 tokio = { version = "1.28.1", features = ["full"] }
 
 # This is not optimal. See also the Cargo issue:

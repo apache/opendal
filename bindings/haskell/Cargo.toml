@@ -35,8 +35,6 @@ log = { version = "0.4", features = ["std"] }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
-  "layers-logging",
-  "layers-retry",
   # These are default features before v0.46. TODO: change to optional features
   "services-azblob",
   "services-azdls",

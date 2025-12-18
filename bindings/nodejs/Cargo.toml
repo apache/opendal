@@ -160,9 +160,6 @@ napi-derive = "3.2.2"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
-  "layers-logging",
-  "layers-retry",
-  "layers-timeout",
   "layers-throttle",
 ] }
 tokio = "1"

@@ -79,7 +79,14 @@ all-features = true
 
 [features]
 blocking = ["opendal-core/blocking"]
-default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+default = [
+  "reqwest-rustls-tls",
+  "executors-tokio",
+  "layers-logging",
+  "layers-retry",
+  "layers-timeout",
+  "services-memory",
+]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]

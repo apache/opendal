@@ -34,11 +34,6 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-http")]
-mod http;
-#[cfg(feature = "services-http")]
-pub use self::http::*;
-
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]

@@ -5573,6 +5573,7 @@ dependencies = [
  "opendal-service-ghac",
  "opendal-service-github",
  "opendal-service-hdfs-native",
+ "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
  "opendal-service-koofr",
@@ -5581,6 +5582,7 @@ dependencies = [
  "opendal-service-moka",
  "opendal-service-mysql",
  "opendal-service-obs",
+ "opendal-service-onedrive",
  "opendal-service-opfs",
  "opendal-service-oss",
  "opendal-service-pcloud",
@@ -5588,9 +5590,11 @@ dependencies = [
  "opendal-service-postgresql",
  "opendal-service-redb",
  "opendal-service-s3",
+ "opendal-service-seafile",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
+ "opendal-service-swift",
  "opendal-service-tikv",
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
@@ -6199,6 +6203,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-http"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-huggingface"
 version = "0.55.0"
 dependencies = [
@@ -6306,6 +6323,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-onedrive"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "pretty_assertions",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "opendal-service-opfs"
 version = "0.55.0"
 dependencies = [
@@ -6408,6 +6444,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-seafile"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "opendal-service-sled"
 version = "0.55.0"
 dependencies = [
@@ -6439,6 +6489,23 @@ dependencies = [
  "opendal-core",
  "serde",
  "surrealdb",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-swift"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "pretty_assertions",
+ "quick-xml",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

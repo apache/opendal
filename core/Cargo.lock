@@ -5573,6 +5573,7 @@ dependencies = [
  "opendal-service-ghac",
  "opendal-service-github",
  "opendal-service-hdfs-native",
+ "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
  "opendal-service-koofr",
@@ -6213,6 +6214,19 @@ dependencies = [
  "log",
  "opendal-core",
  "serde",
+]
+
+[[package]]
+name = "opendal-service-http"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

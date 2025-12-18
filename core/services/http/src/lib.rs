@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for http service.
-pub const HTTP_SCHEME: &str = "http";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! HTTP service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -28,7 +27,10 @@ mod error;
 pub use backend::HttpBuilder as Http;
 pub use config::HttpConfig;
 
+/// Default scheme for http service.
+pub const HTTP_SCHEME: &str = "http";
+
 #[ctor::ctor]
 fn register_http_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
 }

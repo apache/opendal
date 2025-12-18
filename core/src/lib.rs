@@ -74,6 +74,8 @@ pub mod services {
     pub use opendal_service_github::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-http")]
+    pub use opendal_service_http::*;
     #[cfg(feature = "services-huggingface")]
     pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]

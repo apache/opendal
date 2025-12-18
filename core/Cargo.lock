@@ -5726,6 +5726,7 @@ version = "0.55.0"
 dependencies = [
  "async-backtrace",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
@@ -5735,6 +5736,7 @@ dependencies = [
  "await-tree",
  "futures",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
@@ -5751,6 +5753,7 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "rand 0.8.5",
+ "tokio",
 ]
 
 [[package]]
@@ -5758,16 +5761,22 @@ name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
  "fastmetrics",
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "fastrace",
+ "fastrace-jaeger",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
@@ -5788,6 +5797,7 @@ dependencies = [
  "metrics",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "tokio",
 ]
 
 [[package]]
@@ -5816,6 +5826,7 @@ dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "opentelemetry",
+ "tokio",
 ]
 
 [[package]]
@@ -5830,18 +5841,22 @@ dependencies = [
 name = "opendal-layer-prometheus"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus 0.14.0",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-prometheus-client"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+ "tokio",
 ]
 
 [[package]]
@@ -5864,10 +5879,18 @@ dependencies = [
 name = "opendal-layer-tracing"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "futures",
  "http 1.4.0",
  "opendal-core",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]

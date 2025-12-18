@@ -33,3 +33,7 @@ all-features = true
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 rand = { workspace = true }
+
+[dev-dependencies]
+opendal-core = { path = "../../core", version = "0.55.0" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

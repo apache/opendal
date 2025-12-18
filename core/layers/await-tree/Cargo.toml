@@ -31,7 +31,10 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 await-tree = "0.3"
 futures = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
+opendal-core = { path = "../../core", version = "0.55.0" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

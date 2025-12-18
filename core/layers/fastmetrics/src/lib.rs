@@ -45,7 +45,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let mut registry = fastmetrics::registry::Registry::default();
@@ -83,6 +83,7 @@ use opendal_layer_observe_metrics_common as observe;
 ///
 /// ```no_run
 /// # use std::sync::OnceLock;
+/// #
 /// # use fastmetrics::format::text;
 /// # use fastmetrics::registry::with_global_registry;
 /// # use log::info;
@@ -90,7 +91,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// #
 /// fn global_fastmetrics_layer() -> &'static FastmetricsLayer {
 ///     static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
 ///     GLOBAL.get_or_init(|| {

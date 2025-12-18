@@ -31,8 +31,23 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 futures = { workspace = true }
 http = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 tracing = "0.1"
+
+[dev-dependencies]
+anyhow = "1.0"
+dotenvy = "0.15"
+opendal-core = { path = "../../core", version = "0.55.0" }
+opentelemetry = { version = "0.31.0", default-features = false, features = [
+  "trace",
+] }
+opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
+opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.32.0"
+tracing-subscriber = { version = "0.3", features = [
+  "env-filter",
+  "tracing-log",
+] }

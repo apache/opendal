@@ -31,10 +31,10 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
-  "internal-tokio-rt",
-] }
-
 ctor = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 sled = "0.34.7"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

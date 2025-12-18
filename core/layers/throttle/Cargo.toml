@@ -33,3 +33,6 @@ all-features = true
 [dependencies]
 governor = { version = "0.10.1", features = ["std"] }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+[dev-dependencies]
+opendal-core = { path = "../../core", version = "0.55.0" }

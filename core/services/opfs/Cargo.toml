@@ -30,11 +30,10 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
-[dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 ctor = { workspace = true }
 js-sys = "0.3.77"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"

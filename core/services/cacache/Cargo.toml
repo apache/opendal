@@ -37,7 +37,6 @@ cacache = { version = "13.0", default-features = false, features = [
   "mmap",
 ] }
 ctor = { workspace = true }
-log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 

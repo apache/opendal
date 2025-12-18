@@ -56,16 +56,16 @@ The easiest way to configure them is to use helper functions like
 If those functions don't fulfill need, low-level options are also provided:
 
 - Use service managed kms key
-    - `server_side_encryption="aws:kms"`
+  - `server_side_encryption="aws:kms"`
 - Use customer provided kms key
-    - `server_side_encryption="aws:kms"`
-    - `server_side_encryption_aws_kms_key_id="your-kms-key"`
+  - `server_side_encryption="aws:kms"`
+  - `server_side_encryption_aws_kms_key_id="your-kms-key"`
 - Use S3 managed key
-    - `server_side_encryption="AES256"`
+  - `server_side_encryption="AES256"`
 - Use customer key
-    - `server_side_encryption_customer_algorithm="AES256"`
-    - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
-    - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
+  - `server_side_encryption_customer_algorithm="AES256"`
+  - `server_side_encryption_customer_key="base64-of-your-aes256-key"`
+  - `server_side_encryption_customer_key_md5="base64-of-your-aes256-key-md5"`
 
 After SSE have been configured, all requests send by this backed will attach those headers.
 
@@ -78,11 +78,9 @@ Reference: [Protecting data using server-side encryption](https://docs.aws.amazo
 ### Basic Setup
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_service_s3::S3;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -124,10 +122,10 @@ async fn main() -> Result<()> {
 ### S3 with SSE-C
 
 ```rust,no_run
-use anyhow::Result;
 use log::info;
-use opendal_service_s3::S3;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -153,10 +151,10 @@ async fn main() -> Result<()> {
 ### S3 with SSE-KMS and aws managed kms key
 
 ```rust,no_run
-use anyhow::Result;
 use log::info;
-use opendal_service_s3::S3;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -183,10 +181,10 @@ async fn main() -> Result<()> {
 ### S3 with SSE-KMS and customer managed kms key
 
 ```rust,no_run
-use anyhow::Result;
 use log::info;
-use opendal_service_s3::S3;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -213,10 +211,10 @@ async fn main() -> Result<()> {
 ### S3 with SSE-S3
 
 ```rust,no_run
-use anyhow::Result;
 use log::info;
-use opendal_service_s3::S3;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
 
 #[tokio::main]
 async fn main() -> Result<()> {

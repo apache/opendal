@@ -33,11 +33,9 @@ Refer to [`OssBuilder`]'s public API docs for more information.
 ## Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_service_oss::Oss;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_oss::Oss;
 
 #[tokio::main]
 async fn main() -> Result<()> {

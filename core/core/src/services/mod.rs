@@ -59,11 +59,6 @@ mod monoiofs;
 #[cfg(feature = "services-monoiofs")]
 pub use monoiofs::*;
 
-#[cfg(feature = "services-onedrive")]
-mod onedrive;
-#[cfg(feature = "services-onedrive")]
-pub use onedrive::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

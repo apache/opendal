@@ -5647,19 +5647,15 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "criterion",
  "ctor",
- "divan",
  "fastpool",
  "flume",
  "futures",
  "getrandom 0.2.16",
- "hdfs-native",
  "hdrs",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
- "libtest-mimic",
  "log",
  "md-5",
  "mea",
@@ -5672,7 +5668,6 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "probe",
- "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
  "redis",
@@ -5682,9 +5677,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "size",
  "tokio",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
  "uuid",
@@ -5765,23 +5758,28 @@ name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
  "fastmetrics",
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "fastrace",
+ "fastrace-jaeger",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-immutable-index"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "futures",
  "log",
  "opendal-core",
@@ -5838,18 +5836,22 @@ dependencies = [
 name = "opendal-layer-prometheus"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus 0.14.0",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-prometheus-client"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+ "tokio",
 ]
 
 [[package]]
@@ -5872,10 +5874,18 @@ dependencies = [
 name = "opendal-layer-tracing"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "futures",
  "http 1.4.0",
  "opendal-core",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5890,6 +5900,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5903,6 +5914,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5922,6 +5934,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
  "uuid",
 ]
 
@@ -5939,6 +5952,7 @@ dependencies = [
  "reqsign",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5954,6 +5968,7 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -5987,7 +6002,6 @@ dependencies = [
  "bytes",
  "cacache",
  "ctor",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6009,9 +6023,11 @@ dependencies = [
 name = "opendal-service-compfs"
 version = "0.55.0"
 dependencies = [
+ "bytes",
  "compio",
  "ctor",
  "opendal-core",
+ "rand 0.8.5",
  "serde",
 ]
 
@@ -6019,20 +6035,16 @@ dependencies = [
 name = "opendal-service-cos"
 version = "0.55.0"
 dependencies = [
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6042,9 +6054,7 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "opendal-core",
- "pretty_assertions",
  "serde",
  "serde_json",
  "tokio",
@@ -6084,7 +6094,6 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "mea",
  "opendal-core",
  "serde",
@@ -6096,11 +6105,9 @@ dependencies = [
 name = "opendal-service-etcd"
 version = "0.55.0"
 dependencies = [
- "bytes",
  "ctor",
  "etcd-client",
  "fastpool",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6110,10 +6117,8 @@ dependencies = [
 name = "opendal-service-foundationdb"
 version = "0.55.0"
 dependencies = [
- "bytes",
  "ctor",
  "foundationdb",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6154,21 +6159,18 @@ name = "opendal-service-gcs"
 version = "0.55.0"
 dependencies = [
  "backon",
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6187,6 +6189,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -6221,7 +6224,6 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "ctor",
  "http 1.4.0",
  "log",
@@ -6236,12 +6238,14 @@ version = "0.55.0"
 dependencies = [
  "bytes",
  "ctor",
+ "futures",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6270,6 +6274,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6304,6 +6309,7 @@ dependencies = [
  "moka",
  "opendal-core",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6315,6 +6321,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6329,25 +6336,22 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-service-onedrive"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "mea",
  "opendal-core",
- "pretty_assertions",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6367,7 +6371,6 @@ dependencies = [
 name = "opendal-service-oss"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
@@ -6376,11 +6379,8 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign",
- "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6405,6 +6405,7 @@ dependencies = [
  "opendal-core",
  "persy",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6416,6 +6417,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6426,6 +6428,7 @@ dependencies = [
  "opendal-core",
  "redb",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6465,6 +6468,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6475,6 +6479,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sled",
+ "tokio",
 ]
 
 [[package]]
@@ -6498,19 +6503,18 @@ dependencies = [
  "opendal-core",
  "serde",
  "surrealdb",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-service-swift"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
- "pretty_assertions",
  "quick-xml",
  "serde",
  "serde_json",
@@ -6526,6 +6530,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tikv-client",
+ "tokio",
 ]
 
 [[package]]

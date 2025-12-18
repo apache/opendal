@@ -34,6 +34,5 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-anyhow = { version = "1.0.100", features = ["std"] }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

@@ -31,16 +31,18 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
-
 bytes = { workspace = true }
 ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, default-features = false, features = [
+reqsign = { workspace = true, features = [
   "reqwest_request",
   "services-azblob",
 ] }
 serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

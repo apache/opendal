@@ -27,9 +27,9 @@ You can refer to [`B2Builder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::B2;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_b2::B2;
 
 #[tokio::main]
 async fn main() -> Result<()> {

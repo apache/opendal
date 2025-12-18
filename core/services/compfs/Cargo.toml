@@ -31,10 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
-  "internal-tokio-rt",
-] }
-
 compio = { version = "0.16.0", features = [
   "runtime",
   "bytes",
@@ -42,4 +38,9 @@ compio = { version = "0.16.0", features = [
   "dispatcher",
 ] }
 ctor = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+bytes = { workspace = true }
+rand = { workspace = true }

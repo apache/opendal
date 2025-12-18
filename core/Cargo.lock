@@ -5578,6 +5578,7 @@ dependencies = [
  "opendal-service-huggingface",
  "opendal-service-ipfs",
  "opendal-service-koofr",
+ "opendal-service-lakefs",
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
@@ -6280,6 +6281,20 @@ dependencies = [
  "http 1.4.0",
  "log",
  "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-lakefs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
  "opendal-core",
  "serde",
  "serde_json",

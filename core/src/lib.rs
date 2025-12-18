@@ -82,6 +82,8 @@ pub mod services {
     pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-koofr")]
     pub use opendal_service_koofr::*;
+    #[cfg(feature = "services-lakefs")]
+    pub use opendal_service_lakefs::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]

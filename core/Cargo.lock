@@ -5602,6 +5602,7 @@ dependencies = [
  "opendal-service-tikv",
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
+ "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -6620,6 +6621,21 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-vercel-blob"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-yandex-disk"
 version = "0.55.0"
 dependencies = [
  "bytes",

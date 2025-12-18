@@ -15,10 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for yandex-disk service.
-pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! Yandex Disk service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -31,7 +30,10 @@ mod writer;
 pub use backend::YandexDiskBuilder as YandexDisk;
 pub use config::YandexDiskConfig;
 
+/// Default scheme for yandex-disk service.
+pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
+
 #[ctor::ctor]
 fn register_yandexdisk_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<YandexDisk>(YANDEX_DISK_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<YandexDisk>(YANDEX_DISK_SCHEME);
 }

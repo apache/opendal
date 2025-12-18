@@ -23,9 +23,9 @@ use super::core::MetainformationResponse;
 use super::core::YandexDiskCore;
 use super::core::parse_info;
 use super::error::parse_error;
-use crate::Result;
-use crate::raw::oio::Entry;
-use crate::raw::*;
+use opendal_core::Result;
+use opendal_core::raw::oio::Entry;
+use opendal_core::raw::*;
 
 pub struct YandexDiskLister {
     core: Arc<YandexDiskCore>,

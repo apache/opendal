@@ -31,14 +31,12 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-bytes = { workspace = true }
 ctor = { workspace = true }
 etcd-client = { version = "0.17", features = ["tls"] }
 fastpool = "1.0.2"
-log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

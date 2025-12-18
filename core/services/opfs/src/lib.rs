@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg(target_arch = "wasm32")]
+
 /// Default scheme for opfs service.
 pub const OPFS_SCHEME: &str = "opfs";
 

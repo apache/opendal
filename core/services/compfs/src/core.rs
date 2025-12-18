@@ -112,7 +112,7 @@ mod tests {
 
     use super::*;
 
-    fn setup_buffer() -> (Buffer, usize, Bytes) {
+    fn setup_buffer() -> (CompfsBuffer, usize, Bytes) {
         let mut rng = thread_rng();
 
         let bs = (0..100)
@@ -128,7 +128,7 @@ mod tests {
         let total_content = bs.iter().flatten().copied().collect::<Bytes>();
         let buf = Buffer::from(bs);
 
-        (buf, total_size, total_content)
+        (CompfsBuffer(buf), total_size, total_content)
     }
 
     #[test]
@@ -136,6 +136,6 @@ mod tests {
         let (buf, _len, _bytes) = setup_buffer();
         let slice = IoBuf::as_slice(&buf);
 
-        assert_eq!(slice, buf.current().chunk())
+        assert_eq!(slice, buf.0.current().chunk())
     }
 }

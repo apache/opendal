@@ -26,9 +26,9 @@ You can refer to [`KoofrBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Koofr;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_koofr::Koofr;
 
 #[tokio::main]
 async fn main() -> Result<()> {

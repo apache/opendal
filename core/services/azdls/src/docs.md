@@ -35,11 +35,9 @@ Refer to public API docs for more information.
 ### Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_core::services::Azdls;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_azdls::Azdls;
 
 #[tokio::main]
 async fn main() -> Result<()> {

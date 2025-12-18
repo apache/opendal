@@ -90,7 +90,9 @@ uuid = { workspace = true, features = ["v4"] }
 [[bin]]
 name = "fuzz_reader"
 path = "fuzz_reader.rs"
+test = false
 
 [[bin]]
 name = "fuzz_writer"
 path = "fuzz_writer.rs"
+test = false

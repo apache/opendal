@@ -1,0 +1,27 @@
+[package]
+description = "Apache OpenDAL SFTP service implementation"
+name = "opendal-service-sftp"
+
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+
+bytes = { workspace = true }
+ctor = { workspace = true }
+fastpool = "1.0.2"
+futures = { workspace = true }
+log = { workspace = true }
+openssh = "0.11.0"
+openssh-sftp-client = { version = "0.15.3", features = ["openssh", "tracing"] }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true }

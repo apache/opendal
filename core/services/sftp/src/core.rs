@@ -18,8 +18,9 @@
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+use std::time::Duration;
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use log::debug;
 use openssh::KnownHosts;

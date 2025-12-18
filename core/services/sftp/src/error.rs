@@ -19,8 +19,8 @@ use openssh::Error as SshError;
 use openssh_sftp_client::Error as SftpClientError;
 use openssh_sftp_client::error::SftpErrorKind;
 
-use crate::Error;
-use crate::ErrorKind;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 
 pub fn parse_sftp_error(e: SftpClientError) -> Error {
     let kind = match &e {

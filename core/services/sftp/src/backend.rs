@@ -34,8 +34,9 @@ use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
 use super::writer::SftpWriter;
-use crate::raw::*;
-use crate::*;
+use super::utils::to_metadata;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// SFTP services support. (only works on unix)
 ///
@@ -244,7 +245,7 @@ impl Access for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = fs.metadata(path).await.map_err(parse_sftp_error)?.into();
+        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?);
 
         Ok(RpStat::new(meta))
     }

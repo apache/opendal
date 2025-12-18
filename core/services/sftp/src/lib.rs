@@ -18,7 +18,7 @@
 /// Default scheme for sftp service.
 pub const SFTP_SCHEME: &str = "sftp";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

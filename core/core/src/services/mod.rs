@@ -74,10 +74,6 @@ mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
 
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::*;
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;

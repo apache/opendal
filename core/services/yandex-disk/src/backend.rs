@@ -31,8 +31,8 @@ use super::error::parse_error;
 use super::lister::YandexDiskLister;
 use super::writer::YandexDiskWriter;
 use super::writer::YandexDiskWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [YandexDisk](https://360.yandex.com/disk/) services support.
 #[doc = include_str!("docs.md")]

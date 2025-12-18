@@ -43,10 +43,10 @@ impl Debug for YandexDiskConfig {
     }
 }
 
-impl crate::Configurator for YandexDiskConfig {
+impl opendal_core::Configurator for YandexDiskConfig {
     type Builder = YandexDiskBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(root) = uri.root() {
@@ -66,8 +66,8 @@ impl crate::Configurator for YandexDiskConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_root_and_preserves_token() {

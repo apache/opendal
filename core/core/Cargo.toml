@@ -68,7 +68,6 @@ services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
 services-vercel-artifacts = []
 services-webdav = []
 services-webhdfs = []
-services-yandex-disk = []
 
 [lib]
 bench = false

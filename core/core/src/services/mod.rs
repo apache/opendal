@@ -74,11 +74,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-vercel-artifacts")]
-mod vercel_artifacts;
-#[cfg(feature = "services-vercel-artifacts")]
-pub use vercel_artifacts::*;
-
 #[cfg(feature = "services-webdav")]
 mod webdav;
 #[cfg(feature = "services-webdav")]

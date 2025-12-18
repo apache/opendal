@@ -6553,6 +6553,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-vercel-artifacts"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-vercel-blob"
 version = "0.55.0"
 dependencies = [

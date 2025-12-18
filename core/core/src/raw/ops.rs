@@ -334,7 +334,7 @@ impl OpRead {
     }
 
     /// Returns a mutable range to allow updating.
-    pub(crate) fn range_mut(&mut self) -> &mut BytesRange {
+    pub fn range_mut(&mut self) -> &mut BytesRange {
         &mut self.range
     }
 

@@ -148,6 +148,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
+    #[cfg(feature = "layers-logging")]
+    pub use opendal_layer_logging::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]
@@ -160,10 +162,14 @@ pub mod layers {
     pub use opendal_layer_prometheus::*;
     #[cfg(feature = "layers-prometheus-client")]
     pub use opendal_layer_prometheus_client::*;
+    #[cfg(feature = "layers-retry")]
+    pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]
     pub use opendal_layer_throttle::*;
+    #[cfg(feature = "layers-timeout")]
+    pub use opendal_layer_timeout::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

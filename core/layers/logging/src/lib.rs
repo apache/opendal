@@ -21,9 +21,8 @@ use std::sync::Arc;
 
 use log::Level;
 use log::log;
-
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add [log](https://docs.rs/log/) for every operation.
 ///
@@ -41,16 +40,16 @@ use crate::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_core::layers::LoggingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_logging::LoggingLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::default())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -75,14 +74,14 @@ use crate::*;
 /// You can implement your own logging interceptor to customize the logging behavior.
 ///
 /// ```no_run
-/// # use opendal_core::layers::LoggingInterceptor;
-/// # use opendal_core::layers::LoggingLayer;
 /// # use opendal_core::raw;
 /// # use opendal_core::services;
 /// # use opendal_core::Error;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_logging::LoggingInterceptor;
+/// # use opendal_layer_logging::LoggingLayer;
+/// #
 /// #[derive(Debug, Clone)]
 /// struct MyLoggingInterceptor;
 ///
@@ -103,7 +102,7 @@ use crate::*;
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(LoggingLayer::new(MyLoggingInterceptor))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Debug)]

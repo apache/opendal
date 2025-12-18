@@ -24,7 +24,7 @@ You can refer to [`VercelArtifactsBuilder`]'s docs for more information
 
 ```no_run
 use anyhow::Result;
-use opendal_core::services::VercelArtifacts;
+use opendal_service_vercel_artifacts::VercelArtifacts;
 use opendal_core::Operator;
 
 #[tokio::main]

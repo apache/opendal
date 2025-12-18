@@ -23,8 +23,8 @@ use http::StatusCode;
 use super::core::VercelArtifactsCore;
 use super::error::parse_error;
 use super::writer::VercelArtifactsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Clone, Debug)]

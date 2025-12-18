@@ -45,9 +45,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           working-directory: "bindings/python"
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@v2
         with:
-          tool: hawkeye,taplo-cli
+          tool: just,hawkeye,taplo-cli
       - name: Generate stubs
         working-directory: "bindings/python"
         run: just stub-gen

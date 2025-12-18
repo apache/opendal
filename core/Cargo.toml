@@ -126,7 +126,7 @@ services-github = ["dep:opendal-service-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
 services-hdfs = ["opendal-core/services-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
-services-http = ["opendal-core/services-http"]
+services-http = ["dep:opendal-service-http"]
 services-huggingface = ["dep:opendal-service-huggingface"]
 services-ipfs = ["dep:opendal-service-ipfs"]
 services-ipmfs = ["opendal-core/services-ipmfs"]
@@ -153,10 +153,12 @@ services-rocksdb = ["opendal-core/services-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["opendal-core/services-seafile"]
 services-sftp = ["dep:opendal-service-sftp"]
+services-seafile = ["dep:opendal-service-seafile"]
+services-sftp = ["opendal-core/services-sftp"]
 services-sled = ["dep:opendal-service-sled"]
 services-sqlite = ["dep:opendal-service-sqlite"]
 services-surrealdb = ["dep:opendal-service-surrealdb"]
-services-swift = ["opendal-core/services-swift"]
+services-swift = ["dep:opendal-service-swift"]
 services-tikv = ["dep:opendal-service-tikv"]
 services-upyun = ["dep:opendal-service-upyun"]
 services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
@@ -225,6 +227,7 @@ opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = tr
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
+opendal-service-http = { path = "services/http", version = "0.55.0", optional = true, default-features = false }
 opendal-service-huggingface = { path = "services/huggingface", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-koofr = { path = "services/koofr", version = "0.55.0", optional = true, default-features = false }
@@ -240,9 +243,11 @@ opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0",
 opendal-service-redb = { path = "services/redb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sftp = { path = "services/sftp", version = "0.55.0", optional = true, default-features = false }
+opendal-service-seafile = { path = "services/seafile", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optional = true, default-features = false }
 opendal-service-surrealdb = { path = "services/surrealdb", version = "0.55.0", optional = true, default-features = false }
+opendal-service-swift = { path = "services/swift", version = "0.55.0", optional = true, default-features = false }
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }

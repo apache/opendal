@@ -19,51 +19,36 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::SwiftCore;
+use super::core::SeafileCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub struct SwiftWriter {
-    core: Arc<SwiftCore>,
-    op: OpWrite,
+pub type SeafileWriters = oio::OneShotWriter<SeafileWriter>;
+
+pub struct SeafileWriter {
+    core: Arc<SeafileCore>,
+    _op: OpWrite,
     path: String,
 }
 
-impl SwiftWriter {
-    pub fn new(core: Arc<SwiftCore>, op: OpWrite, path: String) -> Self {
-        SwiftWriter { core, op, path }
-    }
-
-    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::default();
-
-        if let Some(etag) = parse_etag(headers)? {
-            metadata.set_etag(etag);
+impl SeafileWriter {
+    pub fn new(core: Arc<SeafileCore>, op: OpWrite, path: String) -> Self {
+        SeafileWriter {
+            core,
+            _op: op,
+            path,
         }
-
-        if let Some(last_modified) = parse_last_modified(headers)? {
-            metadata.set_last_modified(last_modified);
-        }
-
-        Ok(metadata)
     }
 }
 
-impl oio::OneShotWrite for SwiftWriter {
+impl oio::OneShotWrite for SeafileWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self
-            .core
-            .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
-            .await?;
+        let resp = self.core.upload_file(&self.path, bs).await?;
 
         let status = resp.status();
-
         match status {
-            StatusCode::CREATED | StatusCode::OK => {
-                let metadata = SwiftWriter::parse_metadata(resp.headers())?;
-                Ok(metadata)
-            }
+            StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

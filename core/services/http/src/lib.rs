@@ -15,23 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for seafile service.
-pub const SEAFILE_SCHEME: &str = "seafile";
-
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+//! HTTP service implementation for Apache OpenDAL.
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
 mod core;
-mod deleter;
 mod error;
-mod lister;
-mod writer;
 
-pub use backend::SeafileBuilder as Seafile;
-pub use config::SeafileConfig;
+pub use backend::HttpBuilder as Http;
+pub use config::HttpConfig;
+
+/// Default scheme for http service.
+pub const HTTP_SCHEME: &str = "http";
 
 #[ctor::ctor]
-fn register_seafile_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Seafile>(SEAFILE_SCHEME);
+fn register_http_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Http>(HTTP_SCHEME);
 }

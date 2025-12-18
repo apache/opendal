@@ -22,8 +22,8 @@ use http::StatusCode;
 use quick_xml::de;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]

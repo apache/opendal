@@ -5588,6 +5588,7 @@ dependencies = [
  "opendal-service-postgresql",
  "opendal-service-redb",
  "opendal-service-s3",
+ "opendal-service-seafile",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
@@ -6416,6 +6417,20 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-seafile"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

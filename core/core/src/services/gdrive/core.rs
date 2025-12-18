@@ -102,6 +102,10 @@ impl GdriveCore {
         let mut url = QueryPairsWriter::new(url);
         url = url.push("pageSize", &page_size.to_string());
         url = url.push("q", &percent_encode_path(&q));
+        url = url.push(
+            "fields",
+            "nextPageToken,files(id,name,mimeType,size,modifiedTime)",
+        );
         if !next_page_token.is_empty() {
             url = url.push("pageToken", next_page_token);
         };

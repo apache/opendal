@@ -101,7 +101,21 @@ impl oio::PageList for GdriveLister {
                 self.core.path_cache.insert(&path, &file.id).await;
             }
 
-            let entry = oio::Entry::new(&normalized_path, Metadata::new(file_type));
+            let mut metadata = Metadata::new(file_type).with_content_type(file.mime_type.clone());
+            if let Some(size) = file.size {
+                metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                })?);
+            }
+            if let Some(modified_time) = file.modified_time {
+                metadata = metadata.with_last_modified(
+                    modified_time.parse::<Timestamp>().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                    })?,
+                );
+            }
+
+            let entry = oio::Entry::new(&normalized_path, metadata);
             ctx.entries.push_back(entry);
         }
 

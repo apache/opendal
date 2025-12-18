@@ -18,7 +18,7 @@
 /// Default scheme for seafile service.
 pub const SEAFILE_SCHEME: &str = "seafile";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

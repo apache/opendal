@@ -21,8 +21,8 @@ use bytes::Buf;
 
 use super::core::*;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SwiftLister {
     core: Arc<SwiftCore>,

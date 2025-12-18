@@ -79,20 +79,10 @@ mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
 
-#[cfg(feature = "services-seafile")]
-mod seafile;
-#[cfg(feature = "services-seafile")]
-pub use seafile::*;
-
 #[cfg(feature = "services-sftp")]
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
-
-#[cfg(feature = "services-swift")]
-mod swift;
-#[cfg(feature = "services-swift")]
-pub use self::swift::*;
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;

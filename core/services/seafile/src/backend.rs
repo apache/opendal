@@ -34,8 +34,8 @@ use super::error::parse_error;
 use super::lister::SeafileLister;
 use super::writer::SeafileWriter;
 use super::writer::SeafileWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [seafile](https://www.seafile.com) services support.
 #[doc = include_str!("docs.md")]

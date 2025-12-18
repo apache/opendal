@@ -6224,7 +6224,6 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "ctor",
  "http 1.4.0",
  "log",
@@ -6344,19 +6343,15 @@ dependencies = [
 name = "opendal-service-onedrive"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "mea",
  "opendal-core",
- "pretty_assertions",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6515,13 +6510,11 @@ dependencies = [
 name = "opendal-service-swift"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
- "pretty_assertions",
  "quick-xml",
  "serde",
  "serde_json",

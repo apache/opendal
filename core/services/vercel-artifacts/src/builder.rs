@@ -22,8 +22,8 @@ use super::VERCEL_ARTIFACTS_SCHEME;
 use super::backend::VercelArtifactsBackend;
 use super::config::VercelArtifactsConfig;
 use super::core::VercelArtifactsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// [Vercel Cache](https://vercel.com/docs/concepts/monorepos/remote-caching) backend support.
 #[doc = include_str!("docs.md")]

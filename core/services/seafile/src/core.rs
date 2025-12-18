@@ -28,8 +28,8 @@ use mea::rwlock::RwLock;
 use serde::Deserialize;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Core of [seafile](https://www.seafile.com) services support.
 #[derive(Clone)]

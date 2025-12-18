@@ -18,8 +18,8 @@
 use std::sync::Arc;
 
 use super::core::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SeafileDeleter {
     core: Arc<SeafileCore>,

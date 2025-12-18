@@ -79,11 +79,6 @@ mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
 
-#[cfg(feature = "services-seafile")]
-mod seafile;
-#[cfg(feature = "services-seafile")]
-pub use seafile::*;
-
 #[cfg(feature = "services-sftp")]
 mod sftp;
 #[cfg(feature = "services-sftp")]

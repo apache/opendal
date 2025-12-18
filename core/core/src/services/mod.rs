@@ -24,6 +24,15 @@ mod gridfs;
 #[cfg(feature = "services-gridfs")]
 pub use gridfs::*;
 
+#[cfg(feature = "services-ipmfs")]
+mod ipmfs;
+#[cfg(feature = "services-ipmfs")]
+pub use ipmfs::*;
+
+#[cfg(feature = "services-lakefs")]
+mod lakefs;
+#[cfg(feature = "services-lakefs")]
+pub use lakefs::*;
 
 #[cfg(feature = "services-memory")]
 mod memory;

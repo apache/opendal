@@ -16,8 +16,7 @@
 // under the License.
 
 //! SFTP service implementation for Apache OpenDAL.
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(missing_docs)]
+
 use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;

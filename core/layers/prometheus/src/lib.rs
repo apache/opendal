@@ -42,12 +42,12 @@ use prometheus::register_int_gauge_vec_with_registry;
 ///
 /// ```no_run
 /// # use log::info;
-/// # use opendal_layer_prometheus::PrometheusLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
 /// # use prometheus::Encoder;
-///
+/// # use opendal_layer_prometheus::PrometheusLayer;
+/// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let registry = prometheus::default_registry();

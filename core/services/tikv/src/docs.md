@@ -27,9 +27,9 @@ You can refer to [`TikvBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_tikv::Tikv;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_tikv::Tikv;
 
 #[tokio::main]
 async fn main() -> Result<()> {

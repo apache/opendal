@@ -29,9 +29,9 @@ You can refer to [`EtcdBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Etcd;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_etcd::Etcd;
 
 #[tokio::main]
 async fn main() -> Result<()> {

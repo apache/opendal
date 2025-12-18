@@ -25,16 +25,14 @@ Refer to [`SwiftBuilder`]'s public API docs for more information.
 ### Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_service_swift::Swift;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_swift::Swift;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create Swift backend builder
-    let mut builder = Swift::default() 
+    let mut builder = Swift::default()
         // Set the root for swift, all operations will happen under this root
         .root("/path/to/dir")
         // set the endpoint of Swift backend

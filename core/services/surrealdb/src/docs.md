@@ -30,9 +30,9 @@ This service can be used to:
 ### Via Builder
 
 ```rust
-use anyhow::Result;
-use opendal_core::services::Surrealdb;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_surrealdb::Surrealdb;
 
 #[tokio::main]
 async fn main() -> Result<()> {

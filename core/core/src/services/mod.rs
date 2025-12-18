@@ -34,11 +34,6 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-http")]
-mod http;
-#[cfg(feature = "services-http")]
-pub use self::http::*;
-
 #[cfg(feature = "services-ipmfs")]
 mod ipmfs;
 #[cfg(feature = "services-ipmfs")]
@@ -74,20 +69,10 @@ mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
 
-#[cfg(feature = "services-seafile")]
-mod seafile;
-#[cfg(feature = "services-seafile")]
-pub use seafile::*;
-
 #[cfg(feature = "services-sftp")]
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
-
-#[cfg(feature = "services-swift")]
-mod swift;
-#[cfg(feature = "services-swift")]
-pub use self::swift::*;
 
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;

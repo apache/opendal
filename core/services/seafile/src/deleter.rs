@@ -17,39 +17,24 @@
 
 use std::sync::Arc;
 
-use http::StatusCode;
+use super::core::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use super::core::SeafileCore;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
-
-pub type SeafileWriters = oio::OneShotWriter<SeafileWriter>;
-
-pub struct SeafileWriter {
+pub struct SeafileDeleter {
     core: Arc<SeafileCore>,
-    _op: OpWrite,
-    path: String,
 }
 
-impl SeafileWriter {
-    pub fn new(core: Arc<SeafileCore>, op: OpWrite, path: String) -> Self {
-        SeafileWriter {
-            core,
-            _op: op,
-            path,
-        }
+impl SeafileDeleter {
+    pub fn new(core: Arc<SeafileCore>) -> Self {
+        Self { core }
     }
 }
 
-impl oio::OneShotWrite for SeafileWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.upload_file(&self.path, bs).await?;
+impl oio::OneShotDelete for SeafileDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        self.core.delete(&path).await?;
 
-        let status = resp.status();
-        match status {
-            StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
-        }
+        Ok(())
     }
 }

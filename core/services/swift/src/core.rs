@@ -23,8 +23,8 @@ use http::Response;
 use http::header;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SwiftCore {
     pub info: Arc<AccessorInfo>,

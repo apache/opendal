@@ -15,23 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for swift service.
-pub const SWIFT_SCHEME: &str = "swift";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use http::StatusCode;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod error;
-mod lister;
-mod writer;
+use super::core::*;
+use super::error::parse_error;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub use backend::SwiftBuilder as Swift;
-pub use config::SwiftConfig;
+pub struct SwfitDeleter {
+    core: Arc<SwiftCore>,
+}
 
-#[ctor::ctor]
-fn register_swift_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Swift>(SWIFT_SCHEME);
+impl SwfitDeleter {
+    pub fn new(core: Arc<SwiftCore>) -> Self {
+        Self { core }
+    }
+}
+
+impl oio::OneShotDelete for SwfitDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let resp = self.core.swift_delete(&path).await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::NO_CONTENT | StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
 }

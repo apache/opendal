@@ -64,8 +64,6 @@ pub mod services {
     pub use opendal_service_foundationdb::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
-    #[cfg(feature = "services-sftp")]
-    pub use opendal_service_sftp::*;
     #[cfg(feature = "services-ftp")]
     pub use opendal_service_ftp::*;
     #[cfg(feature = "services-gcs")]
@@ -110,6 +108,8 @@ pub mod services {
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
+    #[cfg(feature = "services-sftp")]
+    pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]

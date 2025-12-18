@@ -18,11 +18,10 @@
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::error::parse_ssh_error;
-use opendal_core::raw::*;
-use opendal_core::*;
-use std::time::Duration;
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use log::debug;
+use opendal_core::raw::*;
+use opendal_core::*;
 use openssh::KnownHosts;
 use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
@@ -31,6 +30,7 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 pub struct SftpCore {
     pub info: Arc<AccessorInfo>,

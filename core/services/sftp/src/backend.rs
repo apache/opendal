@@ -33,8 +33,8 @@ use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::lister::SftpLister;
 use super::reader::SftpReader;
-use super::writer::SftpWriter;
 use super::utils::to_metadata;
+use super::writer::SftpWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 

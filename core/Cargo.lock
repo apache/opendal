@@ -5668,8 +5668,6 @@ dependencies = [
  "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
- "prost 0.13.5",
- "probe",
  "quick-xml",
  "rand 0.8.5",
  "redis",

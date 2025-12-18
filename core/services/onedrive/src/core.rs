@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -26,10 +27,11 @@ use http::StatusCode;
 use http::header;
 use mea::mutex::Mutex;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::error::parse_error;
 use super::graph_model::*;
-use crate::raw::*;
-use crate::*;
 
 pub struct OneDriveCore {
     pub info: Arc<AccessorInfo>,

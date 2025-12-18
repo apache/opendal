@@ -67,6 +67,20 @@ jobs:
       - name: Rust Code Format
         run: ./scripts/workspace.py cargo fmt -- --check
 
+  toml-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_COLOR: 1
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup taplo
+        uses: taiki-e/install-action@v2
+        with:
+          tool: taplo-cli
+      - name: TOML format
+        run: taplo format --check
+
   dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 10

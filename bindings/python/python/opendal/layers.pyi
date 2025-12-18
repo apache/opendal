@@ -33,7 +33,6 @@ class ConcurrentLimitLayer(Layer):
     that the total number of concurrent requests across the entire
     application does not exceed the limit.
     """
-
     def __new__(cls, limit: builtins.int) -> ConcurrentLimitLayer:
         r"""
         Create a new ConcurrentLimitLayer.
@@ -49,7 +48,11 @@ class ConcurrentLimitLayer(Layer):
         """
 
 class Layer:
-    r"""Layers are used to intercept the operations on the underlying storage."""
+    r"""
+    Layers are used to intercept the operations on the underlying storage.
+    """
+
+    ...
 
 @typing.final
 class MimeGuessLayer(Layer):
@@ -69,7 +72,6 @@ class MimeGuessLayer(Layer):
     A ``Content-Type`` is not guaranteed. If the file extension is
     uncommon or unknown, the content type will remain unset.
     """
-
     def __new__(cls) -> MimeGuessLayer:
         r"""
         Create a new MimeGuessLayer.
@@ -94,14 +96,13 @@ class RetryLayer(Layer):
     all retries, the object is in an undefined state. Reusing it
     can lead to exceptions.
     """
-
     def __new__(
         cls,
-        max_times: builtins.int | None = None,
-        factor: builtins.float | None = None,
+        max_times: typing.Optional[builtins.int] = None,
+        factor: typing.Optional[builtins.float] = None,
         jitter: builtins.bool = False,
-        max_delay: builtins.float | None = None,
-        min_delay: builtins.float | None = None,
+        max_delay: typing.Optional[builtins.float] = None,
+        min_delay: typing.Optional[builtins.float] = None,
     ) -> RetryLayer:
         r"""
         Create a new RetryLayer.

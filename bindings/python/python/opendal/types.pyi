@@ -26,7 +26,7 @@ import typing
 @typing.final
 class Entry:
     r"""
-    Entry.
+    Entry
 
     An entry representing a path and its associated metadata.
 
@@ -35,16 +35,21 @@ class Entry:
     If this entry is a directory, ``path`` **must** end with ``/``.
     Otherwise, ``path`` **must not** end with ``/``.
     """
-
     @property
     def path(self) -> builtins.str:
-        r"""The path of entry relative to the operator's root."""
+        r"""
+        The path of entry relative to the operator's root.
+        """
     @property
     def name(self) -> builtins.str:
-        r"""The name of entry, representing the last segment of the path."""
+        r"""
+        The name of entry, representing the last segment of the path.
+        """
     @property
     def metadata(self) -> Metadata:
-        r"""The metadata of this entry."""
+        r"""
+        The metadata of this entry.
+        """
 
 @typing.final
 class Metadata:
@@ -61,43 +66,68 @@ class Metadata:
     represent a specific version of a file. Use :attr:`version` to get
     the version of a file if it is available.
     """
-
     @property
-    def content_disposition(self) -> builtins.str | None:
-        r"""The content disposition of this entry."""
+    def content_disposition(self) -> typing.Optional[builtins.str]:
+        r"""
+        The content disposition of this entry.
+        """
     @property
     def content_length(self) -> builtins.int:
-        r"""The content length of this entry."""
+        r"""
+        The content length of this entry.
+        """
     @property
-    def content_md5(self) -> builtins.str | None:
-        r"""The content MD5 of this entry."""
+    def content_md5(self) -> typing.Optional[builtins.str]:
+        r"""
+        The content MD5 of this entry.
+        """
     @property
-    def content_type(self) -> builtins.str | None:
-        r"""The content type of this entry."""
+    def content_type(self) -> typing.Optional[builtins.str]:
+        r"""
+        The content type of this entry.
+        """
     @property
-    def content_encoding(self) -> builtins.str | None:
-        r"""The content encoding of this entry."""
+    def content_encoding(self) -> typing.Optional[builtins.str]:
+        r"""
+        The content encoding of this entry.
+        """
     @property
-    def etag(self) -> builtins.str | None:
-        r"""The ETag of this entry."""
+    def etag(self) -> typing.Optional[builtins.str]:
+        r"""
+        The ETag of this entry.
+        """
     @property
     def mode(self) -> EntryMode:
-        r"""The mode of this entry."""
+        r"""
+        The mode of this entry.
+        """
     @property
     def is_file(self) -> builtins.bool:
-        r"""Whether this entry is a file."""
+        r"""
+        Whether this entry is a file.
+        """
     @property
     def is_dir(self) -> builtins.bool:
-        r"""Whether this entry is a directory."""
+        r"""
+        Whether this entry is a directory.
+        """
     @property
     def last_modified(self) -> datetime.datetime:
-        r"""The last modified timestamp of this entry."""
+        r"""
+        The last modified timestamp of this entry.
+        """
     @property
-    def version(self) -> builtins.str | None:
-        r"""The version of this entry."""
+    def version(self) -> typing.Optional[builtins.str]:
+        r"""
+        The version of this entry.
+        """
     @property
-    def user_metadata(self) -> builtins.dict[builtins.str, builtins.str] | None:
-        r"""The user-defined metadata of this entry."""
+    def user_metadata(
+        self,
+    ) -> typing.Optional[builtins.dict[builtins.str, builtins.str]]:
+        r"""
+        The user-defined metadata of this entry.
+        """
 
 @typing.final
 class PresignedRequest:
@@ -107,13 +137,16 @@ class PresignedRequest:
     This contains the information required to make a request to the
     underlying service, including the URL, method, and headers.
     """
-
     @property
     def url(self) -> builtins.str:
-        r"""The URL of this request."""
+        r"""
+        The URL of this request.
+        """
     @property
     def method(self) -> builtins.str:
-        r"""The HTTP method of this request."""
+        r"""
+        The HTTP method of this request.
+        """
     @property
     def headers(self) -> builtins.dict[builtins.str, builtins.str]:
         r"""
@@ -128,7 +161,7 @@ class PresignedRequest:
 @typing.final
 class EntryMode(enum.Enum):
     r"""
-    EntryMode.
+    EntryMode
 
     The mode of an entry, indicating if it is a file or a directory.
     """

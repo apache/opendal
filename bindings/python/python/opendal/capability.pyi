@@ -33,95 +33,142 @@ class Capability:
     - Advanced operation variants (conditional operations, metadata handling)
     - Operational constraints (size limits, batch limitations)
     """
-
     @property
     def stat(self) -> builtins.bool:
-        r"""If operator supports stat."""
+        r"""
+        If operator supports stat.
+        """
     @property
     def stat_with_if_match(self) -> builtins.bool:
-        r"""If operator supports stat with if match."""
+        r"""
+        If operator supports stat with if match.
+        """
     @property
     def stat_with_if_none_match(self) -> builtins.bool:
-        r"""If operator supports stat with if none match."""
+        r"""
+        If operator supports stat with if none match.
+        """
     @property
     def read(self) -> builtins.bool:
-        r"""If the operator supports read operations."""
+        r"""
+        If the operator supports read operations.
+        """
     @property
     def read_with_if_match(self) -> builtins.bool:
-        r"""If conditional read operations using If-Match are supported."""
+        r"""
+        If conditional read operations using If-Match are supported.
+        """
     @property
     def read_with_if_none_match(self) -> builtins.bool:
-        r"""If conditional read operations using If-None-Match are supported."""
+        r"""
+        If conditional read operations using If-None-Match are supported.
+        """
     @property
     def read_with_if_modified_since(self) -> builtins.bool:
-        r"""If conditional read operations using If-Modified-Since are supported."""
+        r"""
+        If conditional read operations using If-Modified-Since are supported.
+        """
     @property
     def read_with_if_unmodified_since(self) -> builtins.bool:
-        r"""If conditional read operations using If-Unmodified-Since are supported."""
+        r"""
+        If conditional read operations using If-Unmodified-Since are supported.
+        """
     @property
     def read_with_override_cache_control(self) -> builtins.bool:
-        r"""If Cache-Control header override is supported during read operations."""
+        r"""
+        If Cache-Control header override is supported during read operations.
+        """
     @property
     def read_with_override_content_disposition(self) -> builtins.bool:
-        r"""If Content-Disposition header can be overridden during read operations."""
+        r"""
+        If Content-Disposition header can be overridden during read operations.
+        """
     @property
     def read_with_override_content_type(self) -> builtins.bool:
-        r"""If Content-Type header override is supported during read operations."""
+        r"""
+        If Content-Type header override is supported during read operations.
+        """
     @property
     def read_with_version(self) -> builtins.bool:
-        r"""If versions read operations are supported."""
+        r"""
+        If versions read operations are supported.
+        """
     @property
     def write(self) -> builtins.bool:
-        r"""If the operator supports write operations."""
+        r"""
+        If the operator supports write operations.
+        """
     @property
     def write_can_multi(self) -> builtins.bool:
-        r"""If multiple write operations can be performed on the same object."""
+        r"""
+        If multiple write operations can be performed on the same object.
+        """
     @property
     def write_can_empty(self) -> builtins.bool:
-        r"""If writing empty content is supported."""
+        r"""
+        If writing empty content is supported.
+        """
     @property
     def write_can_append(self) -> builtins.bool:
-        r"""If append operations are supported."""
+        r"""
+        If append operations are supported.
+        """
     @property
     def write_with_content_type(self) -> builtins.bool:
-        r"""If Content-Type can be specified during write operations."""
+        r"""
+        If Content-Type can be specified during write operations.
+        """
     @property
     def write_with_content_disposition(self) -> builtins.bool:
-        r"""If Content-Disposition can be specified during write operations."""
+        r"""
+        If Content-Disposition can be specified during write operations.
+        """
     @property
     def write_with_content_encoding(self) -> builtins.bool:
-        r"""If Content-Encoding can be specified during write operations."""
+        r"""
+        If Content-Encoding can be specified during write operations.
+        """
     @property
     def write_with_cache_control(self) -> builtins.bool:
-        r"""If Cache-Control can be specified during write operations."""
+        r"""
+        If Cache-Control can be specified during write operations.
+        """
     @property
     def write_with_if_match(self) -> builtins.bool:
-        r"""If conditional write operations using If-Match are supported."""
+        r"""
+        If conditional write operations using If-Match are supported.
+        """
     @property
     def write_with_if_none_match(self) -> builtins.bool:
-        r"""If conditional write operations using If-None-Match are supported."""
+        r"""
+        If conditional write operations using If-None-Match are supported.
+        """
     @property
     def write_with_if_not_exists(self) -> builtins.bool:
-        r"""If write operations can be conditional on object non-existence."""
+        r"""
+        If write operations can be conditional on object non-existence.
+        """
     @property
     def write_with_user_metadata(self) -> builtins.bool:
-        r"""If custom user metadata can be attached during write operations."""
+        r"""
+        If custom user metadata can be attached during write operations.
+        """
     @property
-    def write_multi_max_size(self) -> builtins.int | None:
+    def write_multi_max_size(self) -> typing.Optional[builtins.int]:
         r"""
         Maximum size supported for multipart uploads.
 
         For example, AWS S3 supports up to 5GiB per part in multipart uploads.
         """
     @property
-    def write_multi_min_size(self) -> builtins.int | None:
+    def write_multi_min_size(self) -> typing.Optional[builtins.int]:
         r"""
         Minimum size required for multipart uploads (except for the last part).
 
         For example, AWS S3 requires at least 5MiB per part.
         """
     @property
-    def write_total_max_size(self) -> builtins.int | None:
+    def write_total_max_size(self) -> typing.Optional[builtins.int]:
         r"""
         Maximum total size supported for write operations.
 
@@ -129,43 +176,71 @@ class Capability:
         """
     @property
     def create_dir(self) -> builtins.bool:
-        r"""If operator supports create dir."""
+        r"""
+        If operator supports create dir.
+        """
     @property
     def delete(self) -> builtins.bool:
-        r"""If operator supports delete."""
+        r"""
+        If operator supports delete.
+        """
     @property
     def copy(self) -> builtins.bool:
-        r"""If operator supports copy."""
+        r"""
+        If operator supports copy.
+        """
     @property
     def rename(self) -> builtins.bool:
-        r"""If operator supports rename."""
+        r"""
+        If operator supports rename.
+        """
     @property
     def list(self) -> builtins.bool:
-        r"""If operator supports list."""
+        r"""
+        If operator supports list.
+        """
     @property
     def list_with_limit(self) -> builtins.bool:
-        r"""If backend supports list with limit."""
+        r"""
+        If backend supports list with limit.
+        """
     @property
     def list_with_start_after(self) -> builtins.bool:
-        r"""If backend supports list with start after."""
+        r"""
+        If backend supports list with start after.
+        """
     @property
     def list_with_recursive(self) -> builtins.bool:
-        r"""If backend supports list without delimiter."""
+        r"""
+        If backend supports list without delimiter.
+        """
     @property
     def presign(self) -> builtins.bool:
-        r"""If operator supports presign."""
+        r"""
+        If operator supports presign.
+        """
     @property
     def presign_read(self) -> builtins.bool:
-        r"""If operator supports presign read."""
+        r"""
+        If operator supports presign read.
+        """
     @property
     def presign_stat(self) -> builtins.bool:
-        r"""If operator supports presign stat."""
+        r"""
+        If operator supports presign stat.
+        """
     @property
     def presign_write(self) -> builtins.bool:
-        r"""If operator supports presign write."""
+        r"""
+        If operator supports presign write.
+        """
     @property
     def presign_delete(self) -> builtins.bool:
-        r"""If operator supports presign delete."""
+        r"""
+        If operator supports presign delete.
+        """
     @property
     def shared(self) -> builtins.bool:
-        r"""If operator supports shared."""
+        r"""
+        If operator supports shared.
+        """

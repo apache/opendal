@@ -20,8 +20,8 @@ use futures::AsyncReadExt;
 use hdrs::AsyncFile;
 use tokio::io::ReadBuf;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HdfsReader<F> {
     f: F,

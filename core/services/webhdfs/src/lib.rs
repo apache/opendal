@@ -15,23 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for hdfs service.
-pub const HDFS_SCHEME: &str = "hdfs";
+/// Default scheme for webhdfs service.
+pub const WEBHDFS_SCHEME: &str = "webhdfs";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;
 mod core;
 mod deleter;
+mod error;
 mod lister;
-mod reader;
+mod message;
 mod writer;
 
-pub use backend::HdfsBuilder as Hdfs;
-pub use config::HdfsConfig;
+pub use backend::WebhdfsBuilder as Webhdfs;
+pub use config::WebhdfsConfig;
 
 #[ctor::ctor]
-fn register_hdfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Hdfs>(HDFS_SCHEME);
+fn register_webhdfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Webhdfs>(WEBHDFS_SCHEME);
 }

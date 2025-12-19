@@ -15,32 +15,48 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io;
 use std::sync::Arc;
 
-use http::StatusCode;
+use super::core::HdfsCore;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use super::core::WebhdfsCore;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
-
-pub struct WebhdfsDeleter {
-    core: Arc<WebhdfsCore>,
+pub struct HdfsDeleter {
+    core: Arc<HdfsCore>,
 }
 
-impl WebhdfsDeleter {
-    pub fn new(core: Arc<WebhdfsCore>) -> Self {
+impl HdfsDeleter {
+    pub fn new(core: Arc<HdfsCore>) -> Self {
         Self { core }
     }
 }
 
-impl oio::OneShotDelete for WebhdfsDeleter {
+impl oio::OneShotDelete for HdfsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.webhdfs_delete(&path).await?;
+        let p = build_rooted_abs_path(&self.core.root, &path);
 
-        match resp.status() {
-            StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+        let meta = self.core.client.metadata(&p);
+
+        if let Err(err) = meta {
+            return if err.kind() == io::ErrorKind::NotFound {
+                Ok(())
+            } else {
+                Err(new_std_io_error(err))
+            };
         }
+
+        // Safety: Err branch has been checked, it's OK to unwrap.
+        let meta = meta.ok().unwrap();
+
+        let result = if meta.is_dir() {
+            self.core.client.remove_dir(&p)
+        } else {
+            self.core.client.remove_file(&p)
+        };
+
+        result.map_err(new_std_io_error)?;
+
+        Ok(())
     }
 }

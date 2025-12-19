@@ -24,11 +24,6 @@ mod gridfs;
 #[cfg(feature = "services-gridfs")]
 pub use gridfs::*;
 
-#[cfg(feature = "services-hdfs")]
-mod hdfs;
-#[cfg(feature = "services-hdfs")]
-pub use self::hdfs::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]
@@ -53,8 +48,3 @@ pub use self::rocksdb::*;
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
-
-#[cfg(feature = "services-webhdfs")]
-mod webhdfs;
-#[cfg(feature = "services-webhdfs")]
-pub use webhdfs::*;

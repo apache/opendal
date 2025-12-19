@@ -107,14 +107,11 @@ Enabling the vendored feature ensures that hdrs includes the necessary libhdfs.s
 ### Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_core::services::Hdfs;
 use opendal_core::Operator;
+use opendal_service_hdfs::Hdfs;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create fs backend builder.
     let mut builder = Hdfs::default()
         // Set the name node for hdfs.

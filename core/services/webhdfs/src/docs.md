@@ -26,7 +26,7 @@ This service can be used to:
 ### File Creation and Write
 
 For [File creation and write](https://hadoop.apache.org/docs/r3.1.3/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Create_and_Write_to_a_File) operations,
-OpenDAL WebHDFS is optimized for Hadoop Distributed File System (HDFS) versions 2.9 and later. 
+OpenDAL WebHDFS is optimized for Hadoop Distributed File System (HDFS) versions 2.9 and later.
 This involves two API calls in webhdfs, where the initial `put` call to the namenode is redirected to the datanode handling the file data.
 The optional `noredirect` flag can be set to prevent redirection. If used, the API response body contains the datanode URL, which is then utilized for the subsequent `put` call with the actual file data.
 OpenDAL automatically sets the `noredirect` flag with the first `put` call. This feature is supported starting from HDFS version 2.9.
@@ -40,8 +40,6 @@ where the target file must not be empty, and its last block must be full. Due to
 This issue, identified as [HDFS-6641](https://issues.apache.org/jira/browse/HDFS-6641), has been addressed in later versions of HDFS.
 
 In summary, OpenDAL WebHDFS is designed for optimal compatibility with HDFS, specifically versions 2.9 and later.
-
-
 
 ## Configurations
 
@@ -60,7 +58,7 @@ Refer to [`Builder`]'s public API docs for more information.
 use std::sync::Arc;
 
 use anyhow::Result;
-use opendal_core::services::Webhdfs;
+use opendal_service_webhdfs::Webhdfs;
 use opendal_core::Operator;
 
 #[tokio::main]

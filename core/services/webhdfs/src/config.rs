@@ -20,52 +20,46 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::HdfsBuilder;
+use super::backend::WebhdfsBuilder;
 
-/// [Hadoop Distributed File System (HDFS™)](https://hadoop.apache.org/) support.
-///
-/// Config for Hdfs services support.
+/// Config for WebHDFS support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct HdfsConfig {
-    /// work dir of this backend
+pub struct WebhdfsConfig {
+    /// Root for webhdfs.
     pub root: Option<String>,
-    /// name node of this backend
-    pub name_node: Option<String>,
-    /// kerberos_ticket_cache_path of this backend
-    pub kerberos_ticket_cache_path: Option<String>,
-    /// user of this backend
-    pub user: Option<String>,
-    /// enable the append capacity
-    pub enable_append: bool,
+    /// Endpoint for webhdfs.
+    pub endpoint: Option<String>,
+    /// Name of the user for webhdfs.
+    pub user_name: Option<String>,
+    /// Delegation token for webhdfs.
+    pub delegation: Option<String>,
+    /// Disable batch listing
+    pub disable_list_batch: bool,
     /// atomic_write_dir of this backend
     pub atomic_write_dir: Option<String>,
 }
 
-impl Debug for HdfsConfig {
+impl Debug for WebhdfsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HdfsConfig")
+        f.debug_struct("WebhdfsConfig")
             .field("root", &self.root)
-            .field("name_node", &self.name_node)
-            .field(
-                "kerberos_ticket_cache_path",
-                &self.kerberos_ticket_cache_path,
-            )
-            .field("user", &self.user)
-            .field("enable_append", &self.enable_append)
+            .field("endpoint", &self.endpoint)
+            .field("user_name", &self.user_name)
+            .field("disable_list_batch", &self.disable_list_batch)
             .field("atomic_write_dir", &self.atomic_write_dir)
             .finish_non_exhaustive()
     }
 }
 
-impl crate::Configurator for HdfsConfig {
-    type Builder = HdfsBuilder;
+impl opendal_core::Configurator for WebhdfsConfig {
+    type Builder = WebhdfsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
-            map.insert("name_node".to_string(), format!("hdfs://{authority}"));
+            map.insert("endpoint".to_string(), format!("http://{authority}"));
         }
 
         if let Some(root) = uri.root() {
@@ -78,34 +72,38 @@ impl crate::Configurator for HdfsConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        HdfsBuilder { config: self }
+        WebhdfsBuilder { config: self }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
-    fn from_uri_sets_name_node_and_root() {
+    fn from_uri_sets_endpoint_and_root() {
         let uri = OperatorUri::new(
-            "hdfs://cluster.local:8020/user/data",
-            Vec::<(String, String)>::new(),
+            "webhdfs://namenode.example.com:50070/user/hadoop/data",
+            vec![("user_name".to_string(), "hadoop".to_string())],
         )
         .unwrap();
 
-        let cfg = HdfsConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.name_node.as_deref(), Some("hdfs://cluster.local:8020"));
-        assert_eq!(cfg.root.as_deref(), Some("user/data"));
+        let cfg = WebhdfsConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.endpoint.as_deref(),
+            Some("http://namenode.example.com:50070")
+        );
+        assert_eq!(cfg.root.as_deref(), Some("user/hadoop/data"));
+        assert_eq!(cfg.user_name.as_deref(), Some("hadoop"));
     }
 
     #[test]
     fn from_uri_allows_missing_authority() {
-        let uri = OperatorUri::new("hdfs", Vec::<(String, String)>::new()).unwrap();
+        let uri = OperatorUri::new("webhdfs", Vec::<(String, String)>::new()).unwrap();
 
-        let cfg = HdfsConfig::from_uri(&uri).unwrap();
-        assert!(cfg.name_node.is_none());
+        let cfg = WebhdfsConfig::from_uri(&uri).unwrap();
+        assert!(cfg.endpoint.is_none());
     }
 }

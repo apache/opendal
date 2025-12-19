@@ -15,35 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for ipmfs service.
+pub const IPMFS_SCHEME: &str = "ipmfs";
 
-use http::StatusCode;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-use super::core::IpmfsCore;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+mod backend;
+mod builder;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-pub struct IpmfsWriter {
-    core: Arc<IpmfsCore>,
-    path: String,
-}
+pub use builder::IpmfsBuilder as Ipmfs;
+pub use config::IpmfsConfig;
 
-impl IpmfsWriter {
-    pub fn new(core: Arc<IpmfsCore>, path: String) -> Self {
-        IpmfsWriter { core, path }
-    }
-}
-
-impl oio::OneShotWrite for IpmfsWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
-        let resp = self.core.ipmfs_write(&self.path, bs).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
-            _ => Err(parse_error(resp)),
-        }
-    }
+#[ctor::ctor]
+fn register_ipmfs_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Ipmfs>(IPMFS_SCHEME);
 }

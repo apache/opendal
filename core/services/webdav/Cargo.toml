@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL WebHDFS service implementation"
-name = "opendal-service-webhdfs"
+description = "Apache OpenDAL Webdav service implementation"
+name = "opendal-service-webdav"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -38,9 +38,8 @@ http = { workspace = true }
 log = { workspace = true }
 mea = "0.5.1"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-uuid = { workspace = true, features = ["serde", "v4"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

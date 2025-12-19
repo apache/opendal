@@ -23,11 +23,11 @@ use serde::Deserialize;
 
 use super::core::IpmfsCore;
 use super::error::parse_error;
-use crate::EntryMode;
-use crate::ErrorKind;
-use crate::Metadata;
-use crate::Result;
-use crate::raw::*;
+use opendal_core::EntryMode;
+use opendal_core::ErrorKind;
+use opendal_core::Metadata;
+use opendal_core::Result;
+use opendal_core::raw::*;
 
 pub struct IpmfsLister {
     core: Arc<IpmfsCore>,

@@ -19,28 +19,30 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
-use super::core::*;
+use super::core::IpmfsCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub struct WebdavDeleter {
-    core: Arc<WebdavCore>,
+pub struct IpmfsWriter {
+    core: Arc<IpmfsCore>,
+    path: String,
 }
 
-impl WebdavDeleter {
-    pub fn new(core: Arc<WebdavCore>) -> Self {
-        Self { core }
+impl IpmfsWriter {
+    pub fn new(core: Arc<IpmfsCore>, path: String) -> Self {
+        IpmfsWriter { core, path }
     }
 }
 
-impl oio::OneShotDelete for WebdavDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.webdav_delete(&path).await?;
+impl oio::OneShotWrite for IpmfsWriter {
+    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        let resp = self.core.ipmfs_write(&self.path, bs).await?;
 
         let status = resp.status();
+
         match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::CREATED | StatusCode::OK => Ok(Metadata::default()),
             _ => Err(parse_error(resp)),
         }
     }

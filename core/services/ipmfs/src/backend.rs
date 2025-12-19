@@ -27,8 +27,8 @@ use super::deleter::IpmfsDeleter;
 use super::error::parse_error;
 use super::lister::IpmfsLister;
 use super::writer::IpmfsWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// IPFS Mutable File System (IPMFS) backend.
 #[doc = include_str!("docs.md")]

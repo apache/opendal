@@ -27,8 +27,8 @@ use http::header;
 use serde::Deserialize;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// The request to query all properties of a file or directory.
 ///

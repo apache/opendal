@@ -58,7 +58,8 @@ executors-tokio = ["tokio/rt"]
 layers-dtrace = ["dep:probe"]
 
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
-services-hdfs = ["dep:hdrs"]
+services-ipmfs = []
+services-lakefs = []
 services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]
@@ -106,8 +107,7 @@ sha2 = { workspace = true, optional = true }
 
 # For http based services.
 reqsign = { workspace = true, features = ["reqwest_request"], optional = true }
-# for services-hdfs
-hdrs = { version = "0.3.2", optional = true, features = ["async_file"] }
+
 # for services-moka
 moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb

@@ -19,8 +19,8 @@ use std::io;
 use std::sync::Arc;
 
 use super::core::HdfsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct HdfsDeleter {
     core: Arc<HdfsCore>,

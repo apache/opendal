@@ -20,8 +20,8 @@ use std::io;
 use std::io::SeekFrom;
 use std::sync::Arc;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// HdfsCore contains code that directly interacts with HDFS.
 #[derive(Clone)]

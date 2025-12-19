@@ -18,7 +18,7 @@
 /// Default scheme for hdfs service.
 pub const HDFS_SCHEME: &str = "hdfs";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

@@ -38,7 +38,7 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 bytes = { workspace = true }
 ctor = { workspace = true }
 flume = "0.11"
-futures = { workspace = true, default-features = false, features = [
+futures = { workspace = true, features = [
   "std",
   "async-await",
 ] }

@@ -134,12 +134,12 @@ services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
 services-gridfs = ["opendal-core/services-gridfs"]
-services-hdfs = ["opendal-core/services-hdfs"]
+services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
 services-http = ["dep:opendal-service-http"]
 services-huggingface = ["dep:opendal-service-huggingface"]
 services-ipfs = ["dep:opendal-service-ipfs"]
-services-ipmfs = ["opendal-core/services-ipmfs"]
+services-ipmfs = ["dep:opendal-service-ipmfs"]
 services-koofr = ["dep:opendal-service-koofr"]
 services-lakefs = ["dep:opendal-service-lakefs"]
 services-memcached = ["dep:opendal-service-memcached"]
@@ -171,8 +171,8 @@ services-tikv = ["dep:opendal-service-tikv"]
 services-upyun = ["dep:opendal-service-upyun"]
 services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
-services-webdav = ["opendal-core/services-webdav"]
-services-webhdfs = ["opendal-core/services-webhdfs"]
+services-webdav = ["dep:opendal-service-webdav"]
+services-webhdfs = ["dep:opendal-service-webhdfs"]
 services-yandex-disk = ["dep:opendal-service-yandex-disk"]
 tests = ["opendal-testkit"]
 
@@ -238,10 +238,12 @@ opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = tr
 opendal-service-gdrive = { path = "services/gdrive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.55.0", optional = true, default-features = false }
+opendal-service-hdfs = { path = "services/hdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-http = { path = "services/http", version = "0.55.0", optional = true, default-features = false }
 opendal-service-huggingface = { path = "services/huggingface", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = true, default-features = false }
+opendal-service-ipmfs = { path = "services/ipmfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-koofr = { path = "services/koofr", version = "0.55.0", optional = true, default-features = false }
 opendal-service-lakefs = { path = "services/lakefs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-memcached = { path = "services/memcached", version = "0.55.0", optional = true, default-features = false }
@@ -264,6 +266,8 @@ opendal-service-swift = { path = "services/swift", version = "0.55.0", optional 
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
+opendal-service-webdav = { path = "services/webdav", version = "0.55.0", optional = true, default-features = false }
+opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 

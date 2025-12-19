@@ -5576,10 +5576,12 @@ dependencies = [
  "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-ipmfs",
  "opendal-service-koofr",
  "opendal-service-lakefs",
  "opendal-service-memcached",
@@ -5603,6 +5605,8 @@ dependencies = [
  "opendal-service-tikv",
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
+ "opendal-service-webdav",
+ "opendal-service-webhdfs",
  "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
@@ -5658,7 +5662,6 @@ dependencies = [
  "flume",
  "futures",
  "getrandom 0.2.16",
- "hdrs",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
@@ -6263,6 +6266,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-hdfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "hdrs",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-hdfs-native"
 version = "0.55.0"
 dependencies = [
@@ -6314,6 +6331,20 @@ dependencies = [
  "opendal-core",
  "prost 0.13.5",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-ipmfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -6649,6 +6680,39 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-webdav"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webhdfs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

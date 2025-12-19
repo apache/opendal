@@ -69,7 +69,13 @@ impl oio::PageList for GdriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            let path = build_rel_path(&self.core.root, &self.path);
+            // Ensure directory path ends with / for proper EntryMode::DIR
+            let dir_path = if self.path.ends_with('/') {
+                self.path.clone()
+            } else {
+                format!("{}/", self.path)
+            };
+            let path = build_rel_path(&self.core.root, &dir_path);
             let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
             ctx.entries.push_back(e);
         }
@@ -216,7 +222,13 @@ impl GdriveFlatLister {
         };
 
         // Add the root directory entry first
-        let rel_path = build_rel_path(&self.core.root, &self.root_path);
+        // Ensure directory path ends with / for proper EntryMode::DIR
+        let dir_path = if self.root_path.ends_with('/') {
+            self.root_path.clone()
+        } else {
+            format!("{}/", self.root_path)
+        };
+        let rel_path = build_rel_path(&self.core.root, &dir_path);
         let entry = oio::Entry::new(&rel_path, Metadata::new(EntryMode::DIR));
         self.entry_buffer.push_back(entry);
 

@@ -39,3 +39,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 ] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
+
+[target.'cfg(unix)'.dependencies]
+xattr = "1"

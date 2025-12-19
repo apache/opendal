@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
@@ -79,11 +80,21 @@ impl FsCore {
         } else {
             EntryMode::Unknown
         };
-        let m = Metadata::new(mode)
+        let mut m = Metadata::new(mode)
             .with_content_length(meta.len())
             .with_last_modified(Timestamp::try_from(
                 meta.modified().map_err(new_std_io_error)?,
             )?);
+
+        // Read user metadata from xattr on Unix systems
+        #[cfg(unix)]
+        {
+            let user_metadata = Self::get_user_metadata(&p)?;
+            if !user_metadata.is_empty() {
+                m = m.with_user_metadata(user_metadata);
+            }
+        }
+
         Ok(m)
     }
 
@@ -205,4 +216,64 @@ impl FsCore {
             .map_err(new_std_io_error)?;
         Ok(())
     }
+
+    /// Get user metadata from extended attributes on Unix systems.
+    ///
+    /// Reads xattr in the "user." namespace and strips the prefix, allowing
+    /// interoperability with other applications that set user xattr.
+    #[cfg(unix)]
+    pub fn get_user_metadata(path: &Path) -> Result<HashMap<String, String>> {
+        let mut user_metadata = HashMap::new();
+
+        let attrs = match xattr::list(path) {
+            Ok(attrs) => attrs,
+            Err(e) => {
+                // xattr may not be supported on some filesystems, ignore the error
+                if e.kind() == std::io::ErrorKind::Unsupported {
+                    return Ok(user_metadata);
+                }
+                // Also ignore "operation not supported" errors (ENOTSUP/EOPNOTSUPP)
+                // which may occur on filesystems that don't support xattr
+                if let Some(os_error) = e.raw_os_error() {
+                    // ENOTSUP (95) and EOPNOTSUPP (95) on Linux
+                    if os_error == 95 {
+                        return Ok(user_metadata);
+                    }
+                }
+                return Err(new_std_io_error(e));
+            }
+        };
+
+        for attr in attrs {
+            let attr_name = attr.to_string_lossy();
+            // Only read xattr in the "user." namespace and strip the prefix
+            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX) {
+                if let Ok(Some(value)) = xattr::get(path, &attr) {
+                    if let Ok(v) = String::from_utf8(value) {
+                        user_metadata.insert(key.to_string(), v);
+                    }
+                }
+            }
+        }
+
+        Ok(user_metadata)
+    }
+
+    /// Set user metadata as extended attributes on Unix systems.
+    ///
+    /// Keys are automatically prefixed with "user." to comply with Linux xattr
+    /// naming requirements. This allows interoperability with other applications.
+    #[cfg(unix)]
+    pub fn set_user_metadata(path: &Path, user_metadata: &HashMap<String, String>) -> Result<()> {
+        for (key, value) in user_metadata {
+            let attr_name = format!("{XATTR_USER_PREFIX}{key}");
+            xattr::set(path, &attr_name, value.as_bytes()).map_err(new_std_io_error)?;
+        }
+        Ok(())
+    }
 }
+
+/// Prefix for user xattr namespace on Linux.
+/// Using "user." as the standard namespace for user-defined attributes.
+#[cfg(unix)]
+const XATTR_USER_PREFIX: &str = "user.";

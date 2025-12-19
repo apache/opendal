@@ -104,7 +104,53 @@ impl GdriveCore {
         url = url.push("q", &percent_encode_path(&q));
         url = url.push(
             "fields",
-            "nextPageToken,files(id,name,mimeType,size,modifiedTime)",
+            "nextPageToken,files(id,name,mimeType,size,modifiedTime,parents)",
+        );
+        if !next_page_token.is_empty() {
+            url = url.push("pageToken", next_page_token);
+        };
+
+        let mut req = Request::get(url.finish())
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// List multiple directories in a single API call using OR query.
+    /// This is much more efficient than listing directories one by one.
+    /// Google Drive API supports up to ~50 parent IDs in a single query.
+    pub async fn gdrive_list_batch(
+        &self,
+        file_ids: &[String],
+        page_size: i32,
+        next_page_token: &str,
+    ) -> Result<Response<Buffer>> {
+        if file_ids.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "file_ids cannot be empty",
+            ));
+        }
+
+        // Build OR query: ('id1' in parents or 'id2' in parents or ...)
+        let parents_query = file_ids
+            .iter()
+            .map(|id| format!("'{}' in parents", id))
+            .collect::<Vec<_>>()
+            .join(" or ");
+        let q = format!("({}) and trashed = false", parents_query);
+
+        let url = "https://www.googleapis.com/drive/v3/files";
+        let mut url = QueryPairsWriter::new(url);
+        url = url.push("pageSize", &page_size.to_string());
+        url = url.push("q", &percent_encode_path(&q));
+        // Include 'parents' field to know which directory each file belongs to
+        url = url.push(
+            "fields",
+            "nextPageToken,files(id,name,mimeType,size,modifiedTime,parents)",
         );
         if !next_page_token.is_empty() {
             url = url.push("pageToken", next_page_token);
@@ -486,6 +532,10 @@ pub struct GdriveFile {
     // if other operations(such as search) do not specify the `fields` query parameter,
     // try to access this field, it will be `None`.
     pub modified_time: Option<String>,
+    // Parents are returned when using batch listing to identify which directory
+    // a file belongs to. This is needed for the OR query optimization.
+    #[serde(default)]
+    pub parents: Vec<String>,
 }
 
 /// refer to https://developers.google.com/drive/api/reference/rest/v3/files/list

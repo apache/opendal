@@ -26,6 +26,7 @@ use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::deleter::GdriveDeleter;
 use super::error::parse_error;
+use super::lister::GdriveFlatLister;
 use super::lister::GdriveLister;
 use super::writer::GdriveWriter;
 use opendal_core::raw::*;
@@ -36,10 +37,13 @@ pub struct GdriveBackend {
     pub core: Arc<GdriveCore>,
 }
 
+/// Lister type that supports both recursive and non-recursive listing
+pub type GdriveListers = TwoWays<oio::PageLister<GdriveLister>, GdriveFlatLister>;
+
 impl Access for GdriveBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<GdriveWriter>;
-    type Lister = oio::PageLister<GdriveLister>;
+    type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -117,10 +121,18 @@ impl Access for GdriveBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let path = build_abs_path(&self.core.root, path);
-        let l = GdriveLister::new(path, self.core.clone());
-        Ok((RpList::default(), oio::PageLister::new(l)))
+
+        if args.recursive() {
+            // Use optimized batch-query recursive lister
+            let l = GdriveFlatLister::new(path, self.core.clone());
+            Ok((RpList::default(), TwoWays::Two(l)))
+        } else {
+            // Use standard page-based lister for non-recursive
+            let l = GdriveLister::new(path, self.core.clone());
+            Ok((RpList::default(), TwoWays::One(oio::PageLister::new(l))))
+        }
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

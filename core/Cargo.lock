@@ -5606,6 +5606,7 @@ dependencies = [
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
  "opendal-service-webdav",
+ "opendal-service-webhdfs",
  "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
@@ -6695,6 +6696,23 @@ dependencies = [
  "quick-xml",
  "serde",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-webhdfs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

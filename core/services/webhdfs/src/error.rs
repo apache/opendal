@@ -20,8 +20,8 @@ use http::StatusCode;
 use http::response::Parts;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]

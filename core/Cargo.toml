@@ -172,7 +172,7 @@ services-upyun = ["dep:opendal-service-upyun"]
 services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
 services-webdav = ["dep:opendal-service-webdav"]
-services-webhdfs = ["opendal-core/services-webhdfs"]
+services-webhdfs = ["dep:opendal-service-webhdfs"]
 services-yandex-disk = ["dep:opendal-service-yandex-disk"]
 tests = ["opendal-testkit"]
 
@@ -267,6 +267,7 @@ opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = 
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-webdav = { path = "services/webdav", version = "0.55.0", optional = true, default-features = false }
+opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 

@@ -23,9 +23,10 @@ use uuid::Uuid;
 
 use super::core::WebhdfsCore;
 use super::error::parse_error;
-use crate::raw::*;
-use crate::services::webhdfs::message::FileStatusWrapper;
-use crate::*;
+use crate::message::FileStatusWrapper;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub type WebhdfsWriters =
     TwoWays<oio::BlockWriter<WebhdfsWriter>, oio::AppendWriter<WebhdfsWriter>>;

@@ -15,24 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for webhdfs service.
-pub const WEBHDFS_SCHEME: &str = "webhdfs";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use http::StatusCode;
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod error;
-mod lister;
-mod message;
-mod writer;
+use super::core::WebhdfsCore;
+use super::error::parse_error;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-pub use backend::WebhdfsBuilder as Webhdfs;
-pub use config::WebhdfsConfig;
+pub struct WebhdfsDeleter {
+    core: Arc<WebhdfsCore>,
+}
 
-#[ctor::ctor]
-fn register_webhdfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Webhdfs>(WEBHDFS_SCHEME);
+impl WebhdfsDeleter {
+    pub fn new(core: Arc<WebhdfsCore>) -> Self {
+        Self { core }
+    }
+}
+
+impl oio::OneShotDelete for WebhdfsDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let resp = self.core.webhdfs_delete(&path).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
 }

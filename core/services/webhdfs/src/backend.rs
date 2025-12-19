@@ -35,8 +35,9 @@ use super::message::FileStatusType;
 use super::message::FileStatusWrapper;
 use super::writer::WebhdfsWriter;
 use super::writer::WebhdfsWriters;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 const WEBHDFS_DEFAULT_ENDPOINT: &str = "http://127.0.0.1:9870";
 

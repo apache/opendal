@@ -29,9 +29,6 @@ pub(crate) use complete::CompleteLayer;
 mod simulate;
 pub use simulate::SimulateLayer;
 
-mod concurrent_limit;
-pub use concurrent_limit::ConcurrentLimitLayer;
-
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
 mod dtrace;
 #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]

@@ -51,6 +51,55 @@ impl oio::PageList for GdriveLister {
             }
         };
 
+        let is_dir_path = self.path.is_empty() || self.path.ends_with('/');
+
+        // Prefix listing: only return `path` itself if it exists.
+        //
+        // This matches OpenDAL's list semantics:
+        // - `list("file")` returns `file`
+        // - `list("dir")` returns `dir/` (but does NOT list its children)
+        // - list children requires a trailing slash, like `list("dir/")`
+        if !is_dir_path {
+            let resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            let bytes = resp.into_body().to_bytes();
+            let file =
+                serde_json::from_slice::<GdriveFile>(&bytes).map_err(new_json_deserialize_error)?;
+            let is_dir = file.mime_type.as_str() == "application/vnd.google-apps.folder";
+
+            let abs_path = if is_dir {
+                format!("{}/", self.path)
+            } else {
+                self.path.clone()
+            };
+            let path = build_rel_path(&self.core.root, &abs_path);
+
+            let mut meta = Metadata::new(if is_dir {
+                EntryMode::DIR
+            } else {
+                EntryMode::FILE
+            })
+            .with_content_type(file.mime_type);
+            if let Some(size) = file.size {
+                meta = meta.with_content_length(size.parse::<u64>().map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                })?);
+            }
+            if let Some(modified_time) = file.modified_time {
+                meta =
+                    meta.with_last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+                    })?);
+            }
+
+            ctx.entries.push_back(oio::Entry::new(&path, meta));
+            ctx.done = true;
+            return Ok(());
+        }
+
         let resp = self
             .core
             .gdrive_list(file_id.as_str(), 1000, &ctx.token)
@@ -69,10 +118,7 @@ impl oio::PageList for GdriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            let mut path = build_rel_path(&self.core.root, &self.path);
-            if !path.is_empty() && !path.ends_with('/') {
-                path.push('/');
-            }
+            let path = build_rel_path(&self.core.root, &self.path);
             let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
             ctx.entries.push_back(e);
         }
@@ -99,11 +145,6 @@ impl oio::PageList for GdriveLister {
             let root = &self.core.root;
             let path = format!("{}{}", &self.path, file.name);
             let normalized_path = build_rel_path(root, &path);
-
-            // Update path cache with the file id from list response.
-            // This avoids expensive API calls since insert() is idempotent
-            // and checks internally if the entry already exists.
-            self.core.path_cache.insert(&path, &file.id).await;
 
             let mut metadata = Metadata::new(file_type).with_content_type(file.mime_type.clone());
             if let Some(size) = file.size {
@@ -393,22 +434,19 @@ impl GdriveFlatLister {
             file.name.push('/');
         }
 
-        // Find the parent directory path
-        // The file's parents field contains the parent ID(s)
-        let parent_path = if let Some(parent_id) = file.parents.first() {
-            self.dir_id_to_path
-                .get(parent_id)
-                .cloned()
-                .unwrap_or_else(|| self.root_path.clone())
-        } else {
-            self.root_path.clone()
-        };
+        // Find the parent directory path.
+        //
+        // Google Drive files can have multiple parents. The batch query guarantees that at least
+        // one parent is among the directories we are currently listing, but it may not be the
+        // first one in the `parents` array. Always pick a parent that we can resolve.
+        let parent_path = file
+            .parents
+            .iter()
+            .find_map(|parent_id| self.dir_id_to_path.get(parent_id).cloned())
+            .unwrap_or_else(|| self.root_path.clone());
 
         let abs_path = format!("{}{}", parent_path, file.name);
         let rel_path = build_rel_path(&self.core.root, &abs_path);
-
-        // Update path cache
-        self.core.path_cache.insert(&abs_path, &file.id).await;
 
         // Build metadata
         let entry_mode = if is_dir {

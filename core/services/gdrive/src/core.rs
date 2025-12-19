@@ -52,6 +52,20 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
+    pub async fn gdrive_stat_by_id(&self, file_id: &str) -> Result<Response<Buffer>> {
+        // The file metadata in the Google Drive API is very complex.
+        // For now, we only need the file id, name, mime type and modified time.
+        let mut req = Request::get(format!(
+            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
+        ))
+        .extension(Operation::Stat)
+        .body(Buffer::new())
+        .map_err(new_request_build_error)?;
+        self.sign(&mut req).await?;
+
+        self.info.http_client().send(req).await
+    }
+
     pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
@@ -59,17 +73,7 @@ impl GdriveCore {
             format!("path not found: {path}"),
         ))?;
 
-        // The file metadata in the Google Drive API is very complex.
-        // For now, we only need the file id, name, mime type and modified time.
-        let mut req = Request::get(format!(
-            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
-        ))
-            .extension(Operation::Stat)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
-
-        self.info.http_client().send(req).await
+        self.gdrive_stat_by_id(&file_id).await
     }
 
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {

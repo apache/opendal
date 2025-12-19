@@ -130,6 +130,8 @@ pub mod services {
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
+    #[cfg(feature = "services-webdav")]
+    pub use opendal_service_webdav::*;
     #[cfg(feature = "services-yandex-disk")]
     pub use opendal_service_yandex_disk::*;
 }

@@ -15,33 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
+/// Default scheme for webdav service.
+pub const WEBDAV_SCHEME: &str = "webdav";
 
-use http::StatusCode;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
-use super::core::*;
-use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod error;
+mod lister;
+mod writer;
 
-pub struct WebdavDeleter {
-    core: Arc<WebdavCore>,
-}
+pub use backend::WebdavBuilder as Webdav;
+pub use config::WebdavConfig;
 
-impl WebdavDeleter {
-    pub fn new(core: Arc<WebdavCore>) -> Self {
-        Self { core }
-    }
-}
-
-impl oio::OneShotDelete for WebdavDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.webdav_delete(&path).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
-    }
+#[ctor::ctor]
+fn register_webdav_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Webdav>(WEBDAV_SCHEME);
 }

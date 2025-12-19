@@ -64,11 +64,6 @@ mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
 
-#[cfg(feature = "services-webdav")]
-mod webdav;
-#[cfg(feature = "services-webdav")]
-pub use webdav::*;
-
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;
 #[cfg(feature = "services-webhdfs")]

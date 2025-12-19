@@ -68,7 +68,6 @@ services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
 services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
 services-vercel-artifacts = []
-services-webdav = []
 services-webhdfs = []
 
 [lib]

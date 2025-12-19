@@ -30,7 +30,7 @@ You can refer to [`WebdavBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Webdav;
+use opendal_service_webdav::Webdav;
 use opendal_core::Operator;
 
 #[tokio::main]

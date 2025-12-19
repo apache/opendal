@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -34,11 +35,18 @@ pub struct FsWriter {
     /// The temp_path is used to specify whether we should move to target_path after the file has been closed.
     temp_path: Option<PathBuf>,
     f: tokio::fs::File,
+    /// User metadata to be written to xattr on Unix systems.
+    #[cfg(unix)]
+    user_metadata: Option<HashMap<String, String>>,
 }
 
 impl FsWriter {
     pub async fn create(core: Arc<FsCore>, path: &str, op: OpWrite) -> Result<Self> {
         let target_path = core.ensure_write_abs_path(&core.root, path).await?;
+
+        // Store user metadata for later use on Unix systems.
+        #[cfg(unix)]
+        let user_metadata = op.user_metadata().cloned();
 
         // Quick path while atomic_write_dir is not set.
         if core.atomic_write_dir.is_none() {
@@ -48,6 +56,8 @@ impl FsWriter {
                 target_path,
                 temp_path: None,
                 f: target_file,
+                #[cfg(unix)]
+                user_metadata,
             });
         }
 
@@ -75,6 +85,8 @@ impl FsWriter {
             target_path,
             temp_path,
             f,
+            #[cfg(unix)]
+            user_metadata,
         })
     }
 }
@@ -102,6 +114,12 @@ impl oio::Write for FsWriter {
             tokio::fs::rename(temp_path, &self.target_path)
                 .await
                 .map_err(new_std_io_error)?;
+        }
+
+        // Write user metadata to xattr on Unix systems.
+        #[cfg(unix)]
+        if let Some(ref user_metadata) = self.user_metadata {
+            FsCore::set_user_metadata(&self.target_path, user_metadata)?;
         }
 
         let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
@@ -171,6 +189,12 @@ impl oio::PositionWrite for FsWriter {
             tokio::fs::rename(temp_path, &self.target_path)
                 .await
                 .map_err(new_std_io_error)?;
+        }
+
+        // Write user metadata to xattr on Unix systems.
+        #[cfg(unix)]
+        if let Some(ref user_metadata) = self.user_metadata {
+            FsCore::set_user_metadata(&self.target_path, user_metadata)?;
         }
 
         let file_meta = f.metadata().map_err(new_std_io_error)?;

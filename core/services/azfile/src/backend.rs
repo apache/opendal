@@ -135,7 +135,7 @@ impl AzfileBuilder {
     /// # Example
     /// ```
     /// use opendal_core::Builder;
-    /// use opendal_core::services::Azfile;
+    /// use opendal_service_azfile::Azfile;
     ///
     /// let conn_str = "AccountName=example;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net";
     ///

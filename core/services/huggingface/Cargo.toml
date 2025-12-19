@@ -31,12 +31,15 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-
 bytes = { workspace = true }
 ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

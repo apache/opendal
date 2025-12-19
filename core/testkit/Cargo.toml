@@ -35,6 +35,9 @@ all-features = true
 bytes = { workspace = true }
 dotenvy = "0.15"
 opendal-core = { path = "../core", version = "0.55.0", default-features = false }
+opendal-layer-logging = { path = "../layers/logging", version = "0.55.0", default-features = false }
+opendal-layer-retry = { path = "../layers/retry", version = "0.55.0", default-features = false }
+opendal-layer-timeout = { path = "../layers/timeout", version = "0.55.0", default-features = false }
 rand = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }

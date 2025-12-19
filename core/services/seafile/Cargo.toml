@@ -40,3 +40,6 @@ log = { workspace = true }
 mea = "0.5.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

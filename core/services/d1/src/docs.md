@@ -27,8 +27,8 @@ This service can be used to:
 ### Via Builder
 
 ```rust,no_run
-use opendal_service_d1::D1;
 use opendal_core::Operator;
+use opendal_service_d1::D1;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

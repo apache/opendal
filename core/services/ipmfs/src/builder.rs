@@ -50,20 +50,17 @@ use opendal_core::*;
 ///
 /// ## Via Builder
 ///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal_core::services::Ipmfs;
+/// ```rust,no_run
 /// use opendal_core::Operator;
+/// use opendal_core::Result;
+/// use opendal_service_ipmfs::Ipmfs;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     // create backend builder
 ///     let mut builder = Ipmfs::default()
-///         // set the storage bucket for OpenDAL
 ///         .endpoint("http://127.0.0.1:5001");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
 ///     Ok(())
 /// }
 /// ```

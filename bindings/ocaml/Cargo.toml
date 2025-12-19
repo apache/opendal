@@ -51,6 +51,9 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webdav",
   "services-webhdfs",
   "services-azfile",
+  "services-monoiofs",
+  "services-seafile",
+  "services-swift",
 ] }
 tokio = { version = "1.0", features = ["full"] }
 

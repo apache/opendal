@@ -23,8 +23,9 @@ use http::StatusCode;
 use super::core::WebhdfsCore;
 use super::error::parse_error;
 use super::message::*;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::oio;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct WebhdfsLister {
     core: Arc<WebhdfsCore>,

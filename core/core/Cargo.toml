@@ -48,7 +48,6 @@ blocking = ["internal-tokio-rt"]
 # Enable path cache.
 # This is an internal feature, and should not be used by users.
 internal-path-cache = ["dep:moka"]
-
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
 

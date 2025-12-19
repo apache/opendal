@@ -69,7 +69,10 @@ impl oio::PageList for GdriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            let path = build_rel_path(&self.core.root, &self.path);
+            let mut path = build_rel_path(&self.core.root, &self.path);
+            if !path.is_empty() && !path.ends_with('/') {
+                path.push('/');
+            }
             let e = oio::Entry::new(&path, Metadata::new(EntryMode::DIR));
             ctx.entries.push_back(e);
         }
@@ -147,6 +150,7 @@ const PAGE_SIZE: i32 = 1000;
 pub struct GdriveFlatLister {
     core: Arc<GdriveCore>,
     root_path: String,
+    prefix: Option<String>,
 
     /// Queue of directory IDs that still need to be listed
     pending_dirs: VecDeque<PendingDir>,
@@ -181,6 +185,7 @@ impl GdriveFlatLister {
         Self {
             core,
             root_path,
+            prefix: None,
             pending_dirs: VecDeque::new(),
             entry_buffer: VecDeque::new(),
             current_batch: Vec::new(),
@@ -210,22 +215,101 @@ impl GdriveFlatLister {
                     "GdriveFlatLister: root path not found: {:?}",
                     &self.root_path
                 );
-                self.done = true;
+                // Directory listing on a non-existent directory should return empty.
+                if self.root_path.ends_with('/') {
+                    self.done = true;
+                    return Ok(());
+                }
+
+                // Prefix listing can still return matches even if the exact path doesn't exist.
+                let prefix = self.root_path.clone();
+                self.prefix = Some(prefix.clone());
+
+                let mut parent_path = get_parent(&prefix).to_string();
+                if parent_path == "/" {
+                    parent_path.clear();
+                }
+
+                let parent_id = self.core.path_cache.get(&parent_path).await?;
+                let parent_id = match parent_id {
+                    Some(id) => id,
+                    None => {
+                        self.done = true;
+                        return Ok(());
+                    }
+                };
+
+                self.root_path = parent_path.clone();
+                self.pending_dirs.push_back(PendingDir {
+                    id: parent_id,
+                    path: parent_path,
+                });
+
+                self.started = true;
                 return Ok(());
             }
         };
 
-        // Add the root directory entry first
-        let rel_path = build_rel_path(&self.core.root, &self.root_path);
-        let entry = oio::Entry::new(&rel_path, Metadata::new(EntryMode::DIR));
-        self.entry_buffer.push_back(entry);
+        // Resolve the entry type for root path so we can handle:
+        //
+        // - `list("dir", recursive=true)` where `dir` is a folder but without trailing slash.
+        // - `list("prefix", recursive=true)` where `prefix` points to a file or a file prefix.
+        let resp = self.core.gdrive_stat_by_id(&root_id).await?;
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(resp));
+        }
 
-        // Queue the root directory for listing
-        self.pending_dirs.push_back(PendingDir {
-            id: root_id.clone(),
-            path: self.root_path.clone(),
-        });
-        self.dir_id_to_path.insert(root_id, self.root_path.clone());
+        let bytes = resp.into_body().to_bytes();
+        let root_file =
+            serde_json::from_slice::<GdriveFile>(&bytes).map_err(new_json_deserialize_error)?;
+        let root_is_dir = root_file.mime_type.as_str() == "application/vnd.google-apps.folder";
+
+        if root_is_dir {
+            // Directory paths must end with `/` (except the root which is represented by empty path).
+            if !self.root_path.is_empty() && !self.root_path.ends_with('/') {
+                self.root_path.push('/');
+                self.core.path_cache.insert(&self.root_path, &root_id).await;
+            }
+
+            // Add the root directory entry first.
+            let mut rel_path = build_rel_path(&self.core.root, &self.root_path);
+            if !rel_path.is_empty() && !rel_path.ends_with('/') {
+                rel_path.push('/');
+            }
+            let entry = oio::Entry::new(&rel_path, Metadata::new(EntryMode::DIR));
+            self.entry_buffer.push_back(entry);
+
+            // Queue the root directory for listing.
+            self.pending_dirs.push_back(PendingDir {
+                id: root_id.clone(),
+                path: self.root_path.clone(),
+            });
+            self.dir_id_to_path.insert(root_id, self.root_path.clone());
+        } else {
+            // For file/prefix listing, start from its parent directory and filter results by prefix.
+            let prefix = self.root_path.clone();
+            self.prefix = Some(prefix.clone());
+
+            let mut parent_path = get_parent(&prefix).to_string();
+            if parent_path == "/" {
+                parent_path.clear();
+            }
+
+            let parent_id = self.core.path_cache.get(&parent_path).await?;
+            let parent_id = match parent_id {
+                Some(id) => id,
+                None => {
+                    self.done = true;
+                    return Ok(());
+                }
+            };
+
+            self.root_path = parent_path.clone();
+            self.pending_dirs.push_back(PendingDir {
+                id: parent_id,
+                path: parent_path,
+            });
+        }
 
         self.started = true;
         Ok(())
@@ -347,11 +431,26 @@ impl GdriveFlatLister {
             }
         }
 
-        let entry = oio::Entry::new(&rel_path, metadata);
-        self.entry_buffer.push_back(entry);
+        let matches_prefix = self
+            .prefix
+            .as_ref()
+            .map(|prefix| abs_path.starts_with(prefix))
+            .unwrap_or(true);
 
-        // If it's a directory, queue it for recursive listing
-        if is_dir {
+        if matches_prefix {
+            let entry = oio::Entry::new(&rel_path, metadata);
+            self.entry_buffer.push_back(entry);
+        }
+
+        // If it's a directory, queue it for recursive listing if it can contain matching entries.
+        let should_traverse = is_dir
+            && self
+                .prefix
+                .as_ref()
+                .map(|prefix| abs_path.starts_with(prefix) || prefix.starts_with(&abs_path))
+                .unwrap_or(true);
+
+        if should_traverse {
             self.pending_dirs.push_back(PendingDir {
                 id: file.id.clone(),
                 path: abs_path.clone(),

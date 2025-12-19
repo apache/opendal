@@ -38,10 +38,7 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 bytes = { workspace = true }
 ctor = { workspace = true }
 flume = "0.11"
-futures = { workspace = true, features = [
-  "std",
-  "async-await",
-] }
+futures = { workspace = true, features = ["std", "async-await"] }
 monoio = { version = "0.2.4", features = [
   "sync",
   "mkdirat",

@@ -29,11 +29,6 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-ipmfs")]
-mod ipmfs;
-#[cfg(feature = "services-ipmfs")]
-pub use ipmfs::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]

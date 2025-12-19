@@ -22,8 +22,8 @@ use std::sync::Arc;
 use http::Request;
 use http::Response;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct IpmfsCore {
     pub info: Arc<AccessorInfo>,

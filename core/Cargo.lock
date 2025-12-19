@@ -5580,6 +5580,7 @@ dependencies = [
  "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-ipmfs",
  "opendal-service-koofr",
  "opendal-service-lakefs",
  "opendal-service-memcached",
@@ -6314,6 +6315,20 @@ dependencies = [
  "opendal-core",
  "prost 0.13.5",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-ipmfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

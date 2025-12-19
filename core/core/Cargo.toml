@@ -59,7 +59,6 @@ layers-dtrace = ["dep:probe"]
 
 services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-hdfs = ["dep:hdrs"]
-services-ipmfs = []
 services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-monoiofs = ["dep:monoio", "dep:flume"]

@@ -18,7 +18,7 @@
 /// Default scheme for ipmfs service.
 pub const IPMFS_SCHEME: &str = "ipmfs";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod builder;

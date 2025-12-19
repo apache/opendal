@@ -44,10 +44,6 @@ mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::*;
 
-#[cfg(feature = "services-onedrive")]
-mod onedrive;
-#[cfg(feature = "services-onedrive")]
-pub use onedrive::*;
 
 #[cfg(feature = "services-redis")]
 mod redis;

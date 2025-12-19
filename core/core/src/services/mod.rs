@@ -29,11 +29,6 @@ mod hdfs;
 #[cfg(feature = "services-hdfs")]
 pub use self::hdfs::*;
 
-#[cfg(feature = "services-ipmfs")]
-mod ipmfs;
-#[cfg(feature = "services-ipmfs")]
-pub use ipmfs::*;
-
 #[cfg(feature = "services-memory")]
 mod memory;
 #[cfg(feature = "services-memory")]
@@ -58,11 +53,6 @@ pub use self::rocksdb::*;
 mod sftp;
 #[cfg(feature = "services-sftp")]
 pub use sftp::*;
-
-#[cfg(feature = "services-webdav")]
-mod webdav;
-#[cfg(feature = "services-webdav")]
-pub use webdav::*;
 
 #[cfg(feature = "services-webhdfs")]
 mod webhdfs;

@@ -5581,6 +5581,7 @@ dependencies = [
  "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-ipmfs",
  "opendal-service-koofr",
  "opendal-service-lakefs",
  "opendal-service-memcached",
@@ -5605,6 +5606,7 @@ dependencies = [
  "opendal-service-tikv",
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
+ "opendal-service-webdav",
  "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
@@ -6318,6 +6320,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-ipmfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-koofr"
 version = "0.55.0"
 dependencies = [
@@ -6663,6 +6679,22 @@ dependencies = [
  "quick-xml",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webdav"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "quick-xml",
+ "serde",
  "tokio",
 ]
 

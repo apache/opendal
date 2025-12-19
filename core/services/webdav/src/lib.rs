@@ -15,13 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for ipmfs service.
-pub const IPMFS_SCHEME: &str = "ipmfs";
+/// Default scheme for webdav service.
+pub const WEBDAV_SCHEME: &str = "webdav";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
-mod builder;
 mod config;
 mod core;
 mod deleter;
@@ -29,10 +28,10 @@ mod error;
 mod lister;
 mod writer;
 
-pub use builder::IpmfsBuilder as Ipmfs;
-pub use config::IpmfsConfig;
+pub use backend::WebdavBuilder as Webdav;
+pub use config::WebdavConfig;
 
 #[ctor::ctor]
-fn register_ipmfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Ipmfs>(IPMFS_SCHEME);
+fn register_webdav_service() {
+    DEFAULT_OPERATOR_REGISTRY.register::<Webdav>(WEBDAV_SCHEME);
 }

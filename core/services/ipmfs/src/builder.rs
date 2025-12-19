@@ -24,8 +24,8 @@ use super::IPMFS_SCHEME;
 use super::backend::IpmfsBackend;
 use super::config::IpmfsConfig;
 use super::core::IpmfsCore;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// IPFS file system support based on [IPFS MFS](https://docs.ipfs.tech/concepts/file-systems/) API.
 ///
@@ -50,20 +50,17 @@ use crate::*;
 ///
 /// ## Via Builder
 ///
-/// ```no_run
-/// use anyhow::Result;
-/// use opendal_core::services::Ipmfs;
+/// ```rust,no_run
 /// use opendal_core::Operator;
+/// use opendal_core::Result;
+/// use opendal_service_ipmfs::Ipmfs;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<()> {
-///     // create backend builder
 ///     let mut builder = Ipmfs::default()
-///         // set the storage bucket for OpenDAL
 ///         .endpoint("http://127.0.0.1:5001");
 ///
 ///     let op: Operator = Operator::new(builder)?.finish();
-///
 ///     Ok(())
 /// }
 /// ```

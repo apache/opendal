@@ -19,8 +19,8 @@ use http::Response;
 use http::StatusCode;
 use serde::Deserialize;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[derive(Default, Debug, Deserialize)]
 struct GdriveError {

@@ -68,6 +68,8 @@ pub mod services {
     pub use opendal_service_ftp::*;
     #[cfg(feature = "services-gcs")]
     pub use opendal_service_gcs::*;
+    #[cfg(feature = "services-gdrive")]
+    pub use opendal_service_gdrive::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]

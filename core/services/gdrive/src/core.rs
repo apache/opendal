@@ -29,8 +29,8 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::error::parse_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct GdriveCore {
     pub info: Arc<AccessorInfo>,

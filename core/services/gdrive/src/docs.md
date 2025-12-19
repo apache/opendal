@@ -49,9 +49,9 @@ You can refer to [`GdriveBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Gdrive;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_gdrive::Gdrive;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,5 +59,7 @@ async fn main() -> Result<()> {
         .root("/test")
         .access_token("<token>");
 
+    let op: Operator = Operator::new(builder)?.finish();
     Ok(())
 }
+```

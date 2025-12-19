@@ -50,13 +50,20 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         // since list should return path itself, we return it first
         if let Some(path) = self.current_path.take() {
-            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+            let metadata = tokio::fs::metadata(self.root.join(&path))
+                .await
+                .map_err(new_std_io_error)?;
+            let e = oio::Entry::new(
+                path.as_str(),
+                Metadata::new(EntryMode::DIR).with_content_length(metadata.len()),
+            );
             return Ok(Some(e));
         }
 
         let Some(de) = self.rd.next_entry().await.map_err(new_std_io_error)? else {
             return Ok(None);
         };
+        let metadata = de.metadata().await.map_err(new_std_io_error)?;
 
         let entry_path = de.path();
         let rel_path = normalize_path(
@@ -70,11 +77,20 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
         let ft = de.file_type().await.map_err(new_std_io_error)?;
         let entry = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+            oio::Entry::new(
+                &format!("{rel_path}/"),
+                Metadata::new(EntryMode::DIR).with_content_length(metadata.len()),
+            )
         } else if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
+            oio::Entry::new(
+                &rel_path,
+                Metadata::new(EntryMode::FILE).with_content_length(metadata.len()),
+            )
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            oio::Entry::new(
+                &rel_path,
+                Metadata::new(EntryMode::Unknown).with_content_length(metadata.len()),
+            )
         };
         Ok(Some(entry))
     }

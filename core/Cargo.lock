@@ -5538,6 +5538,7 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
+ "opendal-layer-concurrent-limit",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
@@ -5758,6 +5759,16 @@ version = "0.55.0"
 dependencies = [
  "opendal-core",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "opendal-layer-concurrent-limit"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "http 1.4.0",
+ "mea",
+ "opendal-core",
 ]
 
 [[package]]

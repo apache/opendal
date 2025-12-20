@@ -155,6 +155,8 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
     pub use opendal_layer_chaos::*;
+    #[cfg(feature = "layers-concurrent-limit")]
+    pub use opendal_layer_concurrent_limit::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]

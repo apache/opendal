@@ -26,8 +26,8 @@ use futures::StreamExt;
 use mea::semaphore::OwnedSemaphorePermit;
 use mea::semaphore::Semaphore;
 
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// Add concurrent request limit.
 ///
@@ -46,7 +46,7 @@ use crate::*;
 /// Add a concurrent limit layer to the operator:
 ///
 /// ```no_run
-/// # use opendal_core::layers::ConcurrentLimitLayer;
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
@@ -62,7 +62,7 @@ use crate::*;
 /// Share a concurrent limit layer between the operators:
 ///
 /// ```no_run
-/// # use opendal_core::layers::ConcurrentLimitLayer;
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;

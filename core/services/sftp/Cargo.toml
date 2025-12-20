@@ -42,3 +42,8 @@ openssh = "0.11.0"
 openssh-sftp-client = { version = "0.15.3", features = ["openssh", "tracing"] }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true }
+
+[dev-dependencies]
+anyhow = "1.0"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+

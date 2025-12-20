@@ -31,10 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
-  "internal-tokio-rt",
-] }
-
 bytes = { workspace = true }
 ctor = { workspace = true }
 flume = "0.11"
@@ -45,8 +41,8 @@ monoio = { version = "0.2.4", features = [
   "unlinkat",
   "renameat",
 ] }
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-anyhow = "1"
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

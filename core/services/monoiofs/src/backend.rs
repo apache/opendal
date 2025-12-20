@@ -21,6 +21,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use monoio::fs::OpenOptions;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::config::MonoiofsConfig;
 use super::core::BUFFER_SIZE;
@@ -28,8 +30,6 @@ use super::core::MonoiofsCore;
 use super::deleter::MonoiofsDeleter;
 use super::reader::MonoiofsReader;
 use super::writer::MonoiofsWriter;
-use opendal_core::raw::*;
-use opendal_core::*;
 
 /// File system support via [`monoio`].
 #[doc = include_str!("docs.md")]

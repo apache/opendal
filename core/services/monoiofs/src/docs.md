@@ -23,9 +23,9 @@ You can refer to [`MonoiofsBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_monoiofs::Monoiofs;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_monoiofs::Monoiofs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

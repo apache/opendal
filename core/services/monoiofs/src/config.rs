@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -33,10 +34,10 @@ pub struct MonoiofsConfig {
     pub root: Option<String>,
 }
 
-impl opendal_core::Configurator for MonoiofsConfig {
+impl Configurator for MonoiofsConfig {
     type Builder = MonoiofsBuilder;
 
-    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(root) = uri.root() {
@@ -56,14 +57,13 @@ impl opendal_core::Configurator for MonoiofsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Configurator;
-    use opendal_core::OperatorUri;
 
     #[test]
-    fn from_uri_sets_root() {
-        let uri = OperatorUri::new("monoiofs:///tmp", Vec::<(String, String)>::new()).unwrap();
+    fn from_uri_sets_root() -> Result<()> {
+        let uri = OperatorUri::new("monoiofs:///tmp", Vec::<(String, String)>::new())?;
 
-        let cfg = MonoiofsConfig::from_uri(&uri).unwrap();
+        let cfg = MonoiofsConfig::from_uri(&uri)?;
         assert_eq!(cfg.root.as_deref(), Some("tmp"));
+        Ok(())
     }
 }

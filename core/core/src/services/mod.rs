@@ -43,22 +43,3 @@ pub use self::redis::*;
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
-#[cfg(feature = "services-vercel-artifacts")]
-mod vercel_artifacts;
-#[cfg(feature = "services-vercel-artifacts")]
-pub use vercel_artifacts::*;
-
-#[cfg(feature = "services-webdav")]
-mod webdav;
-#[cfg(feature = "services-webdav")]
-pub use webdav::*;
-
-#[cfg(feature = "services-webhdfs")]
-mod webhdfs;
-#[cfg(feature = "services-webhdfs")]
-pub use webhdfs::*;
-
-#[cfg(feature = "services-yandex-disk")]
-mod yandex_disk;
-#[cfg(feature = "services-yandex-disk")]
-pub use yandex_disk::*;

@@ -96,7 +96,7 @@ layers-await-tree = ["dep:opendal-layer-await-tree"]
 layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["dep:opendal-layer-chaos"]
 layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
-layers-dtrace = ["opendal-core/layers-dtrace"]
+layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
@@ -203,6 +203,7 @@ opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", opt
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-chaos = { path = "layers/chaos", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-dtrace = { path = "layers/dtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }

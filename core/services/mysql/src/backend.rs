@@ -237,12 +237,8 @@ impl Access for MysqlBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = MysqlLister::new(
-            self.core.clone(),
-            self.root.clone(),
-            path.to_string(),
-        )
-        .await?;
+        let lister =
+            MysqlLister::new(self.core.clone(), self.root.clone(), path.to_string()).await?;
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
         Ok((RpList::default(), lister))
     }

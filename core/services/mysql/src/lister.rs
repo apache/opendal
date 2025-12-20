@@ -31,13 +31,8 @@ pub struct MysqlLister {
 }
 
 impl MysqlLister {
-    pub async fn new(
-        core: Arc<MysqlCore>,
-        root: String,
-        path: String,
-    ) -> Result<Self> {
+    pub async fn new(core: Arc<MysqlCore>, root: String, path: String) -> Result<Self> {
         let entries = core.list(&build_abs_path(&root, &path)).await?;
-
         Ok(Self {
             root,
             iter: entries.into_iter(),

@@ -93,12 +93,12 @@ impl MysqlCore {
         let pool = self.get_client().await?;
 
         let mut sql = format!(
-            "SELECT `{}` FROM `{}` WHERE `{}` LIKE ? ESCAPE '\'",
+            "SELECT `{}` FROM `{}` WHERE `{}` LIKE ?",
             self.key_field, self.table, self.key_field
         );
         sql.push_str(&format!(" ORDER BY `{}`", self.key_field));
 
-        let escaped = escape_like(path, '\\');
+        let escaped = escape_like(path);
         sqlx::query_scalar(&sql)
             .bind(format!("{escaped}%"))
             .fetch_all(pool)
@@ -107,17 +107,17 @@ impl MysqlCore {
     }
 }
 
-/// Escape a string for use in SQL `LIKE ... ESCAPE <escape_char>` pattern.
-fn escape_like(s: &str, escape_char: char) -> String {
+fn escape_like(s: &str) -> String {
+    const ESCAPE_CHAR: char = '\\';
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         match ch {
-            c if c == escape_char => {
-                out.push(escape_char);
-                out.push(escape_char);
+            c if c == ESCAPE_CHAR => {
+                out.push(ESCAPE_CHAR);
+                out.push(ESCAPE_CHAR);
             }
             '%' | '_' => {
-                out.push(escape_char);
+                out.push(ESCAPE_CHAR);
                 out.push(ch);
             }
             _ => out.push(ch),
@@ -136,21 +136,21 @@ mod tests {
 
     #[test]
     fn test_escape_like_basic() {
-        assert_eq!(escape_like("abc", '\\'), "abc");
-        assert_eq!(escape_like("foo", '\\'), "foo");
+        assert_eq!(escape_like("abc"), "abc");
+        assert_eq!(escape_like("foo"), "foo");
     }
 
     #[test]
     fn test_escape_like_wildcards() {
-        assert_eq!(escape_like("%", '\\'), r"\%");
-        assert_eq!(escape_like("_", '\\'), r"\_");
-        assert_eq!(escape_like("a%b_c", '\\'), r"a\%b\_c");
+        assert_eq!(escape_like("%"), r"\%");
+        assert_eq!(escape_like("_"), r"\_");
+        assert_eq!(escape_like("a%b_c"), r"a\%b\_c");
     }
 
     #[test]
     fn test_escape_like_escape_char() {
-        assert_eq!(escape_like(r"\", '\\'), r"\\");
-        assert_eq!(escape_like(r"\%", '\\'), r"\\\%");
+        assert_eq!(escape_like(r"\"), r"\\");
+        assert_eq!(escape_like(r"\%"), r"\\\%");
     }
 
     #[test]
@@ -158,6 +158,6 @@ mod tests {
         let input = r"foo\%bar_baz%";
         let expected = r"foo\\\%bar\_baz\%";
 
-        assert_eq!(escape_like(input, '\\'), expected);
+        assert_eq!(escape_like(input), expected);
     }
 }

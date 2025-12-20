@@ -65,7 +65,6 @@ services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
-services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
 services-vercel-artifacts = []
 services-webhdfs = []
 
@@ -112,12 +111,6 @@ moka = { version = "0.12", optional = true, features = ["future", "sync"] }
 # for services-mongodb
 mongodb = { version = "3.3.0", optional = true }
 mongodb-internal-macros = { version = "3.2.4", optional = true }
-# for services-sftp
-openssh = { version = "0.11.0", optional = true }
-openssh-sftp-client = { version = "0.15.3", optional = true, features = [
-  "openssh",
-  "tracing",
-] }
 # for services-redis
 redis = { version = "1.0", features = [
   "cluster-async",

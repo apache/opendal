@@ -5599,6 +5599,7 @@ dependencies = [
  "opendal-service-redb",
  "opendal-service-s3",
  "opendal-service-seafile",
+ "opendal-service-sftp",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
@@ -5671,8 +5672,6 @@ dependencies = [
  "moka",
  "mongodb",
  "mongodb-internal-macros",
- "openssh",
- "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
  "probe",
@@ -6581,6 +6580,23 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-sftp"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "fastpool",
+ "futures",
+ "log",
+ "opendal-core",
+ "openssh",
+ "openssh-sftp-client",
+ "serde",
  "tokio",
 ]
 

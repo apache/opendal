@@ -31,7 +31,7 @@ You can refer to [`SftpBuilder`]'s docs for more information
 
 ```rust,no_run
 use anyhow::Result;
-use opendal_core::services::Sftp;
+use opendal_service_sftp::Sftp;
 use opendal_core::Operator;
 
 #[tokio::main]

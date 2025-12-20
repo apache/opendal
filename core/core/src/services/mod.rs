@@ -43,8 +43,3 @@ pub use self::redis::*;
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
-
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::*;

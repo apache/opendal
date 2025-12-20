@@ -20,9 +20,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(missing_docs)]
-
 mod backend;
 mod config;
 mod core;

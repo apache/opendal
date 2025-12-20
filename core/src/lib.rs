@@ -68,10 +68,14 @@ pub mod services {
     pub use opendal_service_ftp::*;
     #[cfg(feature = "services-gcs")]
     pub use opendal_service_gcs::*;
+    #[cfg(feature = "services-gdrive")]
+    pub use opendal_service_gdrive::*;
     #[cfg(feature = "services-ghac")]
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
+    #[cfg(feature = "services-hdfs")]
+    pub use opendal_service_hdfs::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-http")]
@@ -80,18 +84,26 @@ pub mod services {
     pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
+    #[cfg(feature = "services-ipmfs")]
+    pub use opendal_service_ipmfs::*;
     #[cfg(feature = "services-koofr")]
     pub use opendal_service_koofr::*;
+    #[cfg(feature = "services-lakefs")]
+    pub use opendal_service_lakefs::*;
     #[cfg(feature = "services-memcached")]
     pub use opendal_service_memcached::*;
     #[cfg(feature = "services-mini-moka")]
     pub use opendal_service_mini_moka::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
+    #[cfg(feature = "services-monoiofs")]
+    pub use opendal_service_monoiofs::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
     pub use opendal_service_obs::*;
+    #[cfg(feature = "services-onedrive")]
+    pub use opendal_service_onedrive::*;
     #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
     pub use opendal_service_opfs::*;
     #[cfg(feature = "services-oss")]
@@ -124,6 +136,12 @@ pub mod services {
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
+    #[cfg(feature = "services-webdav")]
+    pub use opendal_service_webdav::*;
+    #[cfg(feature = "services-webhdfs")]
+    pub use opendal_service_webhdfs::*;
+    #[cfg(feature = "services-yandex-disk")]
+    pub use opendal_service_yandex_disk::*;
 }
 
 /// Re-export of layers.
@@ -143,6 +161,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
+    #[cfg(feature = "layers-logging")]
+    pub use opendal_layer_logging::*;
     #[cfg(feature = "layers-metrics")]
     pub use opendal_layer_metrics::*;
     #[cfg(feature = "layers-mime-guess")]
@@ -155,10 +175,14 @@ pub mod layers {
     pub use opendal_layer_prometheus::*;
     #[cfg(feature = "layers-prometheus-client")]
     pub use opendal_layer_prometheus_client::*;
+    #[cfg(feature = "layers-retry")]
+    pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]
     pub use opendal_layer_throttle::*;
+    #[cfg(feature = "layers-timeout")]
+    pub use opendal_layer_timeout::*;
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }

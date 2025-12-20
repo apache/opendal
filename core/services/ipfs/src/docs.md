@@ -24,8 +24,9 @@ You can refer to [`IpfsBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use opendal::services::Ipfs;
-use opendal::Operator;
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_ipfs::Ipfs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -60,11 +60,12 @@
 //! The next setup is to compose layers. Layers are modules that provide extra
 //! features for every operation. All builtin layers could be found at [`layers`].
 //!
-//! Let's use [`layers::LoggingLayer`] as an example; this layer adds logging to
-//! every operation that OpenDAL performs.
+//! Let's use [`layers::HttpClientLayer`] as an example; this layer allows
+//! customizing the HTTP client used by OpenDAL.
 //!
 //! ```no_run
-//! use opendal_core::layers::LoggingLayer;
+//! use opendal_core::layers::HttpClientLayer;
+//! use opendal_core::raw::HttpClient;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -75,9 +76,10 @@
 //!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
+//!     let client = HttpClient::new()?;
 //!     let op = Operator::new(builder)?
-//!         // Init with logging layer enabled.
-//!         .layer(LoggingLayer::default())
+//!         // Init with custom HTTP client.
+//!         .layer(HttpClientLayer::new(client))
 //!         .finish();
 //!
 //!     Ok(())
@@ -102,8 +104,9 @@
 //! into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 //!
 //! ```no_run
-//! use opendal_core::layers::LoggingLayer;
+//! use opendal_core::layers::HttpClientLayer;
 //! use opendal_core::options;
+//! use opendal_core::raw::HttpClient;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
 //! use opendal_core::Result;
@@ -114,9 +117,10 @@
 //!     let builder = services::Memory::default();
 //!
 //!     // Init an operator
+//!     let client = HttpClient::new()?;
 //!     let op = Operator::new(builder)?
-//!         // Init with logging layer enabled.
-//!         .layer(LoggingLayer::default())
+//!         // Init with custom HTTP client.
+//!         .layer(HttpClientLayer::new(client))
 //!         .finish();
 //!
 //!     // Fetch this file's metadata

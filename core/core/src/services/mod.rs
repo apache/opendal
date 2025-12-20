@@ -19,30 +19,10 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-gdrive")]
-mod gdrive;
-#[cfg(feature = "services-gdrive")]
-pub use gdrive::*;
-
 #[cfg(feature = "services-gridfs")]
 mod gridfs;
 #[cfg(feature = "services-gridfs")]
 pub use gridfs::*;
-
-#[cfg(feature = "services-hdfs")]
-mod hdfs;
-#[cfg(feature = "services-hdfs")]
-pub use self::hdfs::*;
-
-#[cfg(feature = "services-ipmfs")]
-mod ipmfs;
-#[cfg(feature = "services-ipmfs")]
-pub use ipmfs::*;
-
-#[cfg(feature = "services-lakefs")]
-mod lakefs;
-#[cfg(feature = "services-lakefs")]
-pub use lakefs::*;
 
 #[cfg(feature = "services-memory")]
 mod memory;
@@ -53,16 +33,6 @@ pub use self::memory::*;
 mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::*;
-
-#[cfg(feature = "services-monoiofs")]
-mod monoiofs;
-#[cfg(feature = "services-monoiofs")]
-pub use monoiofs::*;
-
-#[cfg(feature = "services-onedrive")]
-mod onedrive;
-#[cfg(feature = "services-onedrive")]
-pub use onedrive::*;
 
 #[cfg(feature = "services-redis")]
 mod redis;

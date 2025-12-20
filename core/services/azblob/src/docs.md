@@ -38,11 +38,9 @@ az storage container create --name test --connection-string "DefaultEndpointsPro
 ### Via Builder
 
 ```rust,no_run
-use std::sync::Arc;
-
-use anyhow::Result;
-use opendal_core::services::Azblob;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_azblob::Azblob;
 
 #[tokio::main]
 async fn main() -> Result<()> {

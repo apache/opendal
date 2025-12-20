@@ -29,9 +29,9 @@ You can refer to [`HttpBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_http::Http;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_http::Http;
 
 #[tokio::main]
 async fn main() -> Result<()> {

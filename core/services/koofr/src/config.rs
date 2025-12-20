@@ -94,7 +94,7 @@ impl opendal_core::Configurator for KoofrConfig {
 mod tests {
     use super::*;
     use opendal_core::Configurator;
-    use opendal_core::types::OperatorUri;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_endpoint_email_and_root() {

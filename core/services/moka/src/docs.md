@@ -26,9 +26,9 @@ You can refer to [`MokaBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_service_moka::Moka;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_moka::Moka;
 
 #[tokio::main]
 async fn main() -> Result<()> {

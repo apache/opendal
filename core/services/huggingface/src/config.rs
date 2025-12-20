@@ -134,7 +134,7 @@ impl opendal_core::Configurator for HuggingfaceConfig {
 mod tests {
     use super::*;
     use opendal_core::Configurator;
-    use opendal_core::types::OperatorUri;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_repo_type_id_and_revision() {

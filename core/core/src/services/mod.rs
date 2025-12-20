@@ -34,11 +34,6 @@ mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::*;
 
-#[cfg(feature = "services-monoiofs")]
-mod monoiofs;
-#[cfg(feature = "services-monoiofs")]
-pub use monoiofs::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for monoiofs service.
-pub const MONOIOFS_SCHEME: &str = "monoiofs";
+//! MonoIOFS service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -30,7 +30,10 @@ mod writer;
 pub use backend::MonoiofsBuilder as Monoiofs;
 pub use config::MonoiofsConfig;
 
+/// Default scheme for monoiofs service.
+pub const MONOIOFS_SCHEME: &str = "monoiofs";
+
 #[ctor::ctor]
 fn register_monoiofs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Monoiofs>(MONOIOFS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Monoiofs>(MONOIOFS_SCHEME);
 }

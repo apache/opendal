@@ -24,11 +24,11 @@ use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::BUFFER_SIZE;
 use super::core::MonoiofsCore;
-use crate::raw::*;
-use crate::*;
 
 enum ReaderRequest {
     Read {

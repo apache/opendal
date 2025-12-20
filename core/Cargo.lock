@@ -5587,6 +5587,7 @@ dependencies = [
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
  "opendal-service-onedrive",
@@ -5659,7 +5660,6 @@ dependencies = [
  "bytes",
  "ctor",
  "fastpool",
- "flume",
  "futures",
  "getrandom 0.2.16",
  "http 1.4.0",
@@ -5671,7 +5671,6 @@ dependencies = [
  "moka",
  "mongodb",
  "mongodb-internal-macros",
- "monoio",
  "openssh",
  "openssh-sftp-client",
  "percent-encoding",
@@ -6407,6 +6406,20 @@ dependencies = [
  "ctor",
  "log",
  "moka",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-monoiofs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "flume",
+ "futures",
+ "monoio",
  "opendal-core",
  "serde",
  "tokio",

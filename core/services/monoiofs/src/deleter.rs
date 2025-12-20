@@ -17,9 +17,10 @@
 
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::MonoiofsCore;
-use crate::raw::*;
-use crate::*;
 
 pub struct MonoiofsDeleter {
     core: Arc<MonoiofsCore>,

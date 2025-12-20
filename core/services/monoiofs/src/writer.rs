@@ -25,10 +25,10 @@ use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use monoio::fs::OpenOptions;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::MonoiofsCore;
-use crate::raw::*;
-use crate::*;
 
 enum WriterRequest {
     Write {

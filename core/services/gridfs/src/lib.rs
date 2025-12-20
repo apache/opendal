@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for gridfs service.
-pub const GRIDFS_SCHEME: &str = "gridfs";
+//! GridFS service implementation for Apache OpenDAL.
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +29,10 @@ mod writer;
 pub use backend::GridfsBuilder as Gridfs;
 pub use config::GridfsConfig;
 
+/// Default scheme for gridfs service.
+pub const GRIDFS_SCHEME: &str = "gridfs";
+
 #[ctor::ctor]
 fn register_gridfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
 }

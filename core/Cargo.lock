@@ -6134,12 +6134,10 @@ dependencies = [
 name = "opendal-service-gridfs"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "ctor",
  "futures",
  "mea",
  "mongodb",
- "mongodb-internal-macros",
  "opendal-core",
  "serde",
  "tokio",

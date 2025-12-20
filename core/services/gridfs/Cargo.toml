@@ -31,20 +31,12 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
-  "internal-tokio-rt",
-] }
-
 ctor = { workspace = true }
-futures = { workspace = true, default-features = false, features = [
-  "std",
-  "async-await",
-] }
-mea = { version = "0.5.1" }
-mongodb = { workspace = true }
-mongodb-internal-macros = { workspace = true }
+futures = { workspace = true }
+mea = "0.5.1"
+mongodb = "3.3.0"
+opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
-anyhow = "1"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

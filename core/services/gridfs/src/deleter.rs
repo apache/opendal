@@ -17,10 +17,10 @@
 
 use std::sync::Arc;
 
-use super::core::*;
-use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+use super::core::*;
 
 pub struct GridfsDeleter {
     core: Arc<GridfsCore>,

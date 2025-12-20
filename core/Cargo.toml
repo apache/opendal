@@ -47,8 +47,6 @@ ctor = "0.6"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
 log = "0.4"
-mongodb = "3.3.0"
-mongodb-internal-macros = "3.2.4"
 quick-xml = { version = "0.38", default-features = false }
 rand = "0.8"
 reqsign = { version = "0.16.5", default-features = false }

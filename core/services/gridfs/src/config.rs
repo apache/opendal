@@ -17,19 +17,26 @@
 
 use std::fmt::Debug;
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::GridfsBuilder;
 
+/// Config for Grid file system support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct GridfsConfig {
+    /// The connection string of the MongoDB service.
     pub connection_string: Option<String>,
+    /// The database name of the MongoDB GridFs service to read/write.
     pub database: Option<String>,
+    /// The bucket name of the MongoDB GridFs service to read/write.
     pub bucket: Option<String>,
+    /// The chunk size of the MongoDB GridFs service used to break the user file into chunks.
     pub chunk_size: Option<u32>,
+    /// The working directory, all operations will be performed under it.
     pub root: Option<String>,
 }
 
@@ -44,10 +51,10 @@ impl Debug for GridfsConfig {
     }
 }
 
-impl opendal_core::Configurator for GridfsConfig {
+impl Configurator for GridfsConfig {
     type Builder = GridfsBuilder;
 
-    fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
@@ -89,18 +96,15 @@ impl opendal_core::Configurator for GridfsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Configurator;
-    use opendal_core::OperatorUri;
 
     #[test]
-    fn from_uri_sets_connection_database_bucket_and_root() {
+    fn from_uri_sets_connection_database_bucket_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "gridfs://mongo.example.com:27017/app_files/assets/images",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = GridfsConfig::from_uri(&uri).unwrap();
+        let cfg = GridfsConfig::from_uri(&uri)?;
         assert_eq!(
             cfg.connection_string.as_deref(),
             Some("mongodb://mongo.example.com:27017")
@@ -108,5 +112,6 @@ mod tests {
         assert_eq!(cfg.database.as_deref(), Some("app_files"));
         assert_eq!(cfg.bucket.as_deref(), Some("assets"));
         assert_eq!(cfg.root.as_deref(), Some("images"));
+        Ok(())
     }
 }

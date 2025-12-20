@@ -18,7 +18,7 @@
 /// Default scheme for mongodb service.
 pub const MONGODB_SCHEME: &str = "mongodb";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
 mod backend;
 mod config;

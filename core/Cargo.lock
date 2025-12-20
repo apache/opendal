@@ -5589,6 +5589,7 @@ dependencies = [
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-mongodb",
  "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
@@ -5673,8 +5674,6 @@ dependencies = [
  "md-5",
  "mea",
  "moka",
- "mongodb",
- "mongodb-internal-macros",
  "percent-encoding",
  "pretty_assertions",
  "probe",
@@ -6431,6 +6430,19 @@ dependencies = [
  "ctor",
  "log",
  "moka",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-mongodb"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "ctor",
+ "mea",
+ "mongodb",
  "opendal-core",
  "serde",
  "tokio",

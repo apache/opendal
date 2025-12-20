@@ -27,29 +27,27 @@ use super::core::MysqlCore;
 
 pub struct MysqlLister {
     root: String,
-    iter: IntoIter<String>,
+    entries: IntoIter<String>,
 }
 
 impl MysqlLister {
     pub async fn new(core: Arc<MysqlCore>, root: String, path: String) -> Result<Self> {
-        let entries = core.list(&build_abs_path(&root, &path)).await?;
-        Ok(Self {
-            root,
-            iter: entries.into_iter(),
-        })
+        let entries = core.list(&build_abs_path(&root, &path)).await?.into_iter();
+        Ok(Self { root, entries })
     }
 }
 
 impl List for MysqlLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
-        if let Some(key) = self.iter.next() {
-            let mut path = build_rel_path(&self.root, &key);
-            if path.is_empty() {
-                path = "/".to_string();
-            }
-            let meta = Metadata::new(EntryMode::from_path(&path));
-            return Ok(Some(Entry::new(&path, meta)));
+        let Some(key) = self.entries.next() else {
+            return Ok(None);
+        };
+
+        let mut path = build_rel_path(&self.root, &key);
+        if path.is_empty() {
+            path = "/".to_string();
         }
-        Ok(None)
+        let meta = Metadata::new(EntryMode::from_path(&path));
+        Ok(Some(Entry::new(&path, meta)))
     }
 }

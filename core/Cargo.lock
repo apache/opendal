@@ -335,9 +335,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql"
-version = "7.0.11"
+version = "7.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ba6d24703c5adc5ba9116901b92ee4e4c0643c01a56c4fd303f3818638d7449"
+checksum = "d3ee559e72d983e7e04001ba3bf32e6b71c1d670595780723727fd8a29d36e87"
 dependencies = [
  "async-graphql-derive",
  "async-graphql-parser",
@@ -354,7 +354,6 @@ dependencies = [
  "mime",
  "multer",
  "num-traits",
- "once_cell",
  "pin-project-lite",
  "regex",
  "serde",
@@ -366,9 +365,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-derive"
-version = "7.0.11"
+version = "7.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a94c2d176893486bd37cd1b6defadd999f7357bf5804e92f510c08bcf16c538f"
+checksum = "29db05b624fb6352fc11bfe30c54ab1b16a1fe937d7c05a783f4e88ef1292b3b"
 dependencies = [
  "Inflector",
  "async-graphql-parser",
@@ -383,9 +382,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-parser"
-version = "7.0.11"
+version = "7.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79272bdbf26af97866e149f05b2b546edb5c00e51b5f916289931ed233e208ad"
+checksum = "4904895044116aab098ca82c6cec831ec43ed99efd04db9b70a390419bc88c5b"
 dependencies = [
  "async-graphql-value",
  "pest",
@@ -395,9 +394,9 @@ dependencies = [
 
 [[package]]
 name = "async-graphql-value"
-version = "7.0.11"
+version = "7.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef5ec94176a12a8cbe985cd73f2e54dc9c702c88c766bdef12f1f3a67cedbee1"
+checksum = "d0cde74de18e3a00c5dd5cfa002ab6f532e1a06c2a79ee6671e2fc353b400b92"
 dependencies = [
  "bytes",
  "indexmap 2.12.1",
@@ -652,9 +651,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.15.2"
+version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a88aab2464f1f25453baa7a07c84c5b7684e274054ba06817f382357f77a288"
+checksum = "6b5ce75405893cd713f9ab8e297d8e438f624dde7d706108285f7e17a25a180f"
 dependencies = [
  "aws-lc-sys",
  "zeroize",
@@ -662,9 +661,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.35.0"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b45afffdee1e7c9126814751f88dddc747f41d91da16c9551a0f1e8a11e788a1"
+checksum = "179c3777a8b5e70e90ea426114ffc565b2c1a9f82f6c4a0c5a34aa6ef5e781b6"
 dependencies = [
  "cc",
  "cmake",
@@ -1387,9 +1386,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.19.1"
+version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dd9dc738b7a8311c7ade152424974d8115f2cdad61e8dab8dac9f2362298510"
+checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "bytecheck"
@@ -1489,9 +1488,9 @@ dependencies = [
 
 [[package]]
 name = "camino"
-version = "1.2.2"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e629a66d692cb9ff1a1c664e41771b3dcaf961985a9774c0eb0bd1b51cf60a48"
+checksum = "276a59bf2b2c967788139340c9f0c5b12d7fd6630315c15c217e559de85d2609"
 dependencies = [
  "serde_core",
 ]
@@ -1737,9 +1736,9 @@ checksum = "a1d728cc89cf3aee9ff92b05e62b19ee65a02b5702cff7d5a377e32c6ae29d8d"
 
 [[package]]
 name = "cmake"
-version = "0.1.56"
+version = "0.1.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b042e5d8a74ae91bb0961acd039822472ec99f8ab0948cbf6d1369588f8be586"
+checksum = "e7caa3f9de89ddbe2c607f4101924c5abec803763ae9534e4f4d7d8f84aa81f0"
 dependencies = [
  "cc",
 ]
@@ -1802,9 +1801,9 @@ dependencies = [
 
 [[package]]
 name = "compio-buf"
-version = "0.7.2"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ebb4036bf394915196c09362e4fd5581ee8bf0f3302ab598bff9d646aea2061"
+checksum = "0aa3ebe7f9830a33aa801a223411c8dc011c3271cd5beed56284c86d227bc32e"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -2940,9 +2939,9 @@ dependencies = [
 
 [[package]]
 name = "fastrace"
-version = "0.7.15"
+version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "028c5196da5db5bc70bdd05e1b98837aab50ef4ffbd92f6dfe51644611fd10ae"
+checksum = "318783b9fefe06130ab664ff1779215657586b004c0c7f3d6ece16d658936d06"
 dependencies = [
  "fastant",
  "fastrace-macro",
@@ -2955,9 +2954,9 @@ dependencies = [
 
 [[package]]
 name = "fastrace-jaeger"
-version = "0.7.15"
+version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd36e91a57c13c108b8b0304f214250acb365b929580cafe90a79113a5ea4830"
+checksum = "bbd6b449b3f767abc84c47d78a2087dd53e8239ae0aed86cfa08bc019f00dc32"
 dependencies = [
  "fastrace",
  "log",
@@ -2966,9 +2965,9 @@ dependencies = [
 
 [[package]]
 name = "fastrace-macro"
-version = "0.7.15"
+version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1dcf8996d31b7f8642343a4205c6e1aeda9514ee114173f70b3f841801ee8a3"
+checksum = "c7079009cf129d63c850dee732b58d7639d278a47ad99c607954ac94cfd57ef4"
 dependencies = [
  "proc-macro-error2",
  "proc-macro2",
@@ -3507,9 +3506,9 @@ dependencies = [
 
 [[package]]
 name = "governor"
-version = "0.10.4"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9efcab3c1958580ff1f25a2a41be1668f7603d849bb63af523b208a3cc1223b8"
+checksum = "6e23d5986fd4364c2fb7498523540618b4b8d92eec6c36a02e565f66748e2f79"
 dependencies = [
  "cfg-if",
  "dashmap 6.1.0",
@@ -3663,9 +3662,9 @@ dependencies = [
 
 [[package]]
 name = "hdfs-native"
-version = "0.13.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "588a47148201def3d6922371f6de676068c7ea08a7c29e59457660f76bdc0918"
+checksum = "860af1e9aa848f175bf5b9127548a42270017bd382d29fd6bca59691db4b01d9"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -4156,9 +4155,9 @@ checksum = "7aedcccd01fc5fe81e6b489c15b247b8b0690feb23304303a9e560f37efc560a"
 
 [[package]]
 name = "icu_properties"
-version = "2.1.2"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "020bfc02fe870ec3a66d93e677ccca0562506e5872c650f893269e08615d74ec"
+checksum = "e93fcd3157766c0c8da2f8cff6ce651a31f0810eaa1c51ec363ef790bbb5fb99"
 dependencies = [
  "icu_collections",
  "icu_locale_core",
@@ -4170,9 +4169,9 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.1.2"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "616c294cf8d725c6afcd8f55abc17c56464ef6211f9ed59cccffe534129c77af"
+checksum = "02845b3647bb045f1100ecd6480ff52f34c35f82d9880e029d329c21d1054899"
 
 [[package]]
 name = "icu_provider"
@@ -4438,9 +4437,9 @@ dependencies = [
 
 [[package]]
 name = "jiff-tzdb"
-version = "0.1.5"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68971ebff725b9e2ca27a601c5eb38a4c5d64422c4cbab0c535f248087eda5c2"
+checksum = "c1283705eb0a21404d2bfd6eef2a7593d240bc42a0bdb39db0ad6fa2ec026524"
 
 [[package]]
 name = "jiff-tzdb-platform"
@@ -4617,13 +4616,13 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libredox"
-version = "0.1.11"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df15f6eac291ed1cf25865b1ee60399f57e7c227e7f51bdbd4c5270396a9ed50"
+checksum = "416f7e718bdb06000964960ffa43b4335ad4012ae8b99060261aa4a8088d5ccb"
 dependencies = [
  "bitflags 2.10.0",
  "libc",
- "redox_syscall 0.6.0",
+ "redox_syscall 0.5.18",
 ]
 
 [[package]]
@@ -4949,9 +4948,9 @@ dependencies = [
 
 [[package]]
 name = "mea"
-version = "0.5.3"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef98beae251f03af02d54d7964b1f5fbc1a042bbf7e2296e5261d2962a762dda"
+checksum = "e1a78f54a189049e2f554d43d2021e3010036ed65a8f5376ab12cc0432d9a341"
 dependencies = [
  "slab",
 ]
@@ -5542,6 +5541,7 @@ dependencies = [
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
+ "opendal-layer-logging",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5549,8 +5549,10 @@ dependencies = [
  "opendal-layer-oteltrace",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-retry",
  "opendal-layer-tail-cut",
  "opendal-layer-throttle",
+ "opendal-layer-timeout",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-alluxio",
@@ -5571,18 +5573,24 @@ dependencies = [
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
+ "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-hdfs",
  "opendal-service-hdfs-native",
+ "opendal-service-http",
  "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-ipmfs",
  "opendal-service-koofr",
+ "opendal-service-lakefs",
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
  "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
+ "opendal-service-onedrive",
  "opendal-service-opfs",
  "opendal-service-oss",
  "opendal-service-pcloud",
@@ -5590,12 +5598,17 @@ dependencies = [
  "opendal-service-postgresql",
  "opendal-service-redb",
  "opendal-service-s3",
+ "opendal-service-seafile",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
+ "opendal-service-swift",
  "opendal-service-tikv",
  "opendal-service-upyun",
  "opendal-service-vercel-blob",
+ "opendal-service-webdav",
+ "opendal-service-webhdfs",
+ "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5645,18 +5658,13 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "criterion",
  "ctor",
- "divan",
  "fastpool",
  "futures",
  "getrandom 0.2.16",
- "hdfs-native",
- "hdrs",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
- "libtest-mimic",
  "log",
  "md-5",
  "mea",
@@ -5668,7 +5676,6 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "probe",
- "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
  "redis",
@@ -5678,9 +5685,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "size",
  "tokio",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
  "uuid",
@@ -5761,28 +5766,41 @@ name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
  "fastmetrics",
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "fastrace",
+ "fastrace-jaeger",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-immutable-index"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "futures",
  "log",
  "opendal-core",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-layer-logging"
+version = "0.55.0"
+dependencies = [
+ "log",
+ "opendal-core",
 ]
 
 [[package]]
@@ -5834,18 +5852,37 @@ dependencies = [
 name = "opendal-layer-prometheus"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus 0.14.0",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-prometheus-client"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-retry"
+version = "0.55.0"
+dependencies = [
+ "backon",
+ "bytes",
+ "futures",
+ "log",
+ "opendal-core",
+ "opendal-layer-logging",
+ "opendal-layer-timeout",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5865,13 +5902,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendal-layer-tracing"
+name = "opendal-layer-timeout"
 version = "0.55.0"
 dependencies = [
  "futures",
+ "opendal-core",
+ "opendal-layer-retry",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-tracing"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "futures",
  "http 1.4.0",
  "opendal-core",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5886,6 +5941,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5899,6 +5955,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5918,6 +5975,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
  "uuid",
 ]
 
@@ -5935,6 +5993,7 @@ dependencies = [
  "reqsign",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5950,6 +6009,7 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -5983,7 +6043,6 @@ dependencies = [
  "bytes",
  "cacache",
  "ctor",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6005,9 +6064,11 @@ dependencies = [
 name = "opendal-service-compfs"
 version = "0.55.0"
 dependencies = [
+ "bytes",
  "compio",
  "ctor",
  "opendal-core",
+ "rand 0.8.5",
  "serde",
 ]
 
@@ -6015,20 +6076,16 @@ dependencies = [
 name = "opendal-service-cos"
 version = "0.55.0"
 dependencies = [
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6038,9 +6095,7 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "opendal-core",
- "pretty_assertions",
  "serde",
  "serde_json",
  "tokio",
@@ -6080,7 +6135,6 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "mea",
  "opendal-core",
  "serde",
@@ -6092,11 +6146,9 @@ dependencies = [
 name = "opendal-service-etcd"
 version = "0.55.0"
 dependencies = [
- "bytes",
  "ctor",
  "etcd-client",
  "fastpool",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6106,10 +6158,8 @@ dependencies = [
 name = "opendal-service-foundationdb"
 version = "0.55.0"
 dependencies = [
- "bytes",
  "ctor",
  "foundationdb",
- "log",
  "opendal-core",
  "serde",
  "tokio",
@@ -6125,6 +6175,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tokio",
+ "xattr",
 ]
 
 [[package]]
@@ -6150,21 +6201,33 @@ name = "opendal-service-gcs"
 version = "0.55.0"
 dependencies = [
  "backon",
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-gdrive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6183,6 +6246,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -6201,6 +6265,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-hdfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "hdrs",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-hdfs-native"
 version = "0.55.0"
 dependencies = [
@@ -6214,17 +6292,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-http"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-huggingface"
 version = "0.55.0"
 dependencies = [
  "bytes",
  "ctor",
+ "futures",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6242,6 +6334,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-ipmfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-koofr"
 version = "0.55.0"
 dependencies = [
@@ -6253,6 +6359,21 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-lakefs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6287,13 +6408,13 @@ dependencies = [
  "moka",
  "opendal-core",
  "serde",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-service-monoiofs"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "flume",
@@ -6313,6 +6434,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6327,6 +6449,22 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-onedrive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6346,7 +6484,6 @@ dependencies = [
 name = "opendal-service-oss"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
@@ -6355,11 +6492,8 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign",
- "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6384,6 +6518,7 @@ dependencies = [
  "opendal-core",
  "persy",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6395,6 +6530,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6405,6 +6541,7 @@ dependencies = [
  "opendal-core",
  "redb",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6433,6 +6570,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-seafile"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-sled"
 version = "0.55.0"
 dependencies = [
@@ -6440,6 +6592,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sled",
+ "tokio",
 ]
 
 [[package]]
@@ -6463,6 +6616,22 @@ dependencies = [
  "opendal-core",
  "serde",
  "surrealdb",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-swift"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6474,6 +6643,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tikv-client",
+ "tokio",
 ]
 
 [[package]]
@@ -6496,7 +6666,70 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-vercel-artifacts"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-vercel-blob"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webdav"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webhdfs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "opendal-service-yandex-disk"
 version = "0.55.0"
 dependencies = [
  "bytes",
@@ -6517,6 +6750,9 @@ dependencies = [
  "bytes",
  "dotenvy",
  "opendal-core",
+ "opendal-layer-logging",
+ "opendal-layer-retry",
+ "opendal-layer-timeout",
  "rand 0.8.5",
  "sha2",
  "tokio",
@@ -7803,9 +8039,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "1.0.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2dc509b442812959ab125c74be2a930dd9b603038b6da9df9ec013aa23a4e9c"
+checksum = "47ba378d39b8053bffbfc2750220f5a24a06189b5129523d5db01618774e0239"
 dependencies = [
  "arc-swap",
  "arcstr",
@@ -7850,15 +8086,6 @@ name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
-dependencies = [
- "bitflags 2.10.0",
-]
-
-[[package]]
-name = "redox_syscall"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec96166dafa0886eb81fe1c0a388bece180fbef2135f97c1e2cf8302e74b43b5"
 dependencies = [
  "bitflags 2.10.0",
 ]
@@ -8054,9 +8281,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.26"
+version = "0.12.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b4c14b2d9afca6a60277086b0cc6a6ae0b568f6f7916c943a8cdc79f8be240f"
+checksum = "9d0946410b9f7b082a427e4ef5c8ff541a88b357bc6c637c40db3a68ac70a36f"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -10284,9 +10511,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.6.8"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4e6559d53cc268e5031cd8429d05415bc4cb4aefc4aa5d6cc35fbf5b924a1f8"
+checksum = "9cf146f99d442e8e68e585f5d798ccd3cad9a7835b917e09728880a862706456"
 dependencies = [
  "bitflags 2.10.0",
  "bytes",
@@ -11466,6 +11693,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
+]
+
+[[package]]
+name = "xattr"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
+dependencies = [
+ "libc",
+ "rustix 1.1.2",
 ]
 
 [[package]]

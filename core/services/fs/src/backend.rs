@@ -150,6 +150,8 @@ impl Builder for FsBuilder {
                             write_can_append: true,
                             write_can_multi: true,
                             write_with_if_not_exists: true,
+                            #[cfg(unix)]
+                            write_with_user_metadata: true,
 
                             create_dir: true,
                             delete: true,

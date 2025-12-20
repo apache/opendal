@@ -5538,9 +5538,11 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
+ "opendal-layer-concurrent-limit",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
+ "opendal-layer-logging",
  "opendal-layer-metrics",
  "opendal-layer-mime-guess",
  "opendal-layer-observe-metrics-common",
@@ -5548,8 +5550,10 @@ dependencies = [
  "opendal-layer-oteltrace",
  "opendal-layer-prometheus",
  "opendal-layer-prometheus-client",
+ "opendal-layer-retry",
  "opendal-layer-tail-cut",
  "opendal-layer-throttle",
+ "opendal-layer-timeout",
  "opendal-layer-tracing",
  "opendal-service-aliyun-drive",
  "opendal-service-alluxio",
@@ -5557,33 +5561,58 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-b2",
+ "opendal-service-cacache",
  "opendal-service-cloudflare-kv",
  "opendal-service-compfs",
  "opendal-service-cos",
  "opendal-service-d1",
  "opendal-service-dashmap",
+ "opendal-service-dbfs",
+ "opendal-service-dropbox",
+ "opendal-service-etcd",
+ "opendal-service-foundationdb",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
+ "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
  "opendal-service-gridfs",
+ "opendal-service-hdfs",
  "opendal-service-hdfs-native",
+ "opendal-service-http",
+ "opendal-service-huggingface",
  "opendal-service-ipfs",
+ "opendal-service-ipmfs",
+ "opendal-service-koofr",
+ "opendal-service-lakefs",
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
+ "opendal-service-onedrive",
+ "opendal-service-opfs",
  "opendal-service-oss",
+ "opendal-service-pcloud",
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
  "opendal-service-s3",
+ "opendal-service-seafile",
+ "opendal-service-sftp",
  "opendal-service-sled",
  "opendal-service-sqlite",
+ "opendal-service-surrealdb",
+ "opendal-service-swift",
  "opendal-service-tikv",
+ "opendal-service-upyun",
+ "opendal-service-vercel-artifacts",
  "opendal-service-vercel-blob",
+ "opendal-service-webdav",
+ "opendal-service-webhdfs",
+ "opendal-service-yandex-disk",
  "opendal-testkit",
  "opentelemetry",
  "opentelemetry-otlp",
@@ -5633,37 +5662,22 @@ dependencies = [
  "backon",
  "base64 0.22.1",
  "bytes",
- "cacache",
- "criterion",
  "ctor",
- "divan",
- "etcd-client",
  "fastpool",
- "flume",
- "foundationdb",
  "futures",
  "getrandom 0.2.16",
- "hdfs-native",
- "hdrs",
- "hmac",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
- "js-sys",
- "libtest-mimic",
  "log",
  "md-5",
  "mea",
  "moka",
  "mongodb",
  "mongodb-internal-macros",
- "monoio",
- "openssh",
- "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
  "probe",
- "prost 0.13.5",
  "quick-xml",
  "rand 0.8.5",
  "redis",
@@ -5672,18 +5686,11 @@ dependencies = [
  "rocksdb",
  "serde",
  "serde_json",
- "sha1",
  "sha2",
- "size",
- "surrealdb",
  "tokio",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "url",
  "uuid",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
  "web-time",
 ]
 
@@ -5757,32 +5764,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-concurrent-limit"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "http 1.4.0",
+ "mea",
+ "opendal-core",
+]
+
+[[package]]
 name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
  "fastmetrics",
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-fastrace"
 version = "0.55.0"
 dependencies = [
+ "anyhow",
+ "dotenvy",
  "fastrace",
+ "fastrace-jaeger",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-immutable-index"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "futures",
  "log",
  "opendal-core",
  "tokio",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-layer-logging"
+version = "0.55.0"
+dependencies = [
+ "log",
+ "opendal-core",
 ]
 
 [[package]]
@@ -5834,18 +5864,37 @@ dependencies = [
 name = "opendal-layer-prometheus"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus 0.14.0",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-layer-prometheus-client"
 version = "0.55.0"
 dependencies = [
+ "log",
  "opendal-core",
  "opendal-layer-observe-metrics-common",
  "prometheus-client",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-retry"
+version = "0.55.0"
+dependencies = [
+ "backon",
+ "bytes",
+ "futures",
+ "log",
+ "opendal-core",
+ "opendal-layer-logging",
+ "opendal-layer-timeout",
+ "tokio",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5865,13 +5914,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendal-layer-tracing"
+name = "opendal-layer-timeout"
 version = "0.55.0"
 dependencies = [
  "futures",
+ "opendal-core",
+ "opendal-layer-retry",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-tracing"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "futures",
  "http 1.4.0",
  "opendal-core",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "tokio",
  "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5886,6 +5953,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5899,6 +5967,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5918,6 +5987,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
  "uuid",
 ]
 
@@ -5935,6 +6005,7 @@ dependencies = [
  "reqsign",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -5950,6 +6021,7 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -5977,6 +6049,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-cacache"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "cacache",
+ "ctor",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
@@ -5992,9 +6076,11 @@ dependencies = [
 name = "opendal-service-compfs"
 version = "0.55.0"
 dependencies = [
+ "bytes",
  "compio",
  "ctor",
  "opendal-core",
+ "rand 0.8.5",
  "serde",
 ]
 
@@ -6002,20 +6088,16 @@ dependencies = [
 name = "opendal-service-cos"
 version = "0.55.0"
 dependencies = [
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
- "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6025,9 +6107,7 @@ dependencies = [
  "bytes",
  "ctor",
  "http 1.4.0",
- "log",
  "opendal-core",
- "pretty_assertions",
  "serde",
  "serde_json",
  "tokio",
@@ -6046,6 +6126,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-dbfs"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-dropbox"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-etcd"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "etcd-client",
+ "fastpool",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-foundationdb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "foundationdb",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-fs"
 version = "0.55.0"
 dependencies = [
@@ -6055,6 +6187,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tokio",
+ "xattr",
 ]
 
 [[package]]
@@ -6080,21 +6213,33 @@ name = "opendal-service-gcs"
 version = "0.55.0"
 dependencies = [
  "backon",
- "base64 0.22.1",
  "bytes",
  "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
- "pretty_assertions",
  "quick-xml",
  "reqsign",
  "reqwest",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
+]
+
+[[package]]
+name = "opendal-service-gdrive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6113,6 +6258,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -6144,6 +6290,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-hdfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "hdrs",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-hdfs-native"
 version = "0.55.0"
 dependencies = [
@@ -6157,6 +6317,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-http"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-huggingface"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "futures",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-ipfs"
 version = "0.55.0"
 dependencies = [
@@ -6167,6 +6355,49 @@ dependencies = [
  "opendal-core",
  "prost 0.13.5",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-ipmfs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-koofr"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-lakefs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
@@ -6202,6 +6433,21 @@ dependencies = [
  "moka",
  "opendal-core",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-monoiofs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "flume",
+ "futures",
+ "monoio",
+ "opendal-core",
+ "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6213,6 +6459,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6227,13 +6474,41 @@ dependencies = [
  "quick-xml",
  "reqsign",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-onedrive"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-opfs"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "js-sys",
+ "opendal-core",
+ "serde",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
 name = "opendal-service-oss"
 version = "0.55.0"
 dependencies = [
- "anyhow",
  "bytes",
  "ctor",
  "http 1.4.0",
@@ -6242,11 +6517,22 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign",
- "reqwest",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-pcloud"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6257,6 +6543,7 @@ dependencies = [
  "opendal-core",
  "persy",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6268,6 +6555,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -6278,6 +6566,7 @@ dependencies = [
  "opendal-core",
  "redb",
  "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -6306,6 +6595,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-seafile"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-sftp"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "fastpool",
+ "futures",
+ "log",
+ "opendal-core",
+ "openssh",
+ "openssh-sftp-client",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-sled"
 version = "0.55.0"
 dependencies = [
@@ -6313,6 +6634,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "sled",
+ "tokio",
 ]
 
 [[package]]
@@ -6328,6 +6650,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-surrealdb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "mea",
+ "opendal-core",
+ "serde",
+ "surrealdb",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-swift"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-tikv"
 version = "0.55.0"
 dependencies = [
@@ -6336,10 +6685,93 @@ dependencies = [
  "opendal-core",
  "serde",
  "tikv-client",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-upyun"
+version = "0.55.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "ctor",
+ "hmac",
+ "http 1.4.0",
+ "log",
+ "md-5",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-vercel-artifacts"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
 name = "opendal-service-vercel-blob"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webdav"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "quick-xml",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-webhdfs"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "http 1.4.0",
+ "log",
+ "mea",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "opendal-service-yandex-disk"
 version = "0.55.0"
 dependencies = [
  "bytes",
@@ -6360,6 +6792,9 @@ dependencies = [
  "bytes",
  "dotenvy",
  "opendal-core",
+ "opendal-layer-logging",
+ "opendal-layer-retry",
+ "opendal-layer-timeout",
  "rand 0.8.5",
  "sha2",
  "tokio",
@@ -11300,6 +11735,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05f360fc0b24296329c78fda852a1e9ae82de9cf7b27dae4b7f62f118f77b9ed"
 dependencies = [
  "tap",
+]
+
+[[package]]
+name = "xattr"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
+dependencies = [
+ "libc",
+ "rustix 1.1.2",
 ]
 
 [[package]]

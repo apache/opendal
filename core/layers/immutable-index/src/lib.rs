@@ -215,12 +215,8 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use anyhow::Result;
     use futures::TryStreamExt;
     use log::debug;
-    use opendal_core::EntryMode;
-    use opendal_core::Operator;
-    use opendal_core::raw::*;
 
     use super::*;
 

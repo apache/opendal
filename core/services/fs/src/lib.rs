@@ -33,8 +33,12 @@ pub use config::FsConfig;
 
 /// Default scheme for fs service.
 pub const FS_SCHEME: &str = "fs";
+/// Alias scheme for fs service that follows the standard URI scheme.
+pub const FILE_SCHEME: &str = "file";
 
 #[ctor::ctor]
 fn register_fs_service() {
     opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FS_SCHEME);
+    // Register "file" as an alias for "fs" to support standard file:// URIs
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Fs>(FILE_SCHEME);
 }

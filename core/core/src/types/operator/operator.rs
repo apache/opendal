@@ -59,7 +59,7 @@ use crate::*;
 ///
 /// After the operator is built, users can add the layers they need on top of it.
 ///
-/// OpenDAL offers various layers for users to choose from, such as `RetryLayer`, `LoggingLayer`, and more. Visit [`layers`] for further details.
+/// OpenDAL offers various layers for users to choose from. Visit [`layers`] for further details.
 ///
 /// Please note that `Layer` can modify internal contexts such as `HttpClient`
 /// and `Runtime` for all clones of given operator. Therefore, it is recommended
@@ -67,15 +67,18 @@ use crate::*;
 /// layers after accessing the storage may result in unexpected behavior.
 ///
 /// ```
-/// # use anyhow::Result;
-/// use opendal_core::layers::RetryLayer;
+/// use opendal_core::layers::HttpClientLayer;
+/// use opendal_core::raw::HttpClient;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
+/// use opendal_core::Result;
+///
 /// async fn test() -> Result<()> {
 ///     let op: Operator = Operator::new(Memory::default())?.finish();
 ///
-///     // OpenDAL will retry failed operations now.
-///     let op = op.layer(RetryLayer::default());
+///     // OpenDAL will replace the default HTTP client now.
+///     let client = HttpClient::new()?;
+///     let op = op.layer(HttpClientLayer::new(client));
 ///
 ///     Ok(())
 /// }
@@ -101,7 +104,6 @@ use crate::*;
 /// into [`futures::AsyncRead`] or [`futures::Stream`] for broader ecosystem compatibility.
 ///
 /// ```no_run
-/// use opendal_core::layers::LoggingLayer;
 /// use opendal_core::options;
 /// use opendal_core::services;
 /// use opendal_core::Operator;
@@ -113,10 +115,7 @@ use crate::*;
 ///     let builder = services::Memory::default();
 ///
 ///     // Init an operator
-///     let op = Operator::new(builder)?
-///         // Init with logging layer enabled.
-///         .layer(LoggingLayer::default())
-///         .finish();
+///     let op = Operator::new(builder)?.finish();
 ///
 ///     // Fetch this file's metadata
 ///     let meta = op.stat("hello.txt").await?;

@@ -41,11 +41,11 @@ use opendal_layer_observe_metrics_common as observe;
 /// ```no_run
 /// # use fastmetrics::format::text;
 /// # use log::info;
-/// # use opendal_layer_fastmetrics::FastmetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_fastmetrics::FastmetricsLayer;
+/// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let mut registry = fastmetrics::registry::Registry::default();
@@ -83,14 +83,15 @@ use opendal_layer_observe_metrics_common as observe;
 ///
 /// ```no_run
 /// # use std::sync::OnceLock;
+/// #
 /// # use fastmetrics::format::text;
 /// # use fastmetrics::registry::with_global_registry;
 /// # use log::info;
-/// # use opendal_layer_fastmetrics::FastmetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_fastmetrics::FastmetricsLayer;
+/// #
 /// fn global_fastmetrics_layer() -> &'static FastmetricsLayer {
 ///     static GLOBAL: OnceLock<FastmetricsLayer> = OnceLock::new();
 ///     GLOBAL.get_or_init(|| {
@@ -229,13 +230,12 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
+    /// #
+    /// # fn main() -> Result<()> {
     /// let mut registry = fastmetrics::registry::Registry::default();
     ///
     /// // Pick a builder and configure it.

@@ -28,17 +28,17 @@ use opentelemetry::metrics::UpDownCounter;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_otelmetrics::OtelMetricsLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_otelmetrics::OtelMetricsLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let meter = opentelemetry::global::meter("opendal");
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(OtelMetricsLayer::builder().register(&meter))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Debug)]
@@ -52,19 +52,17 @@ impl OtelMetricsLayer {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
+    /// #
+    /// # fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
     ///     .layer(OtelMetricsLayer::builder().register(&meter))
     ///     .finish();
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn builder() -> OtelMetricsLayerBuilder {
@@ -149,19 +147,17 @@ impl OtelMetricsLayerBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
-    /// # #[tokio::main]
-    /// # async fn main() -> Result<()> {
+    /// # use opendal_layer_otelmetrics::OtelMetricsLayer;
+    /// #
+    /// # fn main() -> Result<()> {
     /// let meter = opentelemetry::global::meter("opendal");
     /// let op = Operator::new(services::Memory::default())?
     ///     .layer(OtelMetricsLayer::builder().register(&meter))
     ///     .finish();
-    ///
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn register(self, meter: &Meter) -> OtelMetricsLayer {

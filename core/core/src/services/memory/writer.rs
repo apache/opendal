@@ -73,7 +73,11 @@ impl oio::Write for MemoryWriter {
             content,
         };
 
-        self.core.set(&self.path, value)?;
+        if self.op.if_not_exists() {
+            self.core.set_if_not_exists(&self.path, value)?;
+        } else {
+            self.core.set(&self.path, value)?;
+        }
 
         Ok(metadata)
     }

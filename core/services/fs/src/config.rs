@@ -63,4 +63,12 @@ mod tests {
         let cfg = FsConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
     }
+
+    #[test]
+    fn from_uri_with_file_scheme() {
+        // "file" is an alias for "fs" to support standard file:// URIs
+        let uri = OperatorUri::new("file:///tmp/data", Vec::<(String, String)>::new()).unwrap();
+        let cfg = FsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/tmp/data"));
+    }
 }

@@ -17,7 +17,11 @@
 
 //! SFTP service implementation for Apache OpenDAL.
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -37,5 +41,5 @@ pub const SFTP_SCHEME: &str = "sftp";
 
 #[ctor::ctor]
 fn register_sftp_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Sftp>(SFTP_SCHEME);
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Sftp>(SFTP_SCHEME);
 }

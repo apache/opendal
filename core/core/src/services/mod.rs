@@ -43,6 +43,7 @@ pub use self::redis::*;
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
+<<<<<<< HEAD
 #[cfg(feature = "services-vercel-artifacts")]
 mod vercel_artifacts;
 #[cfg(feature = "services-vercel-artifacts")]
@@ -62,3 +63,10 @@ pub use webhdfs::*;
 mod yandex_disk;
 #[cfg(feature = "services-yandex-disk")]
 pub use yandex_disk::*;
+=======
+
+#[cfg(feature = "services-sftp")]
+mod sftp;
+#[cfg(feature = "services-sftp")]
+pub use sftp::*;
+>>>>>>> upstream/main

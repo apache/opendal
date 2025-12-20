@@ -5577,6 +5577,7 @@ dependencies = [
  "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-gridfs",
  "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-http",
@@ -5607,6 +5608,7 @@ dependencies = [
  "opendal-service-swift",
  "opendal-service-tikv",
  "opendal-service-upyun",
+ "opendal-service-vercel-artifacts",
  "opendal-service-vercel-blob",
  "opendal-service-webdav",
  "opendal-service-webhdfs",
@@ -6271,6 +6273,19 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-gridfs"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "futures",
+ "mea",
+ "mongodb",
+ "opendal-core",
+ "serde",
  "tokio",
 ]
 

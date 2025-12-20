@@ -18,14 +18,14 @@
 use std::sync::Arc;
 
 use mea::once::OnceCell;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::GRIDFS_SCHEME;
 use super::config::GridfsConfig;
 use super::core::*;
 use super::deleter::GridfsDeleter;
 use super::writer::GridfsWriter;
-use crate::raw::*;
-use crate::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]

@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -50,10 +51,10 @@ impl Debug for GridfsConfig {
     }
 }
 
-impl crate::Configurator for GridfsConfig {
+impl Configurator for GridfsConfig {
     type Builder = GridfsBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
@@ -95,18 +96,15 @@ impl crate::Configurator for GridfsConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_connection_database_bucket_and_root() {
+    fn from_uri_sets_connection_database_bucket_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "gridfs://mongo.example.com:27017/app_files/assets/images",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = GridfsConfig::from_uri(&uri).unwrap();
+        let cfg = GridfsConfig::from_uri(&uri)?;
         assert_eq!(
             cfg.connection_string.as_deref(),
             Some("mongodb://mongo.example.com:27017")
@@ -114,5 +112,6 @@ mod tests {
         assert_eq!(cfg.database.as_deref(), Some("app_files"));
         assert_eq!(cfg.bucket.as_deref(), Some("assets"));
         assert_eq!(cfg.root.as_deref(), Some("images"));
+        Ok(())
     }
 }

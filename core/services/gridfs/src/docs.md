@@ -25,9 +25,9 @@ This service can be used to:
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Gridfs;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_gridfs::Gridfs;
 
 #[tokio::main]
 async fn main() -> Result<()> {

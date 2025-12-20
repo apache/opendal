@@ -135,7 +135,7 @@ services-gcs = ["dep:opendal-service-gcs"]
 services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
-services-gridfs = ["opendal-core/services-gridfs"]
+services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
 services-http = ["dep:opendal-service-http"]
@@ -171,7 +171,7 @@ services-surrealdb = ["dep:opendal-service-surrealdb"]
 services-swift = ["dep:opendal-service-swift"]
 services-tikv = ["dep:opendal-service-tikv"]
 services-upyun = ["dep:opendal-service-upyun"]
-services-vercel-artifacts = ["opendal-core/services-vercel-artifacts"]
+services-vercel-artifacts = ["dep:opendal-service-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
 services-webdav = ["dep:opendal-service-webdav"]
 services-webhdfs = ["dep:opendal-service-webhdfs"]
@@ -241,6 +241,7 @@ opendal-service-gcs = { path = "services/gcs", version = "0.55.0", optional = tr
 opendal-service-gdrive = { path = "services/gdrive", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.55.0", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.55.0", optional = true, default-features = false }
+opendal-service-gridfs = { path = "services/gridfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs = { path = "services/hdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
 opendal-service-http = { path = "services/http", version = "0.55.0", optional = true, default-features = false }
@@ -270,6 +271,7 @@ opendal-service-surrealdb = { path = "services/surrealdb", version = "0.55.0", o
 opendal-service-swift = { path = "services/swift", version = "0.55.0", optional = true, default-features = false }
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
+opendal-service-vercel-artifacts = { path = "services/vercel-artifacts", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }
 opendal-service-webdav = { path = "services/webdav", version = "0.55.0", optional = true, default-features = false }
 opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optional = true, default-features = false }

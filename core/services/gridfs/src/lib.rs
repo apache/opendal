@@ -15,26 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Services will provide builders to build underlying backends.
-//!
-//! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
+//! GridFS service implementation for Apache OpenDAL.
 
-#[cfg(feature = "services-memory")]
-mod memory;
-#[cfg(feature = "services-memory")]
-pub use self::memory::*;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
-#[cfg(feature = "services-mongodb")]
-mod mongodb;
-#[cfg(feature = "services-mongodb")]
-pub use self::mongodb::*;
+mod backend;
+mod config;
+mod core;
+mod deleter;
+mod writer;
 
-#[cfg(feature = "services-redis")]
-mod redis;
-#[cfg(feature = "services-redis")]
-pub use self::redis::*;
+pub use backend::GridfsBuilder as Gridfs;
+pub use config::GridfsConfig;
 
-#[cfg(feature = "services-rocksdb")]
-mod rocksdb;
-#[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::*;
+/// Default scheme for gridfs service.
+pub const GRIDFS_SCHEME: &str = "gridfs";
+
+#[ctor::ctor]
+fn register_gridfs_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
+}

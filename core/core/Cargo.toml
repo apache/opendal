@@ -57,16 +57,11 @@ executors-tokio = ["tokio/rt"]
 # Enable dtrace support.
 layers-dtrace = ["dep:probe"]
 
-services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
-services-ipmfs = []
-services-lakefs = []
 services-memory = []
 services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
 services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
 services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
-services-vercel-artifacts = []
-services-webhdfs = []
 
 [lib]
 bench = false

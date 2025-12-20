@@ -20,8 +20,8 @@ use std::sync::Arc;
 use super::core::SftpCore;
 use super::error::is_not_found;
 use super::error::parse_sftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SftpDeleter {
     core: Arc<SftpCore>,

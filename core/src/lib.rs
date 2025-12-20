@@ -96,6 +96,8 @@ pub mod services {
     pub use opendal_service_mini_moka::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
+    #[cfg(feature = "services-monoiofs")]
+    pub use opendal_service_monoiofs::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
@@ -118,6 +120,8 @@ pub mod services {
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
+    #[cfg(feature = "services-sftp")]
+    pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]

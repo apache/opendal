@@ -5588,6 +5588,7 @@ dependencies = [
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
  "opendal-service-onedrive",
@@ -5599,6 +5600,7 @@ dependencies = [
  "opendal-service-redb",
  "opendal-service-s3",
  "opendal-service-seafile",
+ "opendal-service-sftp",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
@@ -5660,7 +5662,6 @@ dependencies = [
  "bytes",
  "ctor",
  "fastpool",
- "flume",
  "futures",
  "getrandom 0.2.16",
  "http 1.4.0",
@@ -5672,9 +5673,6 @@ dependencies = [
  "moka",
  "mongodb",
  "mongodb-internal-macros",
- "monoio",
- "openssh",
- "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
  "probe",
@@ -6424,6 +6422,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-monoiofs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "flume",
+ "futures",
+ "monoio",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-mysql"
 version = "0.55.0"
 dependencies = [
@@ -6579,6 +6591,23 @@ dependencies = [
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-sftp"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "ctor",
+ "fastpool",
+ "futures",
+ "log",
+ "opendal-core",
+ "openssh",
+ "openssh-sftp-client",
+ "serde",
  "tokio",
 ]
 

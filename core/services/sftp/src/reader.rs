@@ -21,8 +21,8 @@ use openssh_sftp_client::file::File;
 
 use super::core::Manager;
 use super::error::parse_sftp_error;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 pub struct SftpReader {
     /// Keep the connection alive while data stream is alive.

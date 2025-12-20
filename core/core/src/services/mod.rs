@@ -34,11 +34,6 @@ mod mongodb;
 #[cfg(feature = "services-mongodb")]
 pub use self::mongodb::*;
 
-#[cfg(feature = "services-monoiofs")]
-mod monoiofs;
-#[cfg(feature = "services-monoiofs")]
-pub use monoiofs::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]
@@ -48,8 +43,3 @@ pub use self::redis::*;
 mod rocksdb;
 #[cfg(feature = "services-rocksdb")]
 pub use self::rocksdb::*;
-
-#[cfg(feature = "services-sftp")]
-mod sftp;
-#[cfg(feature = "services-sftp")]
-pub use sftp::*;

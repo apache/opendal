@@ -103,6 +103,18 @@ impl WebdavBuilder {
 
         self
     }
+
+    /// Enable user metadata support via WebDAV PROPPATCH.
+    ///
+    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
+    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
+    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
+    ///
+    /// Default: false
+    pub fn enable_user_metadata(mut self, enable: bool) -> Self {
+        self.config.enable_user_metadata = enable;
+        self
+    }
 }
 
 impl Builder for WebdavBuilder {
@@ -155,6 +167,7 @@ impl Builder for WebdavBuilder {
 
                         write: true,
                         write_can_empty: true,
+                        write_with_user_metadata: self.config.enable_user_metadata,
 
                         create_dir: true,
                         delete: true,

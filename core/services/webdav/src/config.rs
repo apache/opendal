@@ -39,6 +39,14 @@ pub struct WebdavConfig {
     pub root: Option<String>,
     /// WebDAV Service doesn't support copy.
     pub disable_copy: bool,
+    /// Enable user metadata support via WebDAV PROPPATCH.
+    ///
+    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
+    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
+    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
+    ///
+    /// Default: false
+    pub enable_user_metadata: bool,
 }
 
 impl Debug for WebdavConfig {
@@ -48,6 +56,7 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_copy", &self.disable_copy)
+            .field("enable_user_metadata", &self.enable_user_metadata)
             .finish_non_exhaustive()
     }
 }

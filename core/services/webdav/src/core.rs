@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -29,6 +30,12 @@ use serde::Deserialize;
 use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+/// OpenDAL custom namespace for user-defined properties in WebDAV.
+/// This namespace is used to store user metadata as DAV dead properties.
+pub const OPENDAL_NAMESPACE: &str = "opendal";
+pub const OPENDAL_NAMESPACE_URI: &str = "https://opendal.apache.org/";
+pub const OPENDAL_METADATA_PREFIX: &str = "od:";
 
 /// The request to query all properties of a file or directory.
 ///
@@ -115,8 +122,10 @@ impl WebdavCore {
         }
 
         let bs = resp.into_body();
+        let xml_bytes = bs.to_bytes();
+        let xml_str = String::from_utf8_lossy(&xml_bytes);
 
-        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
+        let result: Multistatus = deserialize_multistatus(&xml_bytes)?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -124,7 +133,14 @@ impl WebdavCore {
             )
         })?;
 
-        let metadata = parse_propstat(&propfind_resp.propstat)?;
+        let mut metadata = parse_propstat(&propfind_resp.propstat)?;
+
+        // Parse user metadata from the raw XML response
+        let user_metadata = parse_user_metadata_from_xml(&xml_str);
+        if !user_metadata.is_empty() {
+            metadata = metadata.with_user_metadata(user_metadata);
+        }
+
         Ok(metadata)
     }
 
@@ -186,6 +202,40 @@ impl WebdavCore {
         let req = req
             .extension(Operation::Write)
             .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// Set user-defined metadata using WebDAV PROPPATCH method.
+    ///
+    /// This method uses the OpenDAL custom namespace to store user metadata
+    /// as DAV dead properties. Each key-value pair in the user_metadata map
+    /// is stored as a property with the "od:" prefix.
+    ///
+    /// # Reference
+    /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
+    pub async fn webdav_proppatch(
+        &self,
+        path: &str,
+        user_metadata: &HashMap<String, String>,
+    ) -> Result<Response<Buffer>> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
+
+        let mut req = Request::builder().method("PROPPATCH").uri(&url);
+
+        req = req.header(header::CONTENT_TYPE, "application/xml; charset=utf-8");
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        // Build the PROPPATCH XML request body
+        let proppatch_body = build_proppatch_request(user_metadata);
+
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -366,6 +416,97 @@ impl WebdavCore {
             _ => Err(parse_error(resp)),
         }
     }
+}
+
+/// Build a PROPPATCH request body to set user-defined metadata.
+///
+/// The request uses the OpenDAL custom namespace (od:) to store metadata
+/// as dead properties on the WebDAV server.
+///
+/// # Example output
+/// ```xml
+/// <?xml version="1.0" encoding="utf-8"?>
+/// <D:propertyupdate xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+///   <D:set>
+///     <D:prop>
+///       <od:key1>value1</od:key1>
+///       <od:key2>value2</od:key2>
+///     </D:prop>
+///   </D:set>
+/// </D:propertyupdate>
+/// ```
+pub fn build_proppatch_request(user_metadata: &HashMap<String, String>) -> String {
+    let mut props = String::new();
+    for (key, value) in user_metadata {
+        // Escape XML special characters in key and value
+        let escaped_key = escape_xml(key);
+        let escaped_value = escape_xml(value);
+        props.push_str(&format!(
+            "<{OPENDAL_METADATA_PREFIX}{escaped_key}>{escaped_value}</{OPENDAL_METADATA_PREFIX}{escaped_key}>"
+        ));
+    }
+
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{OPENDAL_NAMESPACE}="{OPENDAL_NAMESPACE_URI}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
+    )
+}
+
+/// Escape XML special characters.
+fn escape_xml(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+/// Parse user metadata from the raw XML response.
+///
+/// This function extracts properties in the OpenDAL namespace (od:)
+/// from the PROPFIND response and returns them as a HashMap.
+pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
+    let mut user_metadata = HashMap::new();
+
+    // Find all od: prefixed elements and extract their content
+    // We use a simple regex-like approach since quick_xml doesn't
+    // easily support dynamic namespaced properties
+    let prefix = format!("<{OPENDAL_METADATA_PREFIX}");
+    let mut search_start = 0;
+
+    while let Some(start) = xml[search_start..].find(&prefix) {
+        let abs_start = search_start + start + prefix.len();
+
+        // Find the key name (up to the closing >)
+        if let Some(key_end) = xml[abs_start..].find('>') {
+            let key = &xml[abs_start..abs_start + key_end];
+
+            // Find the closing tag
+            let close_tag = format!("</{OPENDAL_METADATA_PREFIX}{key}>");
+            let value_start = abs_start + key_end + 1;
+
+            if let Some(value_end) = xml[value_start..].find(&close_tag) {
+                let value = &xml[value_start..value_start + value_end];
+                // Unescape XML entities
+                let unescaped_value = unescape_xml(value);
+                user_metadata.insert(key.to_string(), unescaped_value);
+            }
+
+            search_start = value_start;
+        } else {
+            break;
+        }
+    }
+
+    user_metadata
+}
+
+/// Unescape XML entities.
+fn unescape_xml(s: &str) -> String {
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
 }
 
 pub fn deserialize_multistatus(bs: &[u8]) -> Result<Multistatus> {
@@ -853,5 +994,114 @@ mod tests {
             first_response.propstat.prop.getlastmodified,
             "Fri, 17 Feb 2023 03:37:22 GMT"
         );
+    }
+
+    #[test]
+    fn test_build_proppatch_request() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key1".to_string(), "value1".to_string());
+        user_metadata.insert("key2".to_string(), "value2".to_string());
+
+        let request = build_proppatch_request(&user_metadata);
+
+        // Check that the request contains the expected XML structure
+        assert!(request.contains(r#"<?xml version="1.0" encoding="utf-8"?>"#));
+        assert!(request.contains(r#"<D:propertyupdate"#));
+        assert!(request.contains(r#"xmlns:D="DAV:""#));
+        assert!(request.contains(&format!(
+            r#"xmlns:{OPENDAL_NAMESPACE}="{OPENDAL_NAMESPACE_URI}""#
+        )));
+        assert!(request.contains(r#"<D:set>"#));
+        assert!(request.contains(r#"<D:prop>"#));
+        // Check that user metadata is included (order may vary)
+        assert!(request.contains(&format!(
+            "<{OPENDAL_METADATA_PREFIX}key1>value1</{OPENDAL_METADATA_PREFIX}key1>"
+        )));
+        assert!(request.contains(&format!(
+            "<{OPENDAL_METADATA_PREFIX}key2>value2</{OPENDAL_METADATA_PREFIX}key2>"
+        )));
+    }
+
+    #[test]
+    fn test_build_proppatch_request_with_special_chars() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key".to_string(), "value<>&\"'".to_string());
+
+        let request = build_proppatch_request(&user_metadata);
+
+        // Check that special characters are properly escaped
+        assert!(request.contains("value&lt;&gt;&amp;&quot;&apos;"));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+                <od:key1>value1</od:key1>
+                <od:key2>value2</od:key2>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml);
+
+        assert_eq!(user_metadata.len(), 2);
+        assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(user_metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_with_special_chars() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <od:key>value&lt;&gt;&amp;&quot;&apos;</od:key>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml);
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(user_metadata.get("key"), Some(&"value<>&\"'".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_empty() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml);
+
+        assert!(user_metadata.is_empty());
+    }
+
+    #[test]
+    fn test_escape_unescape_xml() {
+        let original = "test<>&\"'value";
+        let escaped = escape_xml(original);
+        let unescaped = unescape_xml(&escaped);
+
+        assert_eq!(escaped, "test&lt;&gt;&amp;&quot;&apos;value");
+        assert_eq!(unescaped, original);
     }
 }

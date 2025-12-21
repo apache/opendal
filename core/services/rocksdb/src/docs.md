@@ -40,11 +40,11 @@ You can refer to [`RocksdbBuilder`]'s docs for more information.
 ```rust,no_run
 use opendal_core::Operator;
 use opendal_core::Result;
-use opendal_service_rocksdb::RocksDB;
+use opendal_service_rocksdb::Rocksdb;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = RocksDB::default()
+    let mut builder = Rocksdb::default()
         .datadir("/tmp/opendal/rocksdb");
 
     let op: Operator = Operator::new(builder)?.finish();

@@ -18,7 +18,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::RocksdbBuilder;
+use crate::backend::RocksdbBuilder;
+use opendal_core::{Configurator, Result};
 
 /// Config for Rocksdb Service.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -33,10 +34,10 @@ pub struct RocksdbConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for RocksdbConfig {
+impl Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &opendal_core::OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(path) = uri.root() {
@@ -57,8 +58,8 @@ impl crate::Configurator for RocksdbConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
+    use opendal_core::Configurator;
+    use opendal_core::types::OperatorUri;
 
     #[test]
     fn from_uri_sets_datadir_and_root() {

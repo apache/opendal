@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use super::core::*;
-use crate::raw::oio;
-use crate::*;
+use opendal_core::{Buffer, EntryMode, Metadata, Result, raw::oio};
+
+use crate::core::RocksdbCore;
 
 pub struct RocksdbWriter {
     core: Arc<RocksdbCore>,
@@ -45,10 +45,10 @@ impl oio::Write for RocksdbWriter {
 
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
-        let length = buf.len() as u64;
+        let len = buf.len() as u64;
         self.core.set(&self.path, buf)?;
 
-        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
+        let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(len);
         Ok(meta)
     }
 

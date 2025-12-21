@@ -19,30 +19,36 @@ use std::sync::Arc;
 
 use rocksdb::DB;
 
-use super::ROCKSDB_SCHEME;
-use super::config::RocksdbConfig;
-use super::core::*;
-use super::deleter::RocksdbDeleter;
-use super::lister::RocksdbLister;
-use super::writer::RocksdbWriter;
-use crate::raw::*;
-use crate::*;
+use crate::ROCKSDB_SCHEME;
+use crate::config::RocksdbConfig;
+use crate::core::RocksdbCore;
+use crate::deleter::RocksdbDeleter;
+use crate::lister::RocksdbLister;
+use crate::writer::RocksdbWriter;
+
+use opendal_core::raw::{Access, AccessorInfo, oio};
+use opendal_core::raw::{
+    OpList, OpRead, OpStat, OpWrite, RpDelete, RpList, RpRead, RpStat, RpWrite,
+};
+use opendal_core::raw::{build_abs_path, normalize_root};
+use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
+use opendal_core::{EntryMode, Metadata};
 
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct RocksdbBuilder {
-    pub(super) config: RocksdbConfig,
+    pub(crate) config: RocksdbConfig,
 }
 
 impl RocksdbBuilder {
-    /// Set the path to the rocksdb data directory. Will create if not exists.
+    /// Set the path to the rocksdb data directory. Creates if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
-    /// set the working directory, all operations will be performed under it.
+    /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
@@ -61,13 +67,16 @@ impl Builder for RocksdbBuilder {
 
     fn build(self) -> Result<impl Access> {
         let path = self.config.datadir.ok_or_else(|| {
-            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                .with_context("service", ROCKSDB_SCHEME)
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "datadir is not specified for rocksdb service",
+            )
+            .with_context("service", ROCKSDB_SCHEME)
         })?;
         let db = DB::open_default(&path).map_err(|e| {
-            Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
+            Error::new(ErrorKind::Unexpected, "failed to open rocksdb instance")
                 .with_context("service", ROCKSDB_SCHEME)
-                .with_context("datadir", path)
+                .with_context("datadir", path.clone())
                 .set_source(e)
         })?;
 
@@ -77,7 +86,7 @@ impl Builder for RocksdbBuilder {
     }
 }
 
-/// Backend for rocksdb services.
+/// Backend for rocksdb service
 #[derive(Clone, Debug)]
 pub struct RocksdbBackend {
     core: Arc<RocksdbCore>,
@@ -138,20 +147,27 @@ impl Access for RocksdbBackend {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
-                None => Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb")),
+                None => Err(Error::new(
+                    ErrorKind::NotFound,
+                    "entry not found in rocksdb",
+                )),
             }
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
-        let bs = match self.core.get(&p)? {
-            Some(bs) => bs,
+
+        let data = match self.core.get(&p)? {
+            Some(entry) => entry,
             None => {
-                return Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb"));
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    "entry not found in rocksdb",
+                ));
             }
         };
-        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
+        Ok((RpRead::new(), data.slice(args.range().to_range_as_usize())))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

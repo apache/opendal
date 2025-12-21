@@ -18,10 +18,10 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
-use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use crate::core::RocksdbCore;
+
+use opendal_core::raw::{build_rel_path, oio};
+use opendal_core::{EntryMode, Metadata, Result};
 
 pub struct RocksdbLister {
     root: String,

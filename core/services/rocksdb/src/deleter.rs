@@ -15,22 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for rocksdb service.
-pub const ROCKSDB_SCHEME: &str = "rocksdb";
+use crate::core::RocksdbCore;
+use opendal_core::raw::{self, build_abs_path, oio};
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+pub struct RocksdbDeleter {
+    core: Arc<RocksdbCore>,
+    root: String,
+}
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod lister;
-mod writer;
+impl RocksdbDeleter {
+    pub fn new(core: Arc<RocksdbCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
 
-pub use backend::RocksdbBuilder as Rocksdb;
-pub use config::RocksdbConfig;
-
-#[ctor::ctor]
-fn register_rocksdb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Rocksdb>(ROCKSDB_SCHEME);
+impl oio::OneShotDelete for RocksdbDeleter {
+    async fn delete_once(&self, path: String, _: raw::OpDelete) -> opendal_core::Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p)?;
+        Ok(())
+    }
 }

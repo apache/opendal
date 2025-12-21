@@ -161,7 +161,7 @@ services-postgresql = ["dep:opendal-service-postgresql"]
 services-redb = ["dep:opendal-service-redb"]
 services-redis = ["opendal-core/services-redis"]
 services-redis-native-tls = ["opendal-core/services-redis-native-tls"]
-services-rocksdb = ["opendal-core/services-rocksdb"]
+services-rocksdb = ["dep:opendal-service-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]
 services-sftp = ["dep:opendal-service-sftp"]
@@ -278,6 +278,7 @@ opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0
 opendal-service-webdav = { path = "services/webdav", version = "0.55.0", optional = true, default-features = false }
 opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
+opendal-service-rocksdb = { path = "services/rocksdb", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 
 [dev-dependencies]

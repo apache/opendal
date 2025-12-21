@@ -28,8 +28,3 @@ pub use self::memory::*;
 mod redis;
 #[cfg(feature = "services-redis")]
 pub use self::redis::*;
-
-#[cfg(feature = "services-rocksdb")]
-mod rocksdb;
-#[cfg(feature = "services-rocksdb")]
-pub use self::rocksdb::*;

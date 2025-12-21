@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use rocksdb::DB;
 
-use crate::*;
+use opendal_core::{Buffer, Error, ErrorKind, Result};
 
 #[derive(Clone)]
 pub struct RocksdbCore {

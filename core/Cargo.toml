@@ -264,6 +264,7 @@ opendal-service-pcloud = { path = "services/pcloud", version = "0.55.0", optiona
 opendal-service-persy = { path = "services/persy", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-redb = { path = "services/redb", version = "0.55.0", optional = true, default-features = false }
+opendal-service-rocksdb = { path = "services/rocksdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-seafile = { path = "services/seafile", version = "0.55.0", optional = true, default-features = false }
 opendal-service-sftp = { path = "services/sftp", version = "0.55.0", optional = true, default-features = false }
@@ -278,7 +279,6 @@ opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0
 opendal-service-webdav = { path = "services/webdav", version = "0.55.0", optional = true, default-features = false }
 opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
-opendal-service-rocksdb = { path = "services/rocksdb", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 
 [dev-dependencies]

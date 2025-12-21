@@ -31,9 +31,9 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+ctor = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false, features = [
   "internal-tokio-rt",
 ] }
-rocksdb = { version = "0.24.0", default-features = false}
+rocksdb = { version = "0.24.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
-ctor = { workspace = true }

@@ -5539,6 +5539,7 @@ dependencies = [
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
  "opendal-layer-concurrent-limit",
+ "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-immutable-index",
@@ -5676,7 +5677,6 @@ dependencies = [
  "moka",
  "percent-encoding",
  "pretty_assertions",
- "probe",
  "quick-xml",
  "rand 0.8.5",
  "redis",
@@ -5770,6 +5770,15 @@ dependencies = [
  "http 1.4.0",
  "mea",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-dtrace"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "opendal-core",
+ "probe",
 ]
 
 [[package]]

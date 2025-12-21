@@ -38,13 +38,13 @@ You can refer to [`RocksdbBuilder`]'s docs for more information.
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Rocksdb;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_rocksdb::RocksDB;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = Rocksdb::default()
+    let mut builder = RocksDB::default()
         .datadir("/tmp/opendal/rocksdb");
 
     let op: Operator = Operator::new(builder)?.finish();

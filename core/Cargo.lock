@@ -6598,6 +6598,7 @@ dependencies = [
  "opendal-core",
  "rocksdb",
  "serde",
+ "tokio",
 ]
 
 [[package]]

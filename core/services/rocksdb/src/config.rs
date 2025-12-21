@@ -59,7 +59,7 @@ impl Configurator for RocksdbConfig {
 mod tests {
     use super::*;
     use opendal_core::Configurator;
-    use opendal_core::types::OperatorUri;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_sets_datadir_and_root() {

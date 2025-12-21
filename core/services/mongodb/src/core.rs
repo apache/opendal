@@ -23,7 +23,7 @@ use mongodb::bson::Document;
 use mongodb::bson::doc;
 use mongodb::options::ClientOptions;
 
-use crate::*;
+use opendal_core::*;
 
 #[derive(Clone)]
 pub struct MongodbCore {

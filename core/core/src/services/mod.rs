@@ -24,11 +24,6 @@ mod memory;
 #[cfg(feature = "services-memory")]
 pub use self::memory::*;
 
-#[cfg(feature = "services-mongodb")]
-mod mongodb;
-#[cfg(feature = "services-mongodb")]
-pub use self::mongodb::*;
-
 #[cfg(feature = "services-redis")]
 mod redis;
 #[cfg(feature = "services-redis")]

@@ -24,8 +24,8 @@ use super::config::MongodbConfig;
 use super::core::*;
 use super::deleter::MongodbDeleter;
 use super::writer::MongodbWriter;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]

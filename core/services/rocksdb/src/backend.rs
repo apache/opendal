@@ -21,18 +21,12 @@ use rocksdb::DB;
 
 use crate::ROCKSDB_SCHEME;
 use crate::config::RocksdbConfig;
-use crate::core::RocksdbCore;
+use crate::core::*;
 use crate::deleter::RocksdbDeleter;
 use crate::lister::RocksdbLister;
 use crate::writer::RocksdbWriter;
-
-use opendal_core::raw::{Access, AccessorInfo, oio};
-use opendal_core::raw::{
-    OpList, OpRead, OpStat, OpWrite, RpDelete, RpList, RpRead, RpStat, RpWrite,
-};
-use opendal_core::raw::{build_abs_path, normalize_root};
-use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
-use opendal_core::{EntryMode, Metadata};
+use opendal_core::raw::*;
+use opendal_core::*;
 
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
@@ -147,27 +141,20 @@ impl Access for RocksdbBackend {
                 Some(bs) => Ok(RpStat::new(
                     Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
                 )),
-                None => Err(Error::new(
-                    ErrorKind::NotFound,
-                    "entry not found in rocksdb",
-                )),
+                None => Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb")),
             }
         }
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let p = build_abs_path(&self.root, path);
-
-        let data = match self.core.get(&p)? {
-            Some(entry) => entry,
+        let bs = match self.core.get(&p)? {
+            Some(bs) => bs,
             None => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "entry not found in rocksdb",
-                ));
+                return Err(Error::new(ErrorKind::NotFound, "kv not found in rocksdb"));
             }
         };
-        Ok((RpRead::new(), data.slice(args.range().to_range_as_usize())))
+        Ok((RpRead::new(), bs.slice(args.range().to_range_as_usize())))
     }
 
     async fn write(&self, path: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {

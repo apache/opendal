@@ -16,7 +16,8 @@
 // under the License.
 
 use crate::core::RocksdbCore;
-use opendal_core::raw::{self, build_abs_path, oio};
+use opendal_core::raw::*;
+use opendal_core::*;
 use std::sync::Arc;
 
 pub struct RocksdbDeleter {
@@ -31,7 +32,7 @@ impl RocksdbDeleter {
 }
 
 impl oio::OneShotDelete for RocksdbDeleter {
-    async fn delete_once(&self, path: String, _: raw::OpDelete) -> opendal_core::Result<()> {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, &path);
         self.core.delete(&p)?;
         Ok(())

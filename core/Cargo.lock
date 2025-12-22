@@ -3852,6 +3852,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hotpath"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daa7e73e5b9dd467b2cbe7cc50ba224cd43bfcc0a618fd75f4adc32cf3a95d66"
+dependencies = [
+ "hotpath-macros",
+]
+
+[[package]]
+name = "hotpath-macros"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aca1659ca1e70edc8f96de48530a104bec11a267f663625098137bfd072d601"
+
+[[package]]
 name = "html5ever"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5542,6 +5557,7 @@ dependencies = [
  "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
+ "opendal-layer-hotpath",
  "opendal-layer-immutable-index",
  "opendal-layer-logging",
  "opendal-layer-metrics",
@@ -5800,6 +5816,17 @@ dependencies = [
  "dotenvy",
  "fastrace",
  "fastrace-jaeger",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-hotpath"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "hotpath",
+ "http 1.4.0",
  "opendal-core",
  "tokio",
 ]

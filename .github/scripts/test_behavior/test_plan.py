@@ -33,15 +33,24 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue(result["components"]["core"])
 
     def test_core_services_fs(self):
-        result = plan(["core/src/services/fs/mod.rs"])
+        result = plan(["core/services/fs/src/lib.rs"])
         self.assertTrue(result["components"]["core"])
         self.assertTrue(len(result["core"]) > 0)
 
         cases = [v["service"] for v in result["core"][0]["cases"]]
-        # Should not contain fs
+        # Should contain fs
         self.assertTrue("fs" in cases)
         # Should not contain s3
         self.assertFalse("s3" in cases)
+
+    def test_core_services_hdfs_native_mapping(self):
+        result = plan(["core/services/hdfs-native/src/lib.rs"])
+        self.assertTrue(result["components"]["core"])
+        self.assertTrue(len(result["core"]) > 0)
+
+        cases = [v["service"] for v in result["core"][0]["cases"]]
+        self.assertTrue("hdfs_native" in cases)
+        self.assertFalse("fs" in cases)
 
     def test_binding_java(self):
         result = plan(["bindings/java/pom.xml"])
@@ -56,7 +65,7 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue(result["components"]["integration_object_store"])
         self.assertTrue(len(result["integration_object_store"]) > 0)
 
-        result = plan(["core/src/services/fs/mod.rs"])
+        result = plan(["core/services/fs/src/lib.rs"])
         cases = [v["service"] for v in result["integration_object_store"][0]["cases"]]
         # Should contain fs
         self.assertTrue("fs" in cases)

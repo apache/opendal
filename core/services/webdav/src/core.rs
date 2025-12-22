@@ -572,6 +572,50 @@ fn unescape_xml(s: &str) -> String {
         .replace("&amp;", "&")
 }
 
+/// Check if a PROPPATCH 207 Multi-Status response indicates success.
+///
+/// A 207 status code only indicates that there is detailed information available,
+/// not success or failure. We need to parse the response body to check if all
+/// property updates were successful (status 200).
+///
+/// Returns Ok(()) if all properties were successfully updated, or an error
+/// with details about the failure.
+pub fn check_proppatch_response(xml: &str) -> Result<()> {
+    // Look for status lines in the response
+    // Format: <D:status>HTTP/1.1 XXX ...</D:status> or <d:status>...
+    let status_patterns = ["<D:status>", "<d:status>", "<status>"];
+
+    for pattern in status_patterns {
+        let mut search_start = 0;
+        while let Some(start) = xml[search_start..].find(pattern) {
+            let abs_start = search_start + start + pattern.len();
+            let close_pattern = pattern.replace('<', "</");
+
+            if let Some(end) = xml[abs_start..].find(&close_pattern) {
+                let status_line = &xml[abs_start..abs_start + end];
+
+                // Parse status code from "HTTP/1.1 XXX Description"
+                if let Some(code_str) = status_line.split_whitespace().nth(1) {
+                    if let Ok(code) = code_str.parse::<u16>() {
+                        // Check if status code indicates failure (not 2xx)
+                        if !(200..300).contains(&code) {
+                            return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                format!("PROPPATCH failed with status: {status_line}"),
+                            ));
+                        }
+                    }
+                }
+                search_start = abs_start + end;
+            } else {
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn deserialize_multistatus(bs: &[u8]) -> Result<Multistatus> {
     let s = String::from_utf8_lossy(bs);
     // HACKS! HACKS! HACKS!
@@ -1224,5 +1268,58 @@ mod tests {
         assert_eq!(prefixes.len(), 2);
         assert!(prefixes.contains(&"od".to_string()));
         assert!(prefixes.contains(&"x1".to_string()));
+    }
+
+    #[test]
+    fn test_check_proppatch_response_success() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+          <D:response>
+            <D:href>/test.txt</D:href>
+            <D:propstat>
+              <D:prop>
+                <od:location/>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_ok());
+    }
+
+    #[test]
+    fn test_check_proppatch_response_failure() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+          <D:response>
+            <D:href>/test.txt</D:href>
+            <D:propstat>
+              <D:prop>
+                <od:location/>
+              </D:prop>
+              <D:status>HTTP/1.1 403 Forbidden</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_err());
+    }
+
+    #[test]
+    fn test_check_proppatch_response_lowercase() {
+        // Nextcloud might use lowercase "d:" prefix
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/test.txt</d:href>
+            <d:propstat>
+              <d:prop/>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_ok());
     }
 }

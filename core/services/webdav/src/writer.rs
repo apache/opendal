@@ -72,10 +72,13 @@ impl oio::OneShotWrite for WebdavWriter {
                         .await?;
 
                     let proppatch_status = proppatch_resp.status();
-                    // PROPPATCH returns 207 Multi-Status on success
-                    if !proppatch_status.is_success()
-                        && proppatch_status != StatusCode::MULTI_STATUS
-                    {
+                    // PROPPATCH returns 207 Multi-Status - need to check response body
+                    // for actual success/failure status
+                    if proppatch_status == StatusCode::MULTI_STATUS {
+                        let body = proppatch_resp.into_body().to_bytes();
+                        let xml = String::from_utf8_lossy(&body);
+                        check_proppatch_response(&xml)?;
+                    } else if !proppatch_status.is_success() {
                         return Err(parse_error(proppatch_resp));
                     }
                 }

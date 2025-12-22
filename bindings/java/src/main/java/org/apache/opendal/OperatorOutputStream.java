@@ -57,15 +57,17 @@ public class OperatorOutputStream extends OutputStream {
     @Override
     public void write(int b) throws IOException {
         bytes[offset++] = (byte) b;
-        if (offset >= maxBytes) {
-            flush();
+        if (offset != maxBytes) {
+            return;
         }
+        flush();
     }
 
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         if (offset > maxBytes) {
-            throw new IOException("INTERNAL ERROR: " + offset + " > " + maxBytes);
+            // unreachable
+            throw new IllegalStateException("INTERNAL ERROR: " + offset + " > " + maxBytes);
         } else if (offset < maxBytes) {
             final byte[] bytes = Arrays.copyOf(this.bytes, offset);
             writeBytes(writer.nativeHandle, bytes);
@@ -76,7 +78,7 @@ public class OperatorOutputStream extends OutputStream {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         flush();
         writer.close();
     }

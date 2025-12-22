@@ -5601,6 +5601,7 @@ dependencies = [
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
+ "opendal-service-rocksdb",
  "opendal-service-s3",
  "opendal-service-seafile",
  "opendal-service-sftp",
@@ -5682,7 +5683,6 @@ dependencies = [
  "redis",
  "reqsign",
  "reqwest",
- "rocksdb",
  "serde",
  "serde_json",
  "sha2",
@@ -6586,6 +6586,17 @@ dependencies = [
  "ctor",
  "opendal-core",
  "redb",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-rocksdb"
+version = "0.55.0"
+dependencies = [
+ "ctor",
+ "opendal-core",
+ "rocksdb",
  "serde",
  "tokio",
 ]

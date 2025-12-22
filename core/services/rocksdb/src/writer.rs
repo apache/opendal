@@ -17,9 +17,10 @@
 
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::*;
-use crate::raw::oio;
-use crate::*;
 
 pub struct RocksdbWriter {
     core: Arc<RocksdbCore>,

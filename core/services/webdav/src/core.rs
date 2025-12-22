@@ -461,42 +461,106 @@ fn escape_xml(s: &str) -> String {
 
 /// Parse user metadata from the raw XML response.
 ///
-/// This function extracts properties in the OpenDAL namespace (od:)
-/// from the PROPFIND response and returns them as a HashMap.
+/// This function extracts properties in the OpenDAL namespace
+/// (https://opendal.apache.org/) from the PROPFIND response and returns them as a HashMap.
+///
+/// Note: WebDAV servers like Nextcloud/ownCloud may use dynamic namespace prefixes
+/// (e.g., x1:, x2:) instead of the "od:" prefix we send. The namespace URI is the
+/// reliable identifier, not the prefix.
 pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
     let mut user_metadata = HashMap::new();
 
-    // Find all od: prefixed elements and extract their content
-    // We use a simple regex-like approach since quick_xml doesn't
-    // easily support dynamic namespaced properties
-    let prefix = format!("<{OPENDAL_NAMESPACE_PREFIX}:");
+    // Find all namespace prefixes mapped to our namespace URI
+    let prefixes = find_namespace_prefixes(xml, OPENDAL_NAMESPACE_URI);
+
+    // For each prefix, extract properties
+    for prefix in prefixes {
+        extract_properties_with_prefix(xml, &prefix, &mut user_metadata);
+    }
+
+    user_metadata
+}
+
+/// Find all XML namespace prefixes that map to the given namespace URI.
+///
+/// Looks for patterns like: xmlns:PREFIX="URI" or xmlns:PREFIX='URI'
+fn find_namespace_prefixes(xml: &str, namespace_uri: &str) -> Vec<String> {
+    let mut prefixes = Vec::new();
+
+    // Pattern 1: xmlns:PREFIX="URI"
+    let pattern1 = format!("=\"{namespace_uri}\"");
+    // Pattern 2: xmlns:PREFIX='URI'
+    let pattern2 = format!("='{namespace_uri}'");
+
+    for pattern in [&pattern1, &pattern2] {
+        let mut search_start = 0;
+        while let Some(pos) = xml[search_start..].find(pattern) {
+            let abs_pos = search_start + pos;
+            // Look backwards to find "xmlns:"
+            if let Some(xmlns_start) = xml[..abs_pos].rfind("xmlns:") {
+                let prefix_start = xmlns_start + 6; // length of "xmlns:"
+                let prefix = &xml[prefix_start..abs_pos];
+                // Validate prefix (should be alphanumeric/underscore) and not already added
+                if !prefix.is_empty()
+                    && prefix
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+                    && !prefixes.contains(&prefix.to_string())
+                {
+                    prefixes.push(prefix.to_string());
+                }
+            }
+            search_start = abs_pos + pattern.len();
+        }
+    }
+
+    prefixes
+}
+
+/// Extract properties with a specific namespace prefix from the XML.
+fn extract_properties_with_prefix(
+    xml: &str,
+    prefix: &str,
+    user_metadata: &mut HashMap<String, String>,
+) {
+    let open_prefix = format!("<{prefix}:");
     let mut search_start = 0;
 
-    while let Some(start) = xml[search_start..].find(&prefix) {
-        let abs_start = search_start + start + prefix.len();
+    while let Some(start) = xml[search_start..].find(&open_prefix) {
+        let abs_start = search_start + start + open_prefix.len();
 
-        // Find the key name (up to the closing >)
-        if let Some(key_end) = xml[abs_start..].find('>') {
-            let key = &xml[abs_start..abs_start + key_end];
+        // Find the key name (up to '>' or ' ' for attributes)
+        if let Some(tag_end) = xml[abs_start..].find('>') {
+            let tag_content = &xml[abs_start..abs_start + tag_end];
+            // Key is before any space (attributes) or the whole thing if no space
+            let key = tag_content.split_whitespace().next().unwrap_or(tag_content);
+
+            // Check for self-closing tag
+            if tag_content.ends_with('/') {
+                // Self-closing tag like <prefix:key/>, value is empty
+                let key = key.trim_end_matches('/');
+                user_metadata.insert(key.to_string(), String::new());
+                search_start = abs_start + tag_end + 1;
+                continue;
+            }
 
             // Find the closing tag
-            let close_tag = format!("</{OPENDAL_NAMESPACE_PREFIX}:{key}>");
-            let value_start = abs_start + key_end + 1;
+            let close_tag = format!("</{prefix}:{key}>");
+            let value_start = abs_start + tag_end + 1;
 
             if let Some(value_end) = xml[value_start..].find(&close_tag) {
                 let value = &xml[value_start..value_start + value_end];
                 // Unescape XML entities
                 let unescaped_value = unescape_xml(value);
                 user_metadata.insert(key.to_string(), unescaped_value);
+                search_start = value_start + value_end + close_tag.len();
+            } else {
+                search_start = value_start;
             }
-
-            search_start = value_start;
         } else {
             break;
         }
     }
-
-    user_metadata
 }
 
 /// Unescape XML entities.
@@ -1102,5 +1166,63 @@ mod tests {
 
         assert_eq!(escaped, "test&lt;&gt;&amp;&quot;&apos;value");
         assert_eq!(unescaped, original);
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_dynamic_prefix() {
+        // Nextcloud/ownCloud style: uses dynamic namespace prefixes (x1:, x2:, etc.)
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <d:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</d:getlastmodified>
+                <x1:key1 xmlns:x1="https://opendal.apache.org/">value1</x1:key1>
+                <x2:key2 xmlns:x2="https://opendal.apache.org/">value2</x2:key2>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml);
+
+        assert_eq!(user_metadata.len(), 2);
+        assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(user_metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_namespace_at_root() {
+        // Alternative: namespace declared at root level
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:" xmlns:custom="https://opendal.apache.org/">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <custom:location>everywhere</custom:location>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml);
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(
+            user_metadata.get("location"),
+            Some(&"everywhere".to_string())
+        );
+    }
+
+    #[test]
+    fn test_find_namespace_prefixes() {
+        let xml = r#"<root xmlns:od="https://opendal.apache.org/" xmlns:x1="https://opendal.apache.org/">"#;
+        let prefixes = find_namespace_prefixes(xml, OPENDAL_NAMESPACE_URI);
+
+        assert_eq!(prefixes.len(), 2);
+        assert!(prefixes.contains(&"od".to_string()));
+        assert!(prefixes.contains(&"x1".to_string()));
     }
 }

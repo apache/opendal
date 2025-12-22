@@ -123,12 +123,12 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         let _guard = MeasurementGuard::build(LABEL_COPY, false, true);
-        self.inner().copy(from, to, args).await
+        self.inner.copy(from, to, args).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
         let _guard = MeasurementGuard::build(LABEL_RENAME, false, true);
-        self.inner().rename(from, to, args).await
+        self.inner.rename(from, to, args).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

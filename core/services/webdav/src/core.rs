@@ -33,9 +33,8 @@ use opendal_core::*;
 
 /// OpenDAL custom namespace for user-defined properties in WebDAV.
 /// This namespace is used to store user metadata as DAV dead properties.
-pub const OPENDAL_NAMESPACE: &str = "opendal";
+pub const OPENDAL_NAMESPACE_PREFIX: &str = "od";
 pub const OPENDAL_NAMESPACE_URI: &str = "https://opendal.apache.org/";
-pub const OPENDAL_METADATA_PREFIX: &str = "od:";
 
 /// The request to query all properties of a file or directory.
 ///
@@ -442,12 +441,12 @@ pub fn build_proppatch_request(user_metadata: &HashMap<String, String>) -> Strin
         let escaped_key = escape_xml(key);
         let escaped_value = escape_xml(value);
         props.push_str(&format!(
-            "<{OPENDAL_METADATA_PREFIX}{escaped_key}>{escaped_value}</{OPENDAL_METADATA_PREFIX}{escaped_key}>"
+            "<{OPENDAL_NAMESPACE_PREFIX}:{escaped_key}>{escaped_value}</{OPENDAL_NAMESPACE_PREFIX}:{escaped_key}>"
         ));
     }
 
     format!(
-        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{OPENDAL_NAMESPACE}="{OPENDAL_NAMESPACE_URI}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
+        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{OPENDAL_NAMESPACE_PREFIX}="{OPENDAL_NAMESPACE_URI}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
     )
 }
 
@@ -470,7 +469,7 @@ pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
     // Find all od: prefixed elements and extract their content
     // We use a simple regex-like approach since quick_xml doesn't
     // easily support dynamic namespaced properties
-    let prefix = format!("<{OPENDAL_METADATA_PREFIX}");
+    let prefix = format!("<{OPENDAL_NAMESPACE_PREFIX}:");
     let mut search_start = 0;
 
     while let Some(start) = xml[search_start..].find(&prefix) {
@@ -481,7 +480,7 @@ pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
             let key = &xml[abs_start..abs_start + key_end];
 
             // Find the closing tag
-            let close_tag = format!("</{OPENDAL_METADATA_PREFIX}{key}>");
+            let close_tag = format!("</{OPENDAL_NAMESPACE_PREFIX}:{key}>");
             let value_start = abs_start + key_end + 1;
 
             if let Some(value_end) = xml[value_start..].find(&close_tag) {
@@ -1009,16 +1008,16 @@ mod tests {
         assert!(request.contains(r#"<D:propertyupdate"#));
         assert!(request.contains(r#"xmlns:D="DAV:""#));
         assert!(request.contains(&format!(
-            r#"xmlns:{OPENDAL_NAMESPACE}="{OPENDAL_NAMESPACE_URI}""#
+            r#"xmlns:{OPENDAL_NAMESPACE_PREFIX}="{OPENDAL_NAMESPACE_URI}""#
         )));
         assert!(request.contains(r#"<D:set>"#));
         assert!(request.contains(r#"<D:prop>"#));
         // Check that user metadata is included (order may vary)
         assert!(request.contains(&format!(
-            "<{OPENDAL_METADATA_PREFIX}key1>value1</{OPENDAL_METADATA_PREFIX}key1>"
+            "<{OPENDAL_NAMESPACE_PREFIX}:key1>value1</{OPENDAL_NAMESPACE_PREFIX}:key1>"
         )));
         assert!(request.contains(&format!(
-            "<{OPENDAL_METADATA_PREFIX}key2>value2</{OPENDAL_METADATA_PREFIX}key2>"
+            "<{OPENDAL_NAMESPACE_PREFIX}:key2>value2</{OPENDAL_NAMESPACE_PREFIX}:key2>"
         )));
     }
 

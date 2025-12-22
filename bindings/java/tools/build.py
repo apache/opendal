@@ -85,12 +85,9 @@ if __name__ == "__main__":
     if args.features:
         cmd += ["--features", args.features]
 
-    if enable_zigbuild:
-        # Pin glibc to 2.17 for gnu builds.
-        #
-        # Note: The `.2.17` suffix is a zig target detail and is only valid for gnu.
-        zig_target = f"{target}.2.17" if target.endswith("-gnu") else target
-        cmd += ["--target", zig_target]
+    if enable_zigbuild and target.endswith("-gnu"):
+        # Pin glibc to 2.17 if zigbuild has been enabled.
+        cmd += ["--target", f"{target}.2.17"]
     else:
         cmd += ["--target", target]
 

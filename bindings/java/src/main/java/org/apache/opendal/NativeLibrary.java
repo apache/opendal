@@ -59,8 +59,6 @@ public class NativeLibrary {
      *         <ul>
      *             <li>org.apache.opendal:opendal-{version}-linux-x86_64</li>
      *             <li>org.apache.opendal:opendal-{version}-linux-aarch_64</li>
-     *             <li>org.apache.opendal:opendal-{version}-linux-x86_64-musl</li>
-     *             <li>org.apache.opendal:opendal-{version}-linux-aarch_64-musl</li>
      *             <li>org.apache.opendal:opendal-{version}-osx-x86_64</li>
      *             <li>org.apache.opendal:opendal-{version}-osx-aarch_64</li>
      *             <li>org.apache.opendal:opendal-{version}-windows-x86_64</li>
@@ -79,7 +77,7 @@ public class NativeLibrary {
             } catch (IOException e) {
                 libraryLoaded.set(LibraryState.NOT_LOADED);
                 throw new UncheckedIOException("Unable to load the OpenDAL shared library", e);
-            } catch (RuntimeException | Error e) {
+            } catch (UnsatisfiedLinkError e) {
                 libraryLoaded.set(LibraryState.NOT_LOADED);
                 throw e;
             }
@@ -108,89 +106,61 @@ public class NativeLibrary {
     }
 
     private static void doLoadBundledLibrary() throws IOException {
-        final String libraryName = System.mapLibraryName("opendal_java");
-        final String[] libraryPaths = bundledLibraryPaths(libraryName);
-
-        final UnsatisfiedLinkError[] linkErrors = new UnsatisfiedLinkError[libraryPaths.length];
-        for (int i = 0; i < libraryPaths.length; i++) {
-            final String libraryPath = libraryPaths[i];
-            try (final InputStream is = NativeObject.class.getResourceAsStream(libraryPath)) {
-                if (is == null) {
-                    continue;
-                }
-
-                final File tmpFile = createTempLibraryFile(libraryName);
+        final String libraryPath = bundledLibraryPath();
+        UnsatisfiedLinkError linkError = null;
+        try (final InputStream is = NativeObject.class.getResourceAsStream(libraryPath)) {
+            if (is != null) {
+                final int dot = libraryPath.indexOf('.');
+                final File tmpFile = File.createTempFile(libraryPath.substring(0, dot), libraryPath.substring(dot));
                 tmpFile.deleteOnExit();
                 Files.copy(is, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 try {
                     System.load(tmpFile.getAbsolutePath());
                     return;
                 } catch (UnsatisfiedLinkError e) {
-                    linkErrors[i] = e;
+                    linkError = e;
                 }
             }
         }
 
-        final StringBuilder attempted = new StringBuilder();
-        for (int i = 0; i < libraryPaths.length; i++) {
-            if (i > 0) {
-                attempted.append(", ");
+        final String fallbackLibraryPath = fallbackBundledLibraryPath();
+        if (fallbackLibraryPath == null) {
+            if (linkError != null) {
+                throw linkError;
             }
-            attempted.append(libraryPaths[i]);
+            throw new IOException("cannot find " + libraryPath);
         }
-
-        final UnsatisfiedLinkError last = lastNonNull(linkErrors);
-        if (last != null) {
-            final UnsatisfiedLinkError e = new UnsatisfiedLinkError(
-                    "Unable to load the OpenDAL shared library from classpath. Tried: " + attempted);
-            for (UnsatisfiedLinkError err : linkErrors) {
-                if (err != null) {
-                    e.addSuppressed(err);
+        try (final InputStream is = NativeObject.class.getResourceAsStream(fallbackLibraryPath)) {
+            if (is == null) {
+                if (linkError != null) {
+                    throw linkError;
                 }
+                throw new IOException("cannot find " + libraryPath);
             }
-            throw e;
+            final int dot = fallbackLibraryPath.indexOf('.');
+            final File tmpFile = File.createTempFile(fallbackLibraryPath.substring(0, dot), fallbackLibraryPath.substring(dot));
+            tmpFile.deleteOnExit();
+            Files.copy(is, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            System.load(tmpFile.getAbsolutePath());
         }
-        throw new IOException("cannot find bundled OpenDAL shared library in classpath. Tried: " + attempted);
     }
 
-    private static String[] bundledLibraryPaths(String libraryName) {
+    private static String bundledLibraryPath() {
         final String classifier = Environment.getClassifier();
-        if (classifier.startsWith("linux-") && classifier.endsWith("-musl")) {
+        final String libraryName = System.mapLibraryName("opendal_java");
+        return "/native/" + classifier + "/" + libraryName;
+    }
+
+    private static String fallbackBundledLibraryPath() {
+        final String classifier = Environment.getClassifier();
+        if (!classifier.startsWith("linux-")) {
+            return null;
+        }
+        final String libraryName = System.mapLibraryName("opendal_java");
+        if (classifier.endsWith("-musl")) {
             final String gnu = classifier.substring(0, classifier.length() - "-musl".length());
-            return new String[] {
-                "/native/" + classifier + "/" + libraryName,
-                "/native/" + gnu + "/" + libraryName,
-            };
+            return "/native/" + gnu + "/" + libraryName;
         }
-        if (classifier.startsWith("linux-")) {
-            return new String[] {
-                "/native/" + classifier + "/" + libraryName,
-                "/native/" + classifier + "-musl/" + libraryName,
-            };
-        }
-        return new String[] {"/native/" + classifier + "/" + libraryName};
-    }
-
-    private static File createTempLibraryFile(String libraryName) throws IOException {
-        final int dot = libraryName.lastIndexOf('.');
-        final String prefix;
-        final String suffix;
-        if (dot >= 0) {
-            prefix = libraryName.substring(0, dot);
-            suffix = libraryName.substring(dot);
-        } else {
-            prefix = libraryName;
-            suffix = null;
-        }
-        return File.createTempFile(prefix + "-", suffix);
-    }
-
-    private static UnsatisfiedLinkError lastNonNull(UnsatisfiedLinkError[] errors) {
-        for (int i = errors.length - 1; i >= 0; i--) {
-            if (errors[i] != null) {
-                return errors[i];
-            }
-        }
-        return null;
+        return "/native/" + classifier + "-musl/" + libraryName;
     }
 }

@@ -33,7 +33,6 @@ public enum Environment {
     INSTANCE;
 
     public static final String UNKNOWN = "<unknown>";
-    private static final String LIBC_PROPERTY = "org.apache.opendal.libc";
     private String classifier = UNKNOWN;
     private String projectVersion = UNKNOWN;
 
@@ -47,18 +46,8 @@ public enum Environment {
             throw new UncheckedIOException("cannot load environment properties file", e);
         }
 
-        INSTANCE.classifier = detectClassifier(System.getProperty("os.name"), System.getProperty("os.arch"));
-    }
-
-    static String detectClassifier(String osName, String osArch) {
-        final String os = osName == null ? "" : osName.toLowerCase();
-        final String arch = osArch == null ? "" : osArch.toLowerCase();
-        final boolean musl = !os.startsWith("windows") && !os.startsWith("mac") && isMusl(arch);
-        return buildClassifier(os, arch, musl);
-    }
-
-    static String buildClassifier(String os, String arch, boolean musl) {
         final StringBuilder classifier = new StringBuilder();
+        final String os = System.getProperty("os.name").toLowerCase();
         if (os.startsWith("windows")) {
             classifier.append("windows");
         } else if (os.startsWith("mac")) {
@@ -67,19 +56,20 @@ public enum Environment {
             classifier.append("linux");
         }
         classifier.append("-");
+        final String arch = System.getProperty("os.arch").toLowerCase();
         if (arch.equals("aarch64")) {
             classifier.append("aarch_64");
         } else {
             classifier.append("x86_64");
         }
-        if (classifier.toString().startsWith("linux-") && musl) {
+        if (classifier.toString().startsWith("linux-") && isMusl(arch)) {
             classifier.append("-musl");
         }
-        return classifier.toString();
+        INSTANCE.classifier = classifier.toString();
     }
 
-    static boolean isMusl(String osArch) {
-        final String override = System.getProperty(LIBC_PROPERTY);
+    private static boolean isMusl(String osArch) {
+        final String override = System.getProperty("org.apache.opendal.libc");
         if (override != null) {
             final String libc = override.trim().toLowerCase();
             if (libc.equals("musl")) {

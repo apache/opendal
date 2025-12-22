@@ -17,22 +17,22 @@
 
 use std::sync::Arc;
 
-use rocksdb::DB;
-
-use crate::ROCKSDB_SCHEME;
-use crate::config::RocksdbConfig;
-use crate::core::*;
-use crate::deleter::RocksdbDeleter;
-use crate::lister::RocksdbLister;
-use crate::writer::RocksdbWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
+use rocksdb::DB;
+
+use super::ROCKSDB_SCHEME;
+use super::config::RocksdbConfig;
+use super::core::*;
+use super::deleter::RocksdbDeleter;
+use super::lister::RocksdbLister;
+use super::writer::RocksdbWriter;
 
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
 pub struct RocksdbBuilder {
-    pub(crate) config: RocksdbConfig,
+    pub(super) config: RocksdbConfig,
 }
 
 impl RocksdbBuilder {
@@ -61,16 +61,13 @@ impl Builder for RocksdbBuilder {
 
     fn build(self) -> Result<impl Access> {
         let path = self.config.datadir.ok_or_else(|| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "datadir is not specified for rocksdb service",
-            )
-            .with_context("service", ROCKSDB_SCHEME)
+            Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                .with_context("service", ROCKSDB_SCHEME)
         })?;
         let db = DB::open_default(&path).map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "failed to open rocksdb instance")
+            Error::new(ErrorKind::ConfigInvalid, "open default transaction db")
                 .with_context("service", ROCKSDB_SCHEME)
-                .with_context("datadir", path.clone())
+                .with_context("datadir", path)
                 .set_source(e)
         })?;
 
@@ -80,7 +77,7 @@ impl Builder for RocksdbBuilder {
     }
 }
 
-/// Backend for rocksdb service
+/// Backend for rocksdb service.
 #[derive(Clone, Debug)]
 pub struct RocksdbBackend {
     core: Arc<RocksdbCore>,

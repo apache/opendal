@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::core::RocksdbCore;
+use std::sync::Arc;
+
 use opendal_core::raw::*;
 use opendal_core::*;
-use std::sync::Arc;
+
+use super::core::RocksdbCore;
 
 pub struct RocksdbDeleter {
     core: Arc<RocksdbCore>,

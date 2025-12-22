@@ -30,8 +30,12 @@ def classifier_to_target(classifier: str) -> str:
         return "x86_64-apple-darwin"
     if classifier == "linux-aarch_64":
         return "aarch64-unknown-linux-gnu"
+    if classifier == "linux-aarch_64-musl":
+        return "aarch64-unknown-linux-musl"
     if classifier == "linux-x86_64":
         return "x86_64-unknown-linux-gnu"
+    if classifier == "linux-x86_64-musl":
+        return "x86_64-unknown-linux-musl"
     if classifier == "windows-x86_64":
         return "x86_64-pc-windows-msvc"
     raise Exception(f"Unsupported classifier: {classifier}")
@@ -82,8 +86,11 @@ if __name__ == "__main__":
         cmd += ["--features", args.features]
 
     if enable_zigbuild:
-        # Pin glibc to 2.17 if zigbuild has been enabled.
-        cmd += ["--target", f"{target}.2.17"]
+        # Pin glibc to 2.17 for gnu builds.
+        #
+        # Note: The `.2.17` suffix is a zig target detail and is only valid for gnu.
+        zig_target = f"{target}.2.17" if target.endswith("-gnu") else target
+        cmd += ["--target", zig_target]
     else:
         cmd += ["--target", target]
 

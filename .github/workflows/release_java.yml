@@ -42,8 +42,12 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
+          - os: ubuntu-latest
+            classifier: linux-x86_64-musl
           - os: ubuntu-24.04-arm
             classifier: linux-aarch_64
+          - os: ubuntu-24.04-arm
+            classifier: linux-aarch_64-musl
           - os: windows-latest
             classifier: windows-x86_64
           - os: macos-latest
@@ -135,11 +139,21 @@ jobs:
         with:
           name: linux-x86_64-local-staging
           path: ~/linux-x86_64-local-staging
+      - name: Download linux x86_64 (musl) staging directory
+        uses: actions/download-artifact@v5
+        with:
+          name: linux-x86_64-musl-local-staging
+          path: ~/linux-x86_64-musl-local-staging
       - name: Download linux aarch_64 staging directory
         uses: actions/download-artifact@v5
         with:
           name: linux-aarch_64-local-staging
           path: ~/linux-aarch_64-local-staging
+      - name: Download linux aarch_64 (musl) staging directory
+        uses: actions/download-artifact@v5
+        with:
+          name: linux-aarch_64-musl-local-staging
+          path: ~/linux-aarch_64-musl-local-staging
       - name: Download darwin staging directory
         uses: actions/download-artifact@v5
         with:
@@ -160,7 +174,9 @@ jobs:
           python ./scripts/merge_local_staging.py $LOCAL_STAGING_DIR/staging \
             ~/windows-x86_64-local-staging/staging \
             ~/linux-x86_64-local-staging/staging \
+            ~/linux-x86_64-musl-local-staging/staging \
             ~/linux-aarch_64-local-staging/staging \
+            ~/linux-aarch_64-musl-local-staging/staging \
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 

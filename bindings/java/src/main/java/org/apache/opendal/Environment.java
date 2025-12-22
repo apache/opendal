@@ -22,6 +22,8 @@ package org.apache.opendal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Properties;
 
 /**
@@ -31,6 +33,7 @@ public enum Environment {
     INSTANCE;
 
     public static final String UNKNOWN = "<unknown>";
+    private static final String LIBC_PROPERTY = "org.apache.opendal.libc";
     private String classifier = UNKNOWN;
     private String projectVersion = UNKNOWN;
 
@@ -44,8 +47,18 @@ public enum Environment {
             throw new UncheckedIOException("cannot load environment properties file", e);
         }
 
+        INSTANCE.classifier = detectClassifier(System.getProperty("os.name"), System.getProperty("os.arch"));
+    }
+
+    static String detectClassifier(String osName, String osArch) {
+        final String os = osName == null ? "" : osName.toLowerCase();
+        final String arch = osArch == null ? "" : osArch.toLowerCase();
+        final boolean musl = !os.startsWith("windows") && !os.startsWith("mac") && isMusl(arch);
+        return buildClassifier(os, arch, musl);
+    }
+
+    static String buildClassifier(String os, String arch, boolean musl) {
         final StringBuilder classifier = new StringBuilder();
-        final String os = System.getProperty("os.name").toLowerCase();
         if (os.startsWith("windows")) {
             classifier.append("windows");
         } else if (os.startsWith("mac")) {
@@ -54,13 +67,49 @@ public enum Environment {
             classifier.append("linux");
         }
         classifier.append("-");
-        final String arch = System.getProperty("os.arch").toLowerCase();
         if (arch.equals("aarch64")) {
             classifier.append("aarch_64");
         } else {
             classifier.append("x86_64");
         }
-        INSTANCE.classifier = classifier.toString();
+        if (classifier.toString().startsWith("linux-") && musl) {
+            classifier.append("-musl");
+        }
+        return classifier.toString();
+    }
+
+    static boolean isMusl(String osArch) {
+        final String override = System.getProperty(LIBC_PROPERTY);
+        if (override != null) {
+            final String libc = override.trim().toLowerCase();
+            if (libc.equals("musl")) {
+                return true;
+            }
+            if (libc.equals("gnu") || libc.equals("glibc")) {
+                return false;
+            }
+        }
+
+        final String loader = muslLoaderName(osArch);
+        if (loader == null) {
+            return false;
+        }
+        return Files.exists(Paths.get("/lib", loader)) || Files.exists(Paths.get("/usr/lib", loader));
+    }
+
+    private static String muslLoaderName(String osArch) {
+        if (osArch == null) {
+            return null;
+        }
+        switch (osArch) {
+            case "aarch64":
+                return "ld-musl-aarch64.so.1";
+            case "x86_64":
+            case "amd64":
+                return "ld-musl-x86_64.so.1";
+            default:
+                return null;
+        }
     }
 
     /**

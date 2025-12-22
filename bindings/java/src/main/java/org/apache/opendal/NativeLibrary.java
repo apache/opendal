@@ -138,7 +138,8 @@ public class NativeLibrary {
                 throw new IOException("cannot find " + libraryPath);
             }
             final int dot = fallbackLibraryPath.indexOf('.');
-            final File tmpFile = File.createTempFile(fallbackLibraryPath.substring(0, dot), fallbackLibraryPath.substring(dot));
+            final File tmpFile =
+                    File.createTempFile(fallbackLibraryPath.substring(0, dot), fallbackLibraryPath.substring(dot));
             tmpFile.deleteOnExit();
             Files.copy(is, tmpFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             System.load(tmpFile.getAbsolutePath());

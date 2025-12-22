@@ -31,10 +31,13 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// OpenDAL custom namespace for user-defined properties in WebDAV.
-/// This namespace is used to store user metadata as DAV dead properties.
-pub const OPENDAL_NAMESPACE_PREFIX: &str = "od";
-pub const OPENDAL_NAMESPACE_URI: &str = "https://opendal.apache.org/";
+/// Namespace for user-defined properties in WebDAV.
+/// We use the ownCloud namespace because it's widely supported by
+/// WebDAV servers like Nextcloud, ownCloud, and other SabreDAV-based servers.
+/// Custom namespaces like "https://opendal.apache.org/" may be rejected by
+/// servers that only whitelist specific namespaces.
+pub const OPENDAL_NAMESPACE_PREFIX: &str = "oc";
+pub const OPENDAL_NAMESPACE_URI: &str = "http://owncloud.org/ns";
 
 /// The request to query all properties of a file or directory.
 ///
@@ -208,9 +211,11 @@ impl WebdavCore {
 
     /// Set user-defined metadata using WebDAV PROPPATCH method.
     ///
-    /// This method uses the OpenDAL custom namespace to store user metadata
+    /// This method uses the ownCloud namespace to store user metadata
     /// as DAV dead properties. Each key-value pair in the user_metadata map
-    /// is stored as a property with the "od:" prefix.
+    /// is stored as a property with the "oc:" prefix. We use the ownCloud
+    /// namespace because it's widely supported by servers like Nextcloud,
+    /// ownCloud, and other SabreDAV-based implementations.
     ///
     /// # Reference
     /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
@@ -419,17 +424,18 @@ impl WebdavCore {
 
 /// Build a PROPPATCH request body to set user-defined metadata.
 ///
-/// The request uses the OpenDAL custom namespace (od:) to store metadata
-/// as dead properties on the WebDAV server.
+/// The request uses the ownCloud namespace (oc:) to store metadata
+/// as dead properties on the WebDAV server. We use the ownCloud namespace
+/// because it's widely supported by Nextcloud, ownCloud, and other SabreDAV servers.
 ///
 /// # Example output
 /// ```xml
 /// <?xml version="1.0" encoding="utf-8"?>
-/// <D:propertyupdate xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+/// <D:propertyupdate xmlns:D="DAV:" xmlns:oc="http://owncloud.org/ns">
 ///   <D:set>
 ///     <D:prop>
-///       <od:key1>value1</od:key1>
-///       <od:key2>value2</od:key2>
+///       <oc:key1>value1</oc:key1>
+///       <oc:key2>value2</oc:key2>
 ///     </D:prop>
 ///   </D:set>
 /// </D:propertyupdate>
@@ -461,11 +467,11 @@ fn escape_xml(s: &str) -> String {
 
 /// Parse user metadata from the raw XML response.
 ///
-/// This function extracts properties in the OpenDAL namespace
-/// (https://opendal.apache.org/) from the PROPFIND response and returns them as a HashMap.
+/// This function extracts properties in the ownCloud namespace
+/// (http://owncloud.org/ns) from the PROPFIND response and returns them as a HashMap.
 ///
 /// Note: WebDAV servers like Nextcloud/ownCloud may use dynamic namespace prefixes
-/// (e.g., x1:, x2:) instead of the "od:" prefix we send. The namespace URI is the
+/// (e.g., x1:, x2:) instead of the "oc:" prefix we send. The namespace URI is the
 /// reliable identifier, not the prefix.
 pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
     let mut user_metadata = HashMap::new();
@@ -1143,13 +1149,13 @@ mod tests {
     #[test]
     fn test_parse_user_metadata_from_xml() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+        <D:multistatus xmlns:D="DAV:" xmlns:oc="http://owncloud.org/ns">
           <D:response>
             <D:propstat>
               <D:prop>
                 <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
-                <od:key1>value1</od:key1>
-                <od:key2>value2</od:key2>
+                <oc:key1>value1</oc:key1>
+                <oc:key2>value2</oc:key2>
               </D:prop>
               <D:status>HTTP/1.1 200 OK</D:status>
             </D:propstat>
@@ -1166,11 +1172,11 @@ mod tests {
     #[test]
     fn test_parse_user_metadata_from_xml_with_special_chars() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+        <D:multistatus xmlns:D="DAV:" xmlns:oc="http://owncloud.org/ns">
           <D:response>
             <D:propstat>
               <D:prop>
-                <od:key>value&lt;&gt;&amp;&quot;&apos;</od:key>
+                <oc:key>value&lt;&gt;&amp;&quot;&apos;</oc:key>
               </D:prop>
               <D:status>HTTP/1.1 200 OK</D:status>
             </D:propstat>
@@ -1221,8 +1227,8 @@ mod tests {
             <d:propstat>
               <d:prop>
                 <d:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</d:getlastmodified>
-                <x1:key1 xmlns:x1="https://opendal.apache.org/">value1</x1:key1>
-                <x2:key2 xmlns:x2="https://opendal.apache.org/">value2</x2:key2>
+                <x1:key1 xmlns:x1="http://owncloud.org/ns">value1</x1:key1>
+                <x2:key2 xmlns:x2="http://owncloud.org/ns">value2</x2:key2>
               </d:prop>
               <d:status>HTTP/1.1 200 OK</d:status>
             </d:propstat>
@@ -1240,7 +1246,7 @@ mod tests {
     fn test_parse_user_metadata_from_xml_namespace_at_root() {
         // Alternative: namespace declared at root level
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <d:multistatus xmlns:d="DAV:" xmlns:custom="https://opendal.apache.org/">
+        <d:multistatus xmlns:d="DAV:" xmlns:custom="http://owncloud.org/ns">
           <d:response>
             <d:propstat>
               <d:prop>
@@ -1262,23 +1268,23 @@ mod tests {
 
     #[test]
     fn test_find_namespace_prefixes() {
-        let xml = r#"<root xmlns:od="https://opendal.apache.org/" xmlns:x1="https://opendal.apache.org/">"#;
+        let xml = r#"<root xmlns:oc="http://owncloud.org/ns" xmlns:x1="http://owncloud.org/ns">"#;
         let prefixes = find_namespace_prefixes(xml, OPENDAL_NAMESPACE_URI);
 
         assert_eq!(prefixes.len(), 2);
-        assert!(prefixes.contains(&"od".to_string()));
+        assert!(prefixes.contains(&"oc".to_string()));
         assert!(prefixes.contains(&"x1".to_string()));
     }
 
     #[test]
     fn test_check_proppatch_response_success() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+        <D:multistatus xmlns:D="DAV:" xmlns:oc="http://owncloud.org/ns">
           <D:response>
             <D:href>/test.txt</D:href>
             <D:propstat>
               <D:prop>
-                <od:location/>
+                <oc:location/>
               </D:prop>
               <D:status>HTTP/1.1 200 OK</D:status>
             </D:propstat>
@@ -1291,12 +1297,12 @@ mod tests {
     #[test]
     fn test_check_proppatch_response_failure() {
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
-        <D:multistatus xmlns:D="DAV:" xmlns:od="https://opendal.apache.org/">
+        <D:multistatus xmlns:D="DAV:" xmlns:oc="http://owncloud.org/ns">
           <D:response>
             <D:href>/test.txt</D:href>
             <D:propstat>
               <D:prop>
-                <od:location/>
+                <oc:location/>
               </D:prop>
               <D:status>HTTP/1.1 403 Forbidden</D:status>
             </D:propstat>

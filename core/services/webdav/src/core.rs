@@ -1178,11 +1178,7 @@ mod tests {
         let mut user_metadata = HashMap::new();
         user_metadata.insert("key1".to_string(), "value1".to_string());
 
-        let request = build_proppatch_request(
-            &user_metadata,
-            "custom",
-            "http://example.com/ns",
-        );
+        let request = build_proppatch_request(&user_metadata, "custom", "http://example.com/ns");
 
         // Check that custom namespace is used
         assert!(request.contains(r#"xmlns:custom="http://example.com/ns""#));

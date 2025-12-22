@@ -115,6 +115,32 @@ impl WebdavBuilder {
         self.config.enable_user_metadata = enable;
         self
     }
+
+    /// Set the XML namespace prefix for user metadata properties.
+    ///
+    /// This prefix is used in PROPPATCH/PROPFIND XML requests.
+    /// Different servers may require different prefixes.
+    ///
+    /// Default: "opendal"
+    pub fn user_metadata_prefix(mut self, prefix: &str) -> Self {
+        if !prefix.is_empty() {
+            self.config.user_metadata_prefix = Some(prefix.to_string());
+        }
+        self
+    }
+
+    /// Set the XML namespace URI for user metadata properties.
+    ///
+    /// This URI uniquely identifies the namespace for custom properties.
+    /// Different servers may require different namespace URIs.
+    ///
+    /// Default: "https://opendal.apache.org/ns"
+    pub fn user_metadata_uri(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.user_metadata_uri = Some(uri.to_string());
+        }
+        self
+    }
 }
 
 impl Builder for WebdavBuilder {
@@ -191,6 +217,14 @@ impl Builder for WebdavBuilder {
             server_path,
             authorization,
             root,
+            user_metadata_prefix: self
+                .config
+                .user_metadata_prefix
+                .unwrap_or_else(|| DEFAULT_USER_METADATA_PREFIX.to_string()),
+            user_metadata_uri: self
+                .config
+                .user_metadata_uri
+                .unwrap_or_else(|| DEFAULT_USER_METADATA_URI.to_string()),
         });
         Ok(WebdavBackend { core })
     }

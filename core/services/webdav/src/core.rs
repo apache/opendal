@@ -31,13 +31,12 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Namespace for user-defined properties in WebDAV.
-/// We use a custom OpenDAL namespace that is NOT in the ownCloud/Nextcloud
-/// reserved namespaces. Nextcloud has a whitelist for `http://owncloud.org/ns`
-/// and `http://nextcloud.org/ns` that only allows specific predefined properties.
-/// Using our own namespace bypasses this restriction.
-pub const OPENDAL_NAMESPACE_PREFIX: &str = "opendal";
-pub const OPENDAL_NAMESPACE_URI: &str = "https://opendal.apache.org/ns";
+/// Default namespace prefix for user-defined properties in WebDAV.
+/// Users can override this via configuration.
+pub const DEFAULT_USER_METADATA_PREFIX: &str = "opendal";
+/// Default namespace URI for user-defined properties in WebDAV.
+/// Users can override this via configuration.
+pub const DEFAULT_USER_METADATA_URI: &str = "https://opendal.apache.org/ns";
 
 /// The request to query all properties of a file or directory.
 ///
@@ -82,6 +81,10 @@ pub struct WebdavCore {
     pub server_path: String,
     pub root: String,
     pub authorization: Option<String>,
+    /// XML namespace prefix for user metadata properties.
+    pub user_metadata_prefix: String,
+    /// XML namespace URI for user metadata properties.
+    pub user_metadata_uri: String,
 }
 
 impl Debug for WebdavCore {
@@ -89,6 +92,8 @@ impl Debug for WebdavCore {
         f.debug_struct("WebdavCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
+            .field("user_metadata_prefix", &self.user_metadata_prefix)
+            .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()
     }
 }
@@ -137,8 +142,8 @@ impl WebdavCore {
 
         let mut metadata = parse_propstat(&propfind_resp.propstat)?;
 
-        // Parse user metadata from the raw XML response
-        let user_metadata = parse_user_metadata_from_xml(&xml_str);
+        // Parse user metadata from the raw XML response using configured namespace
+        let user_metadata = parse_user_metadata_from_xml(&xml_str, &self.user_metadata_uri);
         if !user_metadata.is_empty() {
             metadata = metadata.with_user_metadata(user_metadata);
         }
@@ -213,9 +218,7 @@ impl WebdavCore {
     ///
     /// This method uses the OpenDAL custom namespace to store user metadata
     /// as DAV dead properties. Each key-value pair in the user_metadata map
-    /// is stored as a property with the "opendal:" prefix. We use our own namespace
-    /// because Nextcloud/ownCloud have whitelist restrictions on their reserved
-    /// namespaces.
+    /// is stored as a property with the configured namespace prefix.
     ///
     /// # Reference
     /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
@@ -234,8 +237,12 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth);
         }
 
-        // Build the PROPPATCH XML request body
-        let proppatch_body = build_proppatch_request(user_metadata);
+        // Build the PROPPATCH XML request body using configured namespace
+        let proppatch_body = build_proppatch_request(
+            user_metadata,
+            &self.user_metadata_prefix,
+            &self.user_metadata_uri,
+        );
 
         let req = req
             .extension(Operation::Write)
@@ -424,10 +431,13 @@ impl WebdavCore {
 
 /// Build a PROPPATCH request body to set user-defined metadata.
 ///
-/// The request uses the OpenDAL custom namespace (opendal:) to store metadata
-/// as dead properties on the WebDAV server. We use our own namespace because
-/// Nextcloud and ownCloud have whitelist restrictions on their reserved namespaces
-/// (http://owncloud.org/ns and http://nextcloud.org/ns).
+/// The request uses the specified namespace to store metadata as dead properties
+/// on the WebDAV server.
+///
+/// # Arguments
+/// * `user_metadata` - Key-value pairs to store as properties
+/// * `namespace_prefix` - XML namespace prefix (e.g., "opendal")
+/// * `namespace_uri` - XML namespace URI (e.g., "https://opendal.apache.org/ns")
 ///
 /// # Example output
 /// ```xml
@@ -441,19 +451,23 @@ impl WebdavCore {
 ///   </D:set>
 /// </D:propertyupdate>
 /// ```
-pub fn build_proppatch_request(user_metadata: &HashMap<String, String>) -> String {
+pub fn build_proppatch_request(
+    user_metadata: &HashMap<String, String>,
+    namespace_prefix: &str,
+    namespace_uri: &str,
+) -> String {
     let mut props = String::new();
     for (key, value) in user_metadata {
         // Escape XML special characters in key and value
         let escaped_key = escape_xml(key);
         let escaped_value = escape_xml(value);
         props.push_str(&format!(
-            "<{OPENDAL_NAMESPACE_PREFIX}:{escaped_key}>{escaped_value}</{OPENDAL_NAMESPACE_PREFIX}:{escaped_key}>"
+            "<{namespace_prefix}:{escaped_key}>{escaped_value}</{namespace_prefix}:{escaped_key}>"
         ));
     }
 
     format!(
-        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{OPENDAL_NAMESPACE_PREFIX}="{OPENDAL_NAMESPACE_URI}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
+        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{namespace_prefix}="{namespace_uri}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
     )
 }
 
@@ -468,17 +482,21 @@ fn escape_xml(s: &str) -> String {
 
 /// Parse user metadata from the raw XML response.
 ///
-/// This function extracts properties in the OpenDAL namespace
-/// (https://opendal.apache.org/ns) from the PROPFIND response and returns them as a HashMap.
+/// This function extracts properties in the specified namespace
+/// from the PROPFIND response and returns them as a HashMap.
 ///
 /// Note: WebDAV servers like Nextcloud/ownCloud may use dynamic namespace prefixes
-/// (e.g., x1:, x2:) instead of the "opendal:" prefix we send. The namespace URI is the
+/// (e.g., x1:, x2:) instead of the prefix we send. The namespace URI is the
 /// reliable identifier, not the prefix.
-pub fn parse_user_metadata_from_xml(xml: &str) -> HashMap<String, String> {
+///
+/// # Arguments
+/// * `xml` - The raw XML response string
+/// * `namespace_uri` - The namespace URI to look for
+pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<String, String> {
     let mut user_metadata = HashMap::new();
 
     // Find all namespace prefixes mapped to our namespace URI
-    let prefixes = find_namespace_prefixes(xml, OPENDAL_NAMESPACE_URI);
+    let prefixes = find_namespace_prefixes(xml, namespace_uri);
 
     // For each prefix, extract properties
     for prefix in prefixes {
@@ -1116,23 +1134,27 @@ mod tests {
         user_metadata.insert("key1".to_string(), "value1".to_string());
         user_metadata.insert("key2".to_string(), "value2".to_string());
 
-        let request = build_proppatch_request(&user_metadata);
+        let request = build_proppatch_request(
+            &user_metadata,
+            DEFAULT_USER_METADATA_PREFIX,
+            DEFAULT_USER_METADATA_URI,
+        );
 
         // Check that the request contains the expected XML structure
         assert!(request.contains(r#"<?xml version="1.0" encoding="utf-8"?>"#));
         assert!(request.contains(r#"<D:propertyupdate"#));
         assert!(request.contains(r#"xmlns:D="DAV:""#));
         assert!(request.contains(&format!(
-            r#"xmlns:{OPENDAL_NAMESPACE_PREFIX}="{OPENDAL_NAMESPACE_URI}""#
+            r#"xmlns:{DEFAULT_USER_METADATA_PREFIX}="{DEFAULT_USER_METADATA_URI}""#
         )));
         assert!(request.contains(r#"<D:set>"#));
         assert!(request.contains(r#"<D:prop>"#));
         // Check that user metadata is included (order may vary)
         assert!(request.contains(&format!(
-            "<{OPENDAL_NAMESPACE_PREFIX}:key1>value1</{OPENDAL_NAMESPACE_PREFIX}:key1>"
+            "<{DEFAULT_USER_METADATA_PREFIX}:key1>value1</{DEFAULT_USER_METADATA_PREFIX}:key1>"
         )));
         assert!(request.contains(&format!(
-            "<{OPENDAL_NAMESPACE_PREFIX}:key2>value2</{OPENDAL_NAMESPACE_PREFIX}:key2>"
+            "<{DEFAULT_USER_METADATA_PREFIX}:key2>value2</{DEFAULT_USER_METADATA_PREFIX}:key2>"
         )));
     }
 
@@ -1141,10 +1163,30 @@ mod tests {
         let mut user_metadata = HashMap::new();
         user_metadata.insert("key".to_string(), "value<>&\"'".to_string());
 
-        let request = build_proppatch_request(&user_metadata);
+        let request = build_proppatch_request(
+            &user_metadata,
+            DEFAULT_USER_METADATA_PREFIX,
+            DEFAULT_USER_METADATA_URI,
+        );
 
         // Check that special characters are properly escaped
         assert!(request.contains("value&lt;&gt;&amp;&quot;&apos;"));
+    }
+
+    #[test]
+    fn test_build_proppatch_request_custom_namespace() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key1".to_string(), "value1".to_string());
+
+        let request = build_proppatch_request(
+            &user_metadata,
+            "custom",
+            "http://example.com/ns",
+        );
+
+        // Check that custom namespace is used
+        assert!(request.contains(r#"xmlns:custom="http://example.com/ns""#));
+        assert!(request.contains("<custom:key1>value1</custom:key1>"));
     }
 
     #[test]
@@ -1163,7 +1205,7 @@ mod tests {
           </D:response>
         </D:multistatus>"#;
 
-        let user_metadata = parse_user_metadata_from_xml(xml);
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
 
         assert_eq!(user_metadata.len(), 2);
         assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
@@ -1184,7 +1226,7 @@ mod tests {
           </D:response>
         </D:multistatus>"#;
 
-        let user_metadata = parse_user_metadata_from_xml(xml);
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
 
         assert_eq!(user_metadata.len(), 1);
         assert_eq!(user_metadata.get("key"), Some(&"value<>&\"'".to_string()));
@@ -1204,7 +1246,7 @@ mod tests {
           </D:response>
         </D:multistatus>"#;
 
-        let user_metadata = parse_user_metadata_from_xml(xml);
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
 
         assert!(user_metadata.is_empty());
     }
@@ -1236,7 +1278,7 @@ mod tests {
           </d:response>
         </d:multistatus>"#;
 
-        let user_metadata = parse_user_metadata_from_xml(xml);
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
 
         assert_eq!(user_metadata.len(), 2);
         assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
@@ -1258,7 +1300,7 @@ mod tests {
           </d:response>
         </d:multistatus>"#;
 
-        let user_metadata = parse_user_metadata_from_xml(xml);
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
 
         assert_eq!(user_metadata.len(), 1);
         assert_eq!(
@@ -1268,9 +1310,30 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_user_metadata_from_xml_custom_namespace() {
+        // Test with a custom namespace (like what users might configure)
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:" xmlns:myapp="http://myapp.example.com/ns">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <myapp:author>John Doe</myapp:author>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, "http://myapp.example.com/ns");
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(user_metadata.get("author"), Some(&"John Doe".to_string()));
+    }
+
+    #[test]
     fn test_find_namespace_prefixes() {
         let xml = r#"<root xmlns:opendal="https://opendal.apache.org/ns" xmlns:x1="https://opendal.apache.org/ns">"#;
-        let prefixes = find_namespace_prefixes(xml, OPENDAL_NAMESPACE_URI);
+        let prefixes = find_namespace_prefixes(xml, DEFAULT_USER_METADATA_URI);
 
         assert_eq!(prefixes.len(), 2);
         assert!(prefixes.contains(&"opendal".to_string()));

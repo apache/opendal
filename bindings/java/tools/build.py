@@ -50,6 +50,11 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return "opendal_java.dll"
     raise Exception(f"Unsupported classifier: {classifier}")
 
+def get_static_artifact_name(classifier: str) -> str:
+    if classifier.startswith("windows"):
+        return "opendal_java.lib"
+    return "libopendal_java.a"
+
 
 if __name__ == "__main__":
     basedir = Path(__file__).parent.parent
@@ -103,6 +108,27 @@ if __name__ == "__main__":
 
     # History reason of cargo profiles.
     profile = "debug" if args.profile in ["dev", "test", "bench"] else args.profile
+
+    if target.endswith("-musl"):
+        static_artifact = get_static_artifact_name(args.classifier)
+        src = output / target / profile / static_artifact
+        artifact = get_cargo_artifact_name(args.classifier)
+        dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
+        dst.parent.mkdir(exist_ok=True, parents=True)
+
+        link_cmd = [
+            "musl-gcc",
+            "-shared",
+            "-o",
+            str(dst),
+            "-Wl,--whole-archive",
+            str(src),
+            "-Wl,--no-whole-archive",
+        ]
+        print("$ " + subprocess.list2cmdline(link_cmd))
+        subprocess.run(link_cmd, cwd=basedir, check=True)
+        raise SystemExit(0)
+
     artifact = get_cargo_artifact_name(args.classifier)
     src = output / target / profile / artifact
     dst = basedir / "target" / "classes" / "native" / args.classifier / artifact

@@ -120,6 +120,8 @@ pub mod services {
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-redb")]
     pub use opendal_service_redb::*;
+    #[cfg(feature = "services-rocksdb")]
+    pub use opendal_service_rocksdb::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-seafile")]
@@ -167,6 +169,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-hotpath")]
+    pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
     #[cfg(feature = "layers-logging")]

@@ -17,6 +17,8 @@
 
 use std::sync::Arc;
 
+use opendal_core::raw::*;
+use opendal_core::*;
 use rocksdb::DB;
 
 use super::ROCKSDB_SCHEME;
@@ -25,8 +27,6 @@ use super::core::*;
 use super::deleter::RocksdbDeleter;
 use super::lister::RocksdbLister;
 use super::writer::RocksdbWriter;
-use crate::raw::*;
-use crate::*;
 
 /// RocksDB service support.
 #[doc = include_str!("docs.md")]
@@ -36,13 +36,13 @@ pub struct RocksdbBuilder {
 }
 
 impl RocksdbBuilder {
-    /// Set the path to the rocksdb data directory. Will create if not exists.
+    /// Set the path to the rocksdb data directory. Creates if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
         self.config.datadir = Some(path.into());
         self
     }
 
-    /// set the working directory, all operations will be performed under it.
+    /// Set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
     pub fn root(mut self, root: &str) -> Self {
@@ -77,7 +77,7 @@ impl Builder for RocksdbBuilder {
     }
 }
 
-/// Backend for rocksdb services.
+/// Backend for rocksdb service.
 #[derive(Clone, Debug)]
 pub struct RocksdbBackend {
     core: Arc<RocksdbCore>,

@@ -17,10 +17,10 @@
 
 use std::sync::Arc;
 
-use super::core::*;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+use super::core::RocksdbCore;
 
 pub struct RocksdbDeleter {
     core: Arc<RocksdbCore>,

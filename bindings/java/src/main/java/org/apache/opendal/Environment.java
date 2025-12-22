@@ -69,17 +69,6 @@ public enum Environment {
     }
 
     private static boolean isMusl(String osArch) {
-        final String override = System.getProperty("org.apache.opendal.libc");
-        if (override != null) {
-            final String libc = override.trim().toLowerCase();
-            if (libc.equals("musl")) {
-                return true;
-            }
-            if (libc.equals("gnu") || libc.equals("glibc")) {
-                return false;
-            }
-        }
-
         final String loader = muslLoaderName(osArch);
         if (loader == null) {
             return false;

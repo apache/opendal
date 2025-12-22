@@ -80,6 +80,10 @@ jobs:
         if: ${{ contains(matrix.os, 'ubuntu') }}
         run: pip install cargo-zigbuild
 
+      - name: Setup linux for musl
+        if: ${{ contains(matrix.os, 'ubuntu') && contains(matrix.classifier, 'musl') }}
+        run: sudo apt-get install musl-tools
+
       - name: Local staging
         working-directory: bindings/java
         shell: bash

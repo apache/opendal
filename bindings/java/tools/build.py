@@ -72,8 +72,11 @@ if __name__ == "__main__":
     print("$ " + subprocess.list2cmdline(command))
     subprocess.run(command, cwd=basedir, check=True)
 
-    # Enable zigbuild if flag enabled and we are building linux target
-    enable_zigbuild = args.enable_zigbuild == "true" and "linux" in target
+    # Enable zigbuild if flag enabled and we are building linux gnu target.
+    #
+    # For musl targets, prefer using the system musl toolchain (e.g. `musl-tools` on Ubuntu)
+    # instead of zigbuild.
+    enable_zigbuild = args.enable_zigbuild == "true" and "linux" in target and not target.endswith("-musl")
 
     cmd = [
         "cargo",

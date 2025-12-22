@@ -59,6 +59,33 @@ public class OperatorInputStream extends InputStream {
     }
 
     @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        if (b == null) {
+            throw new NullPointerException();
+        }
+        if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        }
+        if (len == 0) {
+            return 0;
+        }
+
+        while (bytes != null && offset >= bytes.length) {
+            bytes = readNextBytes(reader.nativeHandle);
+            offset = 0;
+        }
+
+        if (bytes == null) {
+            return -1;
+        }
+
+        final int n = Math.min(len, bytes.length - offset);
+        System.arraycopy(bytes, offset, b, off, n);
+        offset += n;
+        return n;
+    }
+
+    @Override
     public void close() throws IOException {
         reader.close();
     }

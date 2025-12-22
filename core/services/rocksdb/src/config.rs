@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -33,10 +34,10 @@ pub struct RocksdbConfig {
     pub root: Option<String>,
 }
 
-impl crate::Configurator for RocksdbConfig {
+impl Configurator for RocksdbConfig {
     type Builder = RocksdbBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(path) = uri.root() {
@@ -57,19 +58,17 @@ impl crate::Configurator for RocksdbConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_datadir_and_root() {
+    fn from_uri_sets_datadir_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "rocksdb:///var/db?root=namespace",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = RocksdbConfig::from_uri(&uri).unwrap();
+        let cfg = RocksdbConfig::from_uri(&uri)?;
         assert_eq!(cfg.datadir.as_deref(), Some("/var/db"));
         assert_eq!(cfg.root.as_deref(), Some("namespace"));
+        Ok(())
     }
 }

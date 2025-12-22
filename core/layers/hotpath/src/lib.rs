@@ -15,6 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+
+use futures::Stream;
+use futures::StreamExt;
 use hotpath::MeasurementGuard;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -36,6 +42,8 @@ const LABEL_WRITER_ABORT: &str = "opendal.writer.abort";
 const LABEL_LISTER_NEXT: &str = "opendal.lister.next";
 const LABEL_DELETER_DELETE: &str = "opendal.deleter.delete";
 const LABEL_DELETER_CLOSE: &str = "opendal.deleter.close";
+const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
+const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
 /// Add [hotpath](https://docs.rs/hotpath/) profiling for every operation.
 ///
@@ -69,6 +77,13 @@ impl<A: Access> Layer<A> for HotpathLayer {
     type LayeredAccess = HotpathAccessor<A>;
 
     fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+        info.update_http_client(|client| {
+            HttpClient::with(HotpathHttpFetcher {
+                inner: client.into_inner(),
+            })
+        });
+
         HotpathAccessor { inner }
     }
 }
@@ -189,5 +204,35 @@ impl<R: oio::Delete> oio::Delete for HotpathWrapper<R> {
     async fn close(&mut self) -> Result<()> {
         let _guard = MeasurementGuard::build(LABEL_DELETER_CLOSE, false, true);
         self.inner.close().await
+    }
+}
+
+pub struct HotpathHttpFetcher {
+    inner: HttpFetcher,
+}
+
+impl HttpFetch for HotpathHttpFetcher {
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let _guard = MeasurementGuard::build(LABEL_HTTP_FETCH, false, true);
+        let resp = self.inner.fetch(req).await?;
+        let (parts, body) = resp.into_parts();
+        let body = body.map_inner(|stream| Box::new(HotpathStream { inner: stream }));
+        Ok(http::Response::from_parts(parts, body))
+    }
+}
+
+pub struct HotpathStream<S> {
+    inner: S,
+}
+
+impl<S> Stream for HotpathStream<S>
+where
+    S: Stream<Item = Result<Buffer>> + Unpin + 'static,
+{
+    type Item = Result<Buffer>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let _guard = MeasurementGuard::build(LABEL_HTTP_BODY_POLL, false, true);
+        self.inner.poll_next_unpin(cx)
     }
 }

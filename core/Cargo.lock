@@ -5908,8 +5908,11 @@ dependencies = [
 name = "opendal-layer-hotpath"
 version = "0.55.0"
 dependencies = [
+ "futures",
  "hotpath",
+ "http 1.4.0",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]

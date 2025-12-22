@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -32,7 +31,7 @@ use opendal_core::*;
 
 /// ConcurrentLimitSemaphore abstracts a semaphore-like concurrency primitive
 /// that yields an owned permit released on drop.
-pub trait ConcurrentLimitSemaphore: Send + Sync + Any + Clone + Unpin + 'static {
+pub trait ConcurrentLimitSemaphore: Send + Sync + Clone + Unpin + 'static {
     /// The owned permit type associated with the semaphore. Dropping it
     /// must release the permit back to the semaphore.
     type Permit: Send + Sync + 'static;
@@ -157,7 +156,7 @@ where
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         let info = inner.info();
 
-        // Update http client with metrics http fetcher.
+        // Update http client with concurrent limit http fetcher.
         info.update_http_client(|client| {
             HttpClient::with(ConcurrentLimitHttpFetcher::<S> {
                 inner: client.into_inner(),
@@ -356,76 +355,12 @@ mod tests {
     use super::*;
     use opendal_core::Operator;
     use opendal_core::services;
-    use std::collections::VecDeque;
     use std::sync::Arc;
-    use std::sync::Mutex as StdMutex;
     use std::time::Duration;
     use tokio::time::timeout;
 
-    use futures::channel::oneshot;
-
-    // A minimal non-mea semaphore for testing the trait abstraction.
-    #[derive(Clone)]
-    struct SimpleSemaphore {
-        state: Arc<StdMutex<SimpleState>>,
-    }
-
-    struct SimpleState {
-        available: usize,
-        waiters: VecDeque<oneshot::Sender<()>>,
-    }
-
-    impl SimpleSemaphore {
-        fn new(permits: usize) -> Self {
-            Self {
-                state: Arc::new(StdMutex::new(SimpleState {
-                    available: permits,
-                    waiters: VecDeque::new(),
-                })),
-            }
-        }
-    }
-
-    struct SimplePermit(Arc<StdMutex<SimpleState>>);
-
-    impl Drop for SimplePermit {
-        fn drop(&mut self) {
-            let mut st = self.0.lock().expect("mutex poisoned");
-            st.available += 1;
-            if let Some(tx) = st.waiters.pop_front() {
-                let _ = tx.send(());
-            }
-        }
-    }
-
-    impl ConcurrentLimitSemaphore for SimpleSemaphore {
-        type Permit = SimplePermit;
-
-        async fn acquire(&self) -> Self::Permit {
-            let state = self.state.clone();
-            loop {
-                let acquired = {
-                    let mut st = state.lock().expect("mutex poisoned");
-                    if st.available > 0 {
-                        st.available -= 1;
-                        true
-                    } else {
-                        false
-                    }
-                };
-                if acquired {
-                    return SimplePermit(state.clone());
-                }
-
-                let (tx, rx) = oneshot::channel();
-                {
-                    let mut st = state.lock().expect("mutex poisoned");
-                    st.waiters.push_back(tx);
-                }
-                let _ = rx.await;
-            }
-        }
-    }
+    use futures::stream;
+    use http::Response;
 
     #[tokio::test]
     async fn operation_semaphore_can_be_shared() {
@@ -455,21 +390,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn custom_semaphore_is_honored() {
-        let custom = SimpleSemaphore::new(1);
-        let layer = ConcurrentLimitLayer::with_semaphore(custom);
+    async fn http_semaphore_holds_until_body_dropped() {
+        struct DummyFetcher;
 
-        let op = Operator::new(services::Memory::default())
-            .expect("operator must build")
-            .layer(layer)
-            .finish();
+        impl HttpFetch for DummyFetcher {
+            async fn fetch(&self, _req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+                let body = HttpBody::new(stream::empty(), None);
+                Ok(Response::builder()
+                    .status(http::StatusCode::OK)
+                    .body(body)
+                    .expect("response must build"))
+            }
+        }
 
-        let _l = op.lister("").await.expect("list should start");
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::new(1).with_http_semaphore(semaphore.clone());
+        let fetcher = ConcurrentLimitHttpFetcher::<Arc<Semaphore>> {
+            inner: HttpClient::with(DummyFetcher).into_inner(),
+            http_semaphore: layer.http_semaphore.clone(),
+        };
 
-        let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
+        let request = http::Request::builder()
+            .uri("http://example.invalid/")
+            .body(Buffer::new())
+            .expect("request must build");
+        let _resp = fetcher
+            .fetch(request)
+            .await
+            .expect("first fetch should succeed");
+
+        let request = http::Request::builder()
+            .uri("http://example.invalid/")
+            .body(Buffer::new())
+            .expect("request must build");
+        let blocked = timeout(Duration::from_millis(50), fetcher.fetch(request)).await;
         assert!(
             blocked.is_err(),
-            "operation should be limited by custom semaphore"
+            "http fetch should block while the body holds the permit"
         );
     }
 }

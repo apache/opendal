@@ -127,10 +127,9 @@ if __name__ == "__main__":
         ]
         print("$ " + subprocess.list2cmdline(link_cmd))
         subprocess.run(link_cmd, cwd=basedir, check=True)
-        raise SystemExit(0)
-
-    artifact = get_cargo_artifact_name(args.classifier)
-    src = output / target / profile / artifact
-    dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
-    dst.parent.mkdir(exist_ok=True, parents=True)
-    shutil.copy2(src, dst)
+    else:
+        artifact = get_cargo_artifact_name(args.classifier)
+        src = output / target / profile / artifact
+        dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
+        dst.parent.mkdir(exist_ok=True, parents=True)
+        shutil.copy2(src, dst)

@@ -134,7 +134,7 @@ impl WebdavBuilder {
     /// This URI uniquely identifies the namespace for custom properties.
     /// Different servers may require different namespace URIs.
     ///
-    /// Default: "https://opendal.apache.org/ns"
+    /// Default: `https://opendal.apache.org/ns`
     pub fn user_metadata_uri(mut self, uri: &str) -> Self {
         if !uri.is_empty() {
             self.config.user_metadata_uri = Some(uri.to_string());

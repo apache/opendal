@@ -60,7 +60,7 @@ pub struct WebdavConfig {
     /// Different servers may require different namespace URIs.
     /// For example, Nextcloud might work better with its own namespace.
     ///
-    /// Default: "https://opendal.apache.org/ns"
+    /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
 }
 

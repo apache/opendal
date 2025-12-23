@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::io::Cursor;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -25,6 +26,13 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use quick_xml::Reader;
+use quick_xml::Writer;
+use quick_xml::escape::escape;
+use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesStart;
+use quick_xml::events::BytesText;
+use quick_xml::events::Event;
 use serde::Deserialize;
 
 use super::error::parse_error;
@@ -456,31 +464,70 @@ pub fn build_proppatch_request(
     namespace_prefix: &str,
     namespace_uri: &str,
 ) -> String {
-    let mut props = String::new();
+    let mut writer = Writer::new(Cursor::new(Vec::new()));
+
+    // Write XML declaration
+    writer
+        .write_event(Event::Decl(quick_xml::events::BytesDecl::new(
+            "1.0",
+            Some("utf-8"),
+            None,
+        )))
+        .expect("write xml decl");
+
+    // Write <D:propertyupdate> with namespace declarations
+    let mut propertyupdate = BytesStart::new("D:propertyupdate");
+    propertyupdate.push_attribute(("xmlns:D", "DAV:"));
+    propertyupdate.push_attribute((
+        format!("xmlns:{}", namespace_prefix).as_str(),
+        namespace_uri,
+    ));
+    writer
+        .write_event(Event::Start(propertyupdate))
+        .expect("write propertyupdate");
+
+    // Write <D:set>
+    writer
+        .write_event(Event::Start(BytesStart::new("D:set")))
+        .expect("write set");
+
+    // Write <D:prop>
+    writer
+        .write_event(Event::Start(BytesStart::new("D:prop")))
+        .expect("write prop");
+
+    // Write each user metadata property
     for (key, value) in user_metadata {
-        // Escape XML special characters in key and value
-        let escaped_key = escape_xml(key);
-        let escaped_value = escape_xml(value);
-        props.push_str(&format!(
-            "<{namespace_prefix}:{escaped_key}>{escaped_value}</{namespace_prefix}:{escaped_key}>"
-        ));
+        // Note: key needs to be escaped for XML tag name, value is handled by BytesText
+        let escaped_key = escape(key);
+        let tag_name = format!("{}:{}", namespace_prefix, escaped_key);
+        writer
+            .write_event(Event::Start(BytesStart::new(&tag_name)))
+            .expect("write prop start");
+        // BytesText::new expects unescaped content and will escape it automatically
+        writer
+            .write_event(Event::Text(BytesText::new(value)))
+            .expect("write prop value");
+        writer
+            .write_event(Event::End(BytesEnd::new(&tag_name)))
+            .expect("write prop end");
     }
 
-    format!(
-        r#"<?xml version="1.0" encoding="utf-8"?><D:propertyupdate xmlns:D="DAV:" xmlns:{namespace_prefix}="{namespace_uri}"><D:set><D:prop>{props}</D:prop></D:set></D:propertyupdate>"#
-    )
+    // Close tags
+    writer
+        .write_event(Event::End(BytesEnd::new("D:prop")))
+        .expect("write prop end");
+    writer
+        .write_event(Event::End(BytesEnd::new("D:set")))
+        .expect("write set end");
+    writer
+        .write_event(Event::End(BytesEnd::new("D:propertyupdate")))
+        .expect("write propertyupdate end");
+
+    String::from_utf8(writer.into_inner().into_inner()).expect("valid utf8")
 }
 
-/// Escape XML special characters.
-fn escape_xml(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&apos;")
-}
-
-/// Parse user metadata from the raw XML response.
+/// Parse user metadata from the raw XML response using quick-xml Reader.
 ///
 /// This function extracts properties in the specified namespace
 /// from the PROPFIND response and returns them as a HashMap.
@@ -494,110 +541,119 @@ fn escape_xml(s: &str) -> String {
 /// * `namespace_uri` - The namespace URI to look for
 pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<String, String> {
     let mut user_metadata = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
 
-    // Find all namespace prefixes mapped to our namespace URI
-    let prefixes = find_namespace_prefixes(xml, namespace_uri);
+    // Track namespace prefix -> URI mappings
+    let mut ns_prefixes: HashMap<String, String> = HashMap::new();
+    // Track which prefixes map to our target namespace URI
+    let mut target_prefixes: Vec<String> = Vec::new();
 
-    // For each prefix, extract properties
-    for prefix in prefixes {
-        extract_properties_with_prefix(xml, &prefix, &mut user_metadata);
+    // Current element state for tracking property values
+    let mut current_prop_key: Option<String> = None;
+    let mut current_prop_value = String::new();
+
+    let mut buf = Vec::new();
+    loop {
+        let event = reader.read_event_into(&mut buf);
+        match event {
+            Ok(Event::Start(ref e)) => {
+                // Extract namespace declarations from attributes
+                for attr in e.attributes().flatten() {
+                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    if key.starts_with("xmlns:") {
+                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
+                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
+                            target_prefixes.push(prefix.clone());
+                        }
+                        ns_prefixes.insert(prefix, uri);
+                    }
+                }
+
+                // Check if this element is in our target namespace
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        current_prop_key = Some(local_name.to_string());
+                        current_prop_value.clear();
+                    }
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                // Extract namespace declarations from attributes
+                for attr in e.attributes().flatten() {
+                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    if key.starts_with("xmlns:") {
+                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
+                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
+                            target_prefixes.push(prefix.clone());
+                        }
+                        ns_prefixes.insert(prefix, uri);
+                    }
+                }
+
+                // For Empty events (self-closing tags), immediately insert with empty value
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        user_metadata.insert(local_name.to_string(), String::new());
+                    }
+                }
+            }
+            Ok(Event::Text(ref e)) => {
+                if current_prop_key.is_some() {
+                    // Text content - add directly (no escaping needed)
+                    let text_str = String::from_utf8_lossy(e.as_ref());
+                    current_prop_value.push_str(&text_str);
+                }
+            }
+            Ok(Event::GeneralRef(ref e)) => {
+                if current_prop_key.is_some() {
+                    // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
+                    let entity_name = String::from_utf8_lossy(e.as_ref());
+                    let decoded = match entity_name.as_ref() {
+                        "lt" => "<",
+                        "gt" => ">",
+                        "amp" => "&",
+                        "quot" => "\"",
+                        "apos" => "'",
+                        _ => "", // Unknown entity, skip
+                    };
+                    current_prop_value.push_str(decoded);
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        if let Some(key) = current_prop_key.take() {
+                            if key == local_name {
+                                user_metadata.insert(key, current_prop_value.clone());
+                                current_prop_value.clear();
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
     }
 
     user_metadata
 }
 
-/// Find all XML namespace prefixes that map to the given namespace URI.
-///
-/// Looks for patterns like: xmlns:PREFIX="URI" or xmlns:PREFIX='URI'
-fn find_namespace_prefixes(xml: &str, namespace_uri: &str) -> Vec<String> {
-    let mut prefixes = Vec::new();
-
-    // Pattern 1: xmlns:PREFIX="URI"
-    let pattern1 = format!("=\"{namespace_uri}\"");
-    // Pattern 2: xmlns:PREFIX='URI'
-    let pattern2 = format!("='{namespace_uri}'");
-
-    for pattern in [&pattern1, &pattern2] {
-        let mut search_start = 0;
-        while let Some(pos) = xml[search_start..].find(pattern) {
-            let abs_pos = search_start + pos;
-            // Look backwards to find "xmlns:"
-            if let Some(xmlns_start) = xml[..abs_pos].rfind("xmlns:") {
-                let prefix_start = xmlns_start + 6; // length of "xmlns:"
-                let prefix = &xml[prefix_start..abs_pos];
-                // Validate prefix (should be alphanumeric/underscore) and not already added
-                if !prefix.is_empty()
-                    && prefix
-                        .chars()
-                        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
-                    && !prefixes.contains(&prefix.to_string())
-                {
-                    prefixes.push(prefix.to_string());
-                }
-            }
-            search_start = abs_pos + pattern.len();
-        }
-    }
-
-    prefixes
-}
-
-/// Extract properties with a specific namespace prefix from the XML.
-fn extract_properties_with_prefix(
-    xml: &str,
-    prefix: &str,
-    user_metadata: &mut HashMap<String, String>,
-) {
-    let open_prefix = format!("<{prefix}:");
-    let mut search_start = 0;
-
-    while let Some(start) = xml[search_start..].find(&open_prefix) {
-        let abs_start = search_start + start + open_prefix.len();
-
-        // Find the key name (up to '>' or ' ' for attributes)
-        if let Some(tag_end) = xml[abs_start..].find('>') {
-            let tag_content = &xml[abs_start..abs_start + tag_end];
-            // Key is before any space (attributes) or the whole thing if no space
-            let key = tag_content.split_whitespace().next().unwrap_or(tag_content);
-
-            // Check for self-closing tag
-            if tag_content.ends_with('/') {
-                // Self-closing tag like <prefix:key/>, value is empty
-                let key = key.trim_end_matches('/');
-                user_metadata.insert(key.to_string(), String::new());
-                search_start = abs_start + tag_end + 1;
-                continue;
-            }
-
-            // Find the closing tag
-            let close_tag = format!("</{prefix}:{key}>");
-            let value_start = abs_start + tag_end + 1;
-
-            if let Some(value_end) = xml[value_start..].find(&close_tag) {
-                let value = &xml[value_start..value_start + value_end];
-                // Unescape XML entities
-                let unescaped_value = unescape_xml(value);
-                user_metadata.insert(key.to_string(), unescaped_value);
-                search_start = value_start + value_end + close_tag.len();
-            } else {
-                search_start = value_start;
-            }
-        } else {
-            break;
-        }
-    }
-}
-
-/// Unescape XML entities.
-fn unescape_xml(s: &str) -> String {
-    s.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&")
-}
-
-/// Check if a PROPPATCH 207 Multi-Status response indicates success.
+/// Check if a PROPPATCH 207 Multi-Status response indicates success using quick-xml Reader.
 ///
 /// A 207 status code only indicates that there is detailed information available,
 /// not success or failure. We need to parse the response body to check if all
@@ -606,36 +662,51 @@ fn unescape_xml(s: &str) -> String {
 /// Returns Ok(()) if all properties were successfully updated, or an error
 /// with details about the failure.
 pub fn check_proppatch_response(xml: &str) -> Result<()> {
-    // Look for status lines in the response
-    // Format: <D:status>HTTP/1.1 XXX ...</D:status> or <d:status>...
-    let status_patterns = ["<D:status>", "<d:status>", "<status>"];
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
 
-    for pattern in status_patterns {
-        let mut search_start = 0;
-        while let Some(start) = xml[search_start..].find(pattern) {
-            let abs_start = search_start + start + pattern.len();
-            let close_pattern = pattern.replace('<', "</");
+    let mut buf = Vec::new();
+    let mut in_status = false;
+    let mut status_text = String::new();
 
-            if let Some(end) = xml[abs_start..].find(&close_pattern) {
-                let status_line = &xml[abs_start..abs_start + end];
-
-                // Parse status code from "HTTP/1.1 XXX Description"
-                if let Some(code_str) = status_line.split_whitespace().nth(1) {
-                    if let Ok(code) = code_str.parse::<u16>() {
-                        // Check if status code indicates failure (not 2xx)
-                        if !(200..300).contains(&code) {
-                            return Err(Error::new(
-                                ErrorKind::Unexpected,
-                                format!("PROPPATCH failed with status: {status_line}"),
-                            ));
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                // Match status element regardless of namespace prefix
+                if name.ends_with(":status") || name == "status" {
+                    in_status = true;
+                    status_text.clear();
+                }
+            }
+            Ok(Event::Text(ref e)) => {
+                if in_status {
+                    let text_str = String::from_utf8_lossy(e.as_ref());
+                    status_text.push_str(&text_str);
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                if name.ends_with(":status") || name == "status" {
+                    // Parse status code from "HTTP/1.1 XXX Description"
+                    if let Some(code_str) = status_text.split_whitespace().nth(1) {
+                        if let Ok(code) = code_str.parse::<u16>() {
+                            if !(200..300).contains(&code) {
+                                return Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    format!("PROPPATCH failed with status: {status_text}"),
+                                ));
+                            }
                         }
                     }
+                    in_status = false;
                 }
-                search_start = abs_start + end;
-            } else {
-                break;
             }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
         }
+        buf.clear();
     }
 
     Ok(())
@@ -1248,16 +1319,6 @@ mod tests {
     }
 
     #[test]
-    fn test_escape_unescape_xml() {
-        let original = "test<>&\"'value";
-        let escaped = escape_xml(original);
-        let unescaped = unescape_xml(&escaped);
-
-        assert_eq!(escaped, "test&lt;&gt;&amp;&quot;&apos;value");
-        assert_eq!(unescaped, original);
-    }
-
-    #[test]
     fn test_parse_user_metadata_from_xml_dynamic_prefix() {
         // Nextcloud/ownCloud style: uses dynamic namespace prefixes (x1:, x2:, etc.)
         let xml = r#"<?xml version="1.0" encoding="utf-8"?>
@@ -1324,16 +1385,6 @@ mod tests {
 
         assert_eq!(user_metadata.len(), 1);
         assert_eq!(user_metadata.get("author"), Some(&"John Doe".to_string()));
-    }
-
-    #[test]
-    fn test_find_namespace_prefixes() {
-        let xml = r#"<root xmlns:opendal="https://opendal.apache.org/ns" xmlns:x1="https://opendal.apache.org/ns">"#;
-        let prefixes = find_namespace_prefixes(xml, DEFAULT_USER_METADATA_URI);
-
-        assert_eq!(prefixes.len(), 2);
-        assert!(prefixes.contains(&"opendal".to_string()));
-        assert!(prefixes.contains(&"x1".to_string()));
     }
 
     #[test]

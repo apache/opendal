@@ -120,6 +120,8 @@ pub mod services {
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-redb")]
     pub use opendal_service_redb::*;
+    #[cfg(feature = "services-redis")]
+    pub use opendal_service_redis::*;
     #[cfg(feature = "services-rocksdb")]
     pub use opendal_service_rocksdb::*;
     #[cfg(feature = "services-s3")]
@@ -140,6 +142,8 @@ pub mod services {
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
+    #[cfg(feature = "services-vercel-artifacts")]
+    pub use opendal_service_vercel_artifacts::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
     #[cfg(feature = "services-webdav")]

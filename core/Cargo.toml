@@ -160,8 +160,11 @@ services-pcloud = ["dep:opendal-service-pcloud"]
 services-persy = ["dep:opendal-service-persy"]
 services-postgresql = ["dep:opendal-service-postgresql"]
 services-redb = ["dep:opendal-service-redb"]
-services-redis = ["opendal-core/services-redis"]
-services-redis-native-tls = ["opendal-core/services-redis-native-tls"]
+services-redis = ["dep:opendal-service-redis", "opendal-service-redis?/rustls"]
+services-redis-native-tls = [
+  "dep:opendal-service-redis",
+  "opendal-service-redis?/native-tls",
+]
 services-rocksdb = ["dep:opendal-service-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]
@@ -266,6 +269,7 @@ opendal-service-pcloud = { path = "services/pcloud", version = "0.55.0", optiona
 opendal-service-persy = { path = "services/persy", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-redb = { path = "services/redb", version = "0.55.0", optional = true, default-features = false }
+opendal-service-redis = { path = "services/redis", version = "0.55.0", optional = true, default-features = false }
 opendal-service-rocksdb = { path = "services/rocksdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-seafile = { path = "services/seafile", version = "0.55.0", optional = true, default-features = false }
@@ -283,35 +287,24 @@ opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optio
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+opendal-service-opfs = { path = "services/opfs", version = "0.55.0", optional = true, default-features = false }
+
 [dev-dependencies]
-anyhow = { version = "1.0.100", features = ["std"] }
+anyhow = "1.0"
 bytes = { workspace = true }
-criterion = { version = "0.7", features = ["async", "async_tokio"] }
-divan = { version = "0.1" }
-dotenvy = "0.15"
-fastrace = { version = "0.7", features = ["enable"] }
-fastrace-jaeger = "0.7"
+divan = "0.1"
 futures = { workspace = true, default-features = true }
 http = { workspace = true }
 libtest-mimic = "0.8"
 log = { workspace = true }
-opentelemetry = { version = "0.31.0", default-features = false, features = [
-  "trace",
-] }
-opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
-opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
-pretty_assertions = "1"
 rand = { workspace = true }
-reqwest = { version = "0.12.24" }
+reqwest = "0.12.24"
 sha2 = { workspace = true }
 size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-opendal-service-opfs = { path = "services/opfs", version = "0.55.0", optional = true, default-features = false }

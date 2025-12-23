@@ -55,8 +55,6 @@ internal-tokio-rt = ["tokio/rt-multi-thread"]
 executors-tokio = ["tokio/rt"]
 
 services-memory = []
-services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
-services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
 
 [lib]
 bench = false
@@ -87,27 +85,9 @@ url = "2.5"
 uuid = { workspace = true, features = ["serde", "v4"] }
 
 # Optional dependencies
-
-# Services
-# general dependencies.
-fastpool = { version = "1.0.2", optional = true }
-sha2 = { workspace = true, optional = true }
-
-# For http based services.
-reqsign = { workspace = true, features = ["reqwest_request"], optional = true }
-
-# for services-moka
-moka = { version = "0.12", optional = true, features = ["future", "sync"] }
-# for services-redis
-redis = { version = "1.0", features = [
-  "cluster-async",
-  "tokio-comp",
-  "connection-manager",
-], optional = true }
+moka = { version = "0.12", optional = true, features = ["sync"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-backon = { version = "1.6", features = ["gloo-timers-sleep"] }
-getrandom = { version = "0.2", features = ["js"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }

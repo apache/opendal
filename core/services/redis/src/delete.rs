@@ -15,21 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for redis service.
-pub const REDIS_SCHEME: &str = "redis";
+use std::sync::Arc;
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-mod backend;
-mod config;
-mod core;
-mod delete;
-mod writer;
+use super::core::RedisCore;
 
-pub use backend::RedisBuilder as Redis;
-pub use config::RedisConfig;
+pub struct RedisDeleter {
+    core: Arc<RedisCore>,
+    root: String,
+}
 
-#[ctor::ctor]
-fn register_redis_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Redis>(REDIS_SCHEME);
+impl RedisDeleter {
+    pub fn new(core: Arc<RedisCore>, root: String) -> Self {
+        Self { core, root }
+    }
+}
+
+impl oio::OneShotDelete for RedisDeleter {
+    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let p = build_abs_path(&self.root, &path);
+        self.core.delete(&p).await?;
+        Ok(())
+    }
 }

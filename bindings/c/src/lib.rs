@@ -72,3 +72,6 @@ pub use reader::opendal_reader;
 
 mod writer;
 pub use writer::opendal_writer;
+
+mod logging;
+pub use logging::opendal_init_glog_logging;

@@ -23,7 +23,7 @@ use wasi::filesystem::types::{
     PathFlags,
 };
 
-use super::error::{parse_stream_error, parse_wasi_error};
+use super::error::parse_wasi_error;
 
 #[derive(Debug)]
 pub struct WasiFsCore {
@@ -193,55 +193,5 @@ impl WasiFsCore {
         self.root_descriptor
             .rename_at(&from_path, &self.root_descriptor, &to_path)
             .map_err(parse_wasi_error)
-    }
-
-    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
-        let from_path = self.build_path(from);
-        let to_path = self.build_path(to);
-
-        let src = self
-            .root_descriptor
-            .open_at(
-                PathFlags::empty(),
-                &from_path,
-                OpenFlags::empty(),
-                DescriptorFlags::READ,
-            )
-            .map_err(parse_wasi_error)?;
-
-        let stat = src.stat().map_err(parse_wasi_error)?;
-
-        let dst = self
-            .root_descriptor
-            .open_at(
-                PathFlags::empty(),
-                &to_path,
-                OpenFlags::CREATE | OpenFlags::TRUNCATE,
-                DescriptorFlags::WRITE,
-            )
-            .map_err(parse_wasi_error)?;
-
-        let mut offset = 0u64;
-        let chunk_size = 64 * 1024;
-
-        while offset < stat.size {
-            let read_stream = src.read_via_stream(offset).map_err(parse_wasi_error)?;
-            let data = read_stream
-                .blocking_read(chunk_size.min(stat.size - offset))
-                .map_err(parse_stream_error)?;
-
-            if data.is_empty() {
-                break;
-            }
-
-            let write_stream = dst.write_via_stream(offset).map_err(parse_wasi_error)?;
-            write_stream
-                .blocking_write_and_flush(&data)
-                .map_err(parse_stream_error)?;
-
-            offset += data.len() as u64;
-        }
-
-        Ok(())
     }
 }

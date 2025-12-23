@@ -68,7 +68,6 @@ impl Builder for WasiFsBuilder {
                 create_dir: true,
                 delete: true,
                 list: true,
-                copy: true,
                 rename: true,
                 shared: false,
                 ..Default::default()
@@ -125,11 +124,6 @@ impl Access for WasiFsBackend {
     async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
         let lister = WasiFsLister::new(self.core.clone(), path)?;
         Ok((RpList::default(), lister))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
-        self.core.copy(from, to)?;
-        Ok(RpCopy::default())
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {

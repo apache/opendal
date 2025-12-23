@@ -28,9 +28,9 @@ You can refer to [`RedisBuilder`]'s docs for more information
 ### Via Builder
 
 ```rust,no_run
-use anyhow::Result;
-use opendal_core::services::Redis;
 use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_redis::Redis;
 
 #[tokio::main]
 async fn main() -> Result<()> {

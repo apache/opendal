@@ -15,26 +15,24 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::core::RedisCore;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
+//! Redis service implementation for Apache OpenDAL.
 
-pub struct RedisDeleter {
-    core: std::sync::Arc<RedisCore>,
-    root: String,
-}
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
-impl RedisDeleter {
-    pub fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
-        Self { core, root }
-    }
-}
+mod backend;
+mod config;
+mod core;
+mod delete;
+mod writer;
 
-impl oio::OneShotDelete for RedisDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
-        self.core.delete(&p).await?;
-        Ok(())
-    }
+pub use backend::RedisBuilder as Redis;
+pub use config::RedisConfig;
+
+/// Default scheme for redis service.
+pub const REDIS_SCHEME: &str = "redis";
+
+#[ctor::ctor]
+fn register_redis_service() {
+    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Redis>(REDIS_SCHEME);
 }

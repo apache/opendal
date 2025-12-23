@@ -15,18 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::RedisCore;
-use crate::raw::oio;
-use crate::*;
 
 pub struct RedisWriter {
-    core: std::sync::Arc<RedisCore>,
+    core: Arc<RedisCore>,
     path: String,
     buffer: oio::QueueBuf,
 }
 
 impl RedisWriter {
-    pub fn new(core: std::sync::Arc<RedisCore>, path: String) -> Self {
+    pub fn new(core: Arc<RedisCore>, path: String) -> Self {
         Self {
             core,
             path,

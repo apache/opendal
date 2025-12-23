@@ -23,8 +23,3 @@
 mod memory;
 #[cfg(feature = "services-memory")]
 pub use self::memory::*;
-
-#[cfg(feature = "services-redis")]
-mod redis;
-#[cfg(feature = "services-redis")]
-pub use self::redis::*;

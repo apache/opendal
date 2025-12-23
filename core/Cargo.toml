@@ -160,8 +160,11 @@ services-pcloud = ["dep:opendal-service-pcloud"]
 services-persy = ["dep:opendal-service-persy"]
 services-postgresql = ["dep:opendal-service-postgresql"]
 services-redb = ["dep:opendal-service-redb"]
-services-redis = ["opendal-service-redis?/rustls"]
-services-redis-native-tls = ["opendal-service-redis?/native-tls"]
+services-redis = ["dep:opendal-service-redis", "opendal-service-redis?/rustls"]
+services-redis-native-tls = [
+  "dep:opendal-service-redis",
+  "opendal-service-redis?/native-tls",
+]
 services-rocksdb = ["dep:opendal-service-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]

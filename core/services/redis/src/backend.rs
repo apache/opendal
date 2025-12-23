@@ -19,6 +19,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use http::Uri;
+use opendal_core::raw::*;
+use opendal_core::*;
 use redis::Client;
 use redis::ConnectionAddr;
 use redis::ConnectionInfo;
@@ -32,8 +34,6 @@ use super::config::RedisConfig;
 use super::core::*;
 use super::delete::RedisDeleter;
 use super::writer::RedisWriter;
-use crate::raw::*;
-use crate::*;
 
 const DEFAULT_REDIS_ENDPOINT: &str = "tcp://127.0.0.1:6379";
 const DEFAULT_REDIS_PORT: u16 = 6379;

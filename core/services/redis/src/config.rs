@@ -17,12 +17,13 @@
 
 use std::fmt::Debug;
 
+use opendal_core::raw::*;
+use opendal_core::*;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::REDIS_SCHEME;
 use super::backend::RedisBuilder;
-use crate::raw::*;
 
 /// Config for Redis services support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -74,18 +75,18 @@ impl Debug for RedisConfig {
     }
 }
 
-impl crate::Configurator for RedisConfig {
+impl Configurator for RedisConfig {
     type Builder = RedisBuilder;
 
-    fn from_uri(uri: &crate::types::OperatorUri) -> crate::Result<Self> {
+    fn from_uri(uri: &OperatorUri) -> Result<Self> {
         let mut map = uri.options().clone();
 
         if let Some(authority) = uri.authority() {
             map.entry("endpoint".to_string())
                 .or_insert_with(|| format!("redis://{authority}"));
         } else if !map.contains_key("endpoint") && !map.contains_key("cluster_endpoints") {
-            return Err(crate::Error::new(
-                crate::ErrorKind::ConfigInvalid,
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
                 "endpoint or cluster_endpoints is required",
             )
             .with_context("service", REDIS_SCHEME));
@@ -126,35 +127,33 @@ impl crate::Configurator for RedisConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Configurator;
-    use crate::types::OperatorUri;
 
     #[test]
-    fn from_uri_sets_endpoint_db_and_root() {
+    fn from_uri_sets_endpoint_db_and_root() -> Result<()> {
         let uri = OperatorUri::new(
             "redis://localhost:6379/2/cache",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = RedisConfig::from_uri(&uri).unwrap();
+        let cfg = RedisConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 2);
         assert_eq!(cfg.root.as_deref(), Some("cache"));
+        Ok(())
     }
 
     #[test]
-    fn from_uri_treats_non_numeric_path_as_root() {
+    fn from_uri_treats_non_numeric_path_as_root() -> Result<()> {
         let uri = OperatorUri::new(
             "redis://localhost:6379/app/data",
             Vec::<(String, String)>::new(),
-        )
-        .unwrap();
+        )?;
 
-        let cfg = RedisConfig::from_uri(&uri).unwrap();
+        let cfg = RedisConfig::from_uri(&uri)?;
         assert_eq!(cfg.endpoint.as_deref(), Some("redis://localhost:6379"));
         assert_eq!(cfg.db, 0);
         assert_eq!(cfg.root.as_deref(), Some("app/data"));
+        Ok(())
     }
 
     #[test]

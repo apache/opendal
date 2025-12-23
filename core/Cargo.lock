@@ -5539,11 +5539,7 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "criterion",
  "divan",
- "dotenvy",
- "fastrace",
- "fastrace-jaeger",
  "futures",
  "http 1.4.0",
  "libtest-mimic",
@@ -5617,6 +5613,7 @@ dependencies = [
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
+ "opendal-service-redis",
  "opendal-service-rocksdb",
  "opendal-service-s3",
  "opendal-service-seafile",
@@ -5633,16 +5630,11 @@ dependencies = [
  "opendal-service-webhdfs",
  "opendal-service-yandex-disk",
  "opendal-testkit",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "pretty_assertions",
  "rand 0.8.5",
  "reqwest",
  "sha2",
  "size",
  "tokio",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -5678,13 +5670,10 @@ name = "opendal-core"
 version = "0.55.0"
 dependencies = [
  "anyhow",
- "backon",
  "base64 0.22.1",
  "bytes",
  "ctor",
- "fastpool",
  "futures",
- "getrandom 0.2.16",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
@@ -5696,8 +5685,6 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "rand 0.8.5",
- "redis",
- "reqsign",
  "reqwest",
  "serde",
  "serde_json",
@@ -6613,6 +6600,20 @@ dependencies = [
  "ctor",
  "opendal-core",
  "redb",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-redis"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "ctor",
+ "fastpool",
+ "http 1.4.0",
+ "opendal-core",
+ "redis",
  "serde",
  "tokio",
 ]

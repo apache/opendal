@@ -25,7 +25,7 @@
 pub use opendal_core::*;
 
 #[cfg(feature = "tests")]
-pub use opendal_testkit as tests;
+pub extern crate opendal_testkit as tests;
 
 #[ctor::ctor]
 fn register_default_operator_registry() {
@@ -395,7 +395,7 @@ pub mod layers {
 }
 
 #[cfg(test)]
-mod tests {
+mod default_registry_tests {
     use super::*;
 
     #[test]

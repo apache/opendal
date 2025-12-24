@@ -131,6 +131,7 @@ use probe::probe_lazy;
 pub struct DtraceLayer {}
 
 impl DtraceLayer {
+    /// Create a new [`DtraceLayer`].
     pub fn new() -> Self {
         Self::default()
     }

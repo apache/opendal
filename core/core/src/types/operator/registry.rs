@@ -25,7 +25,9 @@ use crate::{Error, ErrorKind, Operator, Result};
 /// Factory signature used to construct [`Operator`] from a URI and extra options.
 pub type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;
 
-/// Default registry initialized with builtin services.
+/// Default registry used by [`Operator::from_uri`].
+///
+/// Builtin registrations are handled by the facade crate `opendal`.
 pub static DEFAULT_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> =
     LazyLock::new(OperatorRegistry::new);
 

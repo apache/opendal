@@ -18,8 +18,6 @@
 /// Default scheme for alluxio service.
 pub const ALLUXIO_SCHEME: &str = "alluxio";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -30,8 +28,3 @@ mod writer;
 
 pub use backend::AlluxioBuilder as Alluxio;
 pub use config::AlluxioConfig;
-
-#[ctor::ctor]
-fn register_alluxio_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Alluxio>(ALLUXIO_SCHEME);
-}

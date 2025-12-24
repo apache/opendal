@@ -33,8 +33,3 @@ pub use config::UpyunConfig;
 
 /// Default scheme for upyun service.
 pub const UPYUN_SCHEME: &str = "upyun";
-
-#[ctor::ctor]
-fn register_upyun_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Upyun>(UPYUN_SCHEME);
-}

@@ -18,8 +18,6 @@
 /// Default scheme for obs service.
 pub const OBS_SCHEME: &str = "obs";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -30,8 +28,3 @@ mod writer;
 
 pub use backend::ObsBuilder as Obs;
 pub use config::ObsConfig;
-
-#[ctor::ctor]
-fn register_obs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Obs>(OBS_SCHEME);
-}

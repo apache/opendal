@@ -30,8 +30,3 @@ pub use config::RedbConfig;
 
 /// Default scheme for redb service.
 pub const REDB_SCHEME: &str = "redb";
-
-#[ctor::ctor]
-fn register_redb_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Redb>(REDB_SCHEME);
-}

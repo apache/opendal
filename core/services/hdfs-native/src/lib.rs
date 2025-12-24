@@ -18,8 +18,6 @@
 /// Default scheme for hdfs-native service.
 pub const HDFS_NATIVE_SCHEME: &str = "hdfs-native";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -31,8 +29,3 @@ mod writer;
 
 pub use backend::HdfsNativeBuilder as HdfsNative;
 pub use config::HdfsNativeConfig;
-
-#[ctor::ctor]
-fn register_hdfs_native_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<HdfsNative>(HDFS_NATIVE_SCHEME);
-}

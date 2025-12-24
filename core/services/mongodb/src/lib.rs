@@ -18,8 +18,6 @@
 /// Default scheme for mongodb service.
 pub const MONGODB_SCHEME: &str = "mongodb";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -28,8 +26,3 @@ mod writer;
 
 pub use backend::MongodbBuilder as Mongodb;
 pub use config::MongodbConfig;
-
-#[ctor::ctor]
-fn register_mongodb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Mongodb>(MONGODB_SCHEME);
-}

@@ -31,8 +31,3 @@ pub use config::GridfsConfig;
 
 /// Default scheme for gridfs service.
 pub const GRIDFS_SCHEME: &str = "gridfs";
-
-#[ctor::ctor]
-fn register_gridfs_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Gridfs>(GRIDFS_SCHEME);
-}

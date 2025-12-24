@@ -18,8 +18,6 @@
 /// Default scheme for ghac service.
 pub const GHAC_SCHEME: &str = "ghac";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -28,8 +26,3 @@ mod writer;
 
 pub use backend::GhacBuilder as Ghac;
 pub use config::GhacConfig;
-
-#[ctor::ctor]
-fn register_ghac_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Ghac>(GHAC_SCHEME);
-}

@@ -33,8 +33,3 @@ pub use config::EtcdConfig;
 
 /// Default scheme for etcd service.
 pub const ETCD_SCHEME: &str = "etcd";
-
-#[ctor::ctor]
-fn register_etcd_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Etcd>(ETCD_SCHEME);
-}

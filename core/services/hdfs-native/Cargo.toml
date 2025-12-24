@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-ctor = { workspace = true }
 futures = { workspace = true }
 hdfs-native = { version = "0.13" }
 log = { workspace = true }

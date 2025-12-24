@@ -33,7 +33,6 @@ all-features = true
 [dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
 bytes = { workspace = true }
-ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 mea = "0.5.1"

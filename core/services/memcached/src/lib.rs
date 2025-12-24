@@ -32,8 +32,3 @@ pub use config::MemcachedConfig;
 
 /// Default scheme for memcached service.
 pub const MEMCACHED_SCHEME: &str = "memcached";
-
-#[ctor::ctor]
-fn register_memcached_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Memcached>(MEMCACHED_SCHEME);
-}

@@ -65,7 +65,6 @@ doctest = false
 anyhow = { version = "1.0.100", features = ["std"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
 http-body = "1"

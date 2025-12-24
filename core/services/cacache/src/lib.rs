@@ -31,8 +31,3 @@ pub use config::CacacheConfig;
 
 /// Default scheme for cacache service.
 pub const CACACHE_SCHEME: &str = "cacache";
-
-#[ctor::ctor]
-fn register_cacache_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Cacache>(CACACHE_SCHEME);
-}

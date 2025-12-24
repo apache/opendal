@@ -18,8 +18,6 @@
 /// Default scheme for hdfs service.
 pub const HDFS_SCHEME: &str = "hdfs";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -30,8 +28,3 @@ mod writer;
 
 pub use backend::HdfsBuilder as Hdfs;
 pub use config::HdfsConfig;
-
-#[ctor::ctor]
-fn register_hdfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Hdfs>(HDFS_SCHEME);
-}

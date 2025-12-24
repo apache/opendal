@@ -32,8 +32,3 @@ pub use config::YandexDiskConfig;
 
 /// Default scheme for yandex-disk service.
 pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
-
-#[ctor::ctor]
-fn register_yandexdisk_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<YandexDisk>(YANDEX_DISK_SCHEME);
-}

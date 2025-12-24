@@ -33,8 +33,3 @@ pub use config::CloudflareKvConfig;
 
 /// Default scheme for cloudflare-kv service.
 pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
-
-#[ctor::ctor]
-fn register_cloudflare_kv_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<CloudflareKv>(CLOUDFLARE_KV_SCHEME);
-}

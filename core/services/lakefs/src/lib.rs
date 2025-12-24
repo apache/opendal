@@ -33,8 +33,3 @@ pub use config::LakefsConfig;
 
 /// Default scheme for lakefs service.
 pub const LAKEFS_SCHEME: &str = "lakefs";
-
-#[ctor::ctor]
-fn register_lakefs_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Lakefs>(LAKEFS_SCHEME);
-}

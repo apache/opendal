@@ -19,7 +19,7 @@
 pub const SEAFILE_SCHEME: &str = "seafile";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_seafile_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Seafile>(SEAFILE_SCHEME);
 }
 

@@ -34,6 +34,6 @@ pub use config::S3Config;
 pub const S3_SCHEME: &str = "s3";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_s3_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<S3>(S3_SCHEME);
 }

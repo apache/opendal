@@ -34,6 +34,6 @@ pub use config::PcloudConfig;
 pub const PCLOUD_SCHEME: &str = "pcloud";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_pcloud_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Pcloud>(PCLOUD_SCHEME);
 }

@@ -36,6 +36,6 @@ pub use config::OnedriveConfig;
 pub const ONEDRIVE_SCHEME: &str = "onedrive";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_onedrive_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Onedrive>(ONEDRIVE_SCHEME);
 }

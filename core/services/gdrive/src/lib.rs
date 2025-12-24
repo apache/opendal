@@ -19,7 +19,7 @@
 pub const GDRIVE_SCHEME: &str = "gdrive";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_gdrive_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Gdrive>(GDRIVE_SCHEME);
 }
 

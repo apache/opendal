@@ -19,7 +19,7 @@
 pub const FTP_SCHEME: &str = "ftp";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_ftp_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Ftp>(FTP_SCHEME);
 }
 

@@ -19,7 +19,7 @@
 pub const SQLITE_SCHEME: &str = "sqlite";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_sqlite_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Sqlite>(SQLITE_SCHEME);
 }
 

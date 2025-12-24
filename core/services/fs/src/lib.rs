@@ -37,7 +37,7 @@ pub const FS_SCHEME: &str = "fs";
 pub const FILE_SCHEME: &str = "file";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_fs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Fs>(FS_SCHEME);
     registry.register::<Fs>(FILE_SCHEME);
 }

@@ -35,6 +35,6 @@ pub use config::UpyunConfig;
 pub const UPYUN_SCHEME: &str = "upyun";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_upyun_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Upyun>(UPYUN_SCHEME);
 }

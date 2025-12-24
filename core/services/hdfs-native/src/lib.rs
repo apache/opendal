@@ -19,7 +19,7 @@
 pub const HDFS_NATIVE_SCHEME: &str = "hdfs-native";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_hdfs_native_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<HdfsNative>(HDFS_NATIVE_SCHEME);
 }
 

@@ -19,7 +19,7 @@
 pub const AZDLS_SCHEME: &str = "azdls";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_azdls_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Azdls>(AZDLS_SCHEME);
 }
 

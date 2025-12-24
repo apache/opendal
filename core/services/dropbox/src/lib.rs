@@ -36,6 +36,6 @@ pub use config::DropboxConfig;
 pub const DROPBOX_SCHEME: &str = "dropbox";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_dropbox_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Dropbox>(DROPBOX_SCHEME);
 }

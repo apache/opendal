@@ -35,6 +35,6 @@ pub use config::CloudflareKvConfig;
 pub const CLOUDFLARE_KV_SCHEME: &str = "cloudflare-kv";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_cloudflare_kv_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<CloudflareKv>(CLOUDFLARE_KV_SCHEME);
 }

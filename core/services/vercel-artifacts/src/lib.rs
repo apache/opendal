@@ -21,7 +21,7 @@
 pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_vercel_artifacts_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<VercelArtifacts>(VERCEL_ARTIFACTS_SCHEME);
 }
 

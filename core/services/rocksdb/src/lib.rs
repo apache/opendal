@@ -19,7 +19,7 @@
 pub const ROCKSDB_SCHEME: &str = "rocksdb";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_rocksdb_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Rocksdb>(ROCKSDB_SCHEME);
 }
 

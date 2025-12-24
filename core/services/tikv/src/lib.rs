@@ -19,7 +19,7 @@
 pub const TIKV_SCHEME: &str = "tikv";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_tikv_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Tikv>(TIKV_SCHEME);
 }
 

@@ -35,6 +35,6 @@ pub use config::SwiftConfig;
 pub const SWIFT_SCHEME: &str = "swift";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_swift_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Swift>(SWIFT_SCHEME);
 }

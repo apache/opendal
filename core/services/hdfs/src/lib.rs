@@ -19,7 +19,7 @@
 pub const HDFS_SCHEME: &str = "hdfs";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_hdfs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Hdfs>(HDFS_SCHEME);
 }
 

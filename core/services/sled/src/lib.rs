@@ -19,7 +19,7 @@
 pub const SLED_SCHEME: &str = "sled";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_sled_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Sled>(SLED_SCHEME);
 }
 

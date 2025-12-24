@@ -34,6 +34,6 @@ pub use config::OssConfig;
 pub const OSS_SCHEME: &str = "oss";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_oss_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Oss>(OSS_SCHEME);
 }

@@ -19,7 +19,7 @@
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_huggingface_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Huggingface>(HUGGINGFACE_SCHEME);
 }
 

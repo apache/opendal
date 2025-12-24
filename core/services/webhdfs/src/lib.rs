@@ -19,7 +19,7 @@
 pub const WEBHDFS_SCHEME: &str = "webhdfs";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_webhdfs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Webhdfs>(WEBHDFS_SCHEME);
 }
 

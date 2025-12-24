@@ -23,7 +23,7 @@
 pub const B2_SCHEME: &str = "b2";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_b2_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<B2>(B2_SCHEME);
 }
 

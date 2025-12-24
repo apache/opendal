@@ -19,7 +19,7 @@
 pub const OBS_SCHEME: &str = "obs";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_obs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Obs>(OBS_SCHEME);
 }
 

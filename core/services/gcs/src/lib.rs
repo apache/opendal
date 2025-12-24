@@ -35,6 +35,6 @@ pub use config::GcsConfig;
 pub const GCS_SCHEME: &str = "gcs";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_gcs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Gcs>(GCS_SCHEME);
 }

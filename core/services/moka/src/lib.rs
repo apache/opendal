@@ -35,6 +35,6 @@ pub use core::MokaValue;
 pub const MOKA_SCHEME: &str = "moka";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_moka_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Moka>(MOKA_SCHEME);
 }

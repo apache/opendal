@@ -34,6 +34,6 @@ pub use config::D1Config;
 pub const D1_SCHEME: &str = "d1";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_d1_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<D1>(D1_SCHEME);
 }

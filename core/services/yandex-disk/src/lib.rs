@@ -34,6 +34,6 @@ pub use config::YandexDiskConfig;
 pub const YANDEX_DISK_SCHEME: &str = "yandex-disk";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_yandex_disk_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<YandexDisk>(YANDEX_DISK_SCHEME);
 }

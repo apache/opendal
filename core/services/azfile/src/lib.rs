@@ -19,7 +19,7 @@
 pub const AZFILE_SCHEME: &str = "azfile";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_azfile_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Azfile>(AZFILE_SCHEME);
 }
 

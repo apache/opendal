@@ -34,6 +34,6 @@ pub use config::MemcachedConfig;
 pub const MEMCACHED_SCHEME: &str = "memcached";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_memcached_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Memcached>(MEMCACHED_SCHEME);
 }

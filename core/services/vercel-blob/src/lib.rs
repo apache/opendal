@@ -19,7 +19,7 @@
 pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_vercel_blob_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<VercelBlob>(VERCEL_BLOB_SCHEME);
 }
 

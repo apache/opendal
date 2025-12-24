@@ -19,7 +19,7 @@
 pub const MONGODB_SCHEME: &str = "mongodb";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_mongodb_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Mongodb>(MONGODB_SCHEME);
 }
 

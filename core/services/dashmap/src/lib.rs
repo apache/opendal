@@ -34,6 +34,6 @@ pub use config::DashmapConfig;
 pub const DASHMAP_SCHEME: &str = "dashmap";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_dashmap_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Dashmap>(DASHMAP_SCHEME);
 }

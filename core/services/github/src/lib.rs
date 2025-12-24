@@ -19,7 +19,7 @@
 pub const GITHUB_SCHEME: &str = "github";
 
 /// Register this service into the given registry.
-pub fn register(registry: &opendal_core::OperatorRegistry) {
+pub fn register_github_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Github>(GITHUB_SCHEME);
 }
 

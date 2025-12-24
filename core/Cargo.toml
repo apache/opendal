@@ -86,7 +86,6 @@ default = [
   "layers-logging",
   "layers-retry",
   "layers-timeout",
-  "services-memory",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
@@ -146,6 +145,7 @@ services-ipmfs = ["dep:opendal-service-ipmfs"]
 services-koofr = ["dep:opendal-service-koofr"]
 services-lakefs = ["dep:opendal-service-lakefs"]
 services-memcached = ["dep:opendal-service-memcached"]
+# Deprecated: memory service is always enabled.
 services-memory = ["opendal-core/services-memory"]
 services-mini-moka = ["dep:opendal-service-mini-moka"]
 services-moka = ["dep:opendal-service-moka"]

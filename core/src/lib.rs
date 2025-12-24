@@ -48,7 +48,6 @@ pub fn init_default_registry() {
 }
 
 fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
-    #[cfg(feature = "services-memory")]
     opendal_core::services::register_memory_service(registry);
 
     #[cfg(feature = "services-aliyun-drive")]

@@ -27,9 +27,17 @@ pub type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;
 
 /// Default registry used by [`Operator::from_uri`].
 ///
-/// Builtin registrations are handled by the facade crate `opendal`.
-pub static DEFAULT_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> =
-    LazyLock::new(OperatorRegistry::new);
+/// `memory` is always registered here since it's used pervasively in unit tests
+/// and as a zero-dependency backend.
+///
+/// Other optional service registrations are handled by the facade crate `opendal`.
+pub static DEFAULT_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> = LazyLock::new(|| {
+    let registry = OperatorRegistry::new();
+
+    crate::services::register_memory_service(&registry);
+
+    registry
+});
 
 /// Global registry that maps schemes to [`OperatorFactory`] functions.
 #[derive(Debug, Default)]

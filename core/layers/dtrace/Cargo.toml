@@ -37,4 +37,4 @@ probe = "0.5.1"
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 opendal-core = { path = "../../core", version = "0.55.0" }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"]}
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

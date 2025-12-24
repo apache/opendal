@@ -5782,6 +5782,7 @@ dependencies = [
  "bytes",
  "opendal-core",
  "probe",
+ "tokio",
 ]
 
 [[package]]

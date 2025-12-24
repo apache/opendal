@@ -15,10 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
+//! Metrics layer (using the [prometheus-client](https://docs.rs/prometheus-client) crate) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 use opendal_core::raw::*;
-use opendal_core::*;
 use opendal_layer_observe_metrics_common as observe;
 use prometheus_client::encoding::EncodeLabel;
 use prometheus_client::encoding::EncodeLabelSet;
@@ -43,11 +45,11 @@ use prometheus_client::registry::Unit;
 ///
 /// ```no_run
 /// # use log::info;
-/// # use opendal_layer_prometheus_client::PrometheusClientLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_prometheus_client::PrometheusClientLayer;
+/// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// let mut registry = prometheus_client::registry::Registry::default();
@@ -74,7 +76,7 @@ use prometheus_client::registry::Unit;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PrometheusClientLayer {
     interceptor: PrometheusClientInterceptor,
 }
@@ -180,11 +182,11 @@ impl PrometheusClientLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_prometheus_client::PrometheusClientLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
+    /// # use opendal_layer_prometheus_client::PrometheusClientLayer;
+    /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
     /// // Pick a builder and configure it.
@@ -378,6 +380,7 @@ impl MetricConstructor<Histogram> for HistogramConstructor {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct PrometheusClientInterceptor {
     operation_bytes: Family<OperationLabels, Histogram, HistogramConstructor>,
@@ -488,7 +491,7 @@ struct OperationLabels {
 }
 
 impl EncodeLabelSet for OperationLabels {
-    fn encode(&self, encoder: &mut LabelSetEncoder<'_>) -> Result<(), fmt::Error> {
+    fn encode(&self, encoder: &mut LabelSetEncoder<'_>) -> std::fmt::Result {
         (observe::LABEL_SCHEME, self.labels.scheme).encode(encoder.encode_label())?;
         (observe::LABEL_NAMESPACE, self.labels.namespace.as_ref())
             .encode(encoder.encode_label())?;

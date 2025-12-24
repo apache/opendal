@@ -15,7 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::raw::Access;
+//! Metrics layer (using the [prometheus](https://docs.rs/prometheus) crate) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_layer_observe_metrics_common as observe;
@@ -45,8 +49,8 @@ use prometheus::register_int_gauge_vec_with_registry;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-/// # use prometheus::Encoder;
 /// # use opendal_layer_prometheus::PrometheusLayer;
+/// # use prometheus::Encoder;
 /// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
@@ -92,13 +96,14 @@ use prometheus::register_int_gauge_vec_with_registry;
 ///
 /// ```no_run
 /// # use std::sync::OnceLock;
+/// #
 /// # use log::info;
-/// # use opendal_layer_prometheus::PrometheusLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
+/// # use opendal_layer_prometheus::PrometheusLayer;
 /// # use prometheus::Encoder;
-///
+/// #
 /// fn global_prometheus_layer() -> &'static PrometheusLayer {
 ///     static GLOBAL: OnceLock<PrometheusLayer> = OnceLock::new();
 ///     GLOBAL.get_or_init(|| {
@@ -134,7 +139,7 @@ use prometheus::register_int_gauge_vec_with_registry;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PrometheusLayer {
     interceptor: PrometheusInterceptor,
 }
@@ -145,10 +150,10 @@ impl PrometheusLayer {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -260,10 +265,10 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -498,10 +503,10 @@ impl PrometheusLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
+    /// # use opendal_layer_prometheus::PrometheusLayer;
     /// #
     /// # #[tokio::main]
     /// # async fn main() -> Result<()> {
@@ -528,6 +533,7 @@ fn parse_prometheus_error(err: prometheus::Error) -> Error {
     Error::new(ErrorKind::Unexpected, err.to_string()).set_source(err)
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct PrometheusInterceptor {
     operation_bytes: HistogramVec,

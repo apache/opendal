@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Throttle layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
@@ -24,7 +29,6 @@ use governor::clock::DefaultClock;
 use governor::middleware::NoOpMiddleware;
 use governor::state::InMemoryState;
 use governor::state::NotKeyed;
-
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -49,17 +53,17 @@ use opendal_core::*;
 /// This example limits bandwidth to 10 KiB/s and burst size to 10 MiB.
 ///
 /// ```no_run
-/// # use opendal_layer_throttle::ThrottleLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_throttle::ThrottleLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())
 ///     .expect("must init")
 ///     .layer(ThrottleLayer::new(10 * 1024, 10000 * 1024))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone)]
@@ -86,12 +90,12 @@ impl ThrottleLayer {
 impl<A: Access> Layer<A> for ThrottleLayer {
     type LayeredAccess = ThrottleAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccess {
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
         let rate_limiter = Arc::new(RateLimiter::direct(
             Quota::per_second(self.bandwidth).allow_burst(self.burst),
         ));
         ThrottleAccessor {
-            inner: accessor,
+            inner,
             rate_limiter,
         }
     }
@@ -102,7 +106,8 @@ impl<A: Access> Layer<A> for ThrottleLayer {
 /// Read more about [Middleware](https://docs.rs/governor/latest/governor/middleware/index.html)
 type SharedRateLimiter = Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock, NoOpMiddleware>>;
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct ThrottleAccessor<A: Access> {
     inner: A,
     rate_limiter: SharedRateLimiter,
@@ -146,13 +151,14 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct ThrottleWrapper<R> {
     inner: R,
     limiter: SharedRateLimiter,
 }
 
 impl<R> ThrottleWrapper<R> {
-    pub fn new(inner: R, rate_limiter: SharedRateLimiter) -> Self {
+    fn new(inner: R, rate_limiter: SharedRateLimiter) -> Self {
         Self {
             inner,
             limiter: rate_limiter,

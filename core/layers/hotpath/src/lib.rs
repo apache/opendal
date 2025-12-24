@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Hotpath layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
@@ -65,13 +70,22 @@ const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 /// # async fn main() -> Result<()> {
 /// let _guard = hotpath::FunctionsGuardBuilder::new("opendal").build();
 /// let op = Operator::new(services::Memory::default())?
-///     .layer(HotpathLayer)
+///     .layer(HotpathLayer::new())
 ///     .finish();
 /// op.write("test", "hello").await?;
 /// # Ok(())
 /// # }
 /// ```
-pub struct HotpathLayer;
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct HotpathLayer {}
+
+impl HotpathLayer {
+    /// Create a new [`HotpathLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for HotpathLayer {
     type LayeredAccess = HotpathAccessor<A>;
@@ -88,6 +102,7 @@ impl<A: Access> Layer<A> for HotpathLayer {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct HotpathAccessor<A> {
     inner: A,
@@ -154,6 +169,7 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct HotpathWrapper<R> {
     inner: R,
 }
@@ -207,7 +223,7 @@ impl<R: oio::Delete> oio::Delete for HotpathWrapper<R> {
     }
 }
 
-pub struct HotpathHttpFetcher {
+struct HotpathHttpFetcher {
     inner: HttpFetcher,
 }
 
@@ -221,7 +237,7 @@ impl HttpFetch for HotpathHttpFetcher {
     }
 }
 
-pub struct HotpathStream<S> {
+struct HotpathStream<S> {
     inner: S,
 }
 

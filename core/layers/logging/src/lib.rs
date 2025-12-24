@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Logging layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -105,7 +110,7 @@ use opendal_core::*;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Clone)]
 pub struct LoggingLayer<I = DefaultLoggingInterceptor> {
     logger: I,
 }
@@ -167,7 +172,7 @@ pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
 }
 
 /// The DefaultLoggingInterceptor will log the message by the standard logging macro.
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct DefaultLoggingInterceptor;
 
 impl LoggingInterceptor for DefaultLoggingInterceptor {
@@ -229,7 +234,8 @@ impl Display for LoggingContext<'_> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct LoggingAccessor<A: Access, I: LoggingInterceptor> {
     inner: A,
 
@@ -538,6 +544,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct LoggingReader<R, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,
@@ -595,6 +602,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct LoggingWriter<W, I> {
     info: Arc<AccessorInfo>,
     logger: I,
@@ -694,6 +702,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct LoggingLister<P, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,
@@ -748,6 +757,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct LoggingDeleter<D, I: LoggingInterceptor> {
     info: Arc<AccessorInfo>,
     logger: I,

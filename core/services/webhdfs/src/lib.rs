@@ -18,6 +18,11 @@
 /// Default scheme for webhdfs service.
 pub const WEBHDFS_SCHEME: &str = "webhdfs";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Webhdfs>(WEBHDFS_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

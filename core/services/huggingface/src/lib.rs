@@ -18,6 +18,11 @@
 /// Default scheme for huggingface service.
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Huggingface>(HUGGINGFACE_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

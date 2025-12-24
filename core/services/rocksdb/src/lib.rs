@@ -18,6 +18,11 @@
 /// Default scheme for rocksdb service.
 pub const ROCKSDB_SCHEME: &str = "rocksdb";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Rocksdb>(ROCKSDB_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

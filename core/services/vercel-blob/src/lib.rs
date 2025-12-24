@@ -18,6 +18,11 @@
 /// Default scheme for vercel-blob service.
 pub const VERCEL_BLOB_SCHEME: &str = "vercel-blob";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<VercelBlob>(VERCEL_BLOB_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

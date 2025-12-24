@@ -30,3 +30,8 @@ pub use config::PersyConfig;
 
 /// Default scheme for persy service.
 pub const PERSY_SCHEME: &str = "persy";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Persy>(PERSY_SCHEME);
+}

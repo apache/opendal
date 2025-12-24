@@ -32,3 +32,8 @@ pub use config::OssConfig;
 
 /// Default scheme for oss service.
 pub const OSS_SCHEME: &str = "oss";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Oss>(OSS_SCHEME);
+}

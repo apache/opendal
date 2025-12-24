@@ -27,3 +27,8 @@ mod writer;
 
 pub use backend::MemoryBuilder as Memory;
 pub use config::MemoryConfig;
+
+/// Register this service into the given registry.
+pub fn register(registry: &crate::OperatorRegistry) {
+    registry.register::<Memory>(MEMORY_SCHEME);
+}

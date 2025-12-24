@@ -18,6 +18,11 @@
 /// Default scheme for aliyun-drive service.
 pub const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<AliyunDrive>(ALIYUN_DRIVE_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

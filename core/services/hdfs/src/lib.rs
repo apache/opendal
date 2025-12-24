@@ -18,6 +18,11 @@
 /// Default scheme for hdfs service.
 pub const HDFS_SCHEME: &str = "hdfs";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Hdfs>(HDFS_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

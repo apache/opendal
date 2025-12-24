@@ -32,3 +32,8 @@ pub use config::CompfsConfig;
 
 /// Default scheme for compfs service.
 pub const COMPFS_SCHEME: &str = "compfs";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Compfs>(COMPFS_SCHEME);
+}

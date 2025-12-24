@@ -18,6 +18,11 @@
 /// Default scheme for azfile service.
 pub const AZFILE_SCHEME: &str = "azfile";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Azfile>(AZFILE_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

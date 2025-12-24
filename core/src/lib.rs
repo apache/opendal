@@ -32,159 +32,190 @@ fn register_default_operator_registry() {
     let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
 
     #[cfg(feature = "services-memory")]
-    registry.register::<opendal_core::services::Memory>(opendal_core::services::MEMORY_SCHEME);
+    opendal_core::services::register(registry);
 
     #[cfg(feature = "services-aliyun-drive")]
-    registry.register::<opendal_service_aliyun_drive::AliyunDrive>(
-        opendal_service_aliyun_drive::ALIYUN_DRIVE_SCHEME,
-    );
+    opendal_service_aliyun_drive::register(registry);
+
     #[cfg(feature = "services-alluxio")]
-    registry.register::<opendal_service_alluxio::Alluxio>(opendal_service_alluxio::ALLUXIO_SCHEME);
+    opendal_service_alluxio::register(registry);
+
     #[cfg(feature = "services-azblob")]
-    registry.register::<opendal_service_azblob::Azblob>(opendal_service_azblob::AZBLOB_SCHEME);
+    opendal_service_azblob::register(registry);
+
     #[cfg(feature = "services-azdls")]
-    registry.register::<opendal_service_azdls::Azdls>(opendal_service_azdls::AZDLS_SCHEME);
+    opendal_service_azdls::register(registry);
+
     #[cfg(feature = "services-azfile")]
-    registry.register::<opendal_service_azfile::Azfile>(opendal_service_azfile::AZFILE_SCHEME);
+    opendal_service_azfile::register(registry);
+
     #[cfg(feature = "services-b2")]
-    registry.register::<opendal_service_b2::B2>(opendal_service_b2::B2_SCHEME);
+    opendal_service_b2::register(registry);
+
     #[cfg(feature = "services-cacache")]
-    registry.register::<opendal_service_cacache::Cacache>(opendal_service_cacache::CACACHE_SCHEME);
+    opendal_service_cacache::register(registry);
+
     #[cfg(feature = "services-cloudflare-kv")]
-    registry.register::<opendal_service_cloudflare_kv::CloudflareKv>(
-        opendal_service_cloudflare_kv::CLOUDFLARE_KV_SCHEME,
-    );
+    opendal_service_cloudflare_kv::register(registry);
+
     #[cfg(feature = "services-compfs")]
-    registry.register::<opendal_service_compfs::Compfs>(opendal_service_compfs::COMPFS_SCHEME);
+    opendal_service_compfs::register(registry);
+
     #[cfg(feature = "services-cos")]
-    registry.register::<opendal_service_cos::Cos>(opendal_service_cos::COS_SCHEME);
+    opendal_service_cos::register(registry);
+
     #[cfg(feature = "services-d1")]
-    registry.register::<opendal_service_d1::D1>(opendal_service_d1::D1_SCHEME);
+    opendal_service_d1::register(registry);
+
     #[cfg(feature = "services-dashmap")]
-    registry.register::<opendal_service_dashmap::Dashmap>(opendal_service_dashmap::DASHMAP_SCHEME);
+    opendal_service_dashmap::register(registry);
+
     #[cfg(feature = "services-dbfs")]
-    registry.register::<opendal_service_dbfs::Dbfs>(opendal_service_dbfs::DBFS_SCHEME);
+    opendal_service_dbfs::register(registry);
+
     #[cfg(feature = "services-dropbox")]
-    registry.register::<opendal_service_dropbox::Dropbox>(opendal_service_dropbox::DROPBOX_SCHEME);
+    opendal_service_dropbox::register(registry);
+
     #[cfg(feature = "services-etcd")]
-    registry.register::<opendal_service_etcd::Etcd>(opendal_service_etcd::ETCD_SCHEME);
+    opendal_service_etcd::register(registry);
+
     #[cfg(feature = "services-foundationdb")]
-    registry.register::<opendal_service_foundationdb::Foundationdb>(
-        opendal_service_foundationdb::FOUNDATIONDB_SCHEME,
-    );
+    opendal_service_foundationdb::register(registry);
+
     #[cfg(feature = "services-fs")]
-    {
-        registry.register::<opendal_service_fs::Fs>(opendal_service_fs::FS_SCHEME);
-        registry.register::<opendal_service_fs::Fs>(opendal_service_fs::FILE_SCHEME);
-    }
+    opendal_service_fs::register(registry);
+
     #[cfg(feature = "services-ftp")]
-    registry.register::<opendal_service_ftp::Ftp>(opendal_service_ftp::FTP_SCHEME);
+    opendal_service_ftp::register(registry);
+
     #[cfg(feature = "services-gcs")]
-    registry.register::<opendal_service_gcs::Gcs>(opendal_service_gcs::GCS_SCHEME);
+    opendal_service_gcs::register(registry);
+
     #[cfg(feature = "services-gdrive")]
-    registry.register::<opendal_service_gdrive::Gdrive>(opendal_service_gdrive::GDRIVE_SCHEME);
+    opendal_service_gdrive::register(registry);
+
     #[cfg(feature = "services-ghac")]
-    registry.register::<opendal_service_ghac::Ghac>(opendal_service_ghac::GHAC_SCHEME);
+    opendal_service_ghac::register(registry);
+
     #[cfg(feature = "services-github")]
-    registry.register::<opendal_service_github::Github>(opendal_service_github::GITHUB_SCHEME);
+    opendal_service_github::register(registry);
+
     #[cfg(feature = "services-gridfs")]
-    registry.register::<opendal_service_gridfs::Gridfs>(opendal_service_gridfs::GRIDFS_SCHEME);
+    opendal_service_gridfs::register(registry);
+
     #[cfg(feature = "services-hdfs")]
-    registry.register::<opendal_service_hdfs::Hdfs>(opendal_service_hdfs::HDFS_SCHEME);
+    opendal_service_hdfs::register(registry);
+
     #[cfg(feature = "services-hdfs-native")]
-    registry.register::<opendal_service_hdfs_native::HdfsNative>(
-        opendal_service_hdfs_native::HDFS_NATIVE_SCHEME,
-    );
+    opendal_service_hdfs_native::register(registry);
+
     #[cfg(feature = "services-http")]
-    registry.register::<opendal_service_http::Http>(opendal_service_http::HTTP_SCHEME);
+    opendal_service_http::register(registry);
+
     #[cfg(feature = "services-huggingface")]
-    registry.register::<opendal_service_huggingface::Huggingface>(
-        opendal_service_huggingface::HUGGINGFACE_SCHEME,
-    );
+    opendal_service_huggingface::register(registry);
+
     #[cfg(feature = "services-ipfs")]
-    registry.register::<opendal_service_ipfs::Ipfs>(opendal_service_ipfs::IPFS_SCHEME);
+    opendal_service_ipfs::register(registry);
+
     #[cfg(feature = "services-ipmfs")]
-    registry.register::<opendal_service_ipmfs::Ipmfs>(opendal_service_ipmfs::IPMFS_SCHEME);
+    opendal_service_ipmfs::register(registry);
+
     #[cfg(feature = "services-koofr")]
-    registry.register::<opendal_service_koofr::Koofr>(opendal_service_koofr::KOOFR_SCHEME);
+    opendal_service_koofr::register(registry);
+
     #[cfg(feature = "services-lakefs")]
-    registry.register::<opendal_service_lakefs::Lakefs>(opendal_service_lakefs::LAKEFS_SCHEME);
+    opendal_service_lakefs::register(registry);
+
     #[cfg(feature = "services-memcached")]
-    registry.register::<opendal_service_memcached::Memcached>(
-        opendal_service_memcached::MEMCACHED_SCHEME,
-    );
+    opendal_service_memcached::register(registry);
+
     #[cfg(feature = "services-mini-moka")]
-    registry.register::<opendal_service_mini_moka::MiniMoka>(
-        opendal_service_mini_moka::MINI_MOKA_SCHEME,
-    );
+    opendal_service_mini_moka::register(registry);
+
     #[cfg(feature = "services-moka")]
-    registry.register::<opendal_service_moka::Moka>(opendal_service_moka::MOKA_SCHEME);
+    opendal_service_moka::register(registry);
+
     #[cfg(feature = "services-mongodb")]
-    registry.register::<opendal_service_mongodb::Mongodb>(opendal_service_mongodb::MONGODB_SCHEME);
+    opendal_service_mongodb::register(registry);
+
     #[cfg(feature = "services-monoiofs")]
-    registry
-        .register::<opendal_service_monoiofs::Monoiofs>(opendal_service_monoiofs::MONOIOFS_SCHEME);
+    opendal_service_monoiofs::register(registry);
+
     #[cfg(feature = "services-mysql")]
-    registry.register::<opendal_service_mysql::Mysql>(opendal_service_mysql::MYSQL_SCHEME);
+    opendal_service_mysql::register(registry);
+
     #[cfg(feature = "services-obs")]
-    registry.register::<opendal_service_obs::Obs>(opendal_service_obs::OBS_SCHEME);
+    opendal_service_obs::register(registry);
+
     #[cfg(feature = "services-onedrive")]
-    registry
-        .register::<opendal_service_onedrive::Onedrive>(opendal_service_onedrive::ONEDRIVE_SCHEME);
-    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
-    registry.register::<opendal_service_opfs::Opfs>(opendal_service_opfs::OPFS_SCHEME);
+    opendal_service_onedrive::register(registry);
+
     #[cfg(feature = "services-oss")]
-    registry.register::<opendal_service_oss::Oss>(opendal_service_oss::OSS_SCHEME);
+    opendal_service_oss::register(registry);
+
     #[cfg(feature = "services-pcloud")]
-    registry.register::<opendal_service_pcloud::Pcloud>(opendal_service_pcloud::PCLOUD_SCHEME);
+    opendal_service_pcloud::register(registry);
+
     #[cfg(feature = "services-persy")]
-    registry.register::<opendal_service_persy::Persy>(opendal_service_persy::PERSY_SCHEME);
+    opendal_service_persy::register(registry);
+
     #[cfg(feature = "services-postgresql")]
-    registry.register::<opendal_service_postgresql::Postgresql>(
-        opendal_service_postgresql::POSTGRESQL_SCHEME,
-    );
+    opendal_service_postgresql::register(registry);
+
     #[cfg(feature = "services-redb")]
-    registry.register::<opendal_service_redb::Redb>(opendal_service_redb::REDB_SCHEME);
-    #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
-    registry.register::<opendal_service_redis::Redis>(opendal_service_redis::REDIS_SCHEME);
+    opendal_service_redb::register(registry);
+
     #[cfg(feature = "services-rocksdb")]
-    registry.register::<opendal_service_rocksdb::Rocksdb>(opendal_service_rocksdb::ROCKSDB_SCHEME);
+    opendal_service_rocksdb::register(registry);
+
     #[cfg(feature = "services-s3")]
-    registry.register::<opendal_service_s3::S3>(opendal_service_s3::S3_SCHEME);
+    opendal_service_s3::register(registry);
+
     #[cfg(feature = "services-seafile")]
-    registry.register::<opendal_service_seafile::Seafile>(opendal_service_seafile::SEAFILE_SCHEME);
+    opendal_service_seafile::register(registry);
+
     #[cfg(feature = "services-sftp")]
-    registry.register::<opendal_service_sftp::Sftp>(opendal_service_sftp::SFTP_SCHEME);
+    opendal_service_sftp::register(registry);
+
     #[cfg(feature = "services-sled")]
-    registry.register::<opendal_service_sled::Sled>(opendal_service_sled::SLED_SCHEME);
+    opendal_service_sled::register(registry);
+
     #[cfg(feature = "services-sqlite")]
-    registry.register::<opendal_service_sqlite::Sqlite>(opendal_service_sqlite::SQLITE_SCHEME);
+    opendal_service_sqlite::register(registry);
+
     #[cfg(feature = "services-surrealdb")]
-    registry.register::<opendal_service_surrealdb::Surrealdb>(
-        opendal_service_surrealdb::SURREALDB_SCHEME,
-    );
+    opendal_service_surrealdb::register(registry);
+
     #[cfg(feature = "services-swift")]
-    registry.register::<opendal_service_swift::Swift>(opendal_service_swift::SWIFT_SCHEME);
+    opendal_service_swift::register(registry);
+
     #[cfg(feature = "services-tikv")]
-    registry.register::<opendal_service_tikv::Tikv>(opendal_service_tikv::TIKV_SCHEME);
+    opendal_service_tikv::register(registry);
+
     #[cfg(feature = "services-upyun")]
-    registry.register::<opendal_service_upyun::Upyun>(opendal_service_upyun::UPYUN_SCHEME);
+    opendal_service_upyun::register(registry);
+
     #[cfg(feature = "services-vercel-artifacts")]
-    registry.register::<opendal_service_vercel_artifacts::VercelArtifacts>(
-        opendal_service_vercel_artifacts::VERCEL_ARTIFACTS_SCHEME,
-    );
+    opendal_service_vercel_artifacts::register(registry);
+
     #[cfg(feature = "services-vercel-blob")]
-    registry.register::<opendal_service_vercel_blob::VercelBlob>(
-        opendal_service_vercel_blob::VERCEL_BLOB_SCHEME,
-    );
+    opendal_service_vercel_blob::register(registry);
+
     #[cfg(feature = "services-webdav")]
-    registry.register::<opendal_service_webdav::Webdav>(opendal_service_webdav::WEBDAV_SCHEME);
+    opendal_service_webdav::register(registry);
+
     #[cfg(feature = "services-webhdfs")]
-    registry.register::<opendal_service_webhdfs::Webhdfs>(opendal_service_webhdfs::WEBHDFS_SCHEME);
+    opendal_service_webhdfs::register(registry);
+
     #[cfg(feature = "services-yandex-disk")]
-    registry.register::<opendal_service_yandex_disk::YandexDisk>(
-        opendal_service_yandex_disk::YANDEX_DISK_SCHEME,
-    );
+    opendal_service_yandex_disk::register(registry);
+
+    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
+    opendal_service_opfs::register(registry);
+
+    #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
+    opendal_service_redis::register(registry);
 }
 
 /// Re-export of service implementations.

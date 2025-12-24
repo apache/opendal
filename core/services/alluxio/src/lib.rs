@@ -18,6 +18,11 @@
 /// Default scheme for alluxio service.
 pub const ALLUXIO_SCHEME: &str = "alluxio";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Alluxio>(ALLUXIO_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

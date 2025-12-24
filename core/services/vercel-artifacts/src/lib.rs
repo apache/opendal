@@ -20,6 +20,11 @@
 /// Default scheme for vercel-artifacts service.
 pub const VERCEL_ARTIFACTS_SCHEME: &str = "vercel-artifacts";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<VercelArtifacts>(VERCEL_ARTIFACTS_SCHEME);
+}
+
 mod backend;
 mod builder;
 mod config;

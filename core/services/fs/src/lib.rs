@@ -35,3 +35,9 @@ pub use config::FsConfig;
 pub const FS_SCHEME: &str = "fs";
 /// Alias scheme for fs service that follows the standard URI scheme.
 pub const FILE_SCHEME: &str = "file";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Fs>(FS_SCHEME);
+    registry.register::<Fs>(FILE_SCHEME);
+}

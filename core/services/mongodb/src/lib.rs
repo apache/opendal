@@ -18,6 +18,11 @@
 /// Default scheme for mongodb service.
 pub const MONGODB_SCHEME: &str = "mongodb";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Mongodb>(MONGODB_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

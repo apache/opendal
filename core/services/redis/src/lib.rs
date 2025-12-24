@@ -31,3 +31,8 @@ pub use config::RedisConfig;
 
 /// Default scheme for redis service.
 pub const REDIS_SCHEME: &str = "redis";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Redis>(REDIS_SCHEME);
+}

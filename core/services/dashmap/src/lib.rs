@@ -32,3 +32,8 @@ pub use config::DashmapConfig;
 
 /// Default scheme for dashmap service.
 pub const DASHMAP_SCHEME: &str = "dashmap";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Dashmap>(DASHMAP_SCHEME);
+}

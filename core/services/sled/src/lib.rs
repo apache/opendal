@@ -18,6 +18,11 @@
 /// Default scheme for sled service.
 pub const SLED_SCHEME: &str = "sled";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Sled>(SLED_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

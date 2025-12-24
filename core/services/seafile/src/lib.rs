@@ -18,6 +18,11 @@
 /// Default scheme for seafile service.
 pub const SEAFILE_SCHEME: &str = "seafile";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Seafile>(SEAFILE_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

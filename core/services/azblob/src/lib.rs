@@ -18,6 +18,11 @@
 /// Default scheme for azblob service.
 pub const AZBLOB_SCHEME: &str = "azblob";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Azblob>(AZBLOB_SCHEME);
+}
+
 mod backend;
 mod config;
 pub mod core;

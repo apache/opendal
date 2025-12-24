@@ -31,3 +31,8 @@ pub use config::CacacheConfig;
 
 /// Default scheme for cacache service.
 pub const CACACHE_SCHEME: &str = "cacache";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Cacache>(CACACHE_SCHEME);
+}

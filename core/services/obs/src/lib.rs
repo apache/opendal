@@ -18,6 +18,11 @@
 /// Default scheme for obs service.
 pub const OBS_SCHEME: &str = "obs";
 
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Obs>(OBS_SCHEME);
+}
+
 mod backend;
 mod config;
 mod core;

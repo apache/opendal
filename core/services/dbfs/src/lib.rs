@@ -33,3 +33,8 @@ pub use config::DbfsConfig;
 
 /// Default scheme for dbfs service.
 pub const DBFS_SCHEME: &str = "dbfs";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Dbfs>(DBFS_SCHEME);
+}

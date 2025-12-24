@@ -31,3 +31,8 @@ pub use config::FoundationdbConfig;
 
 /// Default scheme for foundationdb service.
 pub const FOUNDATIONDB_SCHEME: &str = "foundationdb";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Foundationdb>(FOUNDATIONDB_SCHEME);
+}

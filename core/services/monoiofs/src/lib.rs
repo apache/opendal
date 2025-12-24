@@ -32,3 +32,8 @@ pub use config::MonoiofsConfig;
 
 /// Default scheme for monoiofs service.
 pub const MONOIOFS_SCHEME: &str = "monoiofs";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Monoiofs>(MONOIOFS_SCHEME);
+}

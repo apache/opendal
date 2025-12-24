@@ -29,3 +29,8 @@ pub use config::HttpConfig;
 
 /// Default scheme for http service.
 pub const HTTP_SCHEME: &str = "http";
+
+/// Register this service into the given registry.
+pub fn register(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Http>(HTTP_SCHEME);
+}

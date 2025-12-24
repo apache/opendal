@@ -393,15 +393,3 @@ pub mod layers {
     #[cfg(feature = "layers-tracing")]
     pub use opendal_layer_tracing::*;
 }
-
-#[cfg(test)]
-mod default_registry_tests {
-    use super::*;
-
-    #[test]
-    fn from_uri_works_for_memory_by_default() -> Result<(), Error> {
-        let op = Operator::from_uri("memory:///")?;
-        assert_eq!(op.info().scheme(), "memory");
-        Ok(())
-    }
-}

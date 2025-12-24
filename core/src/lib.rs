@@ -27,10 +27,27 @@ pub use opendal_core::*;
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
-#[ctor::ctor]
-fn register_default_operator_registry() {
-    let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
+static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
 
+/// Initialize [`DEFAULT_OPERATOR_REGISTRY`] with enabled services.
+///
+/// This function is safe to call multiple times and will only perform
+/// initialization once.
+///
+/// # Notes
+///
+/// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
+/// initializers may not be executed due to linker behavior. Those bindings
+/// should call this function explicitly before using `Operator::from_uri` or
+/// `Operator::via_iter`.
+pub fn init_default_registry() {
+    DEFAULT_REGISTRY_INIT.call_once(|| {
+        let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
+        init_default_registry_inner(registry);
+    });
+}
+
+fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-memory")]
     opendal_core::services::register_memory_service(registry);
 
@@ -216,6 +233,11 @@ fn register_default_operator_registry() {
 
     #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
     opendal_service_redis::register_redis_service(registry);
+}
+
+#[ctor::ctor]
+fn register_default_operator_registry() {
+    init_default_registry();
 }
 
 /// Re-export of service implementations.

@@ -22,7 +22,10 @@
 /// Default scheme for b2 service.
 pub const B2_SCHEME: &str = "b2";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_b2_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<B2>(B2_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -34,8 +37,3 @@ mod writer;
 
 pub use backend::B2Builder as B2;
 pub use config::B2Config;
-
-#[ctor::ctor]
-fn register_b2_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<B2>(B2_SCHEME);
-}

@@ -3852,6 +3852,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hotpath"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daa7e73e5b9dd467b2cbe7cc50ba224cd43bfcc0a618fd75f4adc32cf3a95d66"
+dependencies = [
+ "hotpath-macros",
+]
+
+[[package]]
+name = "hotpath-macros"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4aca1659ca1e70edc8f96de48530a104bec11a267f663625098137bfd072d601"
+
+[[package]]
 name = "html5ever"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5524,11 +5539,8 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "criterion",
+ "ctor",
  "divan",
- "dotenvy",
- "fastrace",
- "fastrace-jaeger",
  "futures",
  "http 1.4.0",
  "libtest-mimic",
@@ -5538,8 +5550,11 @@ dependencies = [
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
+ "opendal-layer-concurrent-limit",
+ "opendal-layer-dtrace",
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
+ "opendal-layer-hotpath",
  "opendal-layer-immutable-index",
  "opendal-layer-logging",
  "opendal-layer-metrics",
@@ -5576,6 +5591,7 @@ dependencies = [
  "opendal-service-gdrive",
  "opendal-service-ghac",
  "opendal-service-github",
+ "opendal-service-gridfs",
  "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-http",
@@ -5587,6 +5603,8 @@ dependencies = [
  "opendal-service-memcached",
  "opendal-service-mini-moka",
  "opendal-service-moka",
+ "opendal-service-mongodb",
+ "opendal-service-monoiofs",
  "opendal-service-mysql",
  "opendal-service-obs",
  "opendal-service-onedrive",
@@ -5596,29 +5614,28 @@ dependencies = [
  "opendal-service-persy",
  "opendal-service-postgresql",
  "opendal-service-redb",
+ "opendal-service-redis",
+ "opendal-service-rocksdb",
  "opendal-service-s3",
  "opendal-service-seafile",
+ "opendal-service-sftp",
  "opendal-service-sled",
  "opendal-service-sqlite",
  "opendal-service-surrealdb",
  "opendal-service-swift",
  "opendal-service-tikv",
  "opendal-service-upyun",
+ "opendal-service-vercel-artifacts",
  "opendal-service-vercel-blob",
  "opendal-service-webdav",
  "opendal-service-webhdfs",
  "opendal-service-yandex-disk",
  "opendal-testkit",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "pretty_assertions",
  "rand 0.8.5",
  "reqwest",
  "sha2",
  "size",
  "tokio",
- "tracing-opentelemetry",
  "tracing-subscriber",
  "uuid",
 ]
@@ -5654,14 +5671,9 @@ name = "opendal-core"
 version = "0.55.0"
 dependencies = [
  "anyhow",
- "backon",
  "base64 0.22.1",
  "bytes",
- "ctor",
- "fastpool",
- "flume",
  "futures",
- "getrandom 0.2.16",
  "http 1.4.0",
  "http-body 1.0.1",
  "jiff",
@@ -5669,20 +5681,11 @@ dependencies = [
  "md-5",
  "mea",
  "moka",
- "mongodb",
- "mongodb-internal-macros",
- "monoio",
- "openssh",
- "openssh-sftp-client",
  "percent-encoding",
  "pretty_assertions",
- "probe",
  "quick-xml",
  "rand 0.8.5",
- "redis",
- "reqsign",
  "reqwest",
- "rocksdb",
  "serde",
  "serde_json",
  "sha2",
@@ -5763,6 +5766,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-layer-concurrent-limit"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "http 1.4.0",
+ "mea",
+ "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-dtrace"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "opendal-core",
+ "probe",
+]
+
+[[package]]
 name = "opendal-layer-fastmetrics"
 version = "0.55.0"
 dependencies = [
@@ -5781,6 +5803,17 @@ dependencies = [
  "dotenvy",
  "fastrace",
  "fastrace-jaeger",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-hotpath"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "hotpath",
+ "http 1.4.0",
  "opendal-core",
  "tokio",
 ]
@@ -5935,7 +5968,6 @@ name = "opendal-service-aliyun-drive"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -5950,7 +5982,6 @@ name = "opendal-service-alluxio"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5965,7 +5996,6 @@ version = "0.55.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -5985,7 +6015,6 @@ name = "opendal-service-azdls"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6002,7 +6031,6 @@ name = "opendal-service-azfile"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6027,7 +6055,6 @@ name = "opendal-service-b2"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6043,7 +6070,6 @@ version = "0.55.0"
 dependencies = [
  "bytes",
  "cacache",
- "ctor",
  "opendal-core",
  "serde",
  "tokio",
@@ -6054,7 +6080,6 @@ name = "opendal-service-cloudflare-kv"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "opendal-core",
  "serde",
@@ -6067,7 +6092,6 @@ version = "0.55.0"
 dependencies = [
  "bytes",
  "compio",
- "ctor",
  "opendal-core",
  "rand 0.8.5",
  "serde",
@@ -6078,7 +6102,6 @@ name = "opendal-service-cos"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6094,7 +6117,6 @@ name = "opendal-service-d1"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "opendal-core",
  "serde",
@@ -6106,7 +6128,6 @@ dependencies = [
 name = "opendal-service-dashmap"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "dashmap 6.1.0",
  "log",
  "opendal-core",
@@ -6120,7 +6141,6 @@ version = "0.55.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6134,7 +6154,6 @@ name = "opendal-service-dropbox"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "mea",
  "opendal-core",
@@ -6147,7 +6166,6 @@ dependencies = [
 name = "opendal-service-etcd"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "etcd-client",
  "fastpool",
  "opendal-core",
@@ -6159,7 +6177,6 @@ dependencies = [
 name = "opendal-service-foundationdb"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "foundationdb",
  "opendal-core",
  "serde",
@@ -6171,7 +6188,6 @@ name = "opendal-service-fs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "log",
  "opendal-core",
  "serde",
@@ -6184,7 +6200,6 @@ name = "opendal-service-ftp"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "fastpool",
  "futures",
  "futures-rustls",
@@ -6203,7 +6218,6 @@ version = "0.55.0"
 dependencies = [
  "backon",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6221,7 +6235,6 @@ name = "opendal-service-gdrive"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6236,7 +6249,6 @@ name = "opendal-service-ghac"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "ghac",
  "http 1.4.0",
  "log",
@@ -6256,7 +6268,6 @@ version = "0.55.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6266,11 +6277,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-gridfs"
+version = "0.55.0"
+dependencies = [
+ "futures",
+ "mea",
+ "mongodb",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-hdfs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "futures",
  "hdrs",
  "log",
@@ -6284,7 +6306,6 @@ name = "opendal-service-hdfs-native"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "futures",
  "hdfs-native",
  "log",
@@ -6296,7 +6317,6 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6309,7 +6329,6 @@ name = "opendal-service-huggingface"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "futures",
  "http 1.4.0",
  "log",
@@ -6325,7 +6344,6 @@ name = "opendal-service-ipfs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6339,7 +6357,6 @@ name = "opendal-service-ipmfs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6353,7 +6370,6 @@ name = "opendal-service-koofr"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6368,7 +6384,6 @@ name = "opendal-service-lakefs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6381,7 +6396,6 @@ dependencies = [
 name = "opendal-service-memcached"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "fastpool",
  "http 1.4.0",
  "opendal-core",
@@ -6393,7 +6407,6 @@ dependencies = [
 name = "opendal-service-mini-moka"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "log",
  "mini-moka",
  "opendal-core",
@@ -6404,9 +6417,33 @@ dependencies = [
 name = "opendal-service-moka"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "log",
  "moka",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-mongodb"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "mea",
+ "mongodb",
+ "opendal-core",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-monoiofs"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "flume",
+ "futures",
+ "monoio",
  "opendal-core",
  "serde",
  "tokio",
@@ -6416,7 +6453,6 @@ dependencies = [
 name = "opendal-service-mysql"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
@@ -6429,7 +6465,6 @@ name = "opendal-service-obs"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6444,7 +6479,6 @@ name = "opendal-service-onedrive"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6458,7 +6492,6 @@ dependencies = [
 name = "opendal-service-opfs"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "js-sys",
  "opendal-core",
  "serde",
@@ -6472,7 +6505,6 @@ name = "opendal-service-oss"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6488,7 +6520,6 @@ name = "opendal-service-pcloud"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6501,7 +6532,6 @@ dependencies = [
 name = "opendal-service-persy"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "opendal-core",
  "persy",
  "serde",
@@ -6512,7 +6542,6 @@ dependencies = [
 name = "opendal-service-postgresql"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
@@ -6524,9 +6553,31 @@ dependencies = [
 name = "opendal-service-redb"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "opendal-core",
  "redb",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-redis"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "fastpool",
+ "http 1.4.0",
+ "opendal-core",
+ "redis",
+ "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-rocksdb"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "rocksdb",
  "serde",
  "tokio",
 ]
@@ -6538,7 +6589,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "crc32c",
- "ctor",
  "http 1.4.0",
  "log",
  "md-5",
@@ -6561,7 +6611,6 @@ name = "opendal-service-seafile"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6572,10 +6621,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-sftp"
+version = "0.55.0"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "fastpool",
+ "futures",
+ "log",
+ "opendal-core",
+ "openssh",
+ "openssh-sftp-client",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-sled"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "opendal-core",
  "serde",
  "sled",
@@ -6586,7 +6650,6 @@ dependencies = [
 name = "opendal-service-sqlite"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
@@ -6598,7 +6661,6 @@ dependencies = [
 name = "opendal-service-surrealdb"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
@@ -6611,7 +6673,6 @@ name = "opendal-service-swift"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6625,7 +6686,6 @@ dependencies = [
 name = "opendal-service-tikv"
 version = "0.55.0"
 dependencies = [
- "ctor",
  "mea",
  "opendal-core",
  "serde",
@@ -6639,7 +6699,6 @@ version = "0.55.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "ctor",
  "hmac",
  "http 1.4.0",
  "log",
@@ -6658,7 +6717,6 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6672,7 +6730,6 @@ name = "opendal-service-vercel-blob"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -6688,7 +6745,6 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6704,7 +6760,6 @@ version = "0.55.0"
 dependencies = [
  "anyhow",
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "mea",
@@ -6720,7 +6775,6 @@ name = "opendal-service-yandex-disk"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "ctor",
  "http 1.4.0",
  "log",
  "opendal-core",

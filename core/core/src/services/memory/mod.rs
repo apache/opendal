@@ -18,8 +18,6 @@
 /// Default scheme for memory service.
 pub const MEMORY_SCHEME: &str = "memory";
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
-
 mod backend;
 mod config;
 mod core;
@@ -30,7 +28,7 @@ mod writer;
 pub use backend::MemoryBuilder as Memory;
 pub use config::MemoryConfig;
 
-#[ctor::ctor]
-fn register_memory_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Memory>(MEMORY_SCHEME);
+/// Register this service into the given registry.
+pub fn register_memory_service(registry: &crate::OperatorRegistry) {
+    registry.register::<Memory>(MEMORY_SCHEME);
 }

@@ -129,7 +129,7 @@ pub(crate) fn make_tokio_executor(env: &mut JNIEnv, cores: usize) -> Result<Exec
             move || {
                 ENV.with(|cell| {
                     let mut env = vm
-                        .attach_current_thread_permanently()
+                        .attach_current_thread_as_daemon()
                         .expect("attach thread must succeed");
 
                     set_current_thread_name(&mut env)

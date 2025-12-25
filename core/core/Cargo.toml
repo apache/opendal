@@ -37,7 +37,7 @@ unused_async = "warn"
 all-features = true
 
 [features]
-default = ["reqwest-rustls-tls", "executors-tokio", "services-memory"]
+default = ["reqwest-rustls-tls", "executors-tokio"]
 
 # Enable reqwest rustls tls support.
 reqwest-rustls-tls = ["reqwest/rustls-tls"]
@@ -54,21 +54,8 @@ internal-tokio-rt = ["tokio/rt-multi-thread"]
 # Enable tokio executors support.
 executors-tokio = ["tokio/rt"]
 
-# Enable dtrace support.
-layers-dtrace = ["dep:probe"]
-
-services-gridfs = ["dep:mongodb", "dep:mongodb-internal-macros"]
-services-ipmfs = []
-services-lakefs = []
+# Deprecated: memory service is always enabled.
 services-memory = []
-services-mongodb = ["dep:mongodb", "dep:mongodb-internal-macros"]
-services-monoiofs = ["dep:monoio", "dep:flume"]
-services-redis = ["dep:redis", "dep:fastpool", "redis?/tokio-rustls-comp"]
-services-redis-native-tls = ["services-redis", "redis?/tokio-native-tls-comp"]
-services-rocksdb = ["dep:rocksdb", "internal-tokio-rt"]
-services-sftp = ["dep:openssh", "dep:openssh-sftp-client", "dep:fastpool"]
-services-vercel-artifacts = []
-services-webhdfs = []
 
 [lib]
 bench = false
@@ -79,7 +66,6 @@ doctest = false
 anyhow = { version = "1.0.100", features = ["std"] }
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
 http-body = "1"
@@ -99,50 +85,9 @@ url = "2.5"
 uuid = { workspace = true, features = ["serde", "v4"] }
 
 # Optional dependencies
-
-# Services
-# general dependencies.
-fastpool = { version = "1.0.2", optional = true }
-sha2 = { workspace = true, optional = true }
-
-# For http based services.
-reqsign = { workspace = true, features = ["reqwest_request"], optional = true }
-
-# for services-moka
-moka = { version = "0.12", optional = true, features = ["future", "sync"] }
-# for services-mongodb
-mongodb = { version = "3.3.0", optional = true }
-mongodb-internal-macros = { version = "3.2.4", optional = true }
-# for services-sftp
-openssh = { version = "0.11.0", optional = true }
-openssh-sftp-client = { version = "0.15.3", optional = true, features = [
-  "openssh",
-  "tracing",
-] }
-# for services-redis
-redis = { version = "1.0", features = [
-  "cluster-async",
-  "tokio-comp",
-  "connection-manager",
-], optional = true }
-# for services-rocksdb
-rocksdb = { version = "0.21.0", default-features = false, optional = true }
-# for services-monoiofs
-flume = { version = "0.11", optional = true }
-monoio = { version = "0.2.4", optional = true, features = [
-  "sync",
-  "mkdirat",
-  "unlinkat",
-  "renameat",
-] }
-
-# Layers
-# for layers-dtrace
-probe = { version = "0.5.1", optional = true }
+moka = { version = "0.12", optional = true, features = ["sync"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-backon = { version = "1.6", features = ["gloo-timers-sleep"] }
-getrandom = { version = "0.2", features = ["js"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }

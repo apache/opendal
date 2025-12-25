@@ -19,8 +19,8 @@
 
 package org.apache.opendal;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.util.Objects;
 
 public class OperatorInputStream extends InputStream {
     private static class Reader extends NativeObject {
@@ -45,7 +45,7 @@ public class OperatorInputStream extends InputStream {
     }
 
     @Override
-    public int read() throws IOException {
+    public int read() {
         if (bytes != null && offset >= bytes.length) {
             bytes = readNextBytes(reader.nativeHandle);
             offset = 0;
@@ -59,7 +59,43 @@ public class OperatorInputStream extends InputStream {
     }
 
     @Override
-    public void close() throws IOException {
+    public int read(byte[] b, int off, int len) {
+        Objects.requireNonNull(b);
+        if ((b.length | off | len) < 0 || len > b.length - off) {
+            // Objects.checkFromIndexSize has only been available since Java 9
+            throw new IndexOutOfBoundsException(
+                    String.format("Range [%s, %<s + %s) out of bounds for length %s", off, len, b.length));
+        }
+
+        int read = 0;
+        while (len > 0) {
+            if (bytes != null && offset >= bytes.length) {
+                bytes = readNextBytes(reader.nativeHandle);
+                offset = 0;
+            }
+
+            if (bytes == null) {
+                return read != 0 ? read : -1;
+            }
+
+            final int n = Math.min(len, bytes.length - offset);
+            System.arraycopy(bytes, offset, b, off, n);
+            offset += n;
+            off += n;
+            read += n;
+            len -= n;
+        }
+
+        if (bytes != null && offset >= bytes.length) {
+            bytes = readNextBytes(reader.nativeHandle);
+            offset = 0;
+        }
+
+        return bytes != null ? read : (read != 0 ? read : -1);
+    }
+
+    @Override
+    public void close() {
         reader.close();
     }
 

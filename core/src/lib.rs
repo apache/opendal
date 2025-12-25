@@ -25,7 +25,219 @@
 pub use opendal_core::*;
 
 #[cfg(feature = "tests")]
-pub use opendal_testkit as tests;
+pub extern crate opendal_testkit as tests;
+
+static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
+
+/// Initialize [`DEFAULT_OPERATOR_REGISTRY`] with enabled services.
+///
+/// This function is safe to call multiple times and will only perform
+/// initialization once.
+///
+/// # Notes
+///
+/// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
+/// initializers may not be executed due to linker behavior. Those bindings
+/// should call this function explicitly before using `Operator::from_uri` or
+/// `Operator::via_iter`.
+pub fn init_default_registry() {
+    DEFAULT_REGISTRY_INIT.call_once(|| {
+        let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
+        init_default_registry_inner(registry);
+    });
+}
+
+fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
+    opendal_core::services::register_memory_service(registry);
+
+    #[cfg(feature = "services-aliyun-drive")]
+    opendal_service_aliyun_drive::register_aliyun_drive_service(registry);
+
+    #[cfg(feature = "services-alluxio")]
+    opendal_service_alluxio::register_alluxio_service(registry);
+
+    #[cfg(feature = "services-azblob")]
+    opendal_service_azblob::register_azblob_service(registry);
+
+    #[cfg(feature = "services-azdls")]
+    opendal_service_azdls::register_azdls_service(registry);
+
+    #[cfg(feature = "services-azfile")]
+    opendal_service_azfile::register_azfile_service(registry);
+
+    #[cfg(feature = "services-b2")]
+    opendal_service_b2::register_b2_service(registry);
+
+    #[cfg(feature = "services-cacache")]
+    opendal_service_cacache::register_cacache_service(registry);
+
+    #[cfg(feature = "services-cloudflare-kv")]
+    opendal_service_cloudflare_kv::register_cloudflare_kv_service(registry);
+
+    #[cfg(feature = "services-compfs")]
+    opendal_service_compfs::register_compfs_service(registry);
+
+    #[cfg(feature = "services-cos")]
+    opendal_service_cos::register_cos_service(registry);
+
+    #[cfg(feature = "services-d1")]
+    opendal_service_d1::register_d1_service(registry);
+
+    #[cfg(feature = "services-dashmap")]
+    opendal_service_dashmap::register_dashmap_service(registry);
+
+    #[cfg(feature = "services-dbfs")]
+    opendal_service_dbfs::register_dbfs_service(registry);
+
+    #[cfg(feature = "services-dropbox")]
+    opendal_service_dropbox::register_dropbox_service(registry);
+
+    #[cfg(feature = "services-etcd")]
+    opendal_service_etcd::register_etcd_service(registry);
+
+    #[cfg(feature = "services-foundationdb")]
+    opendal_service_foundationdb::register_foundationdb_service(registry);
+
+    #[cfg(feature = "services-fs")]
+    opendal_service_fs::register_fs_service(registry);
+
+    #[cfg(feature = "services-ftp")]
+    opendal_service_ftp::register_ftp_service(registry);
+
+    #[cfg(feature = "services-gcs")]
+    opendal_service_gcs::register_gcs_service(registry);
+
+    #[cfg(feature = "services-gdrive")]
+    opendal_service_gdrive::register_gdrive_service(registry);
+
+    #[cfg(feature = "services-ghac")]
+    opendal_service_ghac::register_ghac_service(registry);
+
+    #[cfg(feature = "services-github")]
+    opendal_service_github::register_github_service(registry);
+
+    #[cfg(feature = "services-gridfs")]
+    opendal_service_gridfs::register_gridfs_service(registry);
+
+    #[cfg(feature = "services-hdfs")]
+    opendal_service_hdfs::register_hdfs_service(registry);
+
+    #[cfg(feature = "services-hdfs-native")]
+    opendal_service_hdfs_native::register_hdfs_native_service(registry);
+
+    #[cfg(feature = "services-http")]
+    opendal_service_http::register_http_service(registry);
+
+    #[cfg(feature = "services-huggingface")]
+    opendal_service_huggingface::register_huggingface_service(registry);
+
+    #[cfg(feature = "services-ipfs")]
+    opendal_service_ipfs::register_ipfs_service(registry);
+
+    #[cfg(feature = "services-ipmfs")]
+    opendal_service_ipmfs::register_ipmfs_service(registry);
+
+    #[cfg(feature = "services-koofr")]
+    opendal_service_koofr::register_koofr_service(registry);
+
+    #[cfg(feature = "services-lakefs")]
+    opendal_service_lakefs::register_lakefs_service(registry);
+
+    #[cfg(feature = "services-memcached")]
+    opendal_service_memcached::register_memcached_service(registry);
+
+    #[cfg(feature = "services-mini-moka")]
+    opendal_service_mini_moka::register_mini_moka_service(registry);
+
+    #[cfg(feature = "services-moka")]
+    opendal_service_moka::register_moka_service(registry);
+
+    #[cfg(feature = "services-mongodb")]
+    opendal_service_mongodb::register_mongodb_service(registry);
+
+    #[cfg(feature = "services-monoiofs")]
+    opendal_service_monoiofs::register_monoiofs_service(registry);
+
+    #[cfg(feature = "services-mysql")]
+    opendal_service_mysql::register_mysql_service(registry);
+
+    #[cfg(feature = "services-obs")]
+    opendal_service_obs::register_obs_service(registry);
+
+    #[cfg(feature = "services-onedrive")]
+    opendal_service_onedrive::register_onedrive_service(registry);
+
+    #[cfg(feature = "services-oss")]
+    opendal_service_oss::register_oss_service(registry);
+
+    #[cfg(feature = "services-pcloud")]
+    opendal_service_pcloud::register_pcloud_service(registry);
+
+    #[cfg(feature = "services-persy")]
+    opendal_service_persy::register_persy_service(registry);
+
+    #[cfg(feature = "services-postgresql")]
+    opendal_service_postgresql::register_postgresql_service(registry);
+
+    #[cfg(feature = "services-redb")]
+    opendal_service_redb::register_redb_service(registry);
+
+    #[cfg(feature = "services-rocksdb")]
+    opendal_service_rocksdb::register_rocksdb_service(registry);
+
+    #[cfg(feature = "services-s3")]
+    opendal_service_s3::register_s3_service(registry);
+
+    #[cfg(feature = "services-seafile")]
+    opendal_service_seafile::register_seafile_service(registry);
+
+    #[cfg(feature = "services-sftp")]
+    opendal_service_sftp::register_sftp_service(registry);
+
+    #[cfg(feature = "services-sled")]
+    opendal_service_sled::register_sled_service(registry);
+
+    #[cfg(feature = "services-sqlite")]
+    opendal_service_sqlite::register_sqlite_service(registry);
+
+    #[cfg(feature = "services-surrealdb")]
+    opendal_service_surrealdb::register_surrealdb_service(registry);
+
+    #[cfg(feature = "services-swift")]
+    opendal_service_swift::register_swift_service(registry);
+
+    #[cfg(feature = "services-tikv")]
+    opendal_service_tikv::register_tikv_service(registry);
+
+    #[cfg(feature = "services-upyun")]
+    opendal_service_upyun::register_upyun_service(registry);
+
+    #[cfg(feature = "services-vercel-artifacts")]
+    opendal_service_vercel_artifacts::register_vercel_artifacts_service(registry);
+
+    #[cfg(feature = "services-vercel-blob")]
+    opendal_service_vercel_blob::register_vercel_blob_service(registry);
+
+    #[cfg(feature = "services-webdav")]
+    opendal_service_webdav::register_webdav_service(registry);
+
+    #[cfg(feature = "services-webhdfs")]
+    opendal_service_webhdfs::register_webhdfs_service(registry);
+
+    #[cfg(feature = "services-yandex-disk")]
+    opendal_service_yandex_disk::register_yandex_disk_service(registry);
+
+    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
+    opendal_service_opfs::register_opfs_service(registry);
+
+    #[cfg(any(feature = "services-redis", feature = "services-redis-native-tls"))]
+    opendal_service_redis::register_redis_service(registry);
+}
+
+#[ctor::ctor]
+fn register_default_operator_registry() {
+    init_default_registry();
+}
 
 /// Re-export of service implementations.
 pub mod services {
@@ -74,6 +286,8 @@ pub mod services {
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
+    #[cfg(feature = "services-gridfs")]
+    pub use opendal_service_gridfs::*;
     #[cfg(feature = "services-hdfs")]
     pub use opendal_service_hdfs::*;
     #[cfg(feature = "services-hdfs-native")]
@@ -96,6 +310,10 @@ pub mod services {
     pub use opendal_service_mini_moka::*;
     #[cfg(feature = "services-moka")]
     pub use opendal_service_moka::*;
+    #[cfg(feature = "services-mongodb")]
+    pub use opendal_service_mongodb::*;
+    #[cfg(feature = "services-monoiofs")]
+    pub use opendal_service_monoiofs::*;
     #[cfg(feature = "services-mysql")]
     pub use opendal_service_mysql::*;
     #[cfg(feature = "services-obs")]
@@ -114,10 +332,16 @@ pub mod services {
     pub use opendal_service_postgresql::*;
     #[cfg(feature = "services-redb")]
     pub use opendal_service_redb::*;
+    #[cfg(feature = "services-redis")]
+    pub use opendal_service_redis::*;
+    #[cfg(feature = "services-rocksdb")]
+    pub use opendal_service_rocksdb::*;
     #[cfg(feature = "services-s3")]
     pub use opendal_service_s3::*;
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
+    #[cfg(feature = "services-sftp")]
+    pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
     #[cfg(feature = "services-sqlite")]
@@ -130,6 +354,8 @@ pub mod services {
     pub use opendal_service_tikv::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
+    #[cfg(feature = "services-vercel-artifacts")]
+    pub use opendal_service_vercel_artifacts::*;
     #[cfg(feature = "services-vercel-blob")]
     pub use opendal_service_vercel_blob::*;
     #[cfg(feature = "services-webdav")]
@@ -151,10 +377,16 @@ pub mod layers {
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
     pub use opendal_layer_chaos::*;
+    #[cfg(feature = "layers-concurrent-limit")]
+    pub use opendal_layer_concurrent_limit::*;
+    #[cfg(all(target_os = "linux", feature = "layers-dtrace"))]
+    pub use opendal_layer_dtrace::*;
     #[cfg(feature = "layers-fastmetrics")]
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-hotpath")]
+    pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
     #[cfg(feature = "layers-logging")]

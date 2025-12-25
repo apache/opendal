@@ -18,7 +18,10 @@
 /// Default scheme for ipmfs service.
 pub const IPMFS_SCHEME: &str = "ipmfs";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_ipmfs_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Ipmfs>(IPMFS_SCHEME);
+}
 
 mod backend;
 mod builder;
@@ -31,8 +34,3 @@ mod writer;
 
 pub use builder::IpmfsBuilder as Ipmfs;
 pub use config::IpmfsConfig;
-
-#[ctor::ctor]
-fn register_ipmfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Ipmfs>(IPMFS_SCHEME);
-}

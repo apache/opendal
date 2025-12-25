@@ -33,7 +33,7 @@ pub use config::CompfsConfig;
 /// Default scheme for compfs service.
 pub const COMPFS_SCHEME: &str = "compfs";
 
-#[ctor::ctor]
-fn register_compfs_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Compfs>(COMPFS_SCHEME);
+/// Register this service into the given registry.
+pub fn register_compfs_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Compfs>(COMPFS_SCHEME);
 }

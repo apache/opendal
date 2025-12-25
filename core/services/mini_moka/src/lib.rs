@@ -33,7 +33,7 @@ pub use config::MiniMokaConfig;
 /// Default scheme for mini-moka service.
 pub const MINI_MOKA_SCHEME: &str = "mini-moka";
 
-#[ctor::ctor]
-fn register_minimoka_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<MiniMoka>(MINI_MOKA_SCHEME);
+/// Register this service into the given registry.
+pub fn register_mini_moka_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<MiniMoka>(MINI_MOKA_SCHEME);
 }

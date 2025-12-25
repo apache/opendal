@@ -34,7 +34,6 @@ all-features = true
 base64 = { workspace = true }
 bytes = { workspace = true }
 crc32c = "0.6.6"
-ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 md-5 = "0.10"

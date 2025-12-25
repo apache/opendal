@@ -18,7 +18,10 @@
 /// Default scheme for aliyun-drive service.
 pub const ALIYUN_DRIVE_SCHEME: &str = "aliyun-drive";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_aliyun_drive_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<AliyunDrive>(ALIYUN_DRIVE_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::AliyunDriveBuilder as AliyunDrive;
 pub use config::AliyunDriveConfig;
-
-#[ctor::ctor]
-fn register_aliyun_drive_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<AliyunDrive>(ALIYUN_DRIVE_SCHEME);
-}

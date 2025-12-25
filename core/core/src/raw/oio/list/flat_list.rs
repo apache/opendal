@@ -97,6 +97,10 @@ where
                     Err(e) if e.kind() == ErrorKind::PermissionDenied => {
                         // Skip directories that we don't have permission to access
                         // and continue with the rest of the listing.
+                        log::warn!(
+                            "FlatLister skipping directory due to permission denied: {}",
+                            de.path()
+                        );
                         continue;
                     }
                     Err(e) => return Err(e),

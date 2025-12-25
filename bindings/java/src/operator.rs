@@ -26,12 +26,9 @@ use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
 use opendal::blocking;
-use opendal::options;
 
 use crate::Result;
-use crate::convert::{
-    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_int64_field,
-};
+use crate::convert::{bytes_to_jbytearray, jstring_to_string};
 use crate::make_metadata;
 use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
@@ -86,18 +83,11 @@ fn intern_read(
     path: JString,
     options: JObject,
 ) -> Result<jbyteArray> {
+    use crate::make_read_options;
+
     let path = jstring_to_string(env, &path)?;
-
-    let offset = read_int64_field(env, &options, "offset")?;
-    let length = read_int64_field(env, &options, "length")?;
-
-    let content = op.read_options(
-        &path,
-        options::ReadOptions {
-            range: offset_length_to_range(offset, length)?.into(),
-            ..Default::default()
-        },
-    )?;
+    let options = make_read_options(env, &options)?;
+    let content = op.read_options(&path, options)?;
 
     let result = bytes_to_jbytearray(env, content.to_bytes())?;
     Ok(result.into_raw())

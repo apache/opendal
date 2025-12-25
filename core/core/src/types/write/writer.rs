@@ -150,13 +150,36 @@ impl Writer {
     ///
     /// This operation will write all data in given buffer into writer.
     ///
-    /// # TODO
+    /// # Notes
     ///
-    /// Optimize this function to avoid unnecessary copy.
+    /// This function iterates over each chunk in the `Buf` and collects them
+    /// into a `Buffer`. For `Bytes` chunks, `copy_to_bytes` is zero-copy
+    /// (only a ref-count increment). For other chunk types (e.g., `&[u8]`),
+    /// the data will be copied.
+    ///
+    /// This approach minimizes copies for chained buffers (`Chain<Bytes, Bytes>`)
+    /// where each individual chunk can be extracted without copying.
     pub async fn write_from(&mut self, bs: impl Buf) -> Result<()> {
         let mut bs = bs;
-        let bs = Buffer::from(bs.copy_to_bytes(bs.remaining()));
-        self.write(bs).await
+
+        // Fast path: single contiguous chunk.
+        // If chunk length equals remaining bytes, the entire buffer is contiguous.
+        // This avoids Vec allocation and loop overhead for the common case.
+        if bs.chunk().len() == bs.remaining() {
+            let bytes = bs.copy_to_bytes(bs.remaining());
+            return self.write(Buffer::from(bytes)).await;
+        }
+
+        // Slow path: multiple chunks (e.g., Chain<T, U>).
+        // Iterate over each chunk and collect them into a Vec<Bytes>.
+        // For Bytes chunks, copy_to_bytes is zero-copy.
+        // For other types, only the current chunk is copied, not the entire buffer.
+        let mut chunks = Vec::new();
+        while bs.has_remaining() {
+            let chunk_len = bs.chunk().len();
+            chunks.push(bs.copy_to_bytes(chunk_len));
+        }
+        self.write(Buffer::from(chunks)).await
     }
 
     /// Abort the writer and clean up all written data.
@@ -356,7 +379,7 @@ impl Writer {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Bytes;
+    use bytes::{Buf, Bytes};
     use rand::Rng;
     use rand::RngCore;
     use rand::rngs::ThreadRng;
@@ -407,5 +430,28 @@ mod tests {
         let buf = op.read(path).await.expect("read to end mut succeed");
 
         assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_from_chain() {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let part1 = Bytes::from(gen_random_bytes());
+        let part2 = Bytes::from(gen_random_bytes());
+
+        let mut chain_same = part1.clone().chain(part2.clone());
+        let chain = part1.chain(part2);
+
+        let mut writer = op.writer(path).await.unwrap();
+        writer.write_from(chain).await.expect("write must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(
+            buf.to_bytes(),
+            chain_same.copy_to_bytes(chain_same.remaining())
+        );
     }
 }

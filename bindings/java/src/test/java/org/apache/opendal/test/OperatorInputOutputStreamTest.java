@@ -40,7 +40,8 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testReadWriteWithStream() throws Exception {
-        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
 
         try (final Operator op = Operator.of(fs)) {
             final String path = "OperatorInputOutputStreamTest.txt";
@@ -66,7 +67,8 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testCreateInputStreamWithOptions() {
-        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         try (final Operator op = Operator.of(fs)) {
             final String path = "testCreateInputStreamWithOptions.txt";
             final String content = "0123456789";
@@ -86,7 +88,8 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testCreateOutputStreamWithOptions() {
-        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         try (final Operator op = Operator.of(fs)) {
             final String path = "testCreateOutputStreamWithOptions.txt";
             final String content = "0123456789";

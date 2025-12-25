@@ -25,7 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Operator represents an underneath OpenDAL operator that accesses data synchronously.
+ * Operator represents an underneath OpenDAL operator that accesses data
+ * synchronously.
  */
 public class Operator extends NativeObject {
     public final OperatorInfo info;
@@ -45,7 +46,8 @@ public class Operator extends NativeObject {
      * Construct an OpenDAL blocking operator:
      *
      * <p>
-     * You can find all possible schemes <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
+     * You can find all possible schemes
+     * <a href="https://docs.rs/opendal/latest/opendal/enum.Scheme.html">here</a>
      * and see what config options each service supports.
      *
      * @param scheme the name of the underneath service to access data from.
@@ -88,11 +90,16 @@ public class Operator extends NativeObject {
     }
 
     public OperatorOutputStream createOutputStream(String path) {
-        return new OperatorOutputStream(this, path);
+        return new OperatorOutputStream(this, path, WriteOptions.builder().build());
     }
 
     public OperatorOutputStream createOutputStream(String path, int maxBytes) {
-        return new OperatorOutputStream(this, path, maxBytes);
+        return new OperatorOutputStream(
+                this, path, maxBytes, WriteOptions.builder().build());
+    }
+
+    public OperatorOutputStream createOutputStream(String path, WriteOptions options) {
+        return new OperatorOutputStream(this, path, options);
     }
 
     public byte[] read(String path) {
@@ -108,7 +115,11 @@ public class Operator extends NativeObject {
     }
 
     public OperatorInputStream createInputStream(String path) {
-        return new OperatorInputStream(this, path);
+        return new OperatorInputStream(this, path, ReadOptions.builder().build());
+    }
+
+    public OperatorInputStream createInputStream(String path, ReadOptions options) {
+        return new OperatorInputStream(this, path, options);
     }
 
     public void delete(String path) {

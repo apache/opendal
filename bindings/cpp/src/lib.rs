@@ -165,6 +165,8 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Op
         .map(|value| (value.key, value.value))
         .collect();
 
+    od::init_default_registry();
+
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());
     let _guard = runtime.enter();

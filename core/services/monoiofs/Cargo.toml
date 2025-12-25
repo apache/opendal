@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-ctor = { workspace = true }
 flume = "0.11"
 futures = { workspace = true, features = ["std", "async-await"] }
 monoio = { version = "0.2.4", features = [

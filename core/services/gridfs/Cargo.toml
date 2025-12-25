@@ -31,7 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-ctor = { workspace = true }
 futures = { workspace = true }
 mea = "0.5.1"
 mongodb = "3.3.0"

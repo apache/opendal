@@ -18,7 +18,10 @@
 /// Default scheme for rocksdb service.
 pub const ROCKSDB_SCHEME: &str = "rocksdb";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_rocksdb_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Rocksdb>(ROCKSDB_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -29,8 +32,3 @@ mod writer;
 
 pub use crate::backend::RocksdbBuilder as Rocksdb;
 pub use crate::config::RocksdbConfig;
-
-#[ctor::ctor]
-fn register_rocksdb_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Rocksdb>(ROCKSDB_SCHEME);
-}

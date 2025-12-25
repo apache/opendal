@@ -34,7 +34,7 @@ pub use core::MokaValue;
 /// Default scheme for moka service.
 pub const MOKA_SCHEME: &str = "moka";
 
-#[ctor::ctor]
-fn register_moka_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Moka>(MOKA_SCHEME);
+/// Register this service into the given registry.
+pub fn register_moka_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Moka>(MOKA_SCHEME);
 }

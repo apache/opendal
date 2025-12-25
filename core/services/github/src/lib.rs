@@ -18,7 +18,10 @@
 /// Default scheme for github service.
 pub const GITHUB_SCHEME: &str = "github";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_github_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Github>(GITHUB_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::GithubBuilder as Github;
 pub use config::GithubConfig;
-
-#[ctor::ctor]
-fn register_github_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Github>(GITHUB_SCHEME);
-}

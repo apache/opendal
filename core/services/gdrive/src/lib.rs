@@ -18,7 +18,10 @@
 /// Default scheme for gdrive service.
 pub const GDRIVE_SCHEME: &str = "gdrive";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_gdrive_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Gdrive>(GDRIVE_SCHEME);
+}
 
 mod backend;
 mod builder;
@@ -31,8 +34,3 @@ mod writer;
 
 pub use builder::GdriveBuilder as Gdrive;
 pub use config::GdriveConfig;
-
-#[ctor::ctor]
-fn register_gdrive_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Gdrive>(GDRIVE_SCHEME);
-}

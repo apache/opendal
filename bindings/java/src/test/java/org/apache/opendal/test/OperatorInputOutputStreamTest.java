@@ -28,7 +28,9 @@ import java.util.stream.Stream;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorOutputStream;
+import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ServiceConfig;
+import org.apache.opendal.WriteOptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -38,8 +40,7 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testReadWriteWithStream() throws Exception {
-        final ServiceConfig.Fs fs =
-                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
 
         try (final Operator op = Operator.of(fs)) {
             final String path = "OperatorInputOutputStreamTest.txt";
@@ -60,6 +61,44 @@ public class OperatorInputOutputStreamTest {
                 });
                 assertThat(count.get()).isEqualTo(multi);
             }
+        }
+    }
+
+    @Test
+    void testCreateInputStreamWithOptions() {
+        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        try (final Operator op = Operator.of(fs)) {
+            final String path = "testCreateInputStreamWithOptions.txt";
+            final String content = "0123456789";
+            op.write(path, content);
+
+            try (final OperatorInputStream is = op.createInputStream(
+                    path, ReadOptions.builder().offset(4L).length(5L).build())) {
+                final byte[] buffer = new byte[5];
+                final int read = is.read(buffer, 0, 5);
+                assertThat(read).isEqualTo(5);
+                assertThat(new String(buffer)).isEqualTo("45678");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Test
+    void testCreateOutputStreamWithOptions() {
+        final ServiceConfig.Fs fs = ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        try (final Operator op = Operator.of(fs)) {
+            final String path = "testCreateOutputStreamWithOptions.txt";
+            final String content = "0123456789";
+
+            try (final OperatorOutputStream os = op.createOutputStream(
+                    path, WriteOptions.builder().contentType("text/plain").build())) {
+                os.write(content.getBytes());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+
+            assertThat(op.read(path)).isEqualTo(content.getBytes());
         }
     }
 }

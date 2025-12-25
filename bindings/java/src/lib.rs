@@ -274,3 +274,23 @@ fn make_stat_options(env: &mut JNIEnv, options: &JObject) -> Result<opendal::opt
         )?,
     })
 }
+
+fn make_read_options<'a>(
+    env: &mut JNIEnv<'a>,
+    options: &JObject,
+) -> Result<opendal::options::ReadOptions> {
+    let offset = convert::read_int64_field(env, options, "offset")?;
+    let length = convert::read_int64_field(env, options, "length")?;
+
+    Ok(opendal::options::ReadOptions {
+        range: convert::offset_length_to_range(offset, length)?.into(),
+        ..Default::default()
+    })
+}
+
+fn make_reader_options<'a>(
+    _: &mut JNIEnv<'a>,
+    _: &JObject,
+) -> Result<opendal::options::ReaderOptions> {
+    Ok(opendal::options::ReaderOptions::default())
+}

@@ -92,7 +92,15 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = self.acc.list(de.path(), OpList::new()).await?;
+                let (_, mut l) = match self.acc.list(de.path(), OpList::new()).await {
+                    Ok(v) => v,
+                    Err(e) if e.kind() == ErrorKind::PermissionDenied => {
+                        // Skip directories that we don't have permission to access
+                        // and continue with the rest of the listing.
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                };
                 if let Some(v) = l.next().await? {
                     self.active_lister.push((Some(de.clone()), l));
 

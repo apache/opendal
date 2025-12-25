@@ -152,6 +152,8 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
         .map(|value| (value.key, value.value))
         .collect();
 
+    od::init_default_registry();
+
     let op = Box::new(Operator(od::Operator::via_iter(scheme, map)?));
 
     Ok(op)

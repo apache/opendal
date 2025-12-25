@@ -33,7 +33,6 @@ all-features = true
 [dependencies]
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
 hmac = "0.12.1"
 http = { workspace = true }
 log = { workspace = true }

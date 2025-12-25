@@ -18,7 +18,10 @@
 /// Default scheme for webdav service.
 pub const WEBDAV_SCHEME: &str = "webdav";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_webdav_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Webdav>(WEBDAV_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::WebdavBuilder as Webdav;
 pub use config::WebdavConfig;
-
-#[ctor::ctor]
-fn register_webdav_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Webdav>(WEBDAV_SCHEME);
-}

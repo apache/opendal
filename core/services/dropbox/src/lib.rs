@@ -35,7 +35,7 @@ pub use config::DropboxConfig;
 /// Default scheme for dropbox service.
 pub const DROPBOX_SCHEME: &str = "dropbox";
 
-#[ctor::ctor]
-fn register_dropbox_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Dropbox>(DROPBOX_SCHEME);
+/// Register this service into the given registry.
+pub fn register_dropbox_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Dropbox>(DROPBOX_SCHEME);
 }

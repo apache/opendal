@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-ctor = { workspace = true }
 ghac = { version = "0.2.0", default-features = false }
 http = { workspace = true }
 log = { workspace = true }

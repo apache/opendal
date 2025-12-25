@@ -88,6 +88,8 @@ fn build_operator(
     schema: &str,
     map: HashMap<String, String>,
 ) -> core::Result<core::blocking::Operator> {
+    core::init_default_registry();
+
     let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
 
     let runtime =

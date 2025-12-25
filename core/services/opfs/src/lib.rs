@@ -20,7 +20,10 @@
 /// Default scheme for opfs service.
 pub const OPFS_SCHEME: &str = "opfs";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_opfs_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Opfs>(OPFS_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod utils;
 
 pub use backend::OpfsBuilder as Opfs;
 pub use config::OpfsConfig;
-
-#[ctor::ctor]
-fn register_opfs_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Opfs>(OPFS_SCHEME);
-}

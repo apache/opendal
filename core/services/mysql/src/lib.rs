@@ -18,7 +18,10 @@
 /// Default scheme for mysql service.
 pub const MYSQL_SCHEME: &str = "mysql";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_mysql_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Mysql>(MYSQL_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -28,8 +31,3 @@ mod writer;
 
 pub use backend::MysqlBuilder as Mysql;
 pub use config::MysqlConfig;
-
-#[ctor::ctor]
-fn register_mysql_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Mysql>(MYSQL_SCHEME);
-}

@@ -18,7 +18,10 @@
 /// Default scheme for sqlite service.
 pub const SQLITE_SCHEME: &str = "sqlite";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_sqlite_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Sqlite>(SQLITE_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -28,8 +31,3 @@ mod writer;
 
 pub use backend::SqliteBuilder as Sqlite;
 pub use config::SqliteConfig;
-
-#[ctor::ctor]
-fn register_sqlite_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Sqlite>(SQLITE_SCHEME);
-}

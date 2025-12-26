@@ -347,6 +347,68 @@ typedef struct opendal_result_operator_writer {
 } opendal_result_operator_writer;
 
 /**
+ * \brief Options for read operations used by C side.
+ *
+ * \note For detail description of each field, please refer to [`core::ReadOptions`]
+ */
+typedef struct opendal_operator_options_read {
+  /**
+   * Set `range` for this operation.
+   */
+  const uint64_t *range;
+  /**
+   * Set `version` for this operation.
+   */
+  const char *version;
+  /**
+   * Set `if_match` for this operation.
+   */
+  const char *if_match;
+  /**
+   * Set `if_none_match` for this operation.
+   */
+  const char *if_none_match;
+  /**
+   * Set `if_modified_since` for this operation.
+   *
+   * \note The value should be in RFC 3339 format.
+   */
+  const char *if_modified_since;
+  /**
+   * Set `if_unmodified_since` for this operation.
+   *
+   * \note The value should be in RFC 3339 format.
+   */
+  const char *if_unmodified_since;
+  /**
+   * Set `concurrent` for the operation.
+   *
+   * \note for we do not provide default value in C, so it must be Option in C side.
+   */
+  const uintptr_t *concurrent;
+  /**
+   * Set `chunk` for the operation.
+   */
+  const uintptr_t *chunk;
+  /**
+   * Controls the optimization strategy for range reads in [`Reader::fetch`].
+   */
+  const uintptr_t *gap;
+  /**
+   * Specify the content-type header that should be sent back by the operation.
+   */
+  const char *override_content_type;
+  /**
+   * Specify the `cache-control` header that should be sent back by the operation.
+   */
+  const char *override_cache_control;
+  /**
+   * Specify the `content-disposition` header that should be sent back by the operation.
+   */
+  const char *override_content_disposition;
+} opendal_operator_options_read;
+
+/**
  * \brief The result type returned by opendal_operator_is_exist().
  *
  * The result type for opendal_operator_is_exist(), the field `is_exist`
@@ -962,6 +1024,56 @@ struct opendal_result_operator_reader opendal_operator_reader(const struct opend
  */
 struct opendal_result_operator_writer opendal_operator_writer(const struct opendal_operator *op,
                                                               const char *path);
+
+/**
+ * \brief Blocking read the data from `path` with additional options.
+ *
+ * Read the data out from `path` blocking by operator with additional options.
+ *
+ * @param op The opendal_operator created previously
+ * @param path The path you want to read the data out
+ * @param opts The options for read operations
+ * @see opendal_operator
+ * @see opendal_result_read
+ * @see opendal_operator_options_read
+ * @see opendal_error
+ * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+ * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+ * the operation failed and the `data` field is a nullptr.
+ *
+ * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space.
+ *
+ * # Example
+ *
+ * Following is an example
+ * ```C
+ * // ... you have either write "Hello, World!" to path "/testpath" and created an operator named op
+ *
+ * opendal_operator_options_read opts = {};
+ * uint64_t range[2] = {0, 14};
+ * opts.range = range;
+ * opendal_result_read r = opendal_operator_read_options(op, "testpath", opts);
+ * assert(r.error == NULL);
+ *
+ * opendal_bytes bytes = r.data;
+ * assert(bytes.len == 13);
+ * opendal_bytes_free(&bytes);
+ * ```
+ *
+ * # Safety
+ *
+ * It is **safe** under the cases below
+ * * The memory pointed to by `path` must contain a valid nul terminator at the end of
+ *   the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics, i.e. exits with information
+ */
+struct opendal_result_read opendal_operator_read_options(const struct opendal_operator *op,
+                                                         const char *path,
+                                                         const struct opendal_operator_options_read *opts);
 
 /**
  * \brief Blocking delete the object in `path`.

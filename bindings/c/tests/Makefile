@@ -26,7 +26,7 @@ endif
 
 # Source files
 FRAMEWORK_SOURCES = test_framework.cpp
-SUITE_SOURCES = test_suites_basic.cpp test_suites_list.cpp test_suites_reader_writer.cpp
+SUITE_SOURCES = test_suites_basic.cpp test_suites_list.cpp test_suites_reader_writer.cpp test_suites_options.cpp
 RUNNER_SOURCES = test_runner.cpp
 ALL_SOURCES = $(FRAMEWORK_SOURCES) $(SUITE_SOURCES) $(RUNNER_SOURCES)
 

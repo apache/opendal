@@ -66,7 +66,7 @@ impl opendal_operator_options_read {}
 pub fn parse_read_options(
     options: *const opendal_operator_options_read,
 ) -> Result<core::options::ReadOptions, Error> {
-    // if orginal opts is blank, we will use the default options
+    // if original opts is blank, we will use the default options
     let mut opts = ReadOptions::default();
 
     unsafe {
@@ -107,10 +107,7 @@ pub fn parse_read_options(
                 .expect("malformed if_modified_since")
                 .to_string();
 
-            let ts = match Timestamp::from_str(&ts_str) {
-                Ok(ts) => ts,
-                Err(e) => return Err(e),
-            };
+            let ts = Timestamp::from_str(&ts_str)?;
             opts.if_modified_since = Some(ts);
         }
         if !options.if_unmodified_since.is_null() {
@@ -119,10 +116,7 @@ pub fn parse_read_options(
                 .expect("malformed if_unmodified_since")
                 .to_string();
 
-            let ts = match Timestamp::from_str(&ts_str) {
-                Ok(ts) => ts,
-                Err(e) => return Err(e),
-            };
+            let ts = Timestamp::from_str(&ts_str)?;
             opts.if_unmodified_since = Some(ts);
         }
         if !options.concurrent.is_null() {

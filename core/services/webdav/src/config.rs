@@ -39,6 +39,29 @@ pub struct WebdavConfig {
     pub root: Option<String>,
     /// WebDAV Service doesn't support copy.
     pub disable_copy: bool,
+    /// Enable user metadata support via WebDAV PROPPATCH.
+    ///
+    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
+    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
+    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
+    ///
+    /// Default: false
+    pub enable_user_metadata: bool,
+    /// The XML namespace prefix for user metadata properties.
+    ///
+    /// This prefix is used in PROPPATCH/PROPFIND XML requests.
+    /// Different servers may require different prefixes.
+    ///
+    /// Default: "opendal"
+    pub user_metadata_prefix: Option<String>,
+    /// The XML namespace URI for user metadata properties.
+    ///
+    /// This URI uniquely identifies the namespace for custom properties.
+    /// Different servers may require different namespace URIs.
+    /// For example, Nextcloud might work better with its own namespace.
+    ///
+    /// Default: `https://opendal.apache.org/ns`
+    pub user_metadata_uri: Option<String>,
 }
 
 impl Debug for WebdavConfig {
@@ -48,6 +71,9 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_copy", &self.disable_copy)
+            .field("enable_user_metadata", &self.enable_user_metadata)
+            .field("user_metadata_prefix", &self.user_metadata_prefix)
+            .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()
     }
 }

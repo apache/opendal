@@ -63,6 +63,26 @@ impl oio::OneShotWrite for WebdavWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK | StatusCode::NO_CONTENT => {
                 let metadata = WebdavWriter::parse_metadata(resp.headers())?;
+
+                // Set user metadata using PROPPATCH if provided
+                if let Some(user_metadata) = self.op.user_metadata() {
+                    let proppatch_resp = self
+                        .core
+                        .webdav_proppatch(&self.path, user_metadata)
+                        .await?;
+
+                    let proppatch_status = proppatch_resp.status();
+                    // PROPPATCH returns 207 Multi-Status - need to check response body
+                    // for actual success/failure status
+                    if proppatch_status == StatusCode::MULTI_STATUS {
+                        let body = proppatch_resp.into_body().to_bytes();
+                        let xml = String::from_utf8_lossy(&body);
+                        check_proppatch_response(&xml)?;
+                    } else if !proppatch_status.is_success() {
+                        return Err(parse_error(proppatch_resp));
+                    }
+                }
+
                 Ok(metadata)
             }
             _ => Err(parse_error(resp)),

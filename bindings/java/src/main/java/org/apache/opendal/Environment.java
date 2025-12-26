@@ -22,8 +22,6 @@ package org.apache.opendal;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.Properties;
 
 /**
@@ -62,33 +60,7 @@ public enum Environment {
         } else {
             classifier.append("x86_64");
         }
-        if (classifier.toString().startsWith("linux-") && isMusl(arch)) {
-            classifier.append("-musl");
-        }
         INSTANCE.classifier = classifier.toString();
-    }
-
-    private static boolean isMusl(String osArch) {
-        final String loader = muslLoaderName(osArch);
-        if (loader == null) {
-            return false;
-        }
-        return Files.exists(Paths.get("/lib", loader)) || Files.exists(Paths.get("/usr/lib", loader));
-    }
-
-    private static String muslLoaderName(String osArch) {
-        if (osArch == null) {
-            return null;
-        }
-        switch (osArch) {
-            case "aarch64":
-                return "ld-musl-aarch64.so.1";
-            case "x86_64":
-            case "amd64":
-                return "ld-musl-x86_64.so.1";
-            default:
-                return null;
-        }
     }
 
     /**

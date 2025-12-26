@@ -19,6 +19,7 @@
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
+import glob
 import shutil
 import subprocess
 
@@ -50,10 +51,8 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return "opendal_java.dll"
     raise Exception(f"Unsupported classifier: {classifier}")
 
-def get_static_artifact_name(classifier: str) -> str:
-    if classifier.startswith("windows"):
-        return "opendal_java.lib"
-    return "libopendal_java.a"
+def is_musl_runtime() -> bool:
+    return len(glob.glob("/lib/ld-musl-*.so.1")) > 0 or len(glob.glob("/usr/lib/ld-musl-*.so.1")) > 0
 
 
 if __name__ == "__main__":
@@ -109,27 +108,14 @@ if __name__ == "__main__":
     # History reason of cargo profiles.
     profile = "debug" if args.profile in ["dev", "test", "bench"] else args.profile
 
-    if target.endswith("-musl"):
-        static_artifact = get_static_artifact_name(args.classifier)
-        src = output / target / profile / static_artifact
-        artifact = get_cargo_artifact_name(args.classifier)
-        dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
-        dst.parent.mkdir(exist_ok=True, parents=True)
+    artifact = get_cargo_artifact_name(args.classifier)
+    src = output / target / profile / artifact
+    dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
+    dst.parent.mkdir(exist_ok=True, parents=True)
 
-        link_cmd = [
-            "musl-gcc",
-            "-shared",
-            "-o",
-            str(dst),
-            "-Wl,--whole-archive",
-            str(src),
-            "-Wl,--no-whole-archive",
-        ]
-        print("$ " + subprocess.list2cmdline(link_cmd))
-        subprocess.run(link_cmd, cwd=basedir, check=True)
-    else:
-        artifact = get_cargo_artifact_name(args.classifier)
-        src = output / target / profile / artifact
-        dst = basedir / "target" / "classes" / "native" / args.classifier / artifact
-        dst.parent.mkdir(exist_ok=True, parents=True)
-        shutil.copy2(src, dst)
+    if target.endswith("-musl") and not is_musl_runtime():
+        raise Exception(
+            "Building musl artifacts requires running inside a musl environment (e.g. Alpine)."
+        )
+
+    shutil.copy2(src, dst)

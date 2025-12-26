@@ -80,20 +80,50 @@ jobs:
         if: ${{ contains(matrix.os, 'ubuntu') }}
         run: pip install cargo-zigbuild
 
-      - name: Setup linux for musl
+      - name: Build linux musl JNI library in Alpine
         if: ${{ contains(matrix.os, 'ubuntu') && contains(matrix.classifier, 'musl') }}
-        run: sudo apt-get install musl-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          UID="$(id -u)"
+          GID="$(id -g)"
+
+          docker run --rm \
+            -e HOST_UID="$UID" \
+            -e HOST_GID="$GID" \
+            -v "$GITHUB_WORKSPACE":/work \
+            -w /work/bindings/java \
+            rust:1.85-alpine3.20 \
+            sh -lc '
+              set -eu
+              apk add --no-cache python3 build-base cmake pkgconfig git protobuf sqlite-dev zlib-dev
+              export PATH=/usr/local/cargo/bin:$PATH
+
+              python3 tools/build.py \
+                --classifier "${{ matrix.classifier }}" \
+                --profile release \
+                --features services-all \
+                --enable-zigbuild false
+
+              chown -R "$HOST_UID:$HOST_GID" /work/bindings/java/target
+            '
 
       - name: Local staging
         working-directory: bindings/java
         shell: bash
         run: |
+          EXTRA_MVN_ARGS=""
+          if [[ "${{ matrix.classifier }}" == *"musl" ]]; then
+            EXTRA_MVN_ARGS="-Dexec.skip=true"
+          fi
+
           ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
             -DskipTests=true \
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
             -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
+            $EXTRA_MVN_ARGS \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \

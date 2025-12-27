@@ -27,9 +27,9 @@ use fastmetrics::metrics::family::Family;
 use fastmetrics::metrics::family::MetricFactory;
 use fastmetrics::metrics::gauge::Gauge;
 use fastmetrics::metrics::histogram::Histogram;
+use fastmetrics::raw::LabelSetSchema;
 use fastmetrics::registry::Register;
 use fastmetrics::registry::Registry;
-use fastmetrics::registry::RegistryError;
 use fastmetrics::registry::with_global_registry_mut;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -383,7 +383,7 @@ pub struct FastmetricsInterceptor {
 }
 
 impl Register for FastmetricsInterceptor {
-    fn register(&self, registry: &mut Registry) -> Result<(), RegistryError> {
+    fn register(&self, registry: &mut Registry) -> fastmetrics::error::Result<()> {
         macro_rules! register_metrics {
             ($($field:ident => $value:expr),* $(,)?) => {
                 $(
@@ -509,8 +509,22 @@ struct OperationLabels {
     disable_label_root: bool,
 }
 
+impl LabelSetSchema for OperationLabels {
+    fn names() -> Option<&'static [&'static str]> {
+        static NAMES: &[&str] = &[
+            observe::LABEL_SCHEME,
+            observe::LABEL_NAMESPACE,
+            observe::LABEL_ROOT,
+            observe::LABEL_OPERATION,
+            observe::LABEL_ERROR,
+            observe::LABEL_STATUS_CODE,
+        ];
+        Some(NAMES)
+    }
+}
+
 impl EncodeLabelSet for OperationLabels {
-    fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> std::fmt::Result {
+    fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> fastmetrics::error::Result<()> {
         encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme))?;
         encoder.encode(&(observe::LABEL_NAMESPACE, self.labels.namespace.as_ref()))?;
         if !self.disable_label_root {

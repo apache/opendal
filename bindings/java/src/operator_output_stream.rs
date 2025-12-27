@@ -18,6 +18,7 @@
 use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
+use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jlong;
 use opendal::blocking;
@@ -33,9 +34,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> jlong {
     let op_ref = unsafe { &mut *op };
-    intern_construct_write(&mut env, op_ref, path).unwrap_or_else(|e| {
+    intern_construct_write(&mut env, op_ref, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -45,9 +47,13 @@ fn intern_construct_write(
     env: &mut JNIEnv,
     op: &mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> crate::Result<jlong> {
+    use crate::make_write_options;
+
     let path = jstring_to_string(env, &path)?;
-    let writer = op.writer(&path)?;
+    let options = make_write_options(env, &options)?;
+    let writer = op.writer_options(&path, options)?;
     Ok(Box::into_raw(Box::new(writer)) as jlong)
 }
 

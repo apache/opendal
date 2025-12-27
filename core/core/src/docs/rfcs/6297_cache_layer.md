@@ -1,7 +1,7 @@
 - Proposal Name: `cache_layer`
 - Start Date: 2025-06-16
 - RFC PR: [apache/opendal#6297](https://github.com/apache/opendal/pull/6297)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#7107](https://github.com/apache/opendal/issues/7107)
 
 # Summary
 

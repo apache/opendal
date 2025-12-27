@@ -2915,10 +2915,11 @@ dependencies = [
 
 [[package]]
 name = "fastmetrics"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ebd32571c39cd8e6a6c86d89d427ed5ed2547813b47d59ef7d5150ab1acbbef"
+checksum = "ad39315667dec65a72aecda931b38b811004177db7b9f8be7271104babe03b59"
 dependencies = [
+ "anyhow",
  "cfg-if",
  "dtoa",
  "foldhash 0.2.0",

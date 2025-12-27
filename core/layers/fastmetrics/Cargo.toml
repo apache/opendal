@@ -31,7 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-fastmetrics = { version = "0.4.1" }
+fastmetrics = "0.5.1"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.55.0", default-features = false }
 

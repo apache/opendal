@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Metrics layer (using the [fastmetrics](https://docs.rs/fastmetrics/) crate) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;
 use fastmetrics::metrics::counter::Counter;
@@ -122,7 +127,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// println!("{}", output);
 /// # Ok(())
 /// # }
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FastmetricsLayer {
     interceptor: FastmetricsInterceptor,
 }
@@ -322,11 +327,11 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
+    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
+    /// #
     /// # fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
@@ -352,6 +357,7 @@ impl MetricFactory<Histogram> for HistogramFactory {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct FastmetricsInterceptor {
     operation_bytes: Family<OperationLabels, Histogram, HistogramFactory>,

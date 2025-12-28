@@ -30,10 +30,11 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
-[dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 bytes = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-probe = { version = "0.5.1" }
+probe = "0.5.1"
 
-[dev-dependencies]
+[target.'cfg(target_os = "linux")'.dev-dependencies]
 opendal-core = { path = "../../core", version = "0.55.0" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

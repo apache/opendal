@@ -114,7 +114,8 @@ test *args: install-dev
 [group('lint')]
 lint: setup
     @echo "{{ BOLD }}--- Running Rust linter (Clippy) ---{{ NORMAL }}"
-    @cargo clippy -- -D warnings -D clippy::dbg_macro
+    ## remove `-A clippy::incompatible_msrv` until https://github.com/rust-lang/rust-clippy/issues/15792 is fixed and released
+    @cargo clippy -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
     @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
     @uv run ruff check
 

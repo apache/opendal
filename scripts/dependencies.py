@@ -24,14 +24,17 @@ from constants import PACKAGES
 
 
 def check_single_package(root):
-    print(f"Checking dependencies of {root}")
-    subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
+    if (Path(root) / "Cargo.toml").exists():
+        print(f"Checking dependencies of {root}")
+        subprocess.run(["cargo", "deny", "check", "license"], cwd=root)
+    else:
+        print(f"Skipping {root} as Cargo.toml does not exist")
 
 
 def check_deps():
     cargo_dirs = PACKAGES
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        executor.map(check_single_package, cargo_dirs)
+    for d in cargo_dirs:
+        check_single_package(d)
 
 
 def generate_single_package(root):

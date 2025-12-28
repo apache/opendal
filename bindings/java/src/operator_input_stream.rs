@@ -36,9 +36,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constr
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> jlong {
     let op_ref = unsafe { &mut *op };
-    intern_construct_reader(&mut env, op_ref, path).unwrap_or_else(|e| {
+    intern_construct_reader(&mut env, op_ref, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -48,9 +49,21 @@ fn intern_construct_reader(
     env: &mut JNIEnv,
     op: &mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> crate::Result<jlong> {
+    use crate::convert;
+    use crate::make_reader_options;
+
     let path = jstring_to_string(env, &path)?;
-    let reader = op.reader(&path)?.into_bytes_iterator(..)?;
+    let reader_options = make_reader_options(env, &options)?;
+
+    let offset = convert::read_int64_field(env, &options, "offset")?;
+    let length = convert::read_int64_field(env, &options, "length")?;
+    let range = convert::offset_length_to_range(offset, length)?;
+
+    let reader = op
+        .reader_options(&path, reader_options)?
+        .into_bytes_iterator(range)?;
     Ok(Box::into_raw(Box::new(reader)) as jlong)
 }
 

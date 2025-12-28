@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::str::FromStr;
 use std::time::Duration;
 
 use jni::JNIEnv;
@@ -30,7 +29,6 @@ use jni::sys::jobject;
 use jni::sys::jsize;
 use opendal::Entry;
 use opendal::Operator;
-use opendal::Scheme;
 use opendal::blocking;
 
 use crate::Result;
@@ -60,7 +58,7 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor(
 }
 
 fn intern_constructor(env: &mut JNIEnv, scheme: JString, map: JObject) -> Result<jlong> {
-    let scheme = Scheme::from_str(jstring_to_string(env, &scheme)?.as_str())?;
+    let scheme = jstring_to_string(env, &scheme)?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
@@ -471,7 +469,8 @@ fn intern_remove_all(
 
     executor_or_default(env, executor)?.spawn(async move {
         let result = op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map(|_| JValueOwned::Void)
             .map_err(Into::into);

@@ -1,0 +1,44 @@
+## Capabilities
+
+This service can be used to:
+
+- [x] create_dir
+- [x] stat
+- [x] read
+- [x] write
+- [x] delete
+- [ ] list
+- [x] copy
+- [x] rename
+- [ ] ~~presign~~
+
+## Configuration
+
+- `root`: Set the work dir for backend.
+
+You can refer to [`MonoiofsBuilder`]'s docs for more information
+
+## Example
+
+### Via Builder
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_monoiofs::Monoiofs;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Create monoiofs backend builder.
+    let mut builder = Monoiofs::default()
+        // Set the root for monoiofs, all operations will happen under this root.
+        //
+        // NOTE: the root must be absolute path.
+        .root("/tmp");
+
+    // `Accessor` provides the low level APIs, we will use `Operator` normally.
+    let op: Operator = Operator::new(builder)?.finish();
+
+    Ok(())
+}
+```

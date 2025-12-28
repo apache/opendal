@@ -26,14 +26,13 @@
 //! ```no_run
 //! use anyhow::Result;
 //! use opendal::Operator;
-//! use opendal::Scheme;
 //! use opendal::services;
 //! use unftp_sbe_opendal::OpendalStorage;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<()> {
 //!     // Create any service desired
-//!     let op = opendal::Operator::from_map::<services::S3>(
+//!     let op = opendal::Operator::from_iter::<services::S3>(
 //!         [
 //!             ("bucket".to_string(), "my_bucket".to_string()),
 //!             ("access_key".to_string(), "my_access_key".to_string()),
@@ -264,7 +263,8 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
     async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         self.op
-            .remove_all(convert_path(path.as_ref())?)
+            .delete_with(convert_path(path.as_ref())?)
+            .recursive(true)
             .await
             .map_err(convert_err)
     }

@@ -22,7 +22,6 @@ mod reader;
 mod types;
 
 use std::collections::HashMap;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use anyhow::Result;
@@ -161,12 +160,12 @@ mod ffi {
 pub struct Operator(od::blocking::Operator);
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<*mut Operator> {
-    let scheme = od::Scheme::from_str(scheme)?;
-
     let map: HashMap<String, String> = configs
         .into_iter()
         .map(|value| (value.key, value.value))
         .collect();
+
+    od::init_default_registry();
 
     let runtime =
         tokio::runtime::Handle::try_current().unwrap_or_else(|_| RUNTIME.handle().clone());

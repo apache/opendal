@@ -6,6 +6,8 @@
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+
 Documents: [![Documents](https://img.shields.io/badge/opendal-cpp-blue?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/cpp/)
 
 ## Example

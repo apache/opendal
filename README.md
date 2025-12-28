@@ -12,6 +12,8 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* languages
 
+> **Note**: Each binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to the specific binding's version rather than the core version.
+
 | Name              | Release                                          | Docs                                                                              | Used By |
 | ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------- |
 | [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       | [![Rust Core Users Image]][Rust Core Users]            |
@@ -133,16 +135,16 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 
 ## For *ANY* services
 
-| Type                           | Services                                                                                                                                 |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                                  |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                                        |
-| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [icloud] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                      |
-| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] [atomicserver] |
-| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                                 |
-| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                                 |
-| Git Based Storage Services     | [huggingface]                                                                                                                            |
+| Type                           | Services                                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                  |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                   |
+| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                         |
+| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                |
+| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
+| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                  |
+| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                  |
+| Git Based Storage Services     | [huggingface]                                                                                                             |
 
 [sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
 [webdav]: https://datatracker.ietf.org/doc/html/rfc4918
@@ -173,7 +175,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [gdrive]: https://www.google.com/drive/
 [onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
 [dropbox]: https://www.dropbox.com/
-[icloud]: https://www.icloud.com/iclouddrive
 [koofr]: https://koofr.eu/
 [pcloud]: https://www.pcloud.com/
 [seafile]: https://www.seafile.com/
@@ -190,7 +191,6 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [sled]: https://crates.io/crates/sled
 [redb]: https://crates.io/crates/redb
 [tikv]: https://tikv.org/
-[atomicserver]: https://github.com/atomicdata-dev/atomic-server
 
 [d1]: https://developers.cloudflare.com/d1/
 [mongodb]: https://www.mongodb.com/

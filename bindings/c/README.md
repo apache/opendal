@@ -4,6 +4,8 @@
 
 ![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
 
+> **Note**: This binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to this binding's version rather than the core version.
+
 ## Example
 
 A simple read and write example
@@ -17,8 +19,10 @@ int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
     opendal_result_operator_new result = opendal_operator_new("memory", 0);
-    assert(result.operator_ptr != NULL);
+    assert(result.op != NULL);
     assert(result.error == NULL);
+
+    opendal_operator* op = result.op;
 
     /* Prepare some data to be written */
     opendal_bytes data = {

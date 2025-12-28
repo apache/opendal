@@ -66,7 +66,7 @@ enum Commands {
 }
 
 fn main() -> anyhow::Result<()> {
-    logforth::stderr().apply();
+    logforth::starter_log::stderr().apply();
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),

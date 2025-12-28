@@ -17,7 +17,6 @@
 
 use anyhow::Result;
 use futures::TryStreamExt;
-use log::warn;
 use opendal::raw::Access;
 use opendal::raw::OpDelete;
 
@@ -40,6 +39,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_batch_delete,
             test_batch_delete_with_version
         ));
+        if cap.delete_with_recursive {
+            tests.extend(async_trials!(op, test_delete_with_recursive_basic));
+        }
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
             if !cap.create_dir {
@@ -80,14 +82,6 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
 /// Delete file with special chars should succeed.
 pub async fn test_delete_with_special_chars(op: Operator) -> Result<()> {
-    // Ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 addressed.
-    if op.info().scheme() == opendal::Scheme::Atomicserver {
-        warn!(
-            "ignore test for atomicserver until https://github.com/atomicdata-dev/atomic-server/issues/663 is resolved"
-        );
-        return Ok(());
-    }
-
     let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, _) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
@@ -142,7 +136,8 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     }
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
 
@@ -184,7 +179,7 @@ async fn test_blocking_remove_all_with_objects(
         op.write(&path, content).await.expect("write must succeed");
     }
 
-    op.remove_all(&parent).await?;
+    op.delete_with(&parent).recursive(true).await?;
 
     let found = op
         .lister_with(&format!("{parent}/"))
@@ -280,6 +275,38 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
         .version(version.as_str())
         .await;
     assert!(ret.is_ok());
+
+    Ok(())
+}
+
+pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_recursive {
+        return Ok(());
+    }
+
+    let base = format!("delete_recursive_{}/", uuid::Uuid::new_v4());
+
+    let files = [
+        format!("{base}file.txt"),
+        format!("{base}dir1/file1.txt"),
+        format!("{base}dir1/dir2/file2.txt"),
+    ];
+
+    for path in &files {
+        op.write(path, "delete recursive").await?;
+    }
+
+    op.delete_with(&base).recursive(true).await?;
+
+    let mut l = op.lister_with(&base).recursive(true).await?;
+    assert!(
+        l.try_next().await?.is_none(),
+        "all entries should be removed"
+    );
+
+    for path in &files {
+        assert!(!op.exists(path).await?, "{path} should be removed");
+    }
 
     Ok(())
 }

@@ -19,7 +19,10 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -g
 INCLUDES = -I../include -I.
-LIBS = -lopendal_c -luuid
+LIBS = -lopendal_c
+ifneq ($(shell uname), Darwin)
+LIBS += -luuid
+endif
 
 # Source files
 FRAMEWORK_SOURCES = test_framework.cpp
@@ -102,4 +105,4 @@ test_framework.o: test_framework.h
 test_suites_basic.o: test_framework.h
 test_suites_list.o: test_framework.h
 test_suites_reader_writer.o: test_framework.h
-test_runner.o: test_framework.h 
+test_runner.o: test_framework.h

@@ -21,7 +21,6 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
-use std::str::FromStr;
 use std::time::Duration;
 
 use futures::AsyncReadExt;
@@ -51,12 +50,6 @@ impl Operator {
     /// Note that the current options key is snake_case.
     #[napi(constructor, async_runtime)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let scheme = opendal::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
         let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
@@ -523,7 +516,8 @@ impl Operator {
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
         self.async_op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map_err(format_napi_error)
     }
@@ -539,8 +533,15 @@ impl Operator {
     /// ```
     #[napi]
     pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        use opendal::options::DeleteOptions;
         self.blocking_op
-            .remove_all(&path)
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_napi_error)
     }
 
@@ -636,6 +637,93 @@ impl Operator {
             .map_err(format_napi_error)?;
 
         Ok(l.into_iter().map(Entry).collect())
+    }
+
+    /// Create a lister to list entries at given path.
+    ///
+    /// This function returns a Lister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/");
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub async fn lister(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Lister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .lister_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
+
+        Ok(Lister(l))
+    }
+
+    /// Create a lister to list entries at given path synchronously.
+    ///
+    /// This function returns a BlockingLister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/");
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub fn lister_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<BlockingLister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .blocking_op
+            .lister_options(&path, options)
+            .map_err(format_napi_error)?;
+
+        Ok(BlockingLister(l))
     }
 
     /// Get a presigned request for read.

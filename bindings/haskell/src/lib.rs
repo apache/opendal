@@ -24,7 +24,6 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_char;
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use ::opendal as od;
@@ -68,18 +67,10 @@ pub unsafe extern "C" fn via_map_ffi(
     result: *mut FFIResult<od::blocking::Operator>,
 ) {
     unsafe {
-        let scheme_str = match CStr::from_ptr(scheme).to_str() {
+        let scheme = match CStr::from_ptr(scheme).to_str() {
             Ok(s) => s,
             Err(_) => {
                 *result = FFIResult::err("Failed to convert scheme to string");
-                return;
-            }
-        };
-
-        let scheme = match od::Scheme::from_str(scheme_str) {
-            Ok(s) => s,
-            Err(_) => {
-                *result = FFIResult::err("Failed to parse scheme");
                 return;
             }
         };
@@ -715,9 +706,18 @@ pub unsafe extern "C" fn blocking_remove_all(
             }
         };
 
-        let res = match op.remove_all(path_str) {
-            Ok(()) => FFIResult::ok(()),
-            Err(e) => FFIResult::err_with_source("Failed to remove all", e),
+        let res = {
+            use od::options::DeleteOptions;
+            match op.delete_options(
+                path_str,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            ) {
+                Ok(()) => FFIResult::ok(()),
+                Err(e) => FFIResult::err_with_source("Failed to remove all", e),
+            }
         };
 
         *result = res;

@@ -15,16 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Dtrace layer implementation for Apache OpenDAL.
+
+#![cfg(target_os = "linux")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::ffi::CString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
 use bytes::Buf;
-use probe::probe_lazy;
-
-use opendal_core::raw::Access;
 use opendal_core::raw::*;
 use opendal_core::*;
+use probe::probe_lazy;
 
 /// Support User Statically-Defined Tracing(aka USDT) on Linux
 ///
@@ -72,17 +76,17 @@ use opendal_core::*;
 ///
 /// Example:
 ///
-/// ```ignore
-/// # use opendal::layers::DtraceLayer;
-/// # use opendal::services;
-/// # use opendal::Operator;
-/// # use opendal::Result;
-///
+/// ```no_run
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_dtrace::DtraceLayer;
+/// #
 /// # #[tokio::main]
 /// # async fn main() -> Result<()> {
 /// // `Accessor` provides the low level APIs, we will use `Operator` normally.
-/// let op: Operator = Operator::new(services::Fs::default().root("/tmp"))?
-///     .layer(DtraceLayer::default())
+/// let op: Operator = Operator::new(services::Memory::default().root("/tmp"))?
+///     .layer(DtraceLayer::new())
 ///     .finish();
 ///
 /// let path = "/tmp/test.txt";
@@ -91,7 +95,7 @@ use opendal_core::*;
 ///     op.write(path, bs).await?;
 ///     op.read(path).await?;
 /// }
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -122,8 +126,16 @@ use opendal_core::*;
 ///     Arguments: -8@%rax
 ///   stapsdt              0x0000003c       NT_STAPSDT (SystemTap probe descriptors)
 /// ```
-#[derive(Default, Debug, Clone)]
+#[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct DtraceLayer {}
+
+impl DtraceLayer {
+    /// Create a new [`DtraceLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for DtraceLayer {
     type LayeredAccess = DTraceAccessor<A>;
@@ -132,7 +144,7 @@ impl<A: Access> Layer<A> for DtraceLayer {
     }
 }
 
-#[derive(Clone)]
+#[doc(hidden)]
 pub struct DTraceAccessor<A: Access> {
     inner: A,
 }
@@ -218,13 +230,14 @@ impl<A: Access> LayeredAccess for DTraceAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct DtraceLayerWrapper<R> {
     inner: R,
     path: String,
 }
 
 impl<R> DtraceLayerWrapper<R> {
-    pub fn new(inner: R, path: &String) -> Self {
+    fn new(inner: R, path: &String) -> Self {
         Self {
             inner,
             path: path.to_string(),

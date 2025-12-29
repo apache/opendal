@@ -32,7 +32,7 @@ all-features = true
 
 [dependencies]
 fastpool = "1.0.2"
-http = { workspace = true }
+url = "2.5.7"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["net", "io-util"] }

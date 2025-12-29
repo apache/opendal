@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::borrow::Cow;
 use std::sync::Arc;
+use url::Url;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -98,49 +100,72 @@ impl Builder for MemcachedBuilder {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", MEMCACHED_SCHEME)
         })?;
-        let uri = http::Uri::try_from(&endpoint).map_err(|err| {
+
+        let url_str = if !endpoint.contains("://") {
+            Cow::Owned(format!("tcp://{}", endpoint))
+        } else {
+            Cow::Borrowed(endpoint.as_str())
+        };
+
+        let parsed = Url::parse(&url_str).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", MEMCACHED_SCHEME)
                 .with_context("endpoint", &endpoint)
                 .set_source(err)
         })?;
 
-        match uri.scheme_str() {
-            // If scheme is none, we will use tcp by default.
-            None => (),
-            Some(scheme) => {
-                // We only support tcp by now.
-                if scheme != "tcp" {
+        let endpoint = match parsed.scheme() {
+            "tcp" => {
+                let host = {
+                    if let Some(host) = parsed.host_str() {
+                        host
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "endpoint is using invalid scheme",
+                        )
+                        .with_context("service", MEMCACHED_SCHEME)
+                        .with_context("endpoint", &endpoint));
+                    }
+                };
+                let port = {
+                    if let Some(port) = parsed.port() {
+                        port
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "endpoint is using invalid scheme",
+                        )
+                        .with_context("service", MEMCACHED_SCHEME)
+                        .with_context("endpoint", &endpoint));
+                    }
+                };
+                format!("{host}:{port}",)
+            }
+
+            "unix" => {
+                let path = parsed.path();
+                if path.is_empty() {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
                         "endpoint is using invalid scheme",
                     )
                     .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint)
-                    .with_context("scheme", scheme.to_string()));
+                    .with_context("endpoint", &endpoint));
                 }
+                format!("{path}",)
+            }
+
+            scheme => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "endpoint is using invalid scheme, only tcp and unix are supported",
+                )
+                .with_context("service", MEMCACHED_SCHEME)
+                .with_context("endpoint", &endpoint)
+                .with_context("scheme", scheme));
             }
         };
-
-        let host = if let Some(host) = uri.host() {
-            host.to_string()
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have host")
-                    .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint),
-            );
-        };
-        let port = if let Some(port) = uri.port_u16() {
-            port
-        } else {
-            return Err(
-                Error::new(ErrorKind::ConfigInvalid, "endpoint doesn't have port")
-                    .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint),
-            );
-        };
-        let endpoint = format!("{host}:{port}",);
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 

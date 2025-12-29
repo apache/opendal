@@ -22,7 +22,12 @@ use fastpool::ObjectStatus;
 use fastpool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
-use tokio::net::TcpStream;
+use std::io;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::net::{TcpStream, UnixStream};
 
 use super::binary;
 
@@ -32,6 +37,64 @@ struct MemcacheConnectionManager {
     address: String,
     username: Option<String>,
     password: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum SocketStream {
+    Tcp(TcpStream),
+    Unix(UnixStream),
+}
+
+impl SocketStream {
+    pub async fn connect_any(addr_str: &str) -> io::Result<Self> {
+        if let Ok(socket_addr) = addr_str.parse::<SocketAddr>() {
+            let stream = TcpStream::connect(socket_addr).await?;
+            Ok(SocketStream::Tcp(stream))
+        } else {
+            let stream = UnixStream::connect(addr_str).await?;
+            Ok(SocketStream::Unix(stream))
+        }
+    }
+}
+
+impl AsyncRead for SocketStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+            SocketStream::Unix(s) => Pin::new(s).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for SocketStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_write(cx, buf),
+            SocketStream::Unix(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_flush(cx),
+            SocketStream::Unix(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_shutdown(cx),
+            SocketStream::Unix(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
 }
 
 impl MemcacheConnectionManager {
@@ -48,11 +111,11 @@ impl ManageObject for MemcacheConnectionManager {
     type Object = binary::Connection;
     type Error = Error;
 
-    /// TODO: Implement unix stream support.
     async fn create(&self) -> Result<Self::Object, Self::Error> {
-        let conn = TcpStream::connect(&self.address)
+        let conn = SocketStream::connect_any(&self.address)
             .await
             .map_err(new_std_io_error)?;
+
         let mut conn = binary::Connection::new(conn);
 
         if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {

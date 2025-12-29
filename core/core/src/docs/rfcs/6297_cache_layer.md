@@ -123,20 +123,22 @@ The Cache Layer provides minimal configuration to keep it simple:
 
 ```rust
 let op = s3.layer(
-        CacheLayer::new(memory)
+    CacheLayer::new(memory)
+        .with_options(CacheOptions {
             // Enable read-through caching (default: true)
-            .with_cache_read(true)
-            // Enable write-through caching (default: true)
-            .with_cache_write(true)
+            read: true,
             // Enable cache promotion during read operations (default: true)
-            .with_cache_read_promotion(true)
+            read_promotion: true,
+            // Enable write-through caching (default: true)
+            write: true,
+        })
     )
     .finish();
 ```
 
-- `with_cache_read(bool)`: When disabled, reads bypass the cache entirely.
-- `with_cache_write(bool)`: When enabled, bytes written to the inner service are also stored into the cache.
-- `with_cache_read_promotion(bool)`: When disabled, data fetched from the inner service on a miss will not be stored back into the cache.
+- `read` option: When disabled, reads bypass the cache entirely.
+- `read_promotion` option: When disabled, data fetched from the inner service on a miss will not be stored back into the cache.
+- `write` option: When enabled, bytes written to the inner service are also stored into the cache.
 
 # Reference-level explanation
 
@@ -207,14 +209,16 @@ impl CacheService for Operator {
 The layer wraps the underlying access with `CacheAccessor`, which implements caching logic for each operation.
 
 ```rust
-#[derive(Clone, Debug)]
-struct CacheOptions {
+#[derive(Clone, Copy, Debug)]
+pub struct CacheOptions {
     /// Enable cache lookups before hitting the inner service.
-    read: bool,
+    pub read: bool,
     /// Promote data read from the inner service into the cache (read-through fill).
-    read_promotion: bool,
+    ///
+    /// Note: This option only takes effect when [`CacheOptions::read`] is enabled.
+    pub read_promotion: bool,
     /// Write-through caching for data written to the inner service.
-    write: bool,
+    pub write: bool,
 }
 
 pub struct CacheAccessor<A, S> {

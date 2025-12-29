@@ -137,10 +137,24 @@ impl Code for FoyerValue {
 ///
 /// # Examples
 ///
-/// ```rust
-/// use opendal::layers::FoyerLayer;
-/// use opendal::services::S3;
+/// ```no_run
+/// use opendal_core::{Operator, services::Memory};
+/// use opendal_layer_foyer::FoyerLayer;
+/// use foyer::{HybridCacheBuilder, Engine};
 ///
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let cache = HybridCacheBuilder::new()
+///     .memory(64 * 1024 * 1024) // 64MB memory cache
+///     .with_shards(4)
+///     .storage(Engine::Large(Default::default()))
+///     .build()
+///     .await?;
+///
+/// let op = Operator::new(Memory::default())?
+///     .layer(FoyerLayer::new(cache))
+///     .finish();
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # Note
@@ -377,7 +391,7 @@ mod tests {
     };
     use size::consts::MiB;
 
-    use opendal_core::{Operator, services::Dashmap};
+    use opendal_core::{Operator, services::Memory};
 
     use super::*;
 
@@ -408,7 +422,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Dashmap::default())
+        let op = Operator::new(Memory::default())
             .unwrap()
             .layer(FoyerLayer::new(cache.clone()))
             .finish();

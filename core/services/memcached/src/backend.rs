@@ -96,64 +96,61 @@ impl Builder for MemcachedBuilder {
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Access> {
-        let endpoint = self.config.endpoint.clone().ok_or_else(|| {
+        let endpoint_raw = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", MEMCACHED_SCHEME)
         })?;
 
-        let url_str = if !endpoint.contains("://") {
-            Cow::Owned(format!("tcp://{}", endpoint))
+        let url_str = if !endpoint_raw.contains("://") {
+            Cow::Owned(format!("tcp://{}", endpoint_raw))
         } else {
-            Cow::Borrowed(endpoint.as_str())
+            Cow::Borrowed(endpoint_raw.as_str())
         };
 
         let parsed = Url::parse(&url_str).map_err(|err| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                 .with_context("service", MEMCACHED_SCHEME)
-                .with_context("endpoint", &endpoint)
+                .with_context("endpoint", &endpoint_raw)
                 .set_source(err)
         })?;
 
         let endpoint = match parsed.scheme() {
             "tcp" => {
-                let host = {
-                    if let Some(host) = parsed.host_str() {
-                        host
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::ConfigInvalid,
-                            "endpoint is using invalid scheme",
-                        )
+                let host = parsed.host_str().ok_or_else(|| {
+                    Error::new(ErrorKind::ConfigInvalid, "tcp endpoint doesn't have host")
                         .with_context("service", MEMCACHED_SCHEME)
-                        .with_context("endpoint", &endpoint));
-                    }
-                };
-                let port = {
-                    if let Some(port) = parsed.port() {
-                        port
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::ConfigInvalid,
-                            "endpoint is using invalid scheme",
-                        )
+                        .with_context("endpoint", &endpoint_raw)
+                })?;
+                let port = parsed.port().ok_or_else(|| {
+                    Error::new(ErrorKind::ConfigInvalid, "tcp endpoint doesn't have port")
                         .with_context("service", MEMCACHED_SCHEME)
-                        .with_context("endpoint", &endpoint));
-                    }
-                };
-                format!("{host}:{port}",)
+                        .with_context("endpoint", &endpoint_raw)
+                })?;
+                Endpoint::Tcp(format!("{host}:{port}"))
             }
 
+            #[cfg(unix)]
             "unix" => {
                 let path = parsed.path();
                 if path.is_empty() {
                     return Err(Error::new(
                         ErrorKind::ConfigInvalid,
-                        "endpoint is using invalid scheme",
+                        "unix endpoint doesn't have path",
                     )
                     .with_context("service", MEMCACHED_SCHEME)
-                    .with_context("endpoint", &endpoint));
+                    .with_context("endpoint", &endpoint_raw));
                 }
-                format!("{path}",)
+                Endpoint::Unix(path.to_string())
+            }
+
+            #[cfg(not(unix))]
+            "unix" => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "unix socket is not supported on this platform",
+                )
+                .with_context("service", MEMCACHED_SCHEME)
+                .with_context("endpoint", &endpoint_raw));
             }
 
             scheme => {
@@ -162,7 +159,7 @@ impl Builder for MemcachedBuilder {
                     "endpoint is using invalid scheme, only tcp and unix are supported",
                 )
                 .with_context("service", MEMCACHED_SCHEME)
-                .with_context("endpoint", &endpoint)
+                .with_context("endpoint", &endpoint_raw)
                 .with_context("scheme", scheme));
             }
         };

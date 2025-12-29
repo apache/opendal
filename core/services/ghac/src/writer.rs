@@ -165,7 +165,7 @@ impl oio::Write for GhacWriterV1 {
 
         let resp = self.core.ghac_v1_write(&self.url, size, offset, bs).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp).map(|err| err.with_operation("Backend::ghac_upload")));
+            return Err(parse_error(resp).with_operation("Backend::ghac_upload"));
         }
         self.size += size;
         Ok(())

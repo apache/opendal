@@ -31,14 +31,6 @@ use tokio::net::{TcpStream, UnixStream};
 
 use super::binary;
 
-/// A connection manager for `memcache_async::ascii::Protocol`.
-#[derive(Clone)]
-struct MemcacheConnectionManager {
-    address: String,
-    username: Option<String>,
-    password: Option<String>,
-}
-
 #[derive(Debug)]
 pub enum SocketStream {
     Tcp(TcpStream),
@@ -95,6 +87,14 @@ impl AsyncWrite for SocketStream {
             SocketStream::Unix(s) => Pin::new(s).poll_shutdown(cx),
         }
     }
+}
+
+/// A connection manager for `memcache_async::ascii::Protocol`.
+#[derive(Clone)]
+struct MemcacheConnectionManager {
+    address: String,
+    username: Option<String>,
+    password: Option<String>,
 }
 
 impl MemcacheConnectionManager {

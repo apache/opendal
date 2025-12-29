@@ -42,9 +42,9 @@ pub enum SocketStream {
 
 impl SocketStream {
     pub async fn connect_tcp(addr_str: &str) -> io::Result<Self> {
-        let socket_addr: SocketAddr = addr_str.parse().map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidInput, e)
-        })?;
+        let socket_addr: SocketAddr = addr_str
+            .parse()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         let stream = TcpStream::connect(socket_addr).await?;
         Ok(SocketStream::Tcp(stream))
     }
@@ -103,9 +103,9 @@ impl AsyncWrite for SocketStream {
 /// Endpoint for memcached connection.
 #[derive(Clone, Debug)]
 pub enum Endpoint {
-    Tcp(String),         // host:port
+    Tcp(String), // host:port
     #[cfg(unix)]
-    Unix(String),        // socket path
+    Unix(String), // socket path
 }
 
 /// A connection manager for `memcache_async::ascii::Protocol`.
@@ -132,17 +132,13 @@ impl ManageObject for MemcacheConnectionManager {
 
     async fn create(&self) -> Result<Self::Object, Self::Error> {
         let conn = match &self.endpoint {
-            Endpoint::Tcp(addr) => {
-                SocketStream::connect_tcp(addr)
-                    .await
-                    .map_err(new_std_io_error)?
-            }
+            Endpoint::Tcp(addr) => SocketStream::connect_tcp(addr)
+                .await
+                .map_err(new_std_io_error)?,
             #[cfg(unix)]
-            Endpoint::Unix(path) => {
-                SocketStream::connect_unix(path)
-                    .await
-                    .map_err(new_std_io_error)?
-            }
+            Endpoint::Unix(path) => SocketStream::connect_unix(path)
+                .await
+                .map_err(new_std_io_error)?,
         };
 
         let mut conn = binary::Connection::new(conn);

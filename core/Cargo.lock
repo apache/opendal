@@ -5757,6 +5757,8 @@ version = "0.55.0"
 dependencies = [
  "bytes",
  "opendal-core",
+ "opendal-service-fs",
+ "tokio",
 ]
 
 [[package]]

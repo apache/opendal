@@ -76,14 +76,31 @@ impl CacheService for Operator {
     }
 }
 
-#[derive(Clone, Debug)]
-struct CacheOptions {
+/// Configuration options for [`CacheLayer`].
+///
+/// See [`CacheLayer`] for an overview of the cache behavior controlled by these options.
+#[derive(Clone, Copy, Debug)]
+pub struct CacheOptions {
     /// Enable cache lookups before hitting the inner service.
-    read: bool,
+    pub read: bool,
     /// Promote data read from the inner service into the cache (read-through fill).
-    read_promotion: bool,
+    ///
+    /// Note: This option only takes effect when [`CacheOptions::read`] is enabled.
+    pub read_promotion: bool,
     /// Write-through caching for data written to the inner service.
-    write: bool,
+    pub write: bool,
+}
+
+impl CacheOptions {
+    /// Normalize options to ensure they are internally consistent.
+    ///
+    /// In particular, `read_promotion` has no effect when `read` is disabled.
+    pub fn normalize(mut self) -> Self {
+        if !self.read {
+            self.read_promotion = false;
+        }
+        self
+    }
 }
 
 impl Default for CacheOptions {
@@ -96,11 +113,90 @@ impl Default for CacheOptions {
     }
 }
 
-/// Cache layer that wraps an `Access` with a [`CacheService`].
+/// Cache layer lets you wrap a slower backend (for example, FS or S3) with a faster cache
+/// (for example, Memory or Moka) without changing application code.
 ///
 /// The cache service can be any OpenDAL [`Operator`], allowing reuse of existing services as a
-/// cache backend. Provides read-through (cache lookup), read-promotion (populate cache after
-/// misses), and write-through caching behaviors.
+/// cache backend.
+///
+/// # Options
+///
+/// - **Read-through**: Look up in cache first, fallback to inner service.
+/// - **Read promotion**: On a miss, read from the inner service and store the bytes into cache for later hits.
+/// - **Write-through**: Persist writes to both the inner service and cache once the inner write succeeds.
+///
+/// # Examples
+///
+/// ## Basic usage (single cache layer)
+///
+/// ```no_run
+/// # use opendal_core::services::Memory;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_cache::{CacheLayer, CacheOptions};
+/// # use opendal_service_fs::Fs;
+/// #
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// // Inner: a slower backend (for example, Fs).
+/// let inner = Operator::new(Fs::default().root("/tmp"))?.finish();
+///
+/// // Cache: a faster backend (for example, Memory).
+/// let cache = Operator::new(Memory::default())?.finish();
+///
+/// let op = inner.layer(
+///     CacheLayer::new(cache).with_options(CacheOptions {
+///         read: true,             // default: true
+///         read_promotion: true,   // default: true
+///         write: true,            // default: true
+///     }),
+/// );
+///
+/// // Reads and writes go through `op` as usual.
+/// op.write("hello.txt", "hello").await?;
+/// let data = op.read("hello.txt").await?;
+/// assert_eq!(data.to_bytes(), b"hello"[..]);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Multi-layer usage (L1 + L2 cache)
+///
+/// Stack cache layers to build a tiered cache. With typical settings, reads will try L1 first,
+/// then L2, then the source. Data read from lower tiers can be promoted back into upper tiers.
+///
+/// ```no_run
+/// # use opendal_core::services::Memory;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_cache::{CacheLayer, CacheOptions};
+/// # use opendal_service_fs::Fs;
+/// #
+/// # #[tokio::main]
+/// # async fn main() -> Result<()> {
+/// let source = Operator::new(Fs::default().root("/tmp"))?.finish();
+///
+/// // L2 cache (larger, potentially slower than L1).
+/// let l2 = Operator::new(Memory::default())?.finish();
+/// // L1 cache (smaller, fastest).
+/// let l1 = Operator::new(Memory::default())?.finish();
+///
+/// let options = CacheOptions {
+///     read: true,             // default: true
+///     read_promotion: true,   // default: true
+///     write: true,            // default: true
+/// };
+///
+/// let op = source
+///     .layer(CacheLayer::new(l2).with_options(options))
+///     .layer(CacheLayer::new(l1).with_options(options));
+///
+/// op.write("multi.txt", "tiered").await?;
+/// let data = op.read("multi.txt").await?;
+/// assert_eq!(data.to_bytes(), b"tiered"[..]);
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone)]
 pub struct CacheLayer<S> {
     service: Arc<S>,
@@ -116,24 +212,9 @@ impl<S> CacheLayer<S> {
         }
     }
 
-    /// Enable/disable read-through caching.
-    /// When disabled, reads bypass the cache entirely.
-    pub fn with_cache_read(mut self, enabled: bool) -> Self {
-        self.options.read = enabled;
-        self
-    }
-
-    /// Enable/disable cache promotion during read operations.
-    /// When disabled, data fetched from the inner service on a miss will not be stored back into the cache.
-    pub fn with_cache_read_promotion(mut self, enabled: bool) -> Self {
-        self.options.read_promotion = enabled;
-        self
-    }
-
-    /// Enable/disable write-through caching.
-    /// When enabled, bytes written to the inner service are also stored into the cache.
-    pub fn with_cache_write(mut self, enabled: bool) -> Self {
-        self.options.write = enabled;
+    /// Configure this layer with [`CacheOptions`].
+    pub fn with_options(mut self, options: CacheOptions) -> Self {
+        self.options = options.normalize();
         self
     }
 }
@@ -145,7 +226,7 @@ impl<A: Access, S: CacheService> Layer<A> for CacheLayer<S> {
         CacheAccessor {
             inner,
             cache_service: self.service.clone(),
-            cache_options: self.options.clone(),
+            cache_options: self.options.normalize(),
         }
     }
 }
@@ -393,6 +474,274 @@ impl<W: oio::Write, S: CacheService> oio::Write for CacheWriter<W, S> {
 
         // Abort underlying writer
         self.inner.abort().await?;
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::services::Memory;
+    use opendal_service_fs::Fs;
+
+    fn fs_backend() -> Result<Operator> {
+        // let tmp = tempfile::tempdir().expect("create tempdir");
+        let op = Operator::new(Fs::default().root("/tmp"))?.finish();
+        Ok(op)
+    }
+
+    fn memory_backend() -> Result<Operator> {
+        let op = Operator::new(Memory::default())?.finish();
+        Ok(op)
+    }
+
+    #[tokio::test]
+    async fn basic_cache_layer_with_default_options() -> Result<()> {
+        let inner = fs_backend()?;
+        let cache = memory_backend()?;
+        let op = inner.clone().layer(CacheLayer::new(cache.clone()));
+
+        let path = "foo.txt";
+
+        // write into the inner service directly
+        {
+            inner.write(path, "hello").await?;
+
+            // there's no data in the cache
+            let err = cache.read(path).await.expect_err("not in the memory cache");
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert!(!cache.exists(path).await?);
+
+            inner.delete(path).await?;
+        }
+
+        // write into the operator with cache layer
+        {
+            op.write(path, "world").await?;
+
+            let data = inner.read(path).await?;
+            assert_eq!(data.to_bytes(), b"world"[..]);
+
+            let data = cache.read(path).await?;
+            assert_eq!(data.to_bytes(), b"world"[..]);
+
+            let data = op.read(path).await?;
+            assert_eq!(data.to_bytes(), b"world"[..]);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn multi_layer_cache_hits_l1_then_l2_then_source() -> Result<()> {
+        let inner = fs_backend()?;
+        let l2 = memory_backend()?;
+        let l1 = memory_backend()?;
+
+        let op = inner
+            .clone()
+            .layer(CacheLayer::new(l2.clone()))
+            .layer(CacheLayer::new(l1.clone()));
+
+        let path = "multi.txt";
+        inner.write(path, "tiered").await?;
+
+        // First read: miss L1/L2, fill both
+        let first = op.read(path).await?;
+        assert_eq!(first.to_bytes(), b"tiered"[..]);
+
+        // Remove source; should hit L1 directly
+        inner.delete(path).await?;
+        let second = op.read(path).await?;
+        assert_eq!(second.to_bytes(), b"tiered"[..]);
+
+        // Drop L1 entry to force fallback into L2 on next read
+        l1.delete(path).await?;
+
+        // Third read: expect fetch from L2 and re-promote to L1
+        let third = op.read(path).await?;
+        assert_eq!(third.to_bytes(), b"tiered"[..]);
+        assert!(l1.exists(path).await?);
+
+        // L2 should still have the data
+        let l2_hit = l2.read(path).await?;
+        assert_eq!(l2_hit.to_bytes(), b"tiered"[..]);
+
+        Ok(())
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct Case {
+        name: &'static str,
+        options: CacheOptions,
+        // Expectations for the common scenarios below:
+        expect_cache_after_read_miss: bool,
+        expect_read_hit_after_source_deleted: bool,
+        expect_cache_after_write: bool,
+    }
+
+    async fn run_case(case: Case) -> Result<()> {
+        // Use FS inner so we can delete source to validate behavior; keep cache as Memory for determinism.
+        let inner = fs_backend()?;
+        let cache = memory_backend()?;
+
+        let op = inner
+            .clone()
+            .layer(CacheLayer::new(cache.clone()).with_options(case.options));
+
+        // Use flat keys to avoid any path semantics differences between services.
+        // Also include options to guarantee uniqueness even if `name` collides.
+        let read_path = format!(
+            "case-{}-r{}-p{}-w{}-read.txt",
+            case.name, case.options.read, case.options.read_promotion, case.options.write
+        );
+        let write_path = format!(
+            "case-{}-r{}-p{}-w{}-write.txt",
+            case.name, case.options.read, case.options.read_promotion, case.options.write
+        );
+
+        // ---- Read-miss flow ----
+        //
+        // Don't assert initial cache emptiness here: other tests run in parallel and some cache
+        // backends may behave differently with key normalization. Instead, verify cache behavior
+        // via observable outcomes (whether we can still read after deleting the source, and whether
+        // the cache backend reports the key afterwards).
+        inner.write(&read_path, "hello").await?;
+
+        let data = op.read(&read_path).await?;
+        assert_eq!(data.to_bytes(), b"hello"[..]);
+
+        // Cache may be (or may become) populated depending on read promotion.
+        if case.expect_cache_after_read_miss {
+            assert!(cache.exists(&read_path).await?);
+        }
+
+        // Delete source and try reading again to see whether cache can serve the hit.
+        inner.delete(&read_path).await?;
+        match op.read(&read_path).await {
+            Ok(v) => {
+                assert!(
+                    case.expect_read_hit_after_source_deleted,
+                    "case {}: expected miss after source deleted but got hit",
+                    case.name
+                );
+                assert_eq!(v.to_bytes(), b"hello"[..]);
+            }
+            Err(err) => {
+                assert!(
+                    !case.expect_read_hit_after_source_deleted,
+                    "case {}: expected hit after source deleted but got error {err:?}",
+                    case.name
+                );
+                assert_eq!(err.kind(), ErrorKind::NotFound);
+            }
+        }
+
+        // When we expect the cache to be able to serve the hit, it should also report existence.
+        if case.expect_read_hit_after_source_deleted {
+            assert!(cache.exists(&read_path).await?);
+        }
+
+        // ---- Write flow (write-through) ----
+        //
+        // Same: avoid asserting initial emptiness and only assert positive behavior when enabled.
+        op.write(&write_path, "world").await?;
+        assert!(inner.exists(&write_path).await?);
+
+        if case.expect_cache_after_write {
+            assert!(cache.exists(&write_path).await?);
+            let cached = cache.read(&write_path).await?;
+            assert_eq!(cached.to_bytes(), b"world"[..]);
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_cache_options_cases() -> Result<()> {
+        // There are 3 booleans: read/read_promotion/write, but read_promotion only matters when read=true.
+        // So there are 6 effective configurations; verify them all.
+        //
+        // Legend:
+        // - expect_cache_after_read_miss: cache is filled after a miss + full read
+        // - expect_read_hit_after_source_deleted: cache can serve read after deleting source
+        // - expect_cache_after_write: write-through fills cache
+        let cases = [
+            // read=false => promotion is irrelevant; no read caching / no promotion.
+            Case {
+                name: "read_off_write_off",
+                options: CacheOptions {
+                    read: false,
+                    read_promotion: false,
+                    write: false,
+                },
+                expect_cache_after_read_miss: false,
+                expect_read_hit_after_source_deleted: false,
+                expect_cache_after_write: false,
+            },
+            Case {
+                name: "read_off_write_on_promo_irrelevant",
+                options: CacheOptions {
+                    read: false,
+                    read_promotion: true,
+                    write: true,
+                },
+                expect_cache_after_read_miss: false,
+                expect_read_hit_after_source_deleted: false,
+                expect_cache_after_write: true,
+            },
+            // read=true, promotion=false: reads consult cache but won't fill on miss.
+            Case {
+                name: "read_on_promo_off_write_off",
+                options: CacheOptions {
+                    read: true,
+                    read_promotion: false,
+                    write: false,
+                },
+                expect_cache_after_read_miss: false,
+                expect_read_hit_after_source_deleted: false,
+                expect_cache_after_write: false,
+            },
+            Case {
+                name: "read_on_promo_off_write_on",
+                options: CacheOptions {
+                    read: true,
+                    read_promotion: false,
+                    write: true,
+                },
+                expect_cache_after_read_miss: false,
+                expect_read_hit_after_source_deleted: false,
+                expect_cache_after_write: true,
+            },
+            // read=true, promotion=true: reads fill on miss; cache can serve after source deletion.
+            Case {
+                name: "read_on_promo_on_write_off",
+                options: CacheOptions {
+                    read: true,
+                    read_promotion: true,
+                    write: false,
+                },
+                expect_cache_after_read_miss: true,
+                expect_read_hit_after_source_deleted: true,
+                expect_cache_after_write: false,
+            },
+            Case {
+                name: "read_on_promo_on_write_on",
+                options: CacheOptions {
+                    read: true,
+                    read_promotion: true,
+                    write: true,
+                },
+                expect_cache_after_read_miss: true,
+                expect_read_hit_after_source_deleted: true,
+                expect_cache_after_write: true,
+            },
+        ];
+
+        for case in cases {
+            run_case(case).await?;
+        }
 
         Ok(())
     }

@@ -15,9 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Await tree layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use await_tree::InstrumentAwait;
 use futures::Future;
-
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -32,37 +36,39 @@ use opendal_core::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_await_tree::AwaitTreeLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_await_tree::AwaitTreeLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(AwaitTreeLayer::new())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct AwaitTreeLayer {}
 
 impl AwaitTreeLayer {
-    /// Create a new `AwaitTreeLayer`.
+    /// Create a new [`AwaitTreeLayer`].
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 }
 
 impl<A: Access> Layer<A> for AwaitTreeLayer {
     type LayeredAccess = AwaitTreeAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccess {
-        AwaitTreeAccessor { inner: accessor }
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        AwaitTreeAccessor { inner }
     }
 }
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct AwaitTreeAccessor<A: Access> {
     inner: A,
 }
@@ -139,6 +145,7 @@ impl<A: Access> LayeredAccess for AwaitTreeAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct AwaitTreeWrapper<R> {
     inner: R,
 }

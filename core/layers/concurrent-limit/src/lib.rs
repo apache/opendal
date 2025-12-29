@@ -15,7 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
+//! Concurrent request limit layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -25,7 +29,6 @@ use futures::Stream;
 use futures::StreamExt;
 use mea::semaphore::OwnedSemaphorePermit;
 use mea::semaphore::Semaphore;
-
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -46,27 +49,27 @@ use opendal_core::*;
 /// Add a concurrent limit layer to the operator:
 ///
 /// ```no_run
-/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ConcurrentLimitLayer::new(1024))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
 /// Share a concurrent limit layer between the operators:
 ///
 /// ```no_run
-/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let limit = ConcurrentLimitLayer::new(1024);
 ///
@@ -76,8 +79,7 @@ use opendal_core::*;
 /// let _operator_b = Operator::new(services::Memory::default())?
 ///     .layer(limit.clone())
 ///     .finish();
-///
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone)]
@@ -128,6 +130,7 @@ impl<A: Access> Layer<A> for ConcurrentLimitLayer {
     }
 }
 
+#[doc(hidden)]
 pub struct ConcurrentLimitHttpFetcher {
     inner: HttpFetcher,
     http_semaphore: Option<Arc<Semaphore>>,
@@ -153,7 +156,7 @@ impl HttpFetch for ConcurrentLimitHttpFetcher {
     }
 }
 
-pub struct ConcurrentLimitStream<S> {
+struct ConcurrentLimitStream<S> {
     inner: S,
     // Hold on this permit until this reader has been dropped.
     _permit: OwnedSemaphorePermit,
@@ -170,7 +173,8 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct ConcurrentLimitAccessor<A: Access> {
     inner: A,
     semaphore: Arc<Semaphore>,
@@ -236,6 +240,7 @@ impl<A: Access> LayeredAccess for ConcurrentLimitAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct ConcurrentLimitWrapper<R> {
     inner: R,
 

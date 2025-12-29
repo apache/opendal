@@ -15,8 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Immutable index layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::collections::HashSet;
-use std::fmt::Debug;
 use std::vec::IntoIter;
 
 use opendal_core::raw::*;
@@ -28,7 +32,7 @@ use opendal_core::*;
 ///
 /// # Examples
 ///
-/// ```rust, no_run
+/// ```no_run
 /// # use std::collections::HashMap;
 /// #
 /// # use opendal_core::services;
@@ -37,7 +41,7 @@ use opendal_core::*;
 /// # use opendal_layer_immutable_index::ImmutableIndexLayer;
 /// #
 /// # fn main() -> Result<()> {
-/// let mut iil = ImmutableIndexLayer::default();
+/// let mut iil = ImmutableIndexLayer::new();
 ///
 /// for i in ["file", "dir/", "dir/file", "dir_without_prefix/file"] {
 ///     iil.insert(i.to_string())
@@ -49,9 +53,16 @@ use opendal_core::*;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Default, Debug, Clone)]
+#[derive(Clone, Default)]
 pub struct ImmutableIndexLayer {
     vec: Vec<String>,
+}
+
+impl ImmutableIndexLayer {
+    /// Create a new [`ImmutableIndexLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 
 impl ImmutableIndexLayer {
@@ -87,7 +98,8 @@ impl<A: Access> Layer<A> for ImmutableIndexLayer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct ImmutableIndexAccessor<A: Access> {
     inner: A,
     vec: Vec<String>,
@@ -180,6 +192,7 @@ impl<A: Access> LayeredAccess for ImmutableIndexAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct ImmutableDir {
     idx: IntoIter<String>,
 }

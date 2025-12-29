@@ -368,14 +368,6 @@ impl Error {
         self
     }
 
-    /// Operate on error with map.
-    pub fn map<F>(self, f: F) -> Self
-    where
-        F: FnOnce(Self) -> Self,
-    {
-        f(self)
-    }
-
     /// Set permanent status for error.
     ///
     /// By set permanent, we indicate the retry must be stopped.

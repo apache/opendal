@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Metrics layer (using the [metrics](https://docs.rs/metrics/) crate) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use metrics::Label;
 use metrics::counter;
 use metrics::gauge;
@@ -46,7 +51,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(MetricsLayer::default())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -75,8 +80,16 @@ use opendal_layer_observe_metrics_common as observe;
 /// let (recorder, exporter) = builder.build().expect("failed to build recorder/exporter");
 /// let recorder = builder.build_recorder().expect("failed to build recorder");
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
+#[non_exhaustive]
 pub struct MetricsLayer {}
+
+impl MetricsLayer {
+    /// Create a new [`MetricsLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for MetricsLayer {
     type LayeredAccess = observe::MetricsAccessor<A, MetricsInterceptor>;
@@ -87,8 +100,9 @@ impl<A: Access> Layer<A> for MetricsLayer {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
-pub struct MetricsInterceptor {}
+pub struct MetricsInterceptor;
 
 impl observe::MetricsIntercept for MetricsInterceptor {
     fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {

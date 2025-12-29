@@ -15,12 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Capability check layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
 use opendal_core::raw::*;
-use opendal_core::{Error, ErrorKind, Result};
+use opendal_core::*;
 
 /// Add an extra capability check layer for every operation
 ///
@@ -38,24 +43,31 @@ use opendal_core::{Error, ErrorKind, Result};
 /// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to
 ///    enforce stricter requirements.
 ///
-/// # examples
+/// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_capability_check::CapabilityCheckLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_capability_check::CapabilityCheckLayer;
+/// #
 /// # fn main() -> Result<()> {
-/// use opendal_layer_capability_check::CapabilityCheckLayer;
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(CapabilityCheckLayer)
+///     .layer(CapabilityCheckLayer::new())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
-#[derive(Default)]
-pub struct CapabilityCheckLayer;
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct CapabilityCheckLayer {}
+
+impl CapabilityCheckLayer {
+    /// Create a new [`CapabilityCheckLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for CapabilityCheckLayer {
     type LayeredAccess = CapabilityAccessor<A>;
@@ -67,9 +79,18 @@ impl<A: Access> Layer<A> for CapabilityCheckLayer {
     }
 }
 
+#[doc(hidden)]
 pub struct CapabilityAccessor<A: Access> {
     info: Arc<AccessorInfo>,
     inner: A,
+}
+
+impl<A: Access> Debug for CapabilityAccessor<A> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapabilityCheckAccessor")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
 }
 
 fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Error {
@@ -81,14 +102,6 @@ fn new_unsupported_error(info: &AccessorInfo, op: Operation, args: &str) -> Erro
         format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
     )
     .with_operation(op)
-}
-
-impl<A: Access> Debug for CapabilityAccessor<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CapabilityCheckAccessor")
-            .field("inner", &self.inner)
-            .finish_non_exhaustive()
-    }
 }
 
 impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
@@ -154,9 +167,6 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Capability;
-    use opendal_core::ErrorKind;
-    use opendal_core::Operator;
 
     #[derive(Debug)]
     struct MockService {
@@ -188,7 +198,7 @@ mod tests {
     fn new_test_operator(capability: Capability) -> Operator {
         let srv = MockService { capability };
 
-        Operator::from_inner(Arc::new(srv)).layer(CapabilityCheckLayer)
+        Operator::from_inner(Arc::new(srv)).layer(CapabilityCheckLayer::new())
     }
 
     #[tokio::test]

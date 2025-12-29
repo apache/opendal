@@ -32,7 +32,7 @@ all-features = true
 
 [dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.55.0", default-features = false }
+opendal-layer-observe-metrics-common = { path = "../observe-metrics-common", version = "0.55.0" }
 prometheus = { version = "0.14", features = ["process"] }
 
 [dev-dependencies]

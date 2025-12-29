@@ -377,7 +377,7 @@ mod tests {
     };
     use size::consts::MiB;
 
-    use opendal_core::{services::Dashmap, Operator};
+    use opendal_core::{Operator, services::Dashmap};
 
     use super::*;
 

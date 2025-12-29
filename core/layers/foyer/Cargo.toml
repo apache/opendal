@@ -35,7 +35,9 @@ foyer = "0.18"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", features = ["services-memory"] }
+opendal-core = { path = "../../core", version = "0.55.0", features = [
+  "services-memory",
+] }
 size = "0.5"
 tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

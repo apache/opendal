@@ -45,11 +45,7 @@ fn build_request_url(
     let base = if path == "/" {
         format!("/me/drive/root/children?{}", GENERAL_SELECT_PARAM)
     } else {
-        format!(
-            "{}:/children?{}",
-            item_url_fn(path),
-            GENERAL_SELECT_PARAM
-        )
+        format!("{}:/children?{}", item_url_fn(path), GENERAL_SELECT_PARAM)
     };
 
     if let Some(limit) = limit {
@@ -80,12 +76,9 @@ impl OneDriveLister {
 impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         // Use the helper function here
-        let request_url = build_request_url(
-            &ctx.token,
-            &self.path,
-            self.op.limit(),
-            |p| self.core.onedrive_item_url(p, true),
-        );
+        let request_url = build_request_url(&ctx.token, &self.path, self.op.limit(), |p| {
+            self.core.onedrive_item_url(p, true)
+        });
 
         let response = self.core.onedrive_get_next_list_page(&request_url).await?;
 

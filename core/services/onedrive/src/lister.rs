@@ -29,6 +29,36 @@ use super::graph_model::GENERAL_SELECT_PARAM;
 use super::graph_model::GraphApiOneDriveListResponse;
 use super::graph_model::ItemType;
 
+// --- Helper Function for URL Generation (Logic Extracted Here) ---
+// We use a closure `item_url_fn` to mock the behavior of `onedrive_item_url`
+// so we can test this without a real OneDriveCore instance.
+fn build_request_url(
+    token: &str,
+    path: &str,
+    limit: Option<usize>,
+    item_url_fn: impl Fn(&str) -> String,
+) -> String {
+    if !token.is_empty() {
+        return token.to_string();
+    }
+
+    let base = if path == "/" {
+        format!("/me/drive/root/children?{}", GENERAL_SELECT_PARAM)
+    } else {
+        format!(
+            "{}:/children?{}",
+            item_url_fn(path),
+            GENERAL_SELECT_PARAM
+        )
+    };
+
+    if let Some(limit) = limit {
+        format!("{}&$top={}", base, limit)
+    } else {
+        base
+    }
+}
+
 pub struct OneDriveLister {
     core: Arc<OneDriveCore>,
     path: String,
@@ -49,25 +79,13 @@ impl OneDriveLister {
 
 impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        let request_url = if ctx.token.is_empty() {
-            let base = if self.path == "/" {
-                format!("/me/drive/root/children?{}", GENERAL_SELECT_PARAM)
-            } else {
-                format!(
-                    "{}:/children?{}",
-                    self.core.onedrive_item_url(&self.path, true),
-                    GENERAL_SELECT_PARAM
-                )
-            };
-
-            if let Some(limit) = self.op.limit() {
-                base + &format!("&$top={limit}")
-            } else {
-                base
-            }
-        } else {
-            ctx.token.clone()
-        };
+        // Use the helper function here
+        let request_url = build_request_url(
+            &ctx.token,
+            &self.path,
+            self.op.limit(),
+            |p| self.core.onedrive_item_url(p, true),
+        );
 
         let response = self.core.onedrive_get_next_list_page(&request_url).await?;
 
@@ -88,8 +106,6 @@ impl oio::PageList for OneDriveLister {
 
         // Include the current directory itself when handling the first page of the listing.
         if ctx.token.is_empty() && !ctx.done {
-            // TODO: when listing a directory directly, we could reuse the stat result,
-            // cache the result when listing nested directory
             let path = if self.path == "/" {
                 "".to_string()
             } else {
@@ -97,9 +113,6 @@ impl oio::PageList for OneDriveLister {
             };
 
             let meta = self.core.onedrive_stat(&path, OpStat::default()).await?;
-
-            // skip `list_with_versions` intentionally because a folder doesn't have versions
-
             let entry = oio::Entry::new(&path, meta);
             ctx.entries.push_back(entry);
         }
@@ -124,7 +137,6 @@ impl oio::PageList for OneDriveLister {
                 ItemType::File { .. } => EntryMode::FILE,
             };
 
-            // Add the trailing `/` because OneDrive returns a directory with the name
             if entry_mode == EntryMode::DIR {
                 normalized_path.push('/');
             }
@@ -135,10 +147,6 @@ impl oio::PageList for OneDriveLister {
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
             meta.set_last_modified(last_modified);
 
-            // When listing a directory with `$expand=versions`, OneDrive returns 400 "Operation not supported".
-            // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
-            // N+1 is horrendous but we can't do any better without OneDrive's API support.
-            // When OneDrive supports listing with versions API, remove this.
             if list_with_versions {
                 let versions = self.core.onedrive_list_versions(&path).await?;
                 if let Some(version) = versions.first() {
@@ -151,5 +159,43 @@ impl oio::PageList for OneDriveLister {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_request_url_root() {
+        // Test that Root path uses the correct /me/drive/root endpoint
+        let url = build_request_url("", "/", None, |_| panic!("Should not be called for root"));
+
+        assert_eq!(
+            url,
+            format!("/me/drive/root/children?{}", GENERAL_SELECT_PARAM)
+        );
+    }
+
+    #[test]
+    fn test_build_request_url_non_root() {
+        // Test that non-root path uses the standard item endpoint
+        let url = build_request_url("", "subfolder", None, |p| format!("/drive/root:/{p}"));
+
+        assert_eq!(
+            url,
+            format!("/drive/root:/subfolder:/children?{}", GENERAL_SELECT_PARAM)
+        );
+    }
+
+    #[test]
+    fn test_build_request_url_with_limit() {
+        // Test that limit is appended correctly
+        let url = build_request_url("", "/", Some(10), |_| String::new());
+
+        assert_eq!(
+            url,
+            format!("/me/drive/root/children?{}&$top=10", GENERAL_SELECT_PARAM)
+        );
     }
 }

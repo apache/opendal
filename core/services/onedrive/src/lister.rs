@@ -50,11 +50,19 @@ impl OneDriveLister {
 impl oio::PageList for OneDriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let request_url = if ctx.token.is_empty() {
-            let base = format!(
-                "{}:/children?{}",
-                self.core.onedrive_item_url(&self.path, true),
-                GENERAL_SELECT_PARAM
-            );
+            let base = if self.path == "/" {
+                format!(
+                    "/me/drive/root/children?{}",
+                    GENERAL_SELECT_PARAM
+                )
+            } else {
+                format!(
+                    "{}:/children?{}",
+                    self.core.onedrive_item_url(&self.path, true),
+                    GENERAL_SELECT_PARAM
+                )
+            };
+
             if let Some(limit) = self.op.limit() {
                 base + &format!("&$top={limit}")
             } else {

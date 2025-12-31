@@ -613,6 +613,11 @@ impl S3Core {
 
         let mut req = Request::delete(&url);
 
+        // Add if_match condition using If-Match header
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
@@ -625,7 +630,7 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_copy_object(&self, from: &str, to: &str, args: OpCopy) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
@@ -671,6 +676,16 @@ impl S3Core {
                 ),
                 v,
             )
+        }
+
+        // Add if_not_exists condition using If-None-Match header
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        // Add if_match condition using If-Match header
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
         }
 
         // Set request payer header if enabled.

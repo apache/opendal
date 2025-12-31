@@ -44,6 +44,7 @@ impl OpCreateDir {
 pub struct OpDelete {
     version: Option<String>,
     recursive: bool,
+    if_match: Option<String>,
 }
 
 impl OpDelete {
@@ -75,6 +76,17 @@ impl OpDelete {
     pub fn recursive(&self) -> bool {
         self.recursive
     }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
+    }
 }
 
 impl From<options::DeleteOptions> for OpDelete {
@@ -82,6 +94,7 @@ impl From<options::DeleteOptions> for OpDelete {
         Self {
             version: value.version,
             recursive: value.recursive,
+            if_match: value.if_match,
         }
     }
 }
@@ -878,6 +891,7 @@ impl From<options::WriteOptions> for (OpWrite, OpWriter) {
 #[derive(Debug, Clone, Default)]
 pub struct OpCopy {
     if_not_exists: bool,
+    if_match: Option<String>,
 }
 
 impl OpCopy {
@@ -898,6 +912,17 @@ impl OpCopy {
     /// Get if_not_exists flag.
     pub fn if_not_exists(&self) -> bool {
         self.if_not_exists
+    }
+
+    /// Set the If-Match of the option
+    pub fn with_if_match(mut self, if_match: &str) -> Self {
+        self.if_match = Some(if_match.to_string());
+        self
+    }
+
+    /// Get If-Match from option
+    pub fn if_match(&self) -> Option<&str> {
+        self.if_match.as_deref()
     }
 }
 

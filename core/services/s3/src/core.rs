@@ -630,7 +630,12 @@ impl S3Core {
         self.send(req).await
     }
 
-    pub async fn s3_copy_object(&self, from: &str, to: &str, args: OpCopy) -> Result<Response<Buffer>> {
+    pub async fn s3_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 

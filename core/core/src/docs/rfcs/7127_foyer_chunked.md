@@ -164,7 +164,12 @@ The read operation follows this flow:
 
 1. **Check chunked mode**: If `chunk_size_bytes` is `None`, fallback to whole-object caching (current implementation).
 
-2. **Prefetch with aligned range**:
+2. **Prefetch with coerced range**:
+
+   Without prefetching, chunked cache would require separate requests for each chunk on cache miss, potentially increasing the total number of requests to the underlying storage. To mitigate this, when an object is not yet cached, the implementation coerces the requested range to chunk boundaries and fetches complete chunks in a single aligned request.
+
+   For example, if a user requests bytes 100MB-150MB with 64MB chunks configured, the implementation fetches the aligned range 64MB-192MB in one request and saves chunks 1 and 2. This consolidates what would otherwise be two separate chunk requests into a single request. Future reads to any part of these cached chunks will hit the cache without additional requests.
+
    ```rust
    async fn maybe_prefetch_range(
        &self,
@@ -225,9 +230,8 @@ The read operation follows this flow:
    }
    ```
 
-   **Why alignment matters**: When object is not yet cached, aligning the range allows us to fetch complete chunks in a single request. For example, if user requests bytes 100MB-150MB with 64MB chunks, we fetch 64MB-192MB in one request and save chunks 1 and 2. Future reads to any part of chunks 1 or 2 will hit cache.
-
 3. **Split range into chunks**:
+
    ```rust
    fn split_range_into_chunks(
        &self,

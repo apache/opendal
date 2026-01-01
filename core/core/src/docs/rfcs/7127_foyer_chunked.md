@@ -13,7 +13,7 @@ In https://github.com/apache/opendal/pull/6366, we introduced the first version 
 
 The current implementation caches the entire object as a single unit in the hybrid cache. While this approach works well for small objects and is straightforward to implement correctly, it faces limitations when dealing with large objects:
 
-- **Memory pressure**: Caching large objects (e.g., multi-GB files) as a whole can quickly exhaust the in-memory cache, causing frequent evictions and poor cache hit rates.
+- **Memory pressure**: Caching large objects (e.g., multi-GB files) requires to serialize/deserialize the entire object from cache in a single operation, which is likely to be memory consuming.
 - **Bandwidth waste**: Reading a small portion of a large cached object requires loading the entire object from disk cache into memory, wasting I/O bandwidth.
 - **Cache efficiency**: Large objects have lower reuse probability compared to frequently accessed smaller chunks within them.
 

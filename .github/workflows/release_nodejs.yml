@@ -101,7 +101,7 @@ jobs:
             features: services-all
             build: pnpm build
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
         with:
           version: 8
@@ -144,7 +144,7 @@ jobs:
       - name: Build
         shell: bash
         run: ${{ matrix.settings.build }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: bindings-${{ matrix.settings.os }}-${{ matrix.settings.target }}
           path: bindings/nodejs/*.node
@@ -164,7 +164,7 @@ jobs:
         working-directory: "bindings/nodejs"
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
         with:
           version: 8
@@ -179,7 +179,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           path: bindings/nodejs/artifacts
       - name: Move artifacts

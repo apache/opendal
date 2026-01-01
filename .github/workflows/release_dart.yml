@@ -57,8 +57,8 @@ jobs:
             target_suffix: macos_aarch64
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
-      - uses: actions/cache@v4
+        uses: actions/checkout@v6
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/bin/
@@ -86,7 +86,7 @@ jobs:
           cargo build --release --target ${{ matrix.target }}
 
       - name: Upload build artifact (per platform)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.target }}
           path: bindings/dart/rust/target/${{ matrix.target }}/release/*opendal*
@@ -96,14 +96,14 @@ jobs:
       runs-on: ubuntu-latest
       steps:
         - name: Checkout code
-          uses: actions/checkout@v5
+          uses: actions/checkout@v6
         - name: create release dir
           run: |
             cd bindings/dart/rust
             mkdir -p target/release/
 
         - name: Download all artifacts
-          uses: actions/download-artifact@v5
+          uses: actions/download-artifact@v7
           with:
             path: artifacts
 
@@ -120,7 +120,7 @@ jobs:
             cd bindings/dart/rust
             ls -R .
         - name: Upload combined build artifacts
-          uses: actions/upload-artifact@v4
+          uses: actions/upload-artifact@v6
           with:
               name: combined-release
               path: bindings/dart/rust/target/release/

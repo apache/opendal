@@ -39,14 +39,14 @@ jobs:
   sdist:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: PyO3/maturin-action@v1
         with:
           working-directory: "bindings/python"
           command: sdist
           args: -o dist
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-sdist
           path: bindings/python/dist
@@ -66,7 +66,7 @@ jobs:
           - { os: ubuntu-latest, target: "aarch64-unknown-linux-musl", manylinux: "musllinux_1_1" }
           - { os: ubuntu-latest, target: "armv7-unknown-linux-musleabihf", manylinux: "musllinux_1_1" }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - uses: PyO3/maturin-action@v1
@@ -105,7 +105,7 @@ jobs:
           manylinux: ${{ matrix.manylinux || 'auto' }}
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.target }}
           path: bindings/python/dist
@@ -118,7 +118,7 @@ jobs:
       id-token: write
     needs: [sdist, wheels]
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           pattern: wheels-*
           merge-multiple: true

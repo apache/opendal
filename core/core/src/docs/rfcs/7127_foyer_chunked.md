@@ -158,13 +158,13 @@ struct ObjectMetadata {
 }
 ```
 
-### Read Operation Implementation
+### Implementation
 
-The read operation follows this flow (inspired by SlateDB's design):
+The read operation follows this flow:
 
 1. **Check chunked mode**: If `chunk_size_bytes` is `None`, fallback to whole-object caching (current implementation).
 
-2. **Prefetch with aligned range** (key optimization):
+2. **Prefetch with aligned range**:
    ```rust
    async fn maybe_prefetch_range(
        &self,
@@ -226,8 +226,6 @@ The read operation follows this flow (inspired by SlateDB's design):
    ```
 
    **Why alignment matters**: When object is not yet cached, aligning the range allows us to fetch complete chunks in a single request. For example, if user requests bytes 100MB-150MB with 64MB chunks, we fetch 64MB-192MB in one request and save chunks 1 and 2. Future reads to any part of chunks 1 or 2 will hit cache.
-
-   **Version handling**: The version (etag) is obtained from the read response and included in all cache keys. This ensures that when an object is updated (etag changes), old cached chunks won't be used.
 
 3. **Split range into chunks**:
    ```rust
@@ -300,6 +298,7 @@ The read operation follows this flow (inspired by SlateDB's design):
        // Save to cache (best-effort, ignore errors)
        self.cache.insert(chunk_key, chunk_data.clone()).await.ok();
 
+       // Return the requested range
        Ok(chunk_data.slice(range_in_chunk))
    }
    ```
@@ -309,168 +308,94 @@ The read operation follows this flow (inspired by SlateDB's design):
    - Each chunk is fetched lazily when the stream is polled
    - This reduces memory pressure and allows streaming large ranges efficiently
 
-### Write Operation Implementation
+### Key Design Considerations
 
-Following SlateDB's pattern, write operations can optionally cache the written data:
+1. **Range alignment strategy**
 
-```rust
-async fn write(&self, path: &str, args: OpWrite) -> Result<RpWrite> {
-    // Write to underlying storage first
-    let result = self.inner.write(path, args.clone()).await?;
+   When metadata is not yet cached, the implementation aligns the requested range to chunk boundaries before fetching from the underlying storage. For example, if a user requests bytes 100-150MB with 64MB chunks configured, the system will fetch the aligned range of 64-192MB.
 
-    // Optionally cache the written data (can be controlled by a flag)
-    if self.cache_writes {
-        // Fetch metadata via stat
-        if let Ok(meta) = self.inner.stat(path).await {
-            let metadata = ObjectMetadata::from(meta);
-            let meta_key = format!("{}#meta", path);
-            self.cache.insert(meta_key, serialize_metadata(&metadata)?).await;
+   While this fetches more data initially, it significantly reduces the number of requests to the underlying storage by consolidating multiple chunk fetches into a single aligned request. This trade-off proves beneficial as it populates the cache more efficiently and reduces overall latency.
 
-            // Stream the written data into chunks
-            // Note: This requires buffering the write payload, which may not be desirable
-            // For now, we can skip caching write data and only cache on subsequent reads
-        }
-    }
+   The alignment is only applied on the first fetch (cache miss). Subsequent reads can directly use the cached chunks without additional alignment overhead.
 
-    Ok(result)
-}
-```
+2. **Streaming result**
 
-**Write caching strategy**:
-- **Simple approach**: Only invalidate metadata, don't cache write data
-  - Remove `{path}#meta` from cache
-  - Let chunks naturally expire via LRU
-  - Subsequent reads will populate cache
-- **Aggressive approach**: Cache written data if enabled
-  - Useful for write-then-read patterns
-  - Requires access to write payload (may need buffering)
-  - Can be controlled via `cache_writes` flag (similar to SlateDB)
+   The implementation returns data as a stream where each chunk is fetched lazily when consumed.
 
-### Delete Operation Implementation
+   This approach is critical for memory efficiency when reading large ranges that span many chunks. Without streaming, reading a multi-gigabyte range would require loading all chunks into memory simultaneously, potentially exhausting available memory and causing performance degradation.
 
-When a delete completes:
+3. **Best-effort cache operations**
 
-```rust
-async fn delete(&self, path: &str) -> Result<RpDelete> {
-    let result = self.inner.delete(path).await?;
+   All cache operations (insert, remove, get) are designed to never fail the user's read or write operation.
 
-    // Best-effort cache invalidation
-    // Remove metadata (chunks will be evicted naturally)
-    let meta_key = format!("{}#meta", path);
-    self.cache.remove(&meta_key).await.ok();
-
-    // Optionally: If metadata is in cache, calculate and remove all chunks
-    // This is more thorough but requires additional cache lookup
-
-    Ok(result)
-}
-```
-
-**Rationale**: Lazy chunk removal is acceptable because:
-- Cached chunks for deleted objects are harmless (worst case: wasted cache space)
-- They'll be evicted naturally by LRU when cache pressure increases
-- Scanning cache for all chunks is expensive and not worth the cost
-
-### Key Design Decisions
-
-**Range alignment strategy**:
-- When metadata is not cached, align the requested range to chunk boundaries before fetching
-- Example: Request 100-150MB with 64MB chunks → fetch aligned 64-192MB
-- **Trade-off**: Fetches more data initially, but populates cache more efficiently
-- **Benefit**: Reduces number of requests to underlying storage (one aligned request vs. multiple chunk requests)
-- Only apply alignment on first fetch (cache miss); subsequent reads use cached chunks
-
-**Streaming instead of buffering**:
-- Return data as a stream rather than loading all chunks into memory
-- Each chunk is fetched lazily when consumed
-- Matches OpenDAL's streaming API design
-- Critical for memory efficiency when reading large ranges
-
-**Chunk size validation**:
-- Require chunk size to be aligned to 1KB (similar to SlateDB)
-- Prevents edge cases with very small or misaligned chunks
-- Recommended range: 16MB - 128MB
-
-**Cache operation error handling**:
-- All cache operations (insert, remove, get) should be best-effort
-- Cache failures should NOT fail the user's read/write operation
-- Log warnings for cache errors but continue with fallback to underlying storage
-- This ensures cache is truly transparent to users
+   If a cache operation encounters an error, the implementation logs a warning and continues by falling back to the underlying storage. This ensures that the cache layer remains truly transparent to users.
 
 ### Edge Cases and Considerations
 
-**Last chunk handling**:
-- The last chunk may be smaller than `chunk_size_bytes`
-- Calculate actual chunk size: `min((chunk_idx + 1) * chunk_size, object_size) - chunk_idx * chunk_size`
-- Example: 200 MB file with 64 MB chunks → chunks 0, 1, 2 (64MB each), chunk 3 (8MB)
-- Already handled in `split_range_into_chunks` logic above
+**Last chunk handling**
 
-**Empty or invalid range requests**:
-- Empty range: Return empty result without cache operations
-- Start beyond object size: Return error (per OpenDAL semantics)
-- End beyond object size: Clamp end to object size
+The last chunk of an object may be smaller than the configured chunk size and requires special attention. The implementation calculates the actual chunk size using the formula `min((chunk_idx + 1) * chunk_size, object_size) - chunk_idx * chunk_size`.
 
-**Concurrent access**:
-- Foyer's built-in request deduplication handles concurrent reads to the same chunk
-- Multiple concurrent reads to chunk N will result in only one fetch from underlying storage
-- Other readers wait and reuse the result
-- No additional locking needed in FoyerLayer
+For example, a 200 MB file with 64 MB chunks would be split into chunks 0, 1, and 2 of 64MB each, followed by chunk 3 containing only 8MB.
 
-**Cache consistency**:
-- Cache follows eventual consistency model (same as OpenDAL)
-- No distributed coordination for concurrent writes from different processes
-- Cache invalidation on write/delete is best-effort
-- Acceptable for object storage workloads (most are read-heavy, immutable objects)
+**Empty or invalid range requests**
 
-### Performance Characteristics
+Range requests are handled according to OpenDAL's existing semantics:
+- Empty range: Returns empty result without performing any cache operations
+- Range start beyond object size: Returns error to match OpenDAL's behavior
+- Range end exceeds object size: Clamped to the actual object size, allowing partial reads near the end of objects
 
-**Benefits of aligned prefetching**:
-- **Fewer requests**: One aligned request instead of N chunk requests on cache miss
-  - Example: Request 100-150MB → 1 aligned fetch (64-192MB) vs. 2 separate chunk fetches
-- **Better locality**: Neighboring chunks are likely to be accessed together
-- **Reduced latency**: Fewer round-trips to underlying storage
+**Concurrent access**
 
-**Memory efficiency**:
-- Metadata overhead: ~100-200 bytes per object
-- Chunk data follows normal LRU eviction
-- Streaming API avoids buffering large ranges in memory
-- Each chunk is independently evictable
+Concurrent access patterns benefit from Foyer's built-in request deduplication mechanism. When multiple concurrent reads request the same chunk, Foyer ensures that only one fetch actually occurs from the underlying storage, while other readers wait and reuse the result.
 
-**Cache hit rate analysis**:
-- **Partial reads**: Significantly improved hit rate
-  - Chunks are smaller units, higher reuse probability
-  - Example: Reading different columns of a Parquet file reuses row group chunks
-- **Whole-object reads**: Slightly lower hit rate due to fragmentation
-  - Requires all chunks to be cached vs. one whole-object entry
-  - Trade-off is acceptable given target workload (partial reads)
+This deduplication happens transparently within the Foyer cache layer, requiring no additional locking or coordination logic in FoyerLayer itself.
+
+**Cache consistency**
+
+The cache follows an eventual consistency model aligned with OpenDAL's consistency guarantees. There is no distributed coordination for concurrent writes from different processes, and cache invalidation on write or delete operations is performed on a best-effort basis.
+
+This relaxed consistency model is acceptable for typical object storage workloads, which are predominantly read-heavy and often involve immutable objects.
 
 ### Testing Strategy
 
-**Unit tests**:
-- `split_range_into_chunks` with various ranges and object sizes
-- `align_range` edge cases (aligned, unaligned, boundary conditions)
-- Last chunk handling (smaller than chunk_size)
-- Empty and invalid ranges
+1. **Unit tests**
 
-**Integration tests**:
-- End-to-end read with cache hit and miss
-- Concurrent reads to same chunk (verify deduplication)
-- Write invalidation behavior
-- Mixed whole-object and chunked reads
+   Focus on the core algorithms with various test cases:
+   - `split_range_into_chunks` with different combinations of ranges and object sizes to verify correct chunk boundary calculations
+   - `align_range` with aligned ranges, unaligned ranges, and boundary conditions to ensure all edge cases are handled correctly
+   - Last chunk handling when it's smaller than chunk_size
+   - Empty and invalid range scenarios
 
-**Behavior tests**:
-- Use existing OpenDAL behavior test suite
-- Add chunked cache specific scenarios:
-  - Large file with range reads
-  - Sequential read patterns
-  - Random access patterns
+2. **Integration tests**
+
+   Validate end-to-end behavior of the chunked cache system:
+   - Cache hit and miss scenarios to ensure prefetching and caching logic works correctly
+   - Concurrent reads to the same chunk to verify Foyer's request deduplication
+   - Write invalidation behavior to confirm cached data is properly invalidated when objects are modified
+   - Mixed workloads using both whole-object mode and chunked mode
+
+3. **Behavior tests**
+
+   Leverage OpenDAL's existing behavior test suite, which provides comprehensive coverage across different backends.
+
+   Add chunked cache specific scenarios:
+   - Large files with range reads to validate performance characteristics
+   - Sequential read patterns to verify prefetching efficiency
+   - Random access patterns to ensure proper handling of non-sequential workloads
 
 ### Compatibility and Migration
 
-- **Backward compatible**: Defaults to `chunk_size_bytes = None` (whole-object mode)
-- **No breaking changes**: Existing users unaffected
-- **Opt-in**: Users explicitly enable chunked mode via configuration
-- **Cache format change**: Whole-object cache and chunked cache use different key formats
-  - No automatic migration needed (cache rebuilds naturally)
-  - Changing chunk size also invalidates cache (keys change)
-  - This is acceptable since cache is ephemeral
+**Backward compatibility**
+
+The chunked cache feature is fully backward compatible with existing FoyerLayer usage. The implementation defaults to `chunk_size_bytes = None`, which activates whole-object mode matching the current behavior. This means existing users are completely unaffected by the introduction of chunked caching.
+
+**Opt-in design**
+
+Chunked cache is an opt-in feature that users must explicitly enable through configuration by setting the chunk size. This conservative approach ensures that users who haven't evaluated whether chunked caching benefits their workload will continue to use the proven whole-object caching strategy.
+
+**Cache key migration**
+
+The cache key format changes between whole-object and chunked modes, but this requires no special migration handling. Since whole-object cache uses different keys than chunked cache, and different chunk sizes use different keys from each other, old cache entries simply coexist harmlessly with new ones.
+
+As the LRU eviction policy runs, old entries naturally expire and are replaced with new entries in the current format. This natural invalidation is acceptable because the cache is ephemeral by design, storing temporary performance-optimization data rather than durable state.

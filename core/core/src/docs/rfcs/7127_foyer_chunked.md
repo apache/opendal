@@ -362,7 +362,7 @@ This deduplication happens transparently within the Foyer cache layer, requiring
 
 **Important**: The cache is designed with the assumption that objects in the underlying storage are immutable. This means the cache expects that once an object is written, its content at a given path and version will not change.
 
-When an update or delete operation occurs, the implementation attempts to invalidate the affected metadata and chunks from the cache. However, there are scenarios where stale cache entries may temporarily persist:
+When an update or delete operation occurs, the implementation attempts to invalidate the affected metadata and chunks from the cache on a **best-effort basis**. This means invalidation is attempted but not guaranteed, and failures will not prevent the operation from succeeding. Stale cache entries may temporarily persist in scenarios such as:
 
 - Concurrent writes from different processes or clients cannot be detected
 - Cache invalidation failures are silently ignored to maintain transparency

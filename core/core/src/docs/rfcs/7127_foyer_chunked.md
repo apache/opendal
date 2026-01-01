@@ -147,7 +147,13 @@ let chunk_key = CacheKey::Chunk {
 
 ### Metadata Structure
 
-Beside the cache key, we also need to cache the metadata of the object. Since tbd
+In addition to caching chunks, the implementation must cache object metadata separately. The object size is critical for determining the total number of chunks and calculating the boundary of the last chunk, which may be smaller than the configured chunk size.
+
+Metadata lookup always precedes chunk operations. Before reading any chunks, the implementation must first retrieve the metadata to obtain the object size. This information is essential for correctly calculating chunk boundaries and ensuring cache consistency.
+
+If an metadata is not cached, we could regard the object as not cached and fallback to the underlying storage in most cases.
+
+TODO: take opendal's meta struct.
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -166,7 +172,9 @@ The read operation follows this flow:
 
 2. **Prefetch with coerced range**:
 
-   Without prefetching, chunked cache would require separate requests for each chunk on cache miss, potentially increasing the total number of requests to the underlying storage. To mitigate this, when an object is not yet cached, the implementation coerces the requested range to chunk boundaries and fetches complete chunks in a single aligned request.
+   When an object is not yet cached, the implementation coerces the requested range to chunk boundaries and prefetches complete chunks in a single aligned request, and cache these chunks.
+
+   Without prefetching, chunked cache would require separate requests for each chunk on cache miss, potentially increasing the total number of requests to the underlying storage, which might increase the cost of API calls on object stores.
 
    For example, if a user requests bytes 100MB-150MB with 64MB chunks configured, the implementation fetches the aligned range 64MB-192MB in one request and saves chunks 1 and 2. This consolidates what would otherwise be two separate chunk requests into a single request. Future reads to any part of these cached chunks will hit the cache without additional requests.
 
@@ -231,6 +239,8 @@ The read operation follows this flow:
    ```
 
 3. **Split range into chunks**:
+
+   After obtaining the object size from metadata in the prefetch phase, the implementation splits the requested range into chunks. For each chunk, it calculates the exact range needed within that chunk, accounting for potential partial ranges at the beginning and end.
 
    ```rust
    fn split_range_into_chunks(

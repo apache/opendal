@@ -25,7 +25,7 @@ use log::debug;
 use super::SWIFT_SCHEME;
 use super::SwiftConfig;
 use super::core::*;
-use super::deleter::SwfitDeleter;
+use super::deleter::SwiftDeleter;
 use super::error::parse_error;
 use super::lister::SwiftLister;
 use super::writer::SwiftWriter;
@@ -180,7 +180,7 @@ impl Access for SwiftBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
-    type Deleter = oio::OneShotDeleter<SwfitDeleter>;
+    type Deleter = oio::OneShotDeleter<SwiftDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -230,7 +230,7 @@ impl Access for SwiftBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(SwfitDeleter::new(self.core.clone())),
+            oio::OneShotDeleter::new(SwiftDeleter::new(self.core.clone())),
         ))
     }
 

@@ -42,7 +42,7 @@ jobs:
       plan: ${{ steps.plan.outputs.plan }}
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           # fetch depth set to 0 to make sure we have correct diff result.
           fetch-depth: 0

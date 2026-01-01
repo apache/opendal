@@ -360,9 +360,14 @@ This deduplication happens transparently within the Foyer cache layer, requiring
 
 **Cache consistency**
 
-The cache follows an eventual consistency model aligned with OpenDAL's consistency guarantees. There is no distributed coordination for concurrent writes from different processes, and cache invalidation on write or delete operations is performed on a best-effort basis.
+**Important**: The cache is designed with the assumption that objects in the underlying storage are immutable. This means the cache expects that once an object is written, its content at a given path and version will not change.
 
-This relaxed consistency model is acceptable for typical object storage workloads, which are predominantly read-heavy and often involve immutable objects.
+When an update or delete operation occurs, the implementation attempts to invalidate the affected metadata and chunks from the cache. However, there are scenarios where stale cache entries may temporarily persist:
+
+- Concurrent writes from different processes or clients cannot be detected
+- Cache invalidation failures are silently ignored to maintain transparency
+
+This design is suitable for typical object storage workloads where objects are write-once-read-many. **Applications that frequently modify objects at the same path should carefully evaluate whether using this feature is appropriate.** Those requiring strong consistency guarantees should either disable caching or implement application-level cache invalidation mechanisms.
 
 ### Testing Strategy
 

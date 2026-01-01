@@ -5563,6 +5563,7 @@ dependencies = [
  "opendal-core",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
+ "opendal-layer-cache",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
  "opendal-layer-concurrent-limit",
@@ -5762,6 +5763,16 @@ dependencies = [
  "await-tree",
  "futures",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-cache"
+version = "0.55.0"
+dependencies = [
+ "bytes",
+ "opendal-core",
+ "opendal-service-fs",
+ "tokio",
 ]
 
 [[package]]

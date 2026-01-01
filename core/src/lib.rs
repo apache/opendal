@@ -373,6 +373,8 @@ pub mod layers {
     pub use opendal_layer_async_backtrace::*;
     #[cfg(feature = "layers-await-tree")]
     pub use opendal_layer_await_tree::*;
+    #[cfg(feature = "layers-cache")]
+    pub use opendal_layer_cache::*;
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]

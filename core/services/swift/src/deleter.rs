@@ -24,17 +24,17 @@ use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct SwfitDeleter {
+pub struct SwiftDeleter {
     core: Arc<SwiftCore>,
 }
 
-impl SwfitDeleter {
+impl SwiftDeleter {
     pub fn new(core: Arc<SwiftCore>) -> Self {
         Self { core }
     }
 }
 
-impl oio::OneShotDelete for SwfitDeleter {
+impl oio::OneShotDelete for SwiftDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let resp = self.core.swift_delete(&path).await?;
 

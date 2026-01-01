@@ -35,58 +35,18 @@ fn extract_err(e: FoyerError) -> Error {
     Error::new(ErrorKind::Unexpected, e.to_string())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// [`FoyerKey`] is a key for the foyer cache. It's encoded via bincode, which is
+/// backed by foyer's "serde" feature.
+///
+/// It's possible to specify a version in the [`OpRead`] args:
+///
+/// - If a version is given, the object is cached under that versioned key.  
+/// - If version is not supplied, the object is cached exactly as returned by the backend,
+///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FoyerKey {
     pub path: String,
     pub version: Option<String>,
-}
-
-impl Code for FoyerKey {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        let path_len = self.path.len() as u64;
-        writer.write_all(&path_len.to_le_bytes())?;
-        writer.write_all(self.path.as_bytes())?;
-        if let Some(ref version) = self.version {
-            let version_len = version.len() as u64;
-            writer.write_all(&version_len.to_le_bytes())?;
-            writer.write_all(version.as_bytes())?;
-        } else {
-            writer.write_all(&0u64.to_le_bytes())?;
-        }
-        Ok(())
-    }
-
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
-    where
-        Self: Sized,
-    {
-        let mut u64_buf = [0u8; 8];
-        reader.read_exact(&mut u64_buf)?;
-        let path_len = u64::from_le_bytes(u64_buf) as usize;
-        let mut path_buf = vec![0u8; path_len];
-        reader.read_exact(&mut path_buf[..path_len])?;
-        let path = String::from_utf8(path_buf).map_err(|e| CodeError::Other(Box::new(e)))?;
-
-        reader.read_exact(&mut u64_buf)?;
-        let version_len = u64::from_le_bytes(u64_buf) as usize;
-        let version = if version_len > 0 {
-            let mut version_buf = vec![0u8; path_len];
-            reader.read_exact(&mut version_buf[..path_len])?;
-            let version =
-                String::from_utf8(version_buf).map_err(|e| CodeError::Other(Box::new(e)))?;
-            Some(version)
-        } else {
-            None
-        };
-        Ok(FoyerKey { path, version })
-    }
-
-    fn estimated_size(&self) -> usize {
-        // 8B length prefix + path length
-        8 + self.path.len()
-        // 8B version length prefix + version length, if present
-        + 8 + self.version.as_ref().map_or(0, |v| v.len())
-    }
 }
 
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
@@ -122,7 +82,6 @@ impl Code for FoyerValue {
     }
 
     fn estimated_size(&self) -> usize {
-        // 8B length prefix + buffer length
         8 + self.0.len()
     }
 }
@@ -389,9 +348,9 @@ mod tests {
     use foyer::{
         DirectFsDeviceOptions, Engine, HybridCacheBuilder, LargeEngineOptions, RecoverMode,
     };
-    use size::consts::MiB;
-
     use opendal_core::{Operator, services::Memory};
+    use size::consts::MiB;
+    use std::io::Cursor;
 
     use super::*;
 
@@ -466,5 +425,85 @@ mod tests {
         let fe = FoyerError::other(e);
         let oe = extract_err(fe);
         assert_eq!(oe.kind(), ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_foyer_key_version_none_vs_empty() {
+        let key_none = FoyerKey {
+            path: "test/path".to_string(),
+            version: None,
+        };
+
+        let key_empty = FoyerKey {
+            path: "test/path".to_string(),
+            version: Some("".to_string()),
+        };
+
+        let mut buf_none = Vec::new();
+        key_none.encode(&mut buf_none).unwrap();
+
+        let mut buf_empty = Vec::new();
+        key_empty.encode(&mut buf_empty).unwrap();
+
+        assert_ne!(
+            buf_none, buf_empty,
+            "Serialization of version=None and version=\"\" should be different"
+        );
+
+        let decoded_none = FoyerKey::decode(&mut Cursor::new(&buf_none)).unwrap();
+        assert_eq!(decoded_none, key_none);
+        let decoded_empty = FoyerKey::decode(&mut Cursor::new(&buf_empty)).unwrap();
+        assert_eq!(decoded_empty, key_empty);
+    }
+
+    #[test]
+    fn test_foyer_key_serde() {
+        use std::io::Cursor;
+
+        let test_cases = vec![
+            FoyerKey {
+                path: "simple".to_string(),
+                version: None,
+            },
+            FoyerKey {
+                path: "with/slash/path".to_string(),
+                version: None,
+            },
+            FoyerKey {
+                path: "versioned".to_string(),
+                version: Some("v1.0.0".to_string()),
+            },
+            FoyerKey {
+                path: "empty-version".to_string(),
+                version: Some("".to_string()),
+            },
+            FoyerKey {
+                path: "".to_string(),
+                version: None,
+            },
+            FoyerKey {
+                path: "unicode/路径/🚀".to_string(),
+                version: Some("版本-1".to_string()),
+            },
+            FoyerKey {
+                path: "long/".to_string().repeat(100),
+                version: Some("long-version-".to_string().repeat(50)),
+            },
+        ];
+
+        for original in test_cases {
+            let mut buffer = Vec::new();
+            original
+                .encode(&mut buffer)
+                .expect("encoding should succeed");
+
+            let decoded =
+                FoyerKey::decode(&mut Cursor::new(&buffer)).expect("decoding should succeed");
+
+            assert_eq!(
+                decoded, original,
+                "decode(encode(key)) should equal original key"
+            );
+        }
     }
 }

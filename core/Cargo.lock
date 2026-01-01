@@ -3240,6 +3240,7 @@ version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9db9c0e4648b13e9216d785b308d43751ca975301aeb83e607ec630b6f956944"
 dependencies = [
+ "bincode",
  "bytes",
  "cfg-if",
  "itertools 0.14.0",
@@ -3247,6 +3248,7 @@ dependencies = [
  "mixtrics",
  "parking_lot 0.12.5",
  "pin-project",
+ "serde",
  "thiserror 2.0.17",
  "tokio",
  "twox-hash",
@@ -3311,6 +3313,7 @@ dependencies = [
  "paste",
  "pin-project",
  "rand 0.9.2",
+ "serde",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -6107,8 +6110,10 @@ dependencies = [
 name = "opendal-layer-foyer"
 version = "0.55.0"
 dependencies = [
+ "bincode",
  "foyer",
  "opendal-core",
+ "serde",
  "size",
  "tempfile",
  "tokio",

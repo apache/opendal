@@ -151,16 +151,23 @@ In addition to caching chunks, the implementation must cache object metadata sep
 
 Metadata lookup always precedes chunk operations. Before reading any chunks, the implementation must first retrieve the metadata to obtain the object size. This information is essential for correctly calculating chunk boundaries and ensuring cache consistency.
 
-If an metadata is not cached, we could regard the object as not cached and fallback to the underlying storage in most cases.
+If metadata is not cached, the object is treated as uncached and the implementation falls back to the underlying storage.
 
-TODO: take opendal's meta struct.
+Since OpenDAL's `Metadata` does not currently implement `Serialize/Deserialize`, we define a `CachedMetadata` wrapper that can be serialized to cache:
 
 ```rust
+/// Wrapper for OpenDAL's Metadata to make it serializable for cache.
 #[derive(Serialize, Deserialize)]
-struct ObjectMetadata {
-    size: u64,
-    etag: Option<String>,
-    last_modified: Option<SystemTime>,
+struct CachedMetadata {
+    meta: Metadata,
+}
+
+impl From<&Metadata> for CachedMetadata {
+    fn from(meta: &Metadata) -> Self {
+        Self {
+            meta: meta.clone(),
+        }
+    }
 }
 ```
 
@@ -182,20 +189,20 @@ The read operation follows this flow:
    async fn maybe_prefetch_range(
        &self,
        path: &str,
+       version: Option<String>,
        range: Option<Range<u64>>,
-   ) -> Result<ObjectMetadata> {
+   ) -> Result<CachedMetadata> {
        let chunk_size = self.chunk_size_bytes.unwrap();
 
-       // First, try to get cached metadata to obtain version
-       // We try with version=None first since we don't know the version yet
-       let meta_key_without_version = CacheKey::Metadata {
+       // First, try to get cached metadata
+       let meta_key = CacheKey::Metadata {
            path: path.to_string(),
            chunk_size,
-           version: None,
+           version: version.clone(),
        }.to_bytes();
 
-       if let Some(cached_meta) = self.cache.get(&meta_key_without_version).await {
-           return deserialize_metadata(cached_meta);
+       if let Some(cached_meta) = self.cache.get(&meta_key).await {
+           return Ok(cached_meta);
        }
 
        // Align the range to chunk boundaries for efficient prefetching
@@ -206,23 +213,9 @@ The read operation follows this flow:
        // Example: User requests 100-150MB, we fetch 64-192MB (chunks 1,2)
        let (rp, mut reader) = self.inner.read(path, aligned_range).await?;
 
-       // Extract version (etag) from response
-       let version = rp.metadata().etag().map(String::from);
-
-       // Save metadata with version
-       let metadata = ObjectMetadata {
-           size: rp.metadata().content_length(),
-           etag: version.clone(),
-           last_modified: rp.metadata().last_modified(),
-       };
-
-       let meta_key = CacheKey::Metadata {
-           path: path.to_string(),
-           chunk_size,
-           version: version.clone(),
-       }.to_bytes();
-
-       self.cache.insert(meta_key, serialize_metadata(&metadata)?).await;
+       // Convert OpenDAL's Metadata to CachedMetadata for cache storage
+       let metadata = CachedMetadata::from(rp.metadata());
+       self.cache.insert(meta_key, metadata).await;
 
        // Stream data and save chunks (with version)
        self.save_chunks_from_stream(path, reader, aligned_range.start, version).await?;

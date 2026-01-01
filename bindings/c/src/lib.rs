@@ -72,3 +72,6 @@ pub use reader::opendal_reader;
 
 mod writer;
 pub use writer::opendal_writer;
+
+mod options;
+pub use options::opendal_operator_options_read;

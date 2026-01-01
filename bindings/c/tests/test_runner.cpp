@@ -25,12 +25,14 @@
 extern opendal_test_suite basic_suite;
 extern opendal_test_suite list_suite;
 extern opendal_test_suite reader_writer_suite;
+extern opendal_test_suite options_suite;
 
 // List of all test suites
 static opendal_test_suite* all_suites[] = {
     &basic_suite,
     &list_suite,
     &reader_writer_suite,
+    &options_suite,
 };
 
 static const size_t num_suites = sizeof(all_suites) / sizeof(all_suites[0]);

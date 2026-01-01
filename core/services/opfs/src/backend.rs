@@ -18,11 +18,11 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use web_sys::FileSystemGetDirectoryOptions;
-
 use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
-use super::utils::*;
+use super::core::OpfsCore;
+use super::delete::OpfsDeleter;
+
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -32,17 +32,56 @@ pub struct OpfsBuilder {
     pub(super) config: OpfsConfig,
 }
 
+impl OpfsBuilder {
+    /// Set root for backend.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+
+        self
+    }
+}
+
 impl Builder for OpfsBuilder {
     type Config = OpfsConfig;
 
     fn build(self) -> Result<impl Access> {
-        Ok(OpfsBackend {})
+        let root = self.config.root.ok_or(
+            Error::new(ErrorKind::ConfigInvalid, "root is not specified")
+                .with_operation("Builder::build"),
+        )?;
+
+        let info = AccessorInfo::default();
+        info.set_scheme(OPFS_SCHEME)
+            .set_root(&root)
+            .set_native_capability(Capability {
+                stat: true,
+                create_dir: true,
+                delete: true,
+                delete_with_recursive: true,
+                ..Default::default()
+            });
+
+        let core = Arc::new(OpfsCore::new(Arc::new(info), root));
+
+        Ok(OpfsBackend::new(core))
     }
 }
 
 /// OPFS Service backend
 #[derive(Default, Debug, Clone)]
-pub struct OpfsBackend {}
+pub struct OpfsBackend {
+    core: Arc<OpfsCore>,
+}
+
+impl OpfsBackend {
+    pub(crate) fn new(core: Arc<OpfsCore>) -> Self {
+        Self { core }
+    }
+}
 
 impl Access for OpfsBackend {
     type Reader = ();
@@ -51,25 +90,25 @@ impl Access for OpfsBackend {
 
     type Lister = ();
 
-    type Deleter = ();
+    type Deleter = oio::OneShotDeleter<OpfsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
-        let info = AccessorInfo::default();
-        info.set_scheme(OPFS_SCHEME);
-        info.set_name("opfs");
-        info.set_root("/");
-        info.set_native_capability(Capability {
-            create_dir: true,
-            ..Default::default()
-        });
-        Arc::new(info)
+        self.core.info.clone()
+    }
+
+    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+        let metadata = self.core.opfs_stat(path).await?;
+        Ok(RpStat::new(metadata))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let opt = FileSystemGetDirectoryOptions::new();
-        opt.set_create(true);
-        get_directory_handle(path, &opt).await?;
+        self.core.opfs_create_dir(path).await?;
 
         Ok(RpCreateDir::default())
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = oio::OneShotDeleter::new(OpfsDeleter::new(self.core.clone()));
+        Ok((RpDelete::default(), deleter))
     }
 }

@@ -25,7 +25,11 @@ import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Layer;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.LoggingLayer;
+import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.ThrottleLayer;
+import org.apache.opendal.layer.TimeoutLayer;
 import org.junit.jupiter.api.Test;
 
 public class LayerTest {
@@ -46,6 +50,46 @@ public class LayerTest {
         final Layer concurrentLimitLayer = new ConcurrentLimitLayer(1024);
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testOperatorWithMimeGuessLayer() {
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
+        final Layer mimeGuessLayer = new MimeGuessLayer();
+        @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
+        @Cleanup final AsyncOperator layeredOp = op.layer(mimeGuessLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testOperatorWithTimeoutLayer() {
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
+        final Layer timeoutLayer = new TimeoutLayer();
+        @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
+        @Cleanup final AsyncOperator layeredOp = op.layer(timeoutLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testOperatorWithLoggingLayer() {
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
+        final Layer loggingLayer = new LoggingLayer();
+        @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
+        @Cleanup final AsyncOperator layeredOp = op.layer(loggingLayer);
+        assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testOperatorWithThrottleLayer() {
+        final ServiceConfig.Memory memory =
+                ServiceConfig.Memory.builder().root("/opendal/").build();
+        final Layer throttleLayer = new ThrottleLayer(1024, 1024);
+        @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
+        @Cleanup final AsyncOperator layeredOp = op.layer(throttleLayer);
         assertThat(layeredOp.info).isNotNull();
     }
 }

@@ -24,7 +24,6 @@ use jni::sys::jfloat;
 use jni::sys::jlong;
 use opendal::Operator;
 use opendal::layers::ConcurrentLimitLayer;
-use opendal::layers::HotpathLayer;
 use opendal::layers::LoggingLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
@@ -116,15 +115,4 @@ pub extern "system" fn Java_org_apache_opendal_layer_ThrottleLayer_doLayer(
     let op = unsafe { &*op };
     let throttle = ThrottleLayer::new(bandwidth as u32, burst as u32);
     Box::into_raw(Box::new(op.clone().layer(throttle))) as jlong
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_org_apache_opendal_layer_HotpathLayer_doLayer(
-    _: JNIEnv,
-    _: JClass,
-    op: *mut Operator,
-) -> jlong {
-    let op = unsafe { &*op };
-    let hotpath = HotpathLayer::new();
-    Box::into_raw(Box::new(op.clone().layer(hotpath))) as jlong
 }

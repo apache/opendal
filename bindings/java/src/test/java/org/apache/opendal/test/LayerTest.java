@@ -25,7 +25,6 @@ import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Layer;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
-import org.apache.opendal.layer.HotpathLayer;
 import org.apache.opendal.layer.LoggingLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
@@ -91,16 +90,6 @@ public class LayerTest {
         final Layer throttleLayer = new ThrottleLayer(1024, 1024);
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(throttleLayer);
-        assertThat(layeredOp.info).isNotNull();
-    }
-
-    @Test
-    void testOperatorWithHotpathLayer() {
-        final ServiceConfig.Memory memory =
-                ServiceConfig.Memory.builder().root("/opendal/").build();
-        final Layer hotpathLayer = new HotpathLayer();
-        @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
-        @Cleanup final AsyncOperator layeredOp = op.layer(hotpathLayer);
         assertThat(layeredOp.info).isNotNull();
     }
 }

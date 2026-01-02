@@ -24,6 +24,9 @@ import org.apache.opendal.Layer;
 /**
  * This layer adds structured logging for every operation.
  *
+ * <p>Note: This layer requires proper logging setup (e.g., log4j2, java.util.logging) to work.
+ * Without logging configuration, this layer is a no-op.
+ *
  * @see <a href="https://docs.rs/opendal/latest/opendal/layers/struct.LoggingLayer.html">LoggingLayer's rustdoc</a>
  */
 public class LoggingLayer extends Layer {

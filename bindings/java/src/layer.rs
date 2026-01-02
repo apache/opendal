@@ -24,7 +24,12 @@ use jni::sys::jfloat;
 use jni::sys::jlong;
 use opendal::Operator;
 use opendal::layers::ConcurrentLimitLayer;
+use opendal::layers::HotpathLayer;
+use opendal::layers::LoggingLayer;
+use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
+use opendal::layers::ThrottleLayer;
+use opendal::layers::TimeoutLayer;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer(
@@ -61,4 +66,65 @@ pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLaye
     let op = unsafe { &*op };
     let concurrent_limit = ConcurrentLimitLayer::new(permits as usize);
     Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_MimeGuessLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    let op = unsafe { &*op };
+    let mime_guess = MimeGuessLayer::new();
+    Box::into_raw(Box::new(op.clone().layer(mime_guess))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_TimeoutLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    timeout_nanos: jlong,
+    io_timeout_nanos: jlong,
+) -> jlong {
+    let op = unsafe { &*op };
+    let timeout = TimeoutLayer::new()
+        .with_timeout(Duration::from_nanos(timeout_nanos as u64))
+        .with_io_timeout(Duration::from_nanos(io_timeout_nanos as u64));
+    Box::into_raw(Box::new(op.clone().layer(timeout))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_LoggingLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    let op = unsafe { &*op };
+    let logging = LoggingLayer::default();
+    Box::into_raw(Box::new(op.clone().layer(logging))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_ThrottleLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    bandwidth: jlong,
+    burst: jlong,
+) -> jlong {
+    let op = unsafe { &*op };
+    let throttle = ThrottleLayer::new(bandwidth as u32, burst as u32);
+    Box::into_raw(Box::new(op.clone().layer(throttle))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_HotpathLayer_doLayer(
+    _: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+) -> jlong {
+    let op = unsafe { &*op };
+    let hotpath = HotpathLayer::new();
+    Box::into_raw(Box::new(op.clone().layer(hotpath))) as jlong
 }

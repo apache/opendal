@@ -31,8 +31,7 @@ public class HotpathLayer extends Layer {
     /**
      * Create a new HotpathLayer.
      */
-    public HotpathLayer() {
-    }
+    public HotpathLayer() {}
 
     @Override
     protected long layer(long nativeOp) {

@@ -31,8 +31,7 @@ public class MimeGuessLayer extends Layer {
     /**
      * Create a new MimeGuessLayer.
      */
-    public MimeGuessLayer() {
-    }
+    public MimeGuessLayer() {}
 
     @Override
     protected long layer(long nativeOp) {

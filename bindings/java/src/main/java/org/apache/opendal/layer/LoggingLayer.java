@@ -31,8 +31,7 @@ public class LoggingLayer extends Layer {
     /**
      * Create a new LoggingLayer.
      */
-    public LoggingLayer() {
-    }
+    public LoggingLayer() {}
 
     @Override
     protected long layer(long nativeOp) {

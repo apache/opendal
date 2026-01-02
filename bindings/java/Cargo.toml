@@ -157,8 +157,8 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 
-layers-mime-guess = ["opendal/layers-mime-guess"]
 layers-logging = ["opendal/layers-logging"]
+layers-mime-guess = ["opendal/layers-mime-guess"]
 layers-throttle = ["opendal/layers-throttle"]
 layers-timeout = ["opendal/layers-timeout"]
 

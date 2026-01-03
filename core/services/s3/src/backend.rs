@@ -930,7 +930,8 @@ impl Builder for S3Builder {
                             copy_with_if_not_exists: true,
                             copy_with_if_match: true,
 
-                            rename: true,
+                            list: true,
+                            rename: false,
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,

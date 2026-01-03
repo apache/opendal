@@ -24,14 +24,14 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, Default)]
 pub struct DeleteOptions {
     /// The version of the file to delete.
-    pub(crate) version: Option<String>,
+    pub version: Option<String>,
     /// Set `if_match` for this operation.
     ///
     /// This option can be used to check if the file's `ETag` matches the given `ETag`.
     ///
     /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
     /// will be returned.
-    pub(crate) if_match: Option<String>,
+    pub if_match: Option<String>,
     /// Whether to delete the target recursively.
     ///
     /// - If `false`, behaves like the traditional single-object delete.

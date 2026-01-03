@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use crate::core::SocketStream;
 use opendal_core::raw::*;
 use opendal_core::*;
 use tokio::io;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
-use tokio::net::TcpStream;
 
 pub(super) mod constants {
     pub const OK_STATUS: u16 = 0x0;
@@ -60,7 +60,7 @@ pub struct PacketHeader {
 }
 
 impl PacketHeader {
-    pub async fn write(self, writer: &mut TcpStream) -> io::Result<()> {
+    pub async fn write(self, writer: &mut SocketStream) -> io::Result<()> {
         writer.write_u8(self.magic).await?;
         writer.write_u8(self.opcode).await?;
         writer.write_u16(self.key_length).await?;
@@ -73,7 +73,7 @@ impl PacketHeader {
         Ok(())
     }
 
-    pub async fn read(reader: &mut TcpStream) -> Result<PacketHeader, io::Error> {
+    pub async fn read(reader: &mut SocketStream) -> Result<PacketHeader, io::Error> {
         let header = PacketHeader {
             magic: reader.read_u8().await?,
             opcode: reader.read_u8().await?,
@@ -98,11 +98,11 @@ pub struct Response {
 
 #[derive(Debug)]
 pub struct Connection {
-    io: BufReader<TcpStream>,
+    io: BufReader<SocketStream>,
 }
 
 impl Connection {
-    pub fn new(io: TcpStream) -> Self {
+    pub fn new(io: SocketStream) -> Self {
         Self {
             io: BufReader::new(io),
         }
@@ -246,7 +246,7 @@ impl Connection {
     }
 }
 
-pub async fn parse_response(reader: &mut TcpStream) -> Result<Response> {
+pub async fn parse_response(reader: &mut SocketStream) -> Result<Response> {
     let header = PacketHeader::read(reader).await.map_err(new_std_io_error)?;
 
     if header.vbucket_id_or_status != constants::OK_STATUS

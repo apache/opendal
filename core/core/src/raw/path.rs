@@ -95,9 +95,8 @@ pub fn build_rel_path(root: &str, path: &str) -> String {
 /// - Internal // will be replaced by /: `abc///def` => `abc/def`
 /// - Empty path will be `/`: `` => `/`
 pub fn normalize_path(path: &str) -> String {
-    // - all whitespace has been trimmed.
     // - all leading `/` has been trimmed.
-    let path = path.trim().trim_start_matches('/');
+    let path = path.trim_start_matches('/');
 
     // Fast line for empty path.
     if path.is_empty() {
@@ -273,6 +272,18 @@ mod tests {
     #[test]
     fn test_normalize_path() {
         let cases = vec![
+            ("no change", "abc/def", "abc/def"),
+            ("trailing space preserved", "abc/def ", "abc/def "),
+            ("leading space preserved", "  leading", "  leading"),
+            ("trailing spaces preserved", "trailing  ", "trailing  "),
+            ("only whitespace preserved", "   ", "   "),
+            (
+                "collapse duplicate slashes, preserve trailing slash",
+                "///a//b///",
+                "a/b/",
+            ),
+            ("empty => root", "", "/"),
+            ("single slash => root", "/", "/"),
             ("file path", "abc", "abc"),
             ("dir path", "abc/", "abc/"),
             ("empty path", "", "/"),
@@ -284,7 +295,7 @@ mod tests {
             ("abs dir path with extra /", "///abc/def/", "abc/def/"),
             ("file path contains ///", "abc///def", "abc/def"),
             ("dir path contains ///", "abc///def///", "abc/def/"),
-            ("file with whitespace", "abc/def   ", "abc/def"),
+            // ("file with whitespace", "abc/def   ", "abc/def"), // Existing test case which is now invalid/redundant due to behavior change
         ];
 
         for (name, input, expect) in cases {

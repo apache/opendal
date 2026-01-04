@@ -3007,7 +3007,7 @@ version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a6777b4743839a42fd32141d95d7adc4c98e3a1d5200a2598cf32ffd102c81e1"
 dependencies = [
- "mea",
+ "mea 0.5.3",
  "scopeguard",
 ]
 
@@ -5259,6 +5259,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mea"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfe9d4ca3e05f8356153d218e0503d5866dcc214cccdb2ff80d42a023837343e"
+dependencies = [
+ "slab",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5992,7 +6001,7 @@ dependencies = [
  "jiff",
  "log",
  "md-5",
- "mea",
+ "mea 0.6.0",
  "moka",
  "percent-encoding",
  "pretty_assertions",
@@ -6084,7 +6093,7 @@ version = "0.55.0"
 dependencies = [
  "futures",
  "http 1.4.0",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
 ]
 
@@ -6297,7 +6306,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6384,7 +6393,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6482,7 +6491,7 @@ version = "0.55.0"
 dependencies = [
  "bytes",
  "http 1.4.0",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6564,7 +6573,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6608,7 +6617,7 @@ name = "opendal-service-gridfs"
 version = "0.55.0"
 dependencies = [
  "futures",
- "mea",
+ "mea 0.6.0",
  "mongodb",
  "opendal-core",
  "serde",
@@ -6699,7 +6708,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6756,7 +6765,7 @@ name = "opendal-service-mongodb"
 version = "0.55.0"
 dependencies = [
  "anyhow",
- "mea",
+ "mea 0.6.0",
  "mongodb",
  "opendal-core",
  "serde",
@@ -6780,7 +6789,7 @@ dependencies = [
 name = "opendal-service-mysql"
 version = "0.55.0"
 dependencies = [
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "sqlx",
@@ -6808,7 +6817,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6869,7 +6878,7 @@ dependencies = [
 name = "opendal-service-postgresql"
 version = "0.55.0"
 dependencies = [
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "sqlx",
@@ -6940,7 +6949,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -6977,7 +6986,7 @@ dependencies = [
 name = "opendal-service-sqlite"
 version = "0.55.0"
 dependencies = [
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "sqlx",
@@ -6988,7 +6997,7 @@ dependencies = [
 name = "opendal-service-surrealdb"
 version = "0.55.0"
 dependencies = [
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "surrealdb",
@@ -7013,7 +7022,7 @@ dependencies = [
 name = "opendal-service-tikv"
 version = "0.55.0"
 dependencies = [
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "tikv-client",
@@ -7074,7 +7083,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "quick-xml",
  "serde",
@@ -7089,7 +7098,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "log",
- "mea",
+ "mea 0.6.0",
  "opendal-core",
  "serde",
  "serde_json",

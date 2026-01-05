@@ -309,6 +309,7 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
                     buf: QueueBuf::new(),
                     path: path.to_string(),
                     inner,
+                    skip_cache: false,
                 },
             ))
         }
@@ -341,18 +342,25 @@ pub struct Writer<A: Access> {
     buf: QueueBuf,
     path: String,
     inner: Arc<Inner<A>>,
+    skip_cache: bool,
 }
 
 impl<A: Access> oio::Write for Writer<A> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.buf.push(bs.clone());
+        if self.inner.size_limit.contains(&(self.buf.len() + bs.len())) {
+            self.buf.push(bs.clone());
+            self.skip_cache = false;
+        } else {
+            self.buf.clear();
+            self.skip_cache = true;
+        }
         self.w.write(bs).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let buffer = self.buf.clone().collect();
         let metadata = self.w.close().await?;
-        if self.inner.size_limit.contains(&buffer.len()) {
+        if !self.skip_cache {
             self.inner.cache.insert(
                 FoyerKey {
                     path: self.path.clone(),
@@ -365,6 +373,7 @@ impl<A: Access> oio::Write for Writer<A> {
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.buf.clear();
         self.w.abort().await
     }
 }
@@ -526,11 +535,7 @@ mod tests {
 
         // After reading, small file should be cached, but large and tiny should not
         // We can verify this by reading with range - cached files should support range reads
-        let read_small_range = op
-            .read_with("small.txt")
-            .range(0..1024)
-            .await
-            .unwrap();
+        let read_small_range = op.read_with("small.txt").range(0..1024).await.unwrap();
         assert_eq!(read_small_range.len(), 1024);
         assert_eq!(read_small_range.to_vec(), small_data[0..1024]);
     }

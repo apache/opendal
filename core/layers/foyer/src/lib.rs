@@ -27,6 +27,18 @@ use opendal_core::raw::oio::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Custom error type for when fetched data exceeds size limit.
+#[derive(Debug)]
+struct FetchSizeTooLarge;
+
+impl std::fmt::Display for FetchSizeTooLarge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "fetched data size exceeds size limit")
+    }
+}
+
+impl std::error::Error for FetchSizeTooLarge {}
+
 fn extract_err(e: FoyerError) -> Error {
     let e = match e.downcast::<Error>() {
         Ok(e) => return e,
@@ -40,7 +52,7 @@ fn extract_err(e: FoyerError) -> Error {
 ///
 /// It's possible to specify a version in the [`OpRead`] args:
 ///
-/// - If a version is given, the object is cached under that versioned key.  
+/// - If a version is given, the object is cached under that versioned key.
 /// - If version is not supplied, the object is cached exactly as returned by the backend,
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -196,8 +208,9 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path = path.to_string();
+        let path_str = path.to_string();
         let version = args.version().map(|v| v.to_string());
+        let original_args = args.clone();
 
         // Extract range bounds before async block to avoid lifetime issues
         let (range_start, range_end) = {
@@ -207,39 +220,78 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
             (start, end)
         };
 
-        let entry = self
+        // Use fetch to read data from cache or fallback to remote. fetch() can automatically
+        // handle the thundering herd problem by ensuring only one request is made for a given
+        // key.
+        //
+        // Please note that we only cache the object if it's smaller than size_limit. And we'll
+        // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
+        // range.
+        let result = self
             .inner
             .cache
             .fetch(
                 FoyerKey {
-                    path: path.clone(),
-                    version,
+                    path: path_str.clone(),
+                    version: version.clone(),
                 },
                 || {
                     let inner = self.inner.clone();
+                    let path_clone = path_str.clone();
                     async move {
+                        // read the metadata first, if it's too large, do not cache
+                        let metadata = inner
+                            .accessor
+                            .stat(&path_clone, OpStat::default())
+                            .await
+                            .map_err(FoyerError::other)?
+                            .into_metadata();
+
+                        let size = metadata.content_length() as usize;
+                        if !inner.size_limit.contains(&size) {
+                            return Err(FoyerError::other(FetchSizeTooLarge));
+                        }
+
+                        // fetch the ENTIRE object from remote.
                         let (_, mut reader) = inner
                             .accessor
-                            .read(&path, args.with_range(BytesRange::new(0, None)))
+                            .read(
+                                &path_clone,
+                                OpRead::default().with_range(BytesRange::new(0, None)),
+                            )
                             .await
                             .map_err(FoyerError::other)?;
                         let buffer = reader.read_all().await.map_err(FoyerError::other)?;
+
                         Ok(FoyerValue(buffer))
                     }
                 },
             )
-            .await
-            .map_err(extract_err)?;
+            .await;
 
-        let end = range_end.unwrap_or(entry.len() as u64);
-        let range = BytesContentRange::default()
-            .with_range(range_start, end - 1)
-            .with_size(entry.len() as _);
-        let buffer = entry.slice(range_start as usize..end as usize);
-        let rp = RpRead::new()
-            .with_size(Some(buffer.len() as _))
-            .with_range(Some(range));
-        Ok((rp, buffer))
+        // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
+        // we'll simply forward the request to the underlying accessor with user's given range.
+        match result {
+            Ok(entry) => {
+                let end = range_end.unwrap_or(entry.len() as u64);
+                let range = BytesContentRange::default()
+                    .with_range(range_start, end - 1)
+                    .with_size(entry.len() as _);
+                let buffer = entry.slice(range_start as usize..end as usize);
+                let rp = RpRead::new()
+                    .with_size(Some(buffer.len() as _))
+                    .with_range(Some(range));
+                Ok((rp, buffer))
+            }
+            Err(e) => match e.downcast::<FetchSizeTooLarge>() {
+                Ok(_) => {
+                    let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
+                    let buffer = reader.read_all().await?;
+                    Ok((rp, buffer))
+                }
+                Err(e) => Err(extract_err(e)),
+            },
+        }
     }
 
     fn write(

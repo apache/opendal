@@ -130,7 +130,7 @@ impl Code for FoyerValue {
 ///
 /// # Note
 ///
-/// If the object version is enabled, the foyer cache layer will treat the objects with same key but different versions as different objects.
+/// If the object version is enabled, the foyer cache layer will treat the objects with same path but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,
@@ -351,19 +351,17 @@ impl<A: Access> oio::Write for Writer<A> {
 
     async fn close(&mut self) -> Result<Metadata> {
         let buffer = self.buf.clone().collect();
-        let res = self.w.close().await;
-        if let Ok(metadata) = &res {
-            if self.inner.size_limit.contains(&buffer.len()) {
-                self.inner.cache.insert(
-                    FoyerKey {
-                        path: self.path.clone(),
-                        version: metadata.version().map(|v| v.to_string()),
-                    },
-                    FoyerValue(buffer),
-                );
-            }
+        let metadata = self.w.close().await?;
+        if self.inner.size_limit.contains(&buffer.len()) {
+            self.inner.cache.insert(
+                FoyerKey {
+                    path: self.path.clone(),
+                    version: metadata.version().map(|v| v.to_string()),
+                },
+                FoyerValue(buffer),
+            );
         }
-        res
+        Ok(metadata)
     }
 
     async fn abort(&mut self) -> Result<()> {

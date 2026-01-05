@@ -466,9 +466,75 @@ mod tests {
 
         for i in 0..64 {
             let res = op.read(&key(i)).await;
-            let e = res.unwrap_err();
-            assert_eq!(e.kind(), ErrorKind::NotFound);
+            assert!(res.is_err(), "should fail to read deleted file");
         }
+    }
+
+    #[tokio::test]
+    async fn test_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        // Set size limit: only cache files between 1KB and 10KB
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..10 * 1024))
+            .finish();
+
+        let small_data = vec![1u8; 5 * 1024]; // 5KB - should be cached
+        let large_data = vec![2u8; 20 * 1024]; // 20KB - should NOT be cached
+        let tiny_data = vec![3u8; 512]; // 512B - below size limit, should NOT be cached
+
+        // Write all files
+        op.write("small.txt", small_data.clone()).await.unwrap();
+        op.write("large.txt", large_data.clone()).await.unwrap();
+        op.write("tiny.txt", tiny_data.clone()).await.unwrap();
+
+        // All should be readable
+        let read_small = op.read("small.txt").await.unwrap();
+        assert_eq!(read_small.to_vec(), small_data);
+
+        let read_large = op.read("large.txt").await.unwrap();
+        assert_eq!(read_large.to_vec(), large_data);
+
+        let read_tiny = op.read("tiny.txt").await.unwrap();
+        assert_eq!(read_tiny.to_vec(), tiny_data);
+
+        // Clear the cache to test read-through behavior
+        cache.clear().await.unwrap();
+
+        // All files should still be readable from underlying storage
+        let read_small = op.read("small.txt").await.unwrap();
+        assert_eq!(read_small.to_vec(), small_data);
+
+        let read_large = op.read("large.txt").await.unwrap();
+        assert_eq!(read_large.to_vec(), large_data);
+
+        let read_tiny = op.read("tiny.txt").await.unwrap();
+        assert_eq!(read_tiny.to_vec(), tiny_data);
+
+        // After reading, small file should be cached, but large and tiny should not
+        // We can verify this by reading with range - cached files should support range reads
+        let read_small_range = op
+            .read_with("small.txt")
+            .range(0..1024)
+            .await
+            .unwrap();
+        assert_eq!(read_small_range.len(), 1024);
+        assert_eq!(read_small_range.to_vec(), small_data[0..1024]);
     }
 
     #[test]

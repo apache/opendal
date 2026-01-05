@@ -130,7 +130,7 @@ At `build()` time:
 
 Any glob compilation error results in `build()` returning an `ErrorKind::InvalidInput` error with the pattern and the underlying source error attached.
 
-## Dispatch algorithm (Scheme B)
+## Dispatch algorithm
 
 For an operation that includes a path `p`:
 

@@ -118,7 +118,7 @@ impl Code for FoyerValue {
 ///
 /// # Note
 ///
-/// If the object version is enabled, the foyer cache layer will treat the objects with same key but different versions as different objects.
+/// If the object version is enabled, the foyer cache layer will treat the objects with same path but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,

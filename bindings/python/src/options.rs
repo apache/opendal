@@ -17,7 +17,8 @@
 
 use dict_derive::FromPyObject;
 use opendal::{self as ocore, raw::BytesRange};
-use pyo3::pyclass;
+use pyo3::prelude::*;
+use pyo3_stub_gen::derive::*;
 use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
@@ -49,19 +50,65 @@ impl ReadOptions {
 }
 
 #[pyclass(module = "opendal")]
-#[derive(FromPyObject, Default)]
+#[derive(Clone, Default)]
+#[gen_stub_pyclass]
 pub struct WriteOptions {
+    #[pyo3(get, set)]
     pub append: Option<bool>,
+    #[pyo3(get, set)]
     pub chunk: Option<usize>,
+    #[pyo3(get, set)]
     pub concurrent: Option<usize>,
+    #[pyo3(get, set)]
     pub cache_control: Option<String>,
+    #[pyo3(get, set)]
     pub content_type: Option<String>,
+    #[pyo3(get, set)]
     pub content_disposition: Option<String>,
+    #[pyo3(get, set)]
     pub content_encoding: Option<String>,
+    #[pyo3(get, set)]
     pub if_match: Option<String>,
+    #[pyo3(get, set)]
     pub if_none_match: Option<String>,
+    #[pyo3(get, set)]
     pub if_not_exists: Option<bool>,
+    #[pyo3(get, set)]
     pub user_metadata: Option<HashMap<String, String>>,
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl WriteOptions {
+    #[new]
+    #[pyo3(signature = (*, append=None, chunk=None, concurrent=None, cache_control=None, content_type=None, content_disposition=None, content_encoding=None, if_match=None, if_none_match=None, if_not_exists=None, user_metadata=None))]
+    fn new(
+        append: Option<bool>,
+        chunk: Option<usize>,
+        concurrent: Option<usize>,
+        cache_control: Option<String>,
+        content_type: Option<String>,
+        content_disposition: Option<String>,
+        content_encoding: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        if_not_exists: Option<bool>,
+        user_metadata: Option<HashMap<String, String>>,
+    ) -> Self {
+        Self {
+            append,
+            chunk,
+            concurrent,
+            cache_control,
+            content_type,
+            content_disposition,
+            content_encoding,
+            if_match,
+            if_none_match,
+            if_not_exists,
+            user_metadata,
+        }
+    }
 }
 
 impl From<ReadOptions> for ocore::options::ReadOptions {

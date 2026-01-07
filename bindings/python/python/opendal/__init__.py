@@ -19,10 +19,12 @@
 import builtins
 
 from opendal._opendal import (  # noqa: F403
+    WriteOptions,
     capability,
     exceptions,
     file,
     layers,
+    operator,
     services,
     types,
 )
@@ -31,12 +33,14 @@ from opendal.operator import AsyncOperator, Operator  # pyright:ignore
 __version__: builtins.str
 
 __all__ = [
+    "AsyncOperator",
+    "Operator",
+    "WriteOptions",
     "capability",
     "exceptions",
     "file",
     "layers",
+    "operator",
     "services",
     "types",
-    "AsyncOperator",
-    "Operator",
 ]

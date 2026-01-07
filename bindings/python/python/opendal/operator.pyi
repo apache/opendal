@@ -34,6 +34,7 @@ from opendal.capability import Capability
 from opendal.file import File
 from opendal.layers import Layer
 from opendal.types import Metadata
+from opendal._opendal import WriteOptions
 
 @typing.final
 class AsyncOperator:
@@ -145,6 +146,28 @@ class AsyncOperator:
         -------
         coroutine
             An awaitable that returns the contents of the file as bytes.
+        """
+    def writer(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        options: typing.Optional[WriteOptions] = None,
+    ) -> collections.abc.Awaitable[opendal.file.AsyncFile]:
+        r"""
+        Create an async writer for streaming large file uploads.
+
+        The returning async file-like object is a context manager.
+
+        Parameters
+        ----------
+        path : str
+            The path to the file.
+        options : WriteOptions, optional
+            Additional options for the writer.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns a file-like object for writing.
         """
     def write(
         self,
@@ -2527,6 +2550,29 @@ class Operator:
         user_metadata : dict, optional
             The user metadata to set on the file.
         """
+    def writer(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        options: typing.Optional[WriteOptions] = None,
+    ) -> File:
+        r"""
+        Create a writer for streaming large file uploads.
+
+        The returning file-like object is a context manager.
+
+        Parameters
+        ----------
+        path : str
+            The path to the file.
+        options : WriteOptions, optional
+            Additional options for the writer.
+
+        Returns
+        -------
+        File
+            A file-like object for writing.
+        """
+
     def stat(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,

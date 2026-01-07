@@ -195,6 +195,34 @@ impl Operator {
         }
     }
 
+    /// Create a writer for streaming large file uploads.
+    ///
+    /// The returning file-like object is a context manager.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// options : WriteOptions, optional
+    ///     Additional options for the writer.
+    ///
+    /// Returns
+    /// -------
+    /// File
+    ///     A file-like object for writing.
+    #[pyo3(signature = (path, options=None))]
+    pub fn writer(&self, path: PathBuf, options: Option<WriteOptions>) -> PyResult<File> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+
+        let writer_opts = options.unwrap_or_default();
+
+        let writer = this
+            .writer_options(&path, writer_opts.into())
+            .map_err(format_pyerr)?;
+        Ok(File::new_writer(writer))
+    }
+
     /// Read the entire contents of a file at the given path.
     ///
     /// Parameters
@@ -854,6 +882,47 @@ impl AsyncOperator {
                     "OpenDAL doesn't support mode: {mode}"
                 )))
             }
+        })
+    }
+
+    /// Create an async writer for streaming large file uploads.
+    ///
+    /// The returning async file-like object is a context manager.
+    ///
+    /// Parameters
+    /// ----------
+    /// path : str
+    ///     The path to the file.
+    /// options : WriteOptions, optional
+    ///     Additional options for the writer.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns a file-like object for writing.
+    #[gen_stub(override_return_type(
+        type_repr="collections.abc.Awaitable[opendal.file.AsyncFile]",
+        imports=("collections.abc", "opendal.file")
+    ))]
+    #[pyo3(signature = (path, options=None))]
+    pub fn writer<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        options: Option<WriteOptions>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let this = self.core.clone();
+        let path = path.to_string_lossy().to_string();
+
+        let writer_opts = options.unwrap_or_default();
+
+        future_into_py(py, async move {
+            let writer = this
+                .writer_options(&path, writer_opts.into())
+                .await
+                .map_err(format_pyerr)?;
+            let w = writer.into_futures_async_write();
+            Ok(AsyncFile::new_writer(w))
         })
     }
 

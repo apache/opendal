@@ -195,3 +195,130 @@ def test_sync_writer_options(service_name, operator, async_operator):
         with operator.open(filename, "wb", if_not_exists=True) as w:
             w.write(content)
         assert "ConditionNotMatch" in str(excinfo.value)
+
+
+@pytest.mark.need_capability("write", "delete", "stat")
+def test_sync_writer_method(service_name, operator, async_operator):
+    """Test the new writer() method for streaming large file uploads."""
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() method
+    f = operator.writer(filename)
+    written_bytes = f.write(content)
+    assert written_bytes == size
+    f.close()
+
+    # Verify the file was written correctly
+    metadata = operator.stat(filename)
+    assert metadata.content_length == size
+
+    operator.delete(filename)
+
+
+@pytest.mark.need_capability("write", "delete", "stat")
+def test_sync_writer_method_with_context_manager(service_name, operator, async_operator):
+    """Test the writer() method with context manager."""
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() with context manager
+    with operator.writer(filename) as w:
+        w.write(content)
+
+    # Verify the file was written correctly
+    metadata = operator.stat(filename)
+    assert metadata.content_length == len(content)
+
+    operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "stat")
+async def test_async_writer_method(service_name, operator, async_operator):
+    """Test the async writer() method for streaming large file uploads."""
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() method
+    f = await async_operator.writer(filename)
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    # Verify the file was written correctly
+    metadata = await async_operator.stat(filename)
+    assert metadata.content_length == size
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "stat")
+async def test_async_writer_method_with_context_manager(
+    service_name, operator, async_operator
+):
+    """Test the async writer() method with context manager."""
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() with context manager
+    async with await async_operator.writer(filename) as w:
+        await w.write(content)
+
+    # Verify the file was written correctly
+    metadata = await async_operator.stat(filename)
+    assert metadata.content_length == len(content)
+
+    await async_operator.delete(filename)
+
+
+@pytest.mark.need_capability("write", "delete", "stat")
+def test_sync_writer_method_with_options(service_name, operator, async_operator):
+    """Test the writer() method with WriteOptions."""
+    from opendal import WriteOptions
+
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() with WriteOptions
+    options = WriteOptions(content_type="text/plain", chunk=256)
+    f = operator.writer(filename, options)
+    written_bytes = f.write(content)
+    assert written_bytes == size
+    f.close()
+
+    # Verify the file was written correctly
+    metadata = operator.stat(filename)
+    assert metadata.content_length == size
+
+    operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete", "stat")
+async def test_async_writer_method_with_options(service_name, operator, async_operator):
+    """Test the async writer() method with WriteOptions."""
+    from opendal import WriteOptions
+
+    size = randint(1, 1024)
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = os.urandom(size)
+
+    # Use writer() with WriteOptions
+    options = WriteOptions(content_type="text/plain", chunk=256)
+    f = await async_operator.writer(filename, options)
+    written_bytes = await f.write(content)
+    assert written_bytes == size
+    await f.close()
+
+    # Verify the file was written correctly
+    metadata = await async_operator.stat(filename)
+    assert metadata.content_length == size
+
+    await async_operator.delete(filename)

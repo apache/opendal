@@ -203,19 +203,22 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// options : WriteOptions, optional
+    /// **kwargs : dict
     ///     Additional options for the writer.
     ///
     /// Returns
     /// -------
     /// File
     ///     A file-like object for writing.
-    #[pyo3(signature = (path, options=None))]
-    pub fn writer(&self, path: PathBuf, options: Option<WriteOptions>) -> PyResult<File> {
+    #[pyo3(signature = (path, *, **kwargs))]
+    pub fn writer(&self, path: PathBuf, kwargs: Option<&Bound<PyDict>>) -> PyResult<File> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
-        let writer_opts = options.unwrap_or_default();
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
 
         let writer = this
             .writer_options(&path, writer_opts.into())
@@ -893,7 +896,7 @@ impl AsyncOperator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    /// options : WriteOptions, optional
+    /// **kwargs : dict
     ///     Additional options for the writer.
     ///
     /// Returns
@@ -904,17 +907,20 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[opendal.file.AsyncFile]",
         imports=("collections.abc", "opendal.file")
     ))]
-    #[pyo3(signature = (path, options=None))]
+    #[pyo3(signature = (path, *, **kwargs))]
     pub fn writer<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
-        options: Option<WriteOptions>,
+        kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
-        let writer_opts = options.unwrap_or_default();
+        let writer_opts = kwargs
+            .map(|v| v.extract::<WriteOptions>())
+            .transpose()?
+            .unwrap_or_default();
 
         future_into_py(py, async move {
             let writer = this

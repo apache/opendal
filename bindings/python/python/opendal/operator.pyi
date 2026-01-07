@@ -34,7 +34,6 @@ from opendal.capability import Capability
 from opendal.file import File
 from opendal.layers import Layer
 from opendal.types import Metadata
-from opendal._opendal import WriteOptions
 
 @typing.final
 class AsyncOperator:
@@ -150,7 +149,7 @@ class AsyncOperator:
     def writer(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
-        options: typing.Optional[WriteOptions] = None,
+        **kwargs: typing.Any,
     ) -> collections.abc.Awaitable[opendal.file.AsyncFile]:
         r"""
         Create an async writer for streaming large file uploads.
@@ -2553,7 +2552,7 @@ class Operator:
     def writer(
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
-        options: typing.Optional[WriteOptions] = None,
+        **kwargs: typing.Any,
     ) -> File:
         r"""
         Create a writer for streaming large file uploads.

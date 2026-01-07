@@ -279,16 +279,14 @@ async def test_async_writer_method_with_context_manager(
 
 @pytest.mark.need_capability("write", "delete", "stat")
 def test_sync_writer_method_with_options(service_name, operator, async_operator):
-    """Test the writer() method with WriteOptions."""
-    from opendal import WriteOptions
+    """Test the writer() method with kwargs options."""
 
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
 
-    # Use writer() with WriteOptions
-    options = WriteOptions(content_type="text/plain", chunk=256)
-    f = operator.writer(filename, options)
+    # Use writer() with kwargs options
+    f = operator.writer(filename, content_type="text/plain", chunk=256)
     written_bytes = f.write(content)
     assert written_bytes == size
     f.close()
@@ -303,16 +301,14 @@ def test_sync_writer_method_with_options(service_name, operator, async_operator)
 @pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete", "stat")
 async def test_async_writer_method_with_options(service_name, operator, async_operator):
-    """Test the async writer() method with WriteOptions."""
-    from opendal import WriteOptions
+    """Test the async writer() method with kwargs options."""
 
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
 
-    # Use writer() with WriteOptions
-    options = WriteOptions(content_type="text/plain", chunk=256)
-    f = await async_operator.writer(filename, options)
+    # Use writer() with kwargs options
+    f = await async_operator.writer(filename, content_type="text/plain", chunk=256)
     written_bytes = await f.write(content)
     assert written_bytes == size
     await f.close()

@@ -285,8 +285,8 @@ def test_sync_writer_method_with_options(service_name, operator, async_operator)
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
 
-    # Use writer() with kwargs options
-    f = operator.writer(filename, content_type="text/plain", chunk=256)
+    # Use writer() with kwargs options (avoid chunk for services that don't support multi-write)
+    f = operator.writer(filename, content_type="text/plain")
     written_bytes = f.write(content)
     assert written_bytes == size
     f.close()
@@ -307,8 +307,8 @@ async def test_async_writer_method_with_options(service_name, operator, async_op
     filename = f"test_file_{str(uuid4())}.txt"
     content = os.urandom(size)
 
-    # Use writer() with kwargs options
-    f = await async_operator.writer(filename, content_type="text/plain", chunk=256)
+    # Use writer() with kwargs options (avoid chunk for services that don't support multi-write)
+    f = await async_operator.writer(filename, content_type="text/plain")
     written_bytes = await f.write(content)
     assert written_bytes == size
     await f.close()

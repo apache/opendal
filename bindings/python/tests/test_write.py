@@ -218,7 +218,9 @@ def test_sync_writer_method(service_name, operator, async_operator):
 
 
 @pytest.mark.need_capability("write", "delete", "stat")
-def test_sync_writer_method_with_context_manager(service_name, operator, async_operator):
+def test_sync_writer_method_with_context_manager(service_name,
+                                                 operator,
+                                                 async_operator):
     """Test the writer() method with context manager."""
     size = randint(1, 1024)
     filename = f"test_file_{str(uuid4())}.txt"

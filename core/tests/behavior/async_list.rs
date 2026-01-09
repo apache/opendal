@@ -34,6 +34,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_check,
             test_list_dir,
+            test_list_root_dir,
             test_list_prefix,
             test_list_rich_dir,
             test_list_empty_dir,
@@ -263,6 +264,33 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
+
+/// Regression test: listing root directory should work correctly.
+/// This test exposes a OneDrive-specific bug where `list("/")`
+/// returned empty results due to incorrect root URL construction.
+pub async fn test_list_root_dir(op: Operator) -> Result<()> {
+    let file = format!("test_list_root_dir-{}", uuid::Uuid::new_v4());
+    op.write(&file, "test_list_root_dir").await?;
+
+    let mut obs = op.lister("/").await?;
+    let mut found = false;
+
+    while let Some(de) = obs.try_next().await? {
+        if de.path() == file {
+            found = true;
+            break;
+        }
+    }
+
+    assert!(
+        found,
+        "listing root should return entries under root directory"
+    );
+
+    op.delete(&file).await?;
+    Ok(())
+}
+
 
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {

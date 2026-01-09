@@ -291,7 +291,6 @@ pub async fn test_list_root_dir(op: Operator) -> Result<()> {
     Ok(())
 }
 
-
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     let parent = format!("{}/", uuid::Uuid::new_v4());

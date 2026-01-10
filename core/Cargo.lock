@@ -8251,31 +8251,33 @@ dependencies = [
 
 [[package]]
 name = "reqsign"
-version = "0.16.5"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43451dbf3590a7590684c25fb8d12ecdcc90ed3ac123433e500447c7d77ed701"
+checksum = "ea386ba750000b6e59f760a08bdcca9461809b95e6f8f209ce5724056802824f"
+dependencies = [
+ "reqsign-aliyun-oss",
+ "reqsign-azure-storage",
+ "reqsign-core",
+ "reqsign-google",
+ "reqsign-huaweicloud-obs",
+ "reqsign-tencent-cos",
+]
+
+[[package]]
+name = "reqsign-aliyun-oss"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1136faae3624d59a9f647dce9c9f9c86682957e2886db27b68891ad24465cdfb"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64 0.22.1",
- "chrono",
- "form_urlencoded",
- "getrandom 0.2.16",
- "hex",
- "hmac",
- "home",
  "http 1.4.0",
- "jsonwebtoken",
  "log",
- "once_cell",
  "percent-encoding",
- "rand 0.8.5",
+ "reqsign-core",
  "reqwest",
- "rsa",
  "serde",
  "serde_json",
- "sha1",
- "sha2",
 ]
 
 [[package]]
@@ -8297,6 +8299,29 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "sha1",
+]
+
+[[package]]
+name = "reqsign-azure-storage"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964ee8bdfcf00efa65d12809b6af6920fdaef70acd502835a680afb7e86c438c"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "form_urlencoded",
+ "http 1.4.0",
+ "jsonwebtoken",
+ "log",
+ "pem",
+ "percent-encoding",
+ "reqsign-core",
+ "rsa",
+ "serde",
+ "serde_json",
  "sha1",
 ]
 
@@ -8335,6 +8360,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "reqsign-google"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e1942acf06b8638f16775e92e4ca9cca239519ea6f4e650d5924d1f0dc37d1"
+dependencies = [
+ "async-trait",
+ "http 1.4.0",
+ "jsonwebtoken",
+ "log",
+ "percent-encoding",
+ "rand 0.8.5",
+ "reqsign-core",
+ "reqwest",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "reqsign-http-send-reqwest"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8349,6 +8394,36 @@ dependencies = [
  "reqsign-core",
  "reqwest",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "reqsign-huaweicloud-obs"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e47d580de668c5496c7376779ffd7d4dc05ca78480454086b434389f72e5e5f4"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.4.0",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+]
+
+[[package]]
+name = "reqsign-tencent-cos"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "792633fe2edf93dca3b0578db4e770c040df5aea96a351f4a99f72f9488a9c36"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.4.0",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

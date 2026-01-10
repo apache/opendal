@@ -38,10 +38,7 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, features = [
-  "reqwest_request",
-  "services-azblob",
-] }
+reqsign = { workspace = true, features = ["azure"] }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }

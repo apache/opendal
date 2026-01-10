@@ -36,10 +36,7 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, features = [
-  "services-tencent",
-  "reqwest_request",
-] }
+reqsign = { workspace = true, features = ["tencent"] }
 reqwest = { version = "0.12.24", default-features = false, features = [
   "stream",
 ] }

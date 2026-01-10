@@ -38,10 +38,7 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2.3"
 quick-xml = { workspace = true, features = ["serialize"] }
-reqsign = { workspace = true, features = [
-  "reqwest_request",
-  "services-google",
-] }
+reqsign = { workspace = true, features = ["google"] }
 reqwest = { version = "0.12.24", default-features = false, features = [
   "json",
   "stream",

@@ -282,7 +282,10 @@ impl Builder for AzdlsBuilder {
                             write_with_if_not_exists: true,
 
                             create_dir: true,
+
                             delete: true,
+                            delete_with_recursive: true,
+
                             rename: true,
 
                             list: true,

@@ -366,6 +366,60 @@ impl AzdlsCore {
         self.send(req).await
     }
 
+    pub async fn azdls_recursive_delete(&self, path: &str) -> Result<Response<Buffer>> {
+        const X_MS_CONTINUATION: &str = "x-ms-continuation";
+
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let base = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&p)
+        );
+
+        let mut continuation = String::new();
+
+        loop {
+            let mut url = QueryPairsWriter::new(&base)
+                .push("recursive", "true")
+                .push("paginated", "true");
+
+            if !continuation.is_empty() {
+                url = url.push("continuation", &percent_encode_path(&continuation));
+            }
+
+            let mut req = Request::delete(url.finish())
+                .extension(Operation::Delete)
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?;
+
+            self.sign(&mut req).await?;
+            let resp = self.send(req).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {}
+                _ => return Err(parse_error(resp)),
+            }
+
+            let next = resp
+                .headers()
+                .get(X_MS_CONTINUATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .trim();
+
+            if next.is_empty() {
+                return Ok(resp);
+            }
+
+            continuation = next.to_string();
+        }
+    }
+
     pub async fn azdls_list(
         &self,
         path: &str,

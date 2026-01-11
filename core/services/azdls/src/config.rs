@@ -25,6 +25,7 @@ use super::backend::AzdlsBuilder;
 
 /// Azure Data Lake Storage Gen2 Support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[serde(default)]
 pub struct AzdlsConfig {
     /// Root of this backend.
     pub root: Option<String>,

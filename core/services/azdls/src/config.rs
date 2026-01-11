@@ -58,6 +58,10 @@ pub struct AzdlsConfig {
     /// - required for client_credentials authentication
     /// - default value: `https://login.microsoftonline.com`
     pub authority_host: Option<String>,
+    /// Whether hierarchical namespace (HNS) is enabled for the storage account.
+    /// When enabled, recursive deletion can use pagination to avoid timeouts on large directories.
+    /// - default value: `false`
+    pub enable_hns: bool,
 }
 
 impl Debug for AzdlsConfig {

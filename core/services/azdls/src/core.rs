@@ -38,6 +38,7 @@ use opendal_core::*;
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
+const X_MS_CONTINUATION: &str = "x-ms-continuation";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
@@ -46,6 +47,7 @@ pub struct AzdlsCore {
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,
+    pub enable_hns: bool,
 
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
@@ -57,6 +59,7 @@ impl Debug for AzdlsCore {
             .field("filesystem", &self.filesystem)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
+            .field("enable_hns", &self.enable_hns)
             .finish_non_exhaustive()
     }
 }
@@ -367,8 +370,6 @@ impl AzdlsCore {
     }
 
     pub async fn azdls_recursive_delete(&self, path: &str) -> Result<Response<Buffer>> {
-        const X_MS_CONTINUATION: &str = "x-ms-continuation";
-
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
@@ -383,9 +384,11 @@ impl AzdlsCore {
         let mut continuation = String::new();
 
         loop {
-            let mut url = QueryPairsWriter::new(&base)
-                .push("recursive", "true")
-                .push("paginated", "true");
+            let mut url = QueryPairsWriter::new(&base).push("recursive", "true");
+
+            if self.enable_hns {
+                url = url.push("paginated", "true");
+            }
 
             if !continuation.is_empty() {
                 url = url.push("continuation", &percent_encode_path(&continuation));

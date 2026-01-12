@@ -385,6 +385,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-foyer")]
+    pub use opendal_layer_foyer::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]

@@ -99,6 +99,7 @@ layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
 layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
+layers-foyer = ["dep:opendal-layer-foyer"]
 layers-hotpath = ["dep:opendal-layer-hotpath"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-logging = ["dep:opendal-layer-logging"]
@@ -211,6 +212,7 @@ opendal-layer-chaos = { path = "layers/chaos", version = "0.55.0", optional = tr
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-foyer = { path = "layers/foyer", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-hotpath = { path = "layers/hotpath", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-logging = { path = "layers/logging", version = "0.55.0", optional = true, default-features = false }

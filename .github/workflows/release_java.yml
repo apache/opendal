@@ -85,12 +85,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          UID="$(id -u)"
-          GID="$(id -g)"
+          HOST_UID="$(id -u)"
+          HOST_GID="$(id -g)"
+          PLATFORM="linux/amd64"
+          if [[ "${{ matrix.classifier }}" == *"aarch_64"* ]]; then
+            PLATFORM="linux/arm64"
+          fi
 
           docker run --rm \
-            -e HOST_UID="$UID" \
-            -e HOST_GID="$GID" \
+            --platform "$PLATFORM" \
+            -e HOST_UID="$HOST_UID" \
+            -e HOST_GID="$HOST_GID" \
             -v "$GITHUB_WORKSPACE":/work \
             -w /work/bindings/java \
             rust:1.85-alpine3.20 \

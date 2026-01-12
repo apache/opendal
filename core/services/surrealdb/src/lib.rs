@@ -31,7 +31,7 @@ pub use config::SurrealdbConfig;
 /// Default scheme for surrealdb service.
 pub const SURREALDB_SCHEME: &str = "surrealdb";
 
-#[ctor::ctor]
-fn register_surrealdb_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Surrealdb>(SURREALDB_SCHEME);
+/// Register this service into the given registry.
+pub fn register_surrealdb_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Surrealdb>(SURREALDB_SCHEME);
 }

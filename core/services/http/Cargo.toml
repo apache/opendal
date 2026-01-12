@@ -27,7 +27,6 @@ version = "0.55.0"
 all-features = true
 
 [dependencies]
-ctor = "0.6"
 http = "1.1"
 log = "0.4"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

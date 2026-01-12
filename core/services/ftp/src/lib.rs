@@ -18,7 +18,10 @@
 /// Default scheme for ftp service.
 pub const FTP_SCHEME: &str = "ftp";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_ftp_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Ftp>(FTP_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -31,8 +34,3 @@ mod writer;
 
 pub use backend::FtpBuilder as Ftp;
 pub use config::FtpConfig;
-
-#[ctor::ctor]
-fn register_ftp_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Ftp>(FTP_SCHEME);
-}

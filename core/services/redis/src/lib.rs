@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for redis service.
-pub const REDIS_SCHEME: &str = "redis";
+//! Redis service implementation for Apache OpenDAL.
 
-use crate::types::DEFAULT_OPERATOR_REGISTRY;
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 mod backend;
 mod config;
@@ -29,7 +29,10 @@ mod writer;
 pub use backend::RedisBuilder as Redis;
 pub use config::RedisConfig;
 
-#[ctor::ctor]
-fn register_redis_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Redis>(REDIS_SCHEME);
+/// Default scheme for redis service.
+pub const REDIS_SCHEME: &str = "redis";
+
+/// Register this service into the given registry.
+pub fn register_redis_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Redis>(REDIS_SCHEME);
 }

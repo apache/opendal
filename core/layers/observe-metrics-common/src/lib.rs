@@ -17,7 +17,7 @@
 
 //! OpenDAL Observability
 //!
-//! This module offers essential components to facilitate the implementation of observability in OpenDAL.
+//! This library offers essential components to facilitate the implementation of observability in OpenDAL.
 //!
 //! # OpenDAL Metrics Reference
 //!
@@ -34,9 +34,9 @@
 //! | operation_entries                | Histogram | Current operation size in entries, represents the entries being processed                  | scheme, namespace, root, operation, path        |
 //! | operation_entries_rate           | Histogram | Histogram of entries processing rates in entries per second within individual operations   | scheme, namespace, root, operation, path        |
 //! | operation_duration_seconds       | Histogram | Duration of operations in seconds, measured from start to completion                       | scheme, namespace, root, operation, path        |
-//! | operation_errors_total           | Counter   | Total number of failed operations                                                         | scheme, namespace, root, operation, path, error |
-//! | operation_executing              | Gauge     | Number of operations currently being executed                                             | scheme, namespace, root, operation              |
-//! | operation_ttfb_seconds           | Histogram | Time to first byte in seconds for operations                                              | scheme, namespace, root, operation, path        |
+//! | operation_errors_total           | Counter   | Total number of failed operations                                                          | scheme, namespace, root, operation, path, error |
+//! | operation_executing              | Gauge     | Number of operations currently being executed                                              | scheme, namespace, root, operation              |
+//! | operation_ttfb_seconds           | Histogram | Time to first byte in seconds for operations                                               | scheme, namespace, root, operation, path        |
 //!
 //! ## HTTP Metrics
 //!
@@ -46,13 +46,13 @@
 //! |----------------------------------|-----------|--------------------------------------------------------------------------------------------|-------------------------------------------------|
 //! | http_connection_errors_total     | Counter   | Total number of HTTP requests that failed before receiving a response                      | scheme, namespace, root, operation, error       |
 //! | http_status_errors_total         | Counter   | Total number of HTTP requests that received error status codes (non-2xx responses)         | scheme, namespace, root, operation, status      |
-//! | http_executing                   | Gauge     | Number of HTTP requests currently in flight from this client                              | scheme, namespace, root                         |
-//! | http_request_bytes               | Histogram | Histogram of HTTP request body sizes in bytes                                             | scheme, namespace, root, operation              |
-//! | http_request_bytes_rate          | Histogram | Histogram of HTTP request bytes per second rates                                          | scheme, namespace, root, operation              |
+//! | http_executing                   | Gauge     | Number of HTTP requests currently in flight from this client                               | scheme, namespace, root                         |
+//! | http_request_bytes               | Histogram | Histogram of HTTP request body sizes in bytes                                              | scheme, namespace, root, operation              |
+//! | http_request_bytes_rate          | Histogram | Histogram of HTTP request bytes per second rates                                           | scheme, namespace, root, operation              |
 //! | http_request_duration_seconds    | Histogram | Histogram of time spent sending HTTP requests, from first byte sent to first byte received | scheme, namespace, root, operation              |
-//! | http_response_bytes              | Histogram | Histogram of HTTP response body sizes in bytes                                            | scheme, namespace, root, operation              |
-//! | http_response_bytes_rate         | Histogram | Histogram of HTTP response bytes per second rates                                         | scheme, namespace, root, operation              |
-//! | http_response_duration_seconds   | Histogram | Histogram of time spent receiving HTTP responses, from first byte to last byte received   | scheme, namespace, root, operation              |
+//! | http_response_bytes              | Histogram | Histogram of HTTP response body sizes in bytes                                             | scheme, namespace, root, operation              |
+//! | http_response_bytes_rate         | Histogram | Histogram of HTTP response bytes per second rates                                          | scheme, namespace, root, operation              |
+//! | http_response_duration_seconds   | Histogram | Histogram of time spent receiving HTTP responses, from first byte to last byte received    | scheme, namespace, root, operation              |
 //!
 //! ## Label Descriptions
 //!
@@ -71,6 +71,9 @@
 //! * **Histogram**: Distribution of values with configurable buckets, includes count, sum and quantiles
 //! * **Counter**: Cumulative metric that only increases over time (resets on restart)
 //! * **Gauge**: Point-in-time metric that can increase and decrease
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -201,7 +204,7 @@ pub static LABEL_ERROR: &str = "error";
 pub static LABEL_STATUS_CODE: &str = "status_code";
 
 /// MetricLabels are the labels for the metrics.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct MetricLabels {
     /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
     /// Used to differentiate between different storage backends.
@@ -257,7 +260,7 @@ impl MetricLabels {
 /// Every metrics impls SHOULD implement observe over the MetricValue to make
 /// sure they provide the consistent metrics for users.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum MetricValue {
     /// Record the size of data processed in bytes.
     /// Metrics impl: Update a Histogram with the given byte count.
@@ -466,8 +469,7 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
     }
 }
 
-/// The metrics http fetcher for opendal.
-pub struct MetricsHttpFetcher<I: MetricsIntercept> {
+struct MetricsHttpFetcher<I: MetricsIntercept> {
     inner: HttpFetcher,
     info: Arc<AccessorInfo>,
     interceptor: I,
@@ -541,7 +543,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
     }
 }
 
-pub struct MetricsStream<S, I> {
+struct MetricsStream<S, I> {
     inner: S,
     interceptor: I,
 
@@ -591,7 +593,7 @@ where
     }
 }
 
-/// The metrics accessor for opendal.
+#[doc(hidden)]
 pub struct MetricsAccessor<A: Access, I: MetricsIntercept> {
     inner: A,
     info: Arc<AccessorInfo>,
@@ -862,6 +864,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct MetricsWrapper<R, I: MetricsIntercept> {
     inner: R,
     interceptor: I,

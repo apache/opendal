@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Tracing layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::Context;
@@ -22,12 +27,11 @@ use std::task::Poll;
 
 use futures::Stream;
 use futures::StreamExt;
+use opendal_core::raw::*;
+use opendal_core::*;
 use tracing::Level;
 use tracing::Span;
 use tracing::span;
-
-use opendal_core::raw::*;
-use opendal_core::*;
 
 /// Add [tracing](https://docs.rs/tracing/) for every operation.
 ///
@@ -36,16 +40,16 @@ use opendal_core::*;
 /// ## Basic Setup
 ///
 /// ```no_run
-/// # use opendal_layer_tracing::TracingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_tracing::TracingLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(TracingLayer)
+///     .layer(TracingLayer::new())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -53,15 +57,15 @@ use opendal_core::*;
 ///
 /// ```no_run
 /// # use anyhow::Result;
-/// # use opendal_layer_tracing::TracingLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
+/// # use opendal_layer_tracing::TracingLayer;
 /// # use opentelemetry::KeyValue;
 /// # use opentelemetry_sdk::trace;
 /// # use opentelemetry_sdk::Resource;
 /// # use tracing_subscriber::prelude::*;
 /// # use tracing_subscriber::EnvFilter;
-///
+/// #
 /// # fn main() -> Result<()> {
 /// use opentelemetry::trace::TracerProvider;
 /// let tracer_provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
@@ -92,7 +96,7 @@ use opendal_core::*;
 ///
 ///         let _ = dotenvy::dotenv();
 ///         let op = Operator::new(services::Memory::default())?
-///             .layer(TracingLayer)
+///             .layer(TracingLayer::new())
 ///             .finish();
 ///
 ///         op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
@@ -107,8 +111,7 @@ use opendal_core::*;
 /// // This will invoke the shutdown method on all span processors.
 /// // span processors should export remaining spans before return.
 /// tracer_provider.shutdown()?;
-///
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 ///
@@ -128,7 +131,7 @@ use opendal_core::*;
 /// # use tracing::span::Id;
 /// # use tracing::span::Record;
 /// # use tracing::subscriber::Subscriber;
-///
+/// #
 /// # pub struct FooSubscriber;
 /// # impl Subscriber for FooSubscriber {
 /// #   fn enabled(&self, _: &Metadata) -> bool { false }
@@ -146,7 +149,16 @@ use opendal_core::*;
 /// ```
 ///
 /// For real-world usage, please take a look at [`tracing-opentelemetry`](https://crates.io/crates/tracing-opentelemetry).
-pub struct TracingLayer;
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct TracingLayer {}
+
+impl TracingLayer {
+    /// Create a new [`TracingLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for TracingLayer {
     type LayeredAccess = TracingAccessor<A>;
@@ -165,7 +177,7 @@ impl<A: Access> Layer<A> for TracingLayer {
     }
 }
 
-pub struct TracingHttpFetcher {
+struct TracingHttpFetcher {
     inner: HttpFetcher,
 }
 
@@ -184,7 +196,7 @@ impl HttpFetch for TracingHttpFetcher {
     }
 }
 
-pub struct TracingStream<S> {
+struct TracingStream<S> {
     inner: S,
     span: Span,
 }
@@ -201,6 +213,7 @@ where
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct TracingAccessor<A> {
     inner: A,
@@ -287,6 +300,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct TracingWrapper<R> {
     span: Span,
     inner: R,

@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! OpenTelemetry trace layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::future::Future;
 use std::sync::Arc;
 
@@ -43,12 +48,21 @@ use opentelemetry::trace::Tracer;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(OtelTraceLayer)
+///     .layer(OtelTraceLayer::new())
 ///     .finish();
 /// # Ok(())
 /// # }
 /// ```
-pub struct OtelTraceLayer;
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct OtelTraceLayer {}
+
+impl OtelTraceLayer {
+    /// Create a new [`OtelTraceLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for OtelTraceLayer {
     type LayeredAccess = OtelTraceAccessor<A>;
@@ -58,6 +72,7 @@ impl<A: Access> Layer<A> for OtelTraceLayer {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct OtelTraceAccessor<A> {
     inner: A,
@@ -164,6 +179,7 @@ impl<A: Access> LayeredAccess for OtelTraceAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct OtelTraceWrapper<R> {
     _span: BoxedSpan,
     inner: R,

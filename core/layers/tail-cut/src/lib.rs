@@ -15,8 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Tail cut layer (that automatically cancels long-tail requests) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
@@ -74,7 +78,7 @@ impl Default for TailCutLayerBuilder {
 }
 
 impl TailCutLayerBuilder {
-    /// Create a new builder with default settings.
+    /// Create a new [`TailCutLayerBuilder`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -263,23 +267,23 @@ pub struct TailCutLayer {
     stats: Arc<TailCutStats>,
 }
 
-impl TailCutLayer {
-    /// Create a builder to configure the layer.
-    pub fn builder() -> TailCutLayerBuilder {
-        TailCutLayerBuilder::new()
-    }
-
-    /// Create a layer with default settings.
-    ///
-    /// This is equivalent to `TailCutLayer::builder().build()`.
-    pub fn new() -> Self {
+impl Default for TailCutLayer {
+    fn default() -> Self {
         Self::builder().build()
     }
 }
 
-impl Default for TailCutLayer {
-    fn default() -> Self {
-        Self::new()
+impl TailCutLayer {
+    /// Create a new [`TailCutLayerBuilder`] to configure the layer.
+    pub fn builder() -> TailCutLayerBuilder {
+        TailCutLayerBuilder::default()
+    }
+
+    /// Create a new [`TailCutLayer`].
+    ///
+    /// This is equivalent to `TailCutLayer::builder().build()`.
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -295,8 +299,7 @@ impl<A: Access> Layer<A> for TailCutLayer {
     }
 }
 
-/// Accessor that implements tail cut logic.
-#[derive(Clone)]
+#[doc(hidden)]
 pub struct TailCutAccessor<A: Access> {
     inner: A,
     config: Arc<TailCutConfig>,
@@ -304,7 +307,7 @@ pub struct TailCutAccessor<A: Access> {
 }
 
 impl<A: Access> Debug for TailCutAccessor<A> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TailCutAccessor")
             .field("config", &self.config)
             .finish_non_exhaustive()
@@ -441,7 +444,7 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     }
 }
 
-/// Wrapper for IO operations (Reader, Writer, Lister, Deleter).
+#[doc(hidden)]
 pub struct TailCutWrapper<R> {
     inner: R,
     size: Option<u64>,

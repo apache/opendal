@@ -18,7 +18,10 @@
 /// Default scheme for koofr service.
 pub const KOOFR_SCHEME: &str = "koofr";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_koofr_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Koofr>(KOOFR_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::KoofrBuilder as Koofr;
 pub use config::KoofrConfig;
-
-#[ctor::ctor]
-fn register_koofr_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Koofr>(KOOFR_SCHEME);
-}

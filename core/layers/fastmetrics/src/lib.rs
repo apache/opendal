@@ -15,7 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt;
+//! Metrics layer (using the [fastmetrics](https://docs.rs/fastmetrics/) crate) implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 use fastmetrics::encoder::EncodeLabelSet;
 use fastmetrics::encoder::LabelSetEncoder;
@@ -24,9 +27,9 @@ use fastmetrics::metrics::family::Family;
 use fastmetrics::metrics::family::MetricFactory;
 use fastmetrics::metrics::gauge::Gauge;
 use fastmetrics::metrics::histogram::Histogram;
+use fastmetrics::raw::LabelSetSchema;
 use fastmetrics::registry::Register;
 use fastmetrics::registry::Registry;
-use fastmetrics::registry::RegistryError;
 use fastmetrics::registry::with_global_registry_mut;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -124,7 +127,7 @@ use opendal_layer_observe_metrics_common as observe;
 /// println!("{}", output);
 /// # Ok(())
 /// # }
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct FastmetricsLayer {
     interceptor: FastmetricsInterceptor,
 }
@@ -324,11 +327,11 @@ impl FastmetricsLayerBuilder {
     /// # Example
     ///
     /// ```no_run
-    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
     /// # use opendal_core::services;
     /// # use opendal_core::Operator;
     /// # use opendal_core::Result;
-    ///
+    /// # use opendal_layer_fastmetrics::FastmetricsLayer;
+    /// #
     /// # fn main() -> Result<()> {
     /// // Pick a builder and configure it.
     /// let builder = services::Memory::default();
@@ -354,6 +357,7 @@ impl MetricFactory<Histogram> for HistogramFactory {
     }
 }
 
+#[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct FastmetricsInterceptor {
     operation_bytes: Family<OperationLabels, Histogram, HistogramFactory>,
@@ -379,7 +383,7 @@ pub struct FastmetricsInterceptor {
 }
 
 impl Register for FastmetricsInterceptor {
-    fn register(&self, registry: &mut Registry) -> Result<(), RegistryError> {
+    fn register(&self, registry: &mut Registry) -> fastmetrics::error::Result<()> {
         macro_rules! register_metrics {
             ($($field:ident => $value:expr),* $(,)?) => {
                 $(
@@ -505,8 +509,22 @@ struct OperationLabels {
     disable_label_root: bool,
 }
 
+impl LabelSetSchema for OperationLabels {
+    fn names() -> Option<&'static [&'static str]> {
+        static NAMES: &[&str] = &[
+            observe::LABEL_SCHEME,
+            observe::LABEL_NAMESPACE,
+            observe::LABEL_ROOT,
+            observe::LABEL_OPERATION,
+            observe::LABEL_ERROR,
+            observe::LABEL_STATUS_CODE,
+        ];
+        Some(NAMES)
+    }
+}
+
 impl EncodeLabelSet for OperationLabels {
-    fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> fmt::Result {
+    fn encode(&self, encoder: &mut dyn LabelSetEncoder) -> fastmetrics::error::Result<()> {
         encoder.encode(&(observe::LABEL_SCHEME, self.labels.scheme))?;
         encoder.encode(&(observe::LABEL_NAMESPACE, self.labels.namespace.as_ref()))?;
         if !self.disable_label_root {

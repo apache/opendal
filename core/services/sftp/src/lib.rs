@@ -36,7 +36,7 @@ pub use config::SftpConfig;
 /// Default scheme for sftp service.
 pub const SFTP_SCHEME: &str = "sftp";
 
-#[ctor::ctor]
-fn register_sftp_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Sftp>(SFTP_SCHEME);
+/// Register this service into the given registry.
+pub fn register_sftp_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Sftp>(SFTP_SCHEME);
 }

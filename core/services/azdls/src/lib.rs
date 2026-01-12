@@ -18,7 +18,10 @@
 /// Default scheme for azdls service.
 pub const AZDLS_SCHEME: &str = "azdls";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_azdls_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Azdls>(AZDLS_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::AzdlsBuilder as Azdls;
 pub use config::AzdlsConfig;
-
-#[ctor::ctor]
-fn register_azdls_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Azdls>(AZDLS_SCHEME);
-}

@@ -19,12 +19,5 @@
 //!
 //! More ongoing services support is tracked at [opendal#5](https://github.com/apache/opendal/issues/5). Please feel free to submit issues if there are services not covered.
 
-#[cfg(feature = "services-memory")]
 mod memory;
-#[cfg(feature = "services-memory")]
 pub use self::memory::*;
-
-#[cfg(feature = "services-redis")]
-mod redis;
-#[cfg(feature = "services-redis")]
-pub use self::redis::*;

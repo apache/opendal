@@ -243,9 +243,7 @@ impl GhacCore {
                         .map_err(new_json_deserialize_error)?;
                     reserve_resp.cache_id
                 } else {
-                    return Err(
-                        parse_error(resp).map(|err| err.with_operation("Backend::ghac_reserve"))
-                    );
+                    return Err(parse_error(resp).with_operation("Backend::ghac_reserve"));
                 };
 
                 let url = format!("{}{CACHE_URL_BASE}/caches/{cache_id}", self.cache_url);

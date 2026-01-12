@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::io::Cursor;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -24,11 +26,25 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use quick_xml::Reader;
+use quick_xml::Writer;
+use quick_xml::escape::escape;
+use quick_xml::events::BytesEnd;
+use quick_xml::events::BytesStart;
+use quick_xml::events::BytesText;
+use quick_xml::events::Event;
 use serde::Deserialize;
 
 use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+/// Default namespace prefix for user-defined properties in WebDAV.
+/// Users can override this via configuration.
+pub const DEFAULT_USER_METADATA_PREFIX: &str = "opendal";
+/// Default namespace URI for user-defined properties in WebDAV.
+/// Users can override this via configuration.
+pub const DEFAULT_USER_METADATA_URI: &str = "https://opendal.apache.org/ns";
 
 /// The request to query all properties of a file or directory.
 ///
@@ -73,6 +89,10 @@ pub struct WebdavCore {
     pub server_path: String,
     pub root: String,
     pub authorization: Option<String>,
+    /// XML namespace prefix for user metadata properties.
+    pub user_metadata_prefix: String,
+    /// XML namespace URI for user metadata properties.
+    pub user_metadata_uri: String,
 }
 
 impl Debug for WebdavCore {
@@ -80,6 +100,8 @@ impl Debug for WebdavCore {
         f.debug_struct("WebdavCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
+            .field("user_metadata_prefix", &self.user_metadata_prefix)
+            .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()
     }
 }
@@ -115,8 +137,10 @@ impl WebdavCore {
         }
 
         let bs = resp.into_body();
+        let xml_bytes = bs.to_bytes();
+        let xml_str = String::from_utf8_lossy(&xml_bytes);
 
-        let result: Multistatus = deserialize_multistatus(&bs.to_bytes())?;
+        let result: Multistatus = deserialize_multistatus(&xml_bytes)?;
         let propfind_resp = result.response.first().ok_or_else(|| {
             Error::new(
                 ErrorKind::NotFound,
@@ -124,7 +148,14 @@ impl WebdavCore {
             )
         })?;
 
-        let metadata = parse_propstat(&propfind_resp.propstat)?;
+        let mut metadata = parse_propstat(&propfind_resp.propstat)?;
+
+        // Parse user metadata from the raw XML response using configured namespace
+        let user_metadata = parse_user_metadata_from_xml(&xml_str, &self.user_metadata_uri);
+        if !user_metadata.is_empty() {
+            metadata = metadata.with_user_metadata(user_metadata);
+        }
+
         Ok(metadata)
     }
 
@@ -186,6 +217,44 @@ impl WebdavCore {
         let req = req
             .extension(Operation::Write)
             .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// Set user-defined metadata using WebDAV PROPPATCH method.
+    ///
+    /// This method uses the OpenDAL custom namespace to store user metadata
+    /// as DAV dead properties. Each key-value pair in the user_metadata map
+    /// is stored as a property with the configured namespace prefix.
+    ///
+    /// # Reference
+    /// - [RFC4918: 9.2 PROPPATCH Method](https://datatracker.ietf.org/doc/html/rfc4918#section-9.2)
+    pub async fn webdav_proppatch(
+        &self,
+        path: &str,
+        user_metadata: &HashMap<String, String>,
+    ) -> Result<Response<Buffer>> {
+        let path = build_rooted_abs_path(&self.root, path);
+        let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
+
+        let mut req = Request::builder().method("PROPPATCH").uri(&url);
+
+        req = req.header(header::CONTENT_TYPE, "application/xml; charset=utf-8");
+        if let Some(auth) = &self.authorization {
+            req = req.header(header::AUTHORIZATION, auth);
+        }
+
+        // Build the PROPPATCH XML request body using configured namespace
+        let proppatch_body = build_proppatch_request(
+            user_metadata,
+            &self.user_metadata_prefix,
+            &self.user_metadata_uri,
+        );
+
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::from(Bytes::from(proppatch_body)))
             .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -366,6 +435,281 @@ impl WebdavCore {
             _ => Err(parse_error(resp)),
         }
     }
+}
+
+/// Build a PROPPATCH request body to set user-defined metadata.
+///
+/// The request uses the specified namespace to store metadata as dead properties
+/// on the WebDAV server.
+///
+/// # Arguments
+/// * `user_metadata` - Key-value pairs to store as properties
+/// * `namespace_prefix` - XML namespace prefix (e.g., "opendal")
+/// * `namespace_uri` - XML namespace URI (e.g., "https://opendal.apache.org/ns")
+///
+/// # Example output
+/// ```xml
+/// <?xml version="1.0" encoding="utf-8"?>
+/// <D:propertyupdate xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+///   <D:set>
+///     <D:prop>
+///       <opendal:key1>value1</opendal:key1>
+///       <opendal:key2>value2</opendal:key2>
+///     </D:prop>
+///   </D:set>
+/// </D:propertyupdate>
+/// ```
+pub fn build_proppatch_request(
+    user_metadata: &HashMap<String, String>,
+    namespace_prefix: &str,
+    namespace_uri: &str,
+) -> String {
+    let mut writer = Writer::new(Cursor::new(Vec::new()));
+
+    // Write XML declaration
+    writer
+        .write_event(Event::Decl(quick_xml::events::BytesDecl::new(
+            "1.0",
+            Some("utf-8"),
+            None,
+        )))
+        .expect("write xml decl");
+
+    // Write <D:propertyupdate> with namespace declarations
+    let mut propertyupdate = BytesStart::new("D:propertyupdate");
+    propertyupdate.push_attribute(("xmlns:D", "DAV:"));
+    propertyupdate.push_attribute((
+        format!("xmlns:{}", namespace_prefix).as_str(),
+        namespace_uri,
+    ));
+    writer
+        .write_event(Event::Start(propertyupdate))
+        .expect("write propertyupdate");
+
+    // Write <D:set>
+    writer
+        .write_event(Event::Start(BytesStart::new("D:set")))
+        .expect("write set");
+
+    // Write <D:prop>
+    writer
+        .write_event(Event::Start(BytesStart::new("D:prop")))
+        .expect("write prop");
+
+    // Write each user metadata property
+    for (key, value) in user_metadata {
+        // Note: key needs to be escaped for XML tag name, value is handled by BytesText
+        let escaped_key = escape(key);
+        let tag_name = format!("{}:{}", namespace_prefix, escaped_key);
+        writer
+            .write_event(Event::Start(BytesStart::new(&tag_name)))
+            .expect("write prop start");
+        // BytesText::new expects unescaped content and will escape it automatically
+        writer
+            .write_event(Event::Text(BytesText::new(value)))
+            .expect("write prop value");
+        writer
+            .write_event(Event::End(BytesEnd::new(&tag_name)))
+            .expect("write prop end");
+    }
+
+    // Close tags
+    writer
+        .write_event(Event::End(BytesEnd::new("D:prop")))
+        .expect("write prop end");
+    writer
+        .write_event(Event::End(BytesEnd::new("D:set")))
+        .expect("write set end");
+    writer
+        .write_event(Event::End(BytesEnd::new("D:propertyupdate")))
+        .expect("write propertyupdate end");
+
+    String::from_utf8(writer.into_inner().into_inner()).expect("valid utf8")
+}
+
+/// Parse user metadata from the raw XML response using quick-xml Reader.
+///
+/// This function extracts properties in the specified namespace
+/// from the PROPFIND response and returns them as a HashMap.
+///
+/// Note: WebDAV servers like Nextcloud/ownCloud may use dynamic namespace prefixes
+/// (e.g., x1:, x2:) instead of the prefix we send. The namespace URI is the
+/// reliable identifier, not the prefix.
+///
+/// # Arguments
+/// * `xml` - The raw XML response string
+/// * `namespace_uri` - The namespace URI to look for
+pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<String, String> {
+    let mut user_metadata = HashMap::new();
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    // Track namespace prefix -> URI mappings
+    let mut ns_prefixes: HashMap<String, String> = HashMap::new();
+    // Track which prefixes map to our target namespace URI
+    let mut target_prefixes: Vec<String> = Vec::new();
+
+    // Current element state for tracking property values
+    let mut current_prop_key: Option<String> = None;
+    let mut current_prop_value = String::new();
+
+    let mut buf = Vec::new();
+    loop {
+        let event = reader.read_event_into(&mut buf);
+        match event {
+            Ok(Event::Start(ref e)) => {
+                // Extract namespace declarations from attributes
+                for attr in e.attributes().flatten() {
+                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    if key.starts_with("xmlns:") {
+                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
+                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
+                            target_prefixes.push(prefix.clone());
+                        }
+                        ns_prefixes.insert(prefix, uri);
+                    }
+                }
+
+                // Check if this element is in our target namespace
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        current_prop_key = Some(local_name.to_string());
+                        current_prop_value.clear();
+                    }
+                }
+            }
+            Ok(Event::Empty(ref e)) => {
+                // Extract namespace declarations from attributes
+                for attr in e.attributes().flatten() {
+                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    if key.starts_with("xmlns:") {
+                        let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
+                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        if uri == namespace_uri && !target_prefixes.contains(&prefix) {
+                            target_prefixes.push(prefix.clone());
+                        }
+                        ns_prefixes.insert(prefix, uri);
+                    }
+                }
+
+                // For Empty events (self-closing tags), immediately insert with empty value
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        user_metadata.insert(local_name.to_string(), String::new());
+                    }
+                }
+            }
+            Ok(Event::Text(ref e)) => {
+                if current_prop_key.is_some() {
+                    // Text content - add directly (no escaping needed)
+                    let text_str = String::from_utf8_lossy(e.as_ref());
+                    current_prop_value.push_str(&text_str);
+                }
+            }
+            Ok(Event::GeneralRef(ref e)) => {
+                if current_prop_key.is_some() {
+                    // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
+                    let entity_name = String::from_utf8_lossy(e.as_ref());
+                    let decoded = match entity_name.as_ref() {
+                        "lt" => "<",
+                        "gt" => ">",
+                        "amp" => "&",
+                        "quot" => "\"",
+                        "apos" => "'",
+                        _ => "", // Unknown entity, skip
+                    };
+                    current_prop_value.push_str(decoded);
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                if let Some(colon_pos) = name.find(':') {
+                    let prefix = &name[..colon_pos];
+                    let local_name = &name[colon_pos + 1..];
+                    if target_prefixes.contains(&prefix.to_string()) {
+                        if let Some(key) = current_prop_key.take() {
+                            if key == local_name {
+                                user_metadata.insert(key, current_prop_value.clone());
+                                current_prop_value.clear();
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    user_metadata
+}
+
+/// Check if a PROPPATCH 207 Multi-Status response indicates success using quick-xml Reader.
+///
+/// A 207 status code only indicates that there is detailed information available,
+/// not success or failure. We need to parse the response body to check if all
+/// property updates were successful (status 200).
+///
+/// Returns Ok(()) if all properties were successfully updated, or an error
+/// with details about the failure.
+pub fn check_proppatch_response(xml: &str) -> Result<()> {
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut in_status = false;
+    let mut status_text = String::new();
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                // Match status element regardless of namespace prefix
+                if name.ends_with(":status") || name == "status" {
+                    in_status = true;
+                    status_text.clear();
+                }
+            }
+            Ok(Event::Text(ref e)) => {
+                if in_status {
+                    let text_str = String::from_utf8_lossy(e.as_ref());
+                    status_text.push_str(&text_str);
+                }
+            }
+            Ok(Event::End(ref e)) => {
+                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                if name.ends_with(":status") || name == "status" {
+                    // Parse status code from "HTTP/1.1 XXX Description"
+                    if let Some(code_str) = status_text.split_whitespace().nth(1) {
+                        if let Ok(code) = code_str.parse::<u16>() {
+                            if !(200..300).contains(&code) {
+                                return Err(Error::new(
+                                    ErrorKind::Unexpected,
+                                    format!("PROPPATCH failed with status: {status_text}"),
+                                ));
+                            }
+                        }
+                    }
+                    in_status = false;
+                }
+            }
+            Ok(Event::Eof) => break,
+            Err(_) => break,
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    Ok(())
 }
 
 pub fn deserialize_multistatus(bs: &[u8]) -> Result<Multistatus> {
@@ -853,5 +1197,246 @@ mod tests {
             first_response.propstat.prop.getlastmodified,
             "Fri, 17 Feb 2023 03:37:22 GMT"
         );
+    }
+
+    #[test]
+    fn test_build_proppatch_request() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key1".to_string(), "value1".to_string());
+        user_metadata.insert("key2".to_string(), "value2".to_string());
+
+        let request = build_proppatch_request(
+            &user_metadata,
+            DEFAULT_USER_METADATA_PREFIX,
+            DEFAULT_USER_METADATA_URI,
+        );
+
+        // Check that the request contains the expected XML structure
+        assert!(request.contains(r#"<?xml version="1.0" encoding="utf-8"?>"#));
+        assert!(request.contains(r#"<D:propertyupdate"#));
+        assert!(request.contains(r#"xmlns:D="DAV:""#));
+        assert!(request.contains(&format!(
+            r#"xmlns:{DEFAULT_USER_METADATA_PREFIX}="{DEFAULT_USER_METADATA_URI}""#
+        )));
+        assert!(request.contains(r#"<D:set>"#));
+        assert!(request.contains(r#"<D:prop>"#));
+        // Check that user metadata is included (order may vary)
+        assert!(request.contains(&format!(
+            "<{DEFAULT_USER_METADATA_PREFIX}:key1>value1</{DEFAULT_USER_METADATA_PREFIX}:key1>"
+        )));
+        assert!(request.contains(&format!(
+            "<{DEFAULT_USER_METADATA_PREFIX}:key2>value2</{DEFAULT_USER_METADATA_PREFIX}:key2>"
+        )));
+    }
+
+    #[test]
+    fn test_build_proppatch_request_with_special_chars() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key".to_string(), "value<>&\"'".to_string());
+
+        let request = build_proppatch_request(
+            &user_metadata,
+            DEFAULT_USER_METADATA_PREFIX,
+            DEFAULT_USER_METADATA_URI,
+        );
+
+        // Check that special characters are properly escaped
+        assert!(request.contains("value&lt;&gt;&amp;&quot;&apos;"));
+    }
+
+    #[test]
+    fn test_build_proppatch_request_custom_namespace() {
+        let mut user_metadata = HashMap::new();
+        user_metadata.insert("key1".to_string(), "value1".to_string());
+
+        let request = build_proppatch_request(&user_metadata, "custom", "http://example.com/ns");
+
+        // Check that custom namespace is used
+        assert!(request.contains(r#"xmlns:custom="http://example.com/ns""#));
+        assert!(request.contains("<custom:key1>value1</custom:key1>"));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+                <opendal:key1>value1</opendal:key1>
+                <opendal:key2>value2</opendal:key2>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(user_metadata.len(), 2);
+        assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(user_metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_with_special_chars() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <opendal:key>value&lt;&gt;&amp;&quot;&apos;</opendal:key>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(user_metadata.get("key"), Some(&"value<>&\"'".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_empty() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:">
+          <D:response>
+            <D:propstat>
+              <D:prop>
+                <D:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</D:getlastmodified>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert!(user_metadata.is_empty());
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_dynamic_prefix() {
+        // Nextcloud/ownCloud style: uses dynamic namespace prefixes (x1:, x2:, etc.)
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <d:getlastmodified>Fri, 17 Feb 2023 03:37:22 GMT</d:getlastmodified>
+                <x1:key1 xmlns:x1="https://opendal.apache.org/ns">value1</x1:key1>
+                <x2:key2 xmlns:x2="https://opendal.apache.org/ns">value2</x2:key2>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(user_metadata.len(), 2);
+        assert_eq!(user_metadata.get("key1"), Some(&"value1".to_string()));
+        assert_eq!(user_metadata.get("key2"), Some(&"value2".to_string()));
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_namespace_at_root() {
+        // Alternative: namespace declared at root level
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:" xmlns:custom="https://opendal.apache.org/ns">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <custom:location>everywhere</custom:location>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, DEFAULT_USER_METADATA_URI);
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(
+            user_metadata.get("location"),
+            Some(&"everywhere".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_user_metadata_from_xml_custom_namespace() {
+        // Test with a custom namespace (like what users might configure)
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:" xmlns:myapp="http://myapp.example.com/ns">
+          <d:response>
+            <d:propstat>
+              <d:prop>
+                <myapp:author>John Doe</myapp:author>
+              </d:prop>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        let user_metadata = parse_user_metadata_from_xml(xml, "http://myapp.example.com/ns");
+
+        assert_eq!(user_metadata.len(), 1);
+        assert_eq!(user_metadata.get("author"), Some(&"John Doe".to_string()));
+    }
+
+    #[test]
+    fn test_check_proppatch_response_success() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <D:response>
+            <D:href>/test.txt</D:href>
+            <D:propstat>
+              <D:prop>
+                <opendal:location/>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_ok());
+    }
+
+    #[test]
+    fn test_check_proppatch_response_failure() {
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:opendal="https://opendal.apache.org/ns">
+          <D:response>
+            <D:href>/test.txt</D:href>
+            <D:propstat>
+              <D:prop>
+                <opendal:location/>
+              </D:prop>
+              <D:status>HTTP/1.1 403 Forbidden</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_err());
+    }
+
+    #[test]
+    fn test_check_proppatch_response_lowercase() {
+        // Nextcloud might use lowercase "d:" prefix
+        let xml = r#"<?xml version="1.0" encoding="utf-8"?>
+        <d:multistatus xmlns:d="DAV:">
+          <d:response>
+            <d:href>/test.txt</d:href>
+            <d:propstat>
+              <d:prop/>
+              <d:status>HTTP/1.1 200 OK</d:status>
+            </d:propstat>
+          </d:response>
+        </d:multistatus>"#;
+
+        assert!(check_proppatch_response(xml).is_ok());
     }
 }

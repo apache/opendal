@@ -93,7 +93,7 @@ In addition to the options mentioned above, `Xuanwo/reqwest-hickory-resolver` al
 
 `reqwest` didn't set a default timeout for HTTP requests. This means that if a request hangs or takes too long to complete, it can block the entire process, leading to performance degradation or even application crashes.
 
-It's recommended to set a connect timeout for HTTP requests to prevent this issue. 
+It's recommended to set a connect timeout for HTTP requests to prevent this issue.
 
 ```rust
 let client = reqwest::ClientBuilder::new()

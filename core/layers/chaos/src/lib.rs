@@ -15,14 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Chaos layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use rand::prelude::*;
-use rand::rngs::StdRng;
-
 use opendal_core::raw::*;
 use opendal_core::*;
+use rand::prelude::*;
+use rand::rngs::StdRng;
 
 /// Inject chaos into underlying services for robustness test.
 ///
@@ -44,25 +48,25 @@ use opendal_core::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_chaos::ChaosLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_chaos::ChaosLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChaosLayer {
     error_ratio: f64,
 }
 
 impl ChaosLayer {
-    /// Create a new chaos layer with specified error ratio.
+    /// Create a new [`ChaosLayer`] with specified error ratio.
     ///
     /// # Panics
     ///
@@ -88,6 +92,7 @@ impl<A: Access> Layer<A> for ChaosLayer {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct ChaosAccessor<A> {
     inner: A,
@@ -127,7 +132,7 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     }
 }
 
-/// ChaosReader will inject error into read operations.
+#[doc(hidden)]
 pub struct ChaosReader<R> {
     inner: R,
     rng: Arc<Mutex<StdRng>>,

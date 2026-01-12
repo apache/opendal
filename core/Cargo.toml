@@ -47,6 +47,7 @@ ctor = "0.6"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
 log = "0.4"
+mea = "0.6"
 quick-xml = { version = "0.38", default-features = false }
 rand = "0.8"
 reqsign = { version = "0.16.5", default-features = false }
@@ -86,7 +87,6 @@ default = [
   "layers-logging",
   "layers-retry",
   "layers-timeout",
-  "services-memory",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
@@ -99,6 +99,8 @@ layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
 layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
+layers-foyer = ["dep:opendal-layer-foyer"]
+layers-hotpath = ["dep:opendal-layer-hotpath"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-logging = ["dep:opendal-layer-logging"]
 layers-metrics = ["dep:opendal-layer-metrics"]
@@ -108,6 +110,7 @@ layers-otel-trace = ["dep:opendal-layer-oteltrace"]
 layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
+layers-route = ["dep:opendal-layer-route"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
@@ -145,6 +148,7 @@ services-ipmfs = ["dep:opendal-service-ipmfs"]
 services-koofr = ["dep:opendal-service-koofr"]
 services-lakefs = ["dep:opendal-service-lakefs"]
 services-memcached = ["dep:opendal-service-memcached"]
+# Deprecated: memory service is always enabled.
 services-memory = ["opendal-core/services-memory"]
 services-mini-moka = ["dep:opendal-service-mini-moka"]
 services-moka = ["dep:opendal-service-moka"]
@@ -159,8 +163,11 @@ services-pcloud = ["dep:opendal-service-pcloud"]
 services-persy = ["dep:opendal-service-persy"]
 services-postgresql = ["dep:opendal-service-postgresql"]
 services-redb = ["dep:opendal-service-redb"]
-services-redis = ["opendal-core/services-redis"]
-services-redis-native-tls = ["opendal-core/services-redis-native-tls"]
+services-redis = ["dep:opendal-service-redis", "opendal-service-redis?/rustls"]
+services-redis-native-tls = [
+  "dep:opendal-service-redis",
+  "opendal-service-redis?/native-tls",
+]
 services-rocksdb = ["dep:opendal-service-rocksdb"]
 services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]
@@ -197,15 +204,17 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
+ctor = { workspace = true }
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-chaos = { path = "layers/chaos", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.55.0", optional = true, default-features = false }
-opendal-layer-dtrace = { path = "layers/dtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-foyer = { path = "layers/foyer", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-hotpath = { path = "layers/hotpath", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-logging = { path = "layers/logging", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-metrics = { path = "layers/metrics", version = "0.55.0", optional = true, default-features = false }
@@ -216,6 +225,7 @@ opendal-layer-oteltrace = { path = "layers/oteltrace", version = "0.55.0", optio
 opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-route = { path = "layers/route", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.55.0", optional = true, default-features = false }
@@ -264,6 +274,7 @@ opendal-service-pcloud = { path = "services/pcloud", version = "0.55.0", optiona
 opendal-service-persy = { path = "services/persy", version = "0.55.0", optional = true, default-features = false }
 opendal-service-postgresql = { path = "services/postgresql", version = "0.55.0", optional = true, default-features = false }
 opendal-service-redb = { path = "services/redb", version = "0.55.0", optional = true, default-features = false }
+opendal-service-redis = { path = "services/redis", version = "0.55.0", optional = true, default-features = false }
 opendal-service-rocksdb = { path = "services/rocksdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-s3 = { path = "services/s3", version = "0.55.0", optional = true, default-features = false }
 opendal-service-seafile = { path = "services/seafile", version = "0.55.0", optional = true, default-features = false }
@@ -281,35 +292,27 @@ opendal-service-webhdfs = { path = "services/webhdfs", version = "0.55.0", optio
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.55.0", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.55.0", optional = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+opendal-layer-dtrace = { path = "layers/dtrace", version = "0.55.0", optional = true, default-features = false }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+opendal-service-opfs = { path = "services/opfs", version = "0.55.0", optional = true, default-features = false }
+
 [dev-dependencies]
-anyhow = { version = "1.0.100", features = ["std"] }
+anyhow = "1.0"
 bytes = { workspace = true }
-criterion = { version = "0.7", features = ["async", "async_tokio"] }
-divan = { version = "0.1" }
-dotenvy = "0.15"
-fastrace = { version = "0.7", features = ["enable"] }
-fastrace-jaeger = "0.7"
+divan = "0.1"
 futures = { workspace = true, default-features = true }
 http = { workspace = true }
 libtest-mimic = "0.8"
 log = { workspace = true }
-opentelemetry = { version = "0.31.0", default-features = false, features = [
-  "trace",
-] }
-opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
-opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
-pretty_assertions = "1"
 rand = { workspace = true }
-reqwest = { version = "0.12.24" }
+reqwest = "0.12.24"
 sha2 = { workspace = true }
 size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
 uuid = { workspace = true, features = ["serde", "v4"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-opendal-service-opfs = { path = "services/opfs", version = "0.55.0", optional = true, default-features = false }

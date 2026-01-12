@@ -15,18 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
+use opendal_core::raw::*;
+use opendal_core::*;
+
 use super::core::RedisCore;
-use crate::raw::oio;
-use crate::raw::*;
-use crate::*;
 
 pub struct RedisDeleter {
-    core: std::sync::Arc<RedisCore>,
+    core: Arc<RedisCore>,
     root: String,
 }
 
 impl RedisDeleter {
-    pub fn new(core: std::sync::Arc<RedisCore>, root: String) -> Self {
+    pub fn new(core: Arc<RedisCore>, root: String) -> Self {
         Self { core, root }
     }
 }

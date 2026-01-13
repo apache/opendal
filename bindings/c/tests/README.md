@@ -46,6 +46,7 @@ The test framework provides:
 - **`test_suites_basic.cpp`**: Basic CRUD operations (check, write, read, exists, stat, delete, create_dir)
 - **`test_suites_list.cpp`**: Directory listing and traversal operations
 - **`test_suites_reader_writer.cpp`**: Streaming read/write operations with seek functionality
+- **`test_suites_options.cpp`**: options read/write operations with seek functionality
 - **`test_runner.cpp`**: Main executable with command-line interface
 
 ### Test Structure
@@ -190,6 +191,12 @@ Tests streaming I/O operations:
 - **writer_basic**: Basic file writing
 - **writer_large_data**: Write large amounts of data
 - **reader_partial_read**: Read files in chunks
+
+### Options Operations
+Tests options read/write operations:
+- **read_options_default**: Read options with default values
+- **read_options_range**: Read options with range configured
+- **read_options_timestamp**: Read options with if_modified_since configured
 
 ## Assertion Macros
 

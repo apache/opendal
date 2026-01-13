@@ -34,14 +34,15 @@ pub struct opendal_http_header_pair {
 }
 
 // The internal Rust-only struct that holds the owned data.
-#[allow(dead_code)]
 #[derive(Debug)]
 struct opendal_presigned_request_inner {
     method: CString,
     uri: CString,
     headers: Vec<opendal_http_header_pair>,
     // These vecs own the CString data for the headers
+    #[allow(dead_code)]
     header_keys: Vec<CString>,
+    #[allow(dead_code)]
     header_values: Vec<CString>,
 }
 
@@ -50,20 +51,25 @@ impl opendal_presigned_request_inner {
         let method = CString::new(req.method().as_str()).unwrap();
         let uri = CString::new(req.uri().to_string()).unwrap();
 
-        let mut header_keys = Vec::with_capacity(req.header().len());
-        let mut header_values = Vec::with_capacity(req.header().len());
-        for (k, v) in req.header().iter() {
-            header_keys.push(CString::new(k.as_str()).unwrap());
-            header_values.push(CString::new(v.to_str().unwrap()).unwrap());
-        }
+        let header_keys: Vec<CString> = req
+            .header()
+            .iter()
+            .map(|(k, _)| CString::new(k.as_str()).unwrap())
+            .collect();
+        let header_values: Vec<CString> = req
+            .header()
+            .iter()
+            .map(|(_, v)| CString::new(v.to_str().unwrap()).unwrap())
+            .collect();
 
-        let mut headers: Vec<opendal_http_header_pair> = Vec::with_capacity(header_keys.len());
-        for i in 0..header_keys.len() {
-            headers.push(opendal_http_header_pair {
-                key: header_keys[i].as_ptr(),
-                value: header_values[i].as_ptr(),
-            });
-        }
+        let headers: Vec<opendal_http_header_pair> = header_keys
+            .iter()
+            .zip(header_values.iter())
+            .map(|(k, v)| opendal_http_header_pair {
+                key: k.as_ptr(),
+                value: v.as_ptr(),
+            })
+            .collect();
 
         Self {
             method,
@@ -98,18 +104,10 @@ pub unsafe extern "C" fn opendal_operator_presign_read(
     path: *const c_char,
     expire_secs: u64,
 ) -> opendal_result_presign {
-    if path.is_null() {
-        return opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "path is null",
-            )),
-        };
-    }
+    assert!(!path.is_null());
 
     let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().unwrap();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
     match op.presign_read(path, duration) {
@@ -137,18 +135,10 @@ pub unsafe extern "C" fn opendal_operator_presign_write(
     path: *const c_char,
     expire_secs: u64,
 ) -> opendal_result_presign {
-    if path.is_null() {
-        return opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "path is null",
-            )),
-        };
-    }
+    assert!(!path.is_null());
 
     let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().unwrap();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
     match op.presign_write(path, duration) {
@@ -176,17 +166,10 @@ pub unsafe extern "C" fn opendal_operator_presign_delete(
     path: *const c_char,
     expire_secs: u64,
 ) -> opendal_result_presign {
-    if path.is_null() {
-        return opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "path is null",
-            )),
-        };
-    }
+    assert!(!path.is_null());
+
     let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().unwrap();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     match op.presign_delete(path, duration) {
         Ok(req) => {
@@ -213,18 +196,10 @@ pub unsafe extern "C" fn opendal_operator_presign_stat(
     path: *const c_char,
     expire_secs: u64,
 ) -> opendal_result_presign {
-    if path.is_null() {
-        return opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(opendal::Error::new(
-                opendal::ErrorKind::Unexpected,
-                "path is null",
-            )),
-        };
-    }
+    assert!(!path.is_null());
 
     let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().unwrap();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
     match op.presign_stat(path, duration) {

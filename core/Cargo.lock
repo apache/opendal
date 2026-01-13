@@ -2784,9 +2784,9 @@ dependencies = [
 name = "edge_test_aws_s3_assume_role_with_web_identity"
 version = "0.55.0"
 dependencies = [
+ "logforth",
  "opendal",
  "tokio",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -5886,6 +5886,7 @@ dependencies = [
  "http 1.4.0",
  "libtest-mimic",
  "log",
+ "logforth",
  "opendal-core",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
@@ -5979,7 +5980,6 @@ dependencies = [
  "sha2",
  "size",
  "tokio",
- "tracing-subscriber",
  "uuid",
 ]
 
@@ -6021,6 +6021,7 @@ dependencies = [
  "http-body 1.0.1",
  "jiff",
  "log",
+ "logforth",
  "md-5",
  "mea 0.6.0",
  "moka",
@@ -6033,7 +6034,6 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
- "tracing-subscriber",
  "url",
  "uuid",
  "web-time",
@@ -6181,9 +6181,9 @@ version = "0.55.0"
 dependencies = [
  "futures",
  "log",
+ "logforth",
  "opendal-core",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6269,11 +6269,11 @@ dependencies = [
  "bytes",
  "futures",
  "log",
+ "logforth",
  "opendal-core",
  "opendal-layer-logging",
  "opendal-layer-timeout",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -6971,7 +6971,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "tracing-subscriber",
 ]
 
 [[package]]

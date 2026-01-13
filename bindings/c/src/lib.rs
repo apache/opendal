@@ -47,6 +47,11 @@ pub use operator::opendal_operator;
 
 mod operator_info;
 
+mod presign;
+pub use presign::opendal_http_header_pair;
+pub use presign::opendal_presigned_request;
+pub use presign::opendal_result_presign;
+
 mod result;
 pub use result::opendal_result_exists;
 pub use result::opendal_result_is_exist;

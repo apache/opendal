@@ -210,6 +210,9 @@ mod tests {
     use bytes::BufMut;
     use bytes::Bytes;
     use log::debug;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
     use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
     use rand::Rng;
@@ -248,13 +251,18 @@ mod tests {
         }
     }
 
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
     async fn test_exact_buf_writer_short_write() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let mut rng = thread_rng();
         let mut expected = vec![0; 5];
@@ -289,11 +297,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_inexact_buf_writer_large_write() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -327,11 +331,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_inexact_buf_writer_combine_small() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -377,11 +377,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_inexact_buf_writer_queue_remaining() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
         let mut w = WriteGenerator::new(
@@ -429,11 +425,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fuzz_exact_buf_writer() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let mut rng = thread_rng();
         let mut expected = vec![];
@@ -482,11 +474,7 @@ mod tests {
     /// everything at once.
     #[tokio::test]
     async fn test_exact_buf_writer_large_buffer_splits_into_chunks() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .pretty()
-            .with_test_writer()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        setup();
 
         let chunk_size = 10;
         let large_buffer_size = 25; // 2.5x chunk_size

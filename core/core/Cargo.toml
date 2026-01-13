@@ -94,11 +94,8 @@ uuid = { workspace = true, features = ["serde", "v4", "js"] }
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]
+logforth = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }

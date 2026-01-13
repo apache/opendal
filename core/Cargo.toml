@@ -46,7 +46,8 @@ bytes = "1.10"
 ctor = "0.6"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
-log = "0.4"
+log = { version = "0.4.29" }
+logforth = { version = "0.29.1", features = ["starter-log"] }
 mea = "0.6"
 quick-xml = { version = "0.38", default-features = false }
 rand = "0.8"
@@ -306,13 +307,10 @@ futures = { workspace = true, default-features = true }
 http = { workspace = true }
 libtest-mimic = "0.8"
 log = { workspace = true }
+logforth = { workspace = true }
 rand = { workspace = true }
 reqwest = "0.12.24"
 sha2 = { workspace = true }
 size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }
 uuid = { workspace = true, features = ["serde", "v4"] }

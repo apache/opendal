@@ -31,7 +31,7 @@ pub use config::IpfsConfig;
 /// Default scheme for ipfs service.
 pub const IPFS_SCHEME: &str = "ipfs";
 
-#[ctor::ctor]
-fn register_ipfs_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Ipfs>(IPFS_SCHEME);
+/// Register this service into the given registry.
+pub fn register_ipfs_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Ipfs>(IPFS_SCHEME);
 }

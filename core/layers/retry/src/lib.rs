@@ -15,13 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Retry layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use std::sync::Arc;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use log::warn;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -56,10 +59,10 @@ use opendal_core::*;
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
-///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
-///     .layer(RetryLayer::new())
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(RetryLayer::default())
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
-///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
 /// # Ok(())
 /// # }
@@ -75,7 +78,7 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(RetryLayer::new())
+///     .layer(RetryLayer::default())
 ///     .finish();
 /// # Ok(())
 /// # }
@@ -106,7 +109,7 @@ use opendal_core::*;
 ///
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(RetryLayer::new().with_notify(MyRetryInterceptor))
+///     .layer(RetryLayer::default().with_notify(MyRetryInterceptor))
 ///     .finish();
 /// # Ok(())
 /// # }
@@ -135,18 +138,7 @@ impl Default for RetryLayer {
 }
 
 impl RetryLayer {
-    /// Create a new retry layer.
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use opendal_core::services;
-    /// use opendal_core::Operator;
-    /// use opendal_layer_retry::RetryLayer;
-    ///
-    /// let _ = Operator::new(services::Memory::default())
-    ///     .expect("must init")
-    ///     .layer(RetryLayer::new());
-    /// ```
+    /// Create a new [`RetryLayer`].
     pub fn new() -> RetryLayer {
         Self::default()
     }
@@ -164,7 +156,7 @@ impl<I: RetryInterceptor> RetryLayer<I> {
     ///
     /// let _ = Operator::new(services::Memory::default())
     ///     .expect("must init")
-    ///     .layer(RetryLayer::new().with_notify(notify))
+    ///     .layer(RetryLayer::default().with_notify(notify))
     ///     .finish();
     /// ```
     pub fn with_notify<NI: RetryInterceptor>(self, notify: NI) -> RetryLayer<NI> {
@@ -262,13 +254,15 @@ pub struct DefaultRetryInterceptor;
 
 impl RetryInterceptor for DefaultRetryInterceptor {
     fn intercept(&self, err: &Error, dur: Duration) {
-        warn!(
+        log::warn!(
             target: "opendal::layers::retry",
             "will retry after {}s because: {}",
-            dur.as_secs_f64(), err)
+            dur.as_secs_f64(), err
+        );
     }
 }
 
+#[doc(hidden)]
 pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
     inner: Arc<A>,
     builder: ExponentialBuilder,
@@ -276,7 +270,7 @@ pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
 }
 
 impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RetryAccessor")
             .field("inner", &self.inner)
             .finish_non_exhaustive()
@@ -375,6 +369,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     }
 }
 
+#[doc(hidden)]
 pub struct RetryReader<A, R> {
     inner: Arc<A>,
     reader: Option<R>,
@@ -415,6 +410,7 @@ impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
     }
 }
 
+#[doc(hidden)]
 pub struct RetryWrapper<R, I> {
     inner: Option<R>,
     notify: Arc<I>,
@@ -617,8 +613,10 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use futures::stream;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
     use opendal_layer_logging::LoggingLayer;
-    use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
 
@@ -839,21 +837,26 @@ mod tests {
         }
     }
 
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
-    async fn test_retry_read() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+    async fn test_retry_read() -> Result<()> {
+        setup();
 
         let builder = MockBuilder::default();
-        let op = Operator::new(builder.clone())
-            .unwrap()
+        let op = Operator::new(builder.clone())?
             .layer(LoggingLayer::default())
-            .layer(RetryLayer::new())
+            .layer(RetryLayer::default())
             .finish();
 
-        let r = op.reader("retryable_error").await.unwrap();
+        let r = op.reader("retryable_error").await?;
         let mut content = Vec::new();
         let size = r
             .read_into(&mut content, ..)
@@ -863,49 +866,46 @@ mod tests {
         assert_eq!(content, "Hello, World!".as_bytes());
         // The error is retryable, we should request it 3 times.
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        Ok(())
     }
 
     /// This test is used to reproduce the panic issue while composing retry layer with timeout layer.
     #[tokio::test]
-    async fn test_retry_write_fail_on_close() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+    async fn test_retry_write_fail_on_close() -> Result<()> {
+        setup();
 
         let builder = MockBuilder::default();
-        let op = Operator::new(builder.clone())
-            .unwrap()
+        let op = Operator::new(builder.clone())?
             .layer(
-                RetryLayer::new()
+                RetryLayer::default()
                     .with_min_delay(Duration::from_millis(1))
                     .with_max_delay(Duration::from_millis(1))
                     .with_jitter(),
             )
             // Uncomment this to reproduce timeout layer panic.
-            // .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+            // .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
             .layer(LoggingLayer::default())
             .finish();
 
-        let mut w = op.writer("test_write").await.unwrap();
-        w.write("aaa").await.unwrap();
-        w.write("bbb").await.unwrap();
+        let mut w = op.writer("test_write").await?;
+        w.write("aaa").await?;
+        w.write("bbb").await?;
         match w.close().await {
             Ok(_) => (),
             Err(_) => {
-                w.abort().await.unwrap();
+                w.abort().await?;
             }
         };
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_retry_list() {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    async fn test_retry_list() -> Result<()> {
+        setup();
 
         let builder = MockBuilder::default();
-        let op = Operator::new(builder.clone())
-            .unwrap()
-            .layer(RetryLayer::new())
+        let op = Operator::new(builder.clone())?
+            .layer(RetryLayer::default())
             .finish();
 
         let expected = vec!["hello", "world", "2023/", "0208/"];
@@ -920,25 +920,26 @@ mod tests {
         }
 
         assert_eq!(actual, expected);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_retry_batch() {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+    async fn test_retry_batch() -> Result<()> {
+        setup();
 
         let builder = MockBuilder::default();
         // set to a lower delay to make it run faster
-        let op = Operator::new(builder.clone())
-            .unwrap()
+        let op = Operator::new(builder.clone())?
             .layer(
-                RetryLayer::new()
+                RetryLayer::default()
                     .with_min_delay(Duration::from_secs_f32(0.1))
                     .with_max_times(5),
             )
             .finish();
 
         let paths = vec!["hello", "world", "test", "batch"];
-        op.delete_stream(stream::iter(paths)).await.unwrap();
+        op.delete_stream(stream::iter(paths)).await?;
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        Ok(())
     }
 }

@@ -15,13 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use dict_derive::FromPyObject;
 use opendal::{self as ocore, raw::BytesRange};
+use pyo3::Borrowed;
+use pyo3::FromPyObject;
+use pyo3::PyAny;
+use pyo3::PyErr;
+use pyo3::PyResult;
+use pyo3::conversion::FromPyObjectOwned;
+use pyo3::exceptions::PyTypeError;
 use pyo3::pyclass;
+use pyo3::types::PyAnyMethods;
+use pyo3::types::PyDict;
+use pyo3::types::PyDictMethods;
 use std::collections::HashMap;
 
 #[pyclass(module = "opendal")]
-#[derive(FromPyObject, Default)]
+#[derive(Default)]
 pub struct ReadOptions {
     pub version: Option<String>,
     pub concurrent: Option<usize>,
@@ -39,6 +48,55 @@ pub struct ReadOptions {
     pub content_disposition: Option<String>,
 }
 
+fn map_exception(name: &str, err: PyErr) -> PyErr {
+    PyErr::new::<PyTypeError, _>(format!("Unable to convert key: {name}. Error: {err}"))
+}
+
+fn extract_optional<'py, T>(dict: &pyo3::Bound<'py, PyDict>, name: &str) -> PyResult<Option<T>>
+where
+    T: FromPyObjectOwned<'py>,
+{
+    match dict.get_item(name)? {
+        Some(v) => v
+            .extract::<T>()
+            .map(Some)
+            .map_err(|err| map_exception(name, err.into())),
+        None => Ok(None),
+    }
+}
+
+fn downcast_kwargs<'a, 'py>(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<pyo3::Bound<'py, PyDict>> {
+    let obj: &pyo3::Bound<'_, PyAny> = &obj;
+    obj.cast::<PyDict>()
+        .cloned()
+        .map_err(|_| PyErr::new::<PyTypeError, _>("Invalid type to convert, expected dict"))
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let dict = downcast_kwargs(obj)?;
+
+        Ok(Self {
+            version: extract_optional(&dict, "version")?,
+            concurrent: extract_optional(&dict, "concurrent")?,
+            chunk: extract_optional(&dict, "chunk")?,
+            gap: extract_optional(&dict, "gap")?,
+            offset: extract_optional(&dict, "offset")?,
+            prefetch: extract_optional(&dict, "prefetch")?,
+            size: extract_optional(&dict, "size")?,
+            if_match: extract_optional(&dict, "if_match")?,
+            if_none_match: extract_optional(&dict, "if_none_match")?,
+            if_modified_since: extract_optional(&dict, "if_modified_since")?,
+            if_unmodified_since: extract_optional(&dict, "if_unmodified_since")?,
+            content_type: extract_optional(&dict, "content_type")?,
+            cache_control: extract_optional(&dict, "cache_control")?,
+            content_disposition: extract_optional(&dict, "content_disposition")?,
+        })
+    }
+}
+
 impl ReadOptions {
     pub fn make_range(&self) -> BytesRange {
         let offset = self.offset.unwrap_or_default() as u64;
@@ -49,7 +107,7 @@ impl ReadOptions {
 }
 
 #[pyclass(module = "opendal")]
-#[derive(FromPyObject, Default)]
+#[derive(Default)]
 pub struct WriteOptions {
     pub append: Option<bool>,
     pub chunk: Option<usize>,
@@ -62,6 +120,28 @@ pub struct WriteOptions {
     pub if_none_match: Option<String>,
     pub if_not_exists: Option<bool>,
     pub user_metadata: Option<HashMap<String, String>>,
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for WriteOptions {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let dict = downcast_kwargs(obj)?;
+
+        Ok(Self {
+            append: extract_optional(&dict, "append")?,
+            chunk: extract_optional(&dict, "chunk")?,
+            concurrent: extract_optional(&dict, "concurrent")?,
+            cache_control: extract_optional(&dict, "cache_control")?,
+            content_type: extract_optional(&dict, "content_type")?,
+            content_disposition: extract_optional(&dict, "content_disposition")?,
+            content_encoding: extract_optional(&dict, "content_encoding")?,
+            if_match: extract_optional(&dict, "if_match")?,
+            if_none_match: extract_optional(&dict, "if_none_match")?,
+            if_not_exists: extract_optional(&dict, "if_not_exists")?,
+            user_metadata: extract_optional(&dict, "user_metadata")?,
+        })
+    }
 }
 
 impl From<ReadOptions> for ocore::options::ReadOptions {
@@ -118,13 +198,29 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
 }
 
 #[pyclass(module = "opendal")]
-#[derive(FromPyObject, Default, Debug)]
+#[derive(Default, Debug)]
 pub struct ListOptions {
     pub limit: Option<usize>,
     pub start_after: Option<String>,
     pub recursive: Option<bool>,
     pub versions: Option<bool>,
     pub deleted: Option<bool>,
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for ListOptions {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let dict = downcast_kwargs(obj)?;
+
+        Ok(Self {
+            limit: extract_optional(&dict, "limit")?,
+            start_after: extract_optional(&dict, "start_after")?,
+            recursive: extract_optional(&dict, "recursive")?,
+            versions: extract_optional(&dict, "versions")?,
+            deleted: extract_optional(&dict, "deleted")?,
+        })
+    }
 }
 
 impl From<ListOptions> for ocore::options::ListOptions {
@@ -140,7 +236,7 @@ impl From<ListOptions> for ocore::options::ListOptions {
 }
 
 #[pyclass(module = "opendal")]
-#[derive(FromPyObject, Default, Debug)]
+#[derive(Default, Debug)]
 pub struct StatOptions {
     pub version: Option<String>,
     pub if_match: Option<String>,
@@ -150,6 +246,25 @@ pub struct StatOptions {
     pub content_type: Option<String>,
     pub cache_control: Option<String>,
     pub content_disposition: Option<String>,
+}
+
+impl<'a, 'py> FromPyObject<'a, 'py> for StatOptions {
+    type Error = PyErr;
+
+    fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
+        let dict = downcast_kwargs(obj)?;
+
+        Ok(Self {
+            version: extract_optional(&dict, "version")?,
+            if_match: extract_optional(&dict, "if_match")?,
+            if_none_match: extract_optional(&dict, "if_none_match")?,
+            if_modified_since: extract_optional(&dict, "if_modified_since")?,
+            if_unmodified_since: extract_optional(&dict, "if_unmodified_since")?,
+            content_type: extract_optional(&dict, "content_type")?,
+            cache_control: extract_optional(&dict, "cache_control")?,
+            content_disposition: extract_optional(&dict, "content_disposition")?,
+        })
+    }
 }
 
 impl From<StatOptions> for ocore::options::StatOptions {

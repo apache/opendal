@@ -34,7 +34,7 @@ pub use config::GcsConfig;
 /// Default scheme for gcs service.
 pub const GCS_SCHEME: &str = "gcs";
 
-#[ctor::ctor]
-fn register_gcs_service() {
-    opendal_core::DEFAULT_OPERATOR_REGISTRY.register::<Gcs>(GCS_SCHEME);
+/// Register this service into the given registry.
+pub fn register_gcs_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Gcs>(GCS_SCHEME);
 }

@@ -31,7 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-ctor = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 persy = "1.7.1"
 serde = { workspace = true, features = ["derive"] }

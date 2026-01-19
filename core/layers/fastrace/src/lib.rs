@@ -15,7 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
+//! Fastrace layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::future::Future;
 use std::sync::Arc;
 
@@ -37,7 +41,7 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(FastraceLayer)
+///     .layer(FastraceLayer::new())
 ///     .finish();
 /// # Ok(())
 /// # }
@@ -63,7 +67,7 @@ use opendal_core::*;
 ///         async {
 ///             let _ = dotenvy::dotenv();
 ///             let op = Operator::new(services::Memory::default())?
-///                 .layer(FastraceLayer)
+///                 .layer(FastraceLayer::new())
 ///                 .finish();
 ///             op.write("test", "0".repeat(16 * 1024 * 1024).into_bytes())
 ///                 .await?;
@@ -99,7 +103,16 @@ use opendal_core::*;
 /// ```
 ///
 /// For real-world usage, please take a look at [`fastrace-datadog`](https://crates.io/crates/fastrace-datadog) or [`fastrace-jaeger`](https://crates.io/crates/fastrace-jaeger) .
-pub struct FastraceLayer;
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct FastraceLayer {}
+
+impl FastraceLayer {
+    /// Create a new [`FastraceLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for FastraceLayer {
     type LayeredAccess = FastraceAccessor<A>;
@@ -109,6 +122,7 @@ impl<A: Access> Layer<A> for FastraceLayer {
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct FastraceAccessor<A> {
     inner: A,
@@ -208,6 +222,7 @@ impl<A: Access> LayeredAccess for FastraceAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct FastraceWrapper<R> {
     span: Span,
     inner: R,

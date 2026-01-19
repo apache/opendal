@@ -18,7 +18,10 @@
 /// Default scheme for postgresql service.
 pub const POSTGRESQL_SCHEME: &str = "postgresql";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_postgresql_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Postgresql>(POSTGRESQL_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -28,8 +31,3 @@ mod writer;
 
 pub use backend::PostgresqlBuilder as Postgresql;
 pub use config::PostgresqlConfig;
-
-#[ctor::ctor]
-fn register_postgresql_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Postgresql>(POSTGRESQL_SCHEME);
-}

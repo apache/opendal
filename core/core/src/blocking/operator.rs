@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use tokio::runtime::Handle;
 
 use crate::Operator as AsyncOperator;
+use crate::raw::PresignedRequest;
 use crate::types::IntoOperatorUri;
 use crate::*;
 
@@ -164,6 +167,34 @@ impl Operator {
 
 /// # Operator blocking API.
 impl Operator {
+    /// Create a presigned request for stat.
+    ///
+    /// See [`Operator::presign_stat`] for more details.
+    pub fn presign_stat(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_stat(path, expire))
+    }
+
+    /// Create a presigned request for read.
+    ///
+    /// See [`Operator::presign_read`] for more details.
+    pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_read(path, expire))
+    }
+
+    /// Create a presigned request for write.
+    ///
+    /// See [`Operator::presign_write`] for more details.
+    pub fn presign_write(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_write(path, expire))
+    }
+
+    /// Create a presigned request for delete.
+    ///
+    /// See [`Operator::presign_delete`] for more details.
+    pub fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
+        self.handle.block_on(self.op.presign_delete(path, expire))
+    }
+
     /// Get given path's metadata.
     ///
     /// # Behavior

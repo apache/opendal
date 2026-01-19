@@ -37,12 +37,9 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 
 [dev-dependencies]
 bytes = { workspace = true }
-futures = { workspace = true, default-features = true }
+futures = { workspace = true }
+logforth = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0" }
-opendal-layer-logging = { path = "../logging", version = "0.55.0", default-features = false }
-opendal-layer-timeout = { path = "../timeout", version = "0.55.0", default-features = false }
+opendal-layer-logging = { path = "../logging", version = "0.55.0" }
+opendal-layer-timeout = { path = "../timeout", version = "0.55.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }

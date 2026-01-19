@@ -39,7 +39,7 @@ concurrency:
 
 env:
   # This is the toolchain used by docs.rs
-  # 
+  #
   # Check this page for updating: https://docs.rs/crate/opendal/0.54.1/builds
   RUST_DOC_TOOLCHAIN: nightly-2025-10-12
   # Enable cfg docsrs to make sure docs are built.
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -75,7 +75,7 @@ jobs:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: rust-docs
           path: ./core/target/doc
@@ -84,7 +84,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-java@v5
         with:
@@ -96,7 +96,7 @@ jobs:
         run: mvn javadoc:javadoc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: java-docs
           path: ./bindings/java/target/site/apidocs
@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
         with:
@@ -131,7 +131,7 @@ jobs:
         run: pnpm run docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nodejs-docs
           path: ./bindings/nodejs/docs
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: actions/setup-python@v6
         with:
@@ -163,7 +163,7 @@ jobs:
         run: uv run mkdocs build
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: python-docs
           path: ./bindings/python/site
@@ -172,7 +172,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -191,7 +191,7 @@ jobs:
         run: bundle exec rake doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ruby-docs
           path: ./bindings/ruby/doc
@@ -200,7 +200,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -215,7 +215,7 @@ jobs:
         run: make doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: C-docs
           path: ./bindings/c/docs/doxygen/html
@@ -224,7 +224,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup lua-ldoc
         run: sudo apt-get install lua-ldoc
@@ -234,7 +234,7 @@ jobs:
         run: ldoc ./src
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lua-docs
           path: ./bindings/lua/doc/
@@ -243,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
@@ -253,7 +253,7 @@ jobs:
           cabal update
 
       - name: Setup cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         env:
           cache-name: cache-cabal
         with:
@@ -274,7 +274,7 @@ jobs:
           find dist-newstyle -path '**/build/**/doc' -exec cp -r {}/html/opendal/ doc \;
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: haskell-docs
           path: ./bindings/haskell/doc/
@@ -283,7 +283,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -303,7 +303,7 @@ jobs:
           ninja docs
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cpp-docs
           path: ./bindings/cpp/build/docs_doxygen/html
@@ -312,10 +312,10 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Cache OPAM dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.opam
           key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
@@ -324,7 +324,7 @@ jobs:
             ${{ runner.os }}-opam-
 
       - name: Cache Dune build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: bindings/ocaml/_build
           key: ${{ runner.os }}-dune-doc-${{ hashFiles('bindings/ocaml/**/*.{ml,mli,opam}') }}
@@ -348,7 +348,7 @@ jobs:
           dune build @doc
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ocaml-docs
           path: ./bindings/ocaml/_build/default/_doc/_html
@@ -357,7 +357,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -371,7 +371,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: object-store-opendal-docs
           path: ./integrations/object_store/target/doc
@@ -380,7 +380,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -395,7 +395,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dav-server-opendalfs-docs
           path: ./integrations/dav-server/target/doc
@@ -404,7 +404,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -418,7 +418,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unftp-sbe-opendal-docs
           path: ./integrations/unftp-sbe/target/doc
@@ -427,7 +427,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -441,7 +441,7 @@ jobs:
         run: cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc --lib --no-deps --all-features
 
       - name: Upload docs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: object-parquet-docs
           path: ./integrations/parquet/target/doc
@@ -467,7 +467,7 @@ jobs:
       - build-parquet-opendal-doc
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -487,79 +487,79 @@ jobs:
         run: npm i -g --force corepack && corepack enable
 
       - name: Download rust docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: rust-docs
           path: ./website/static/docs/rust
 
       - name: Download nodejs docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: nodejs-docs
           path: ./website/static/docs/nodejs
 
       - name: Download python docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: python-docs
           path: ./website/static/docs/python
 
       - name: Download ruby docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: ruby-docs
           path: ./website/static/docs/ruby
 
       - name: Download java docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: java-docs
           path: ./website/static/docs/java
 
       - name: Download C docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: C-docs
           path: ./website/static/docs/c
 
       - name: Download lua docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: lua-docs
           path: ./website/static/docs/lua
 
       - name: Download haskell docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: haskell-docs
           path: ./website/static/docs/haskell
 
       - name: Download cpp docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: cpp-docs
           path: ./website/static/docs/cpp
 
       - name: Download ocaml docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: ocaml-docs
           path: ./website/static/docs/ocaml
 
       - name: Download object-store-opendal docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: object-store-opendal-docs
           path: ./website/static/docs/object-store-opendal
 
       - name: Download dav-server-opendalfs docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: dav-server-opendalfs-docs
           path: ./website/static/docs/dav-server-opendalfs
 
       - name: Download unftp-sbe-opendal docs
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           name: unftp-sbe-opendal-docs
           path: ./website/static/docs/unftp-sbe-opendal

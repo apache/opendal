@@ -39,9 +39,9 @@ public class OperatorInputStream extends InputStream {
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
-    public OperatorInputStream(Operator operator, String path) {
+    public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         final long op = operator.nativeHandle;
-        this.reader = new Reader(constructReader(op, path));
+        this.reader = new Reader(constructReader(op, path, options));
     }
 
     @Override
@@ -99,7 +99,7 @@ public class OperatorInputStream extends InputStream {
         reader.close();
     }
 
-    private static native long constructReader(long op, String path);
+    private static native long constructReader(long op, String path, ReadOptions options);
 
     private static native long disposeReader(long reader);
 

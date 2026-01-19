@@ -33,7 +33,6 @@ all-features = true
 [dependencies]
 base64 = { workspace = true }
 bytes = { workspace = true }
-ctor = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

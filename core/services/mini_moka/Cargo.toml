@@ -31,7 +31,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-ctor = { workspace = true }
 log = { workspace = true }
 mini-moka = "0.10"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

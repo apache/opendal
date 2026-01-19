@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-ctor = { workspace = true }
 fastpool = "1.0.2"
 futures = { workspace = true, features = ["std", "async-await"] }
 futures-rustls = "0.26.0"

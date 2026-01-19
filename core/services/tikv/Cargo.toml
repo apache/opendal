@@ -31,8 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-ctor = { workspace = true }
-mea = "0.5.1"
+mea = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 tikv-client = { version = "0.3.0", default-features = false }

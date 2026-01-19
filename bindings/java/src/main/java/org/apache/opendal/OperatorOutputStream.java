@@ -43,13 +43,13 @@ public class OperatorOutputStream extends OutputStream {
 
     private int offset = 0;
 
-    public OperatorOutputStream(Operator operator, String path) {
-        this(operator, path, DEFAULT_MAX_BYTES);
+    public OperatorOutputStream(Operator operator, String path, WriteOptions options) {
+        this(operator, path, DEFAULT_MAX_BYTES, options);
     }
 
-    public OperatorOutputStream(Operator operator, String path, int maxBytes) {
+    public OperatorOutputStream(Operator operator, String path, int maxBytes, WriteOptions options) {
         final long op = operator.nativeHandle;
-        this.writer = new Writer(constructWriter(op, path));
+        this.writer = new Writer(constructWriter(op, path, options));
         this.maxBytes = maxBytes;
         this.bytes = new byte[maxBytes];
     }
@@ -83,7 +83,7 @@ public class OperatorOutputStream extends OutputStream {
         writer.close();
     }
 
-    private static native long constructWriter(long op, String path);
+    private static native long constructWriter(long op, String path, WriteOptions options);
 
     private static native long disposeWriter(long writer);
 

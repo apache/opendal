@@ -18,7 +18,10 @@
 /// Default scheme for cos service.
 pub const COS_SCHEME: &str = "cos";
 
-use opendal_core::DEFAULT_OPERATOR_REGISTRY;
+/// Register this service into the given registry.
+pub fn register_cos_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Cos>(COS_SCHEME);
+}
 
 mod backend;
 mod config;
@@ -30,8 +33,3 @@ mod writer;
 
 pub use backend::CosBuilder as Cos;
 pub use config::CosConfig;
-
-#[ctor::ctor]
-fn register_cos_service() {
-    DEFAULT_OPERATOR_REGISTRY.register::<Cos>(COS_SCHEME);
-}

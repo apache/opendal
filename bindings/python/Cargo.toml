@@ -198,7 +198,6 @@ name = "_opendal"
 
 [dependencies]
 bytes = "1.5.0"
-dict_derive = "0.6.0"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }
 mea = "0.6"
@@ -207,8 +206,8 @@ opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-mime-guess",
 ] }
-pyo3 = { version = "0.26.0", features = ["generate-import-lib", "jiff-02"] }
-pyo3-async-runtimes = { version = "0.26.0", features = ["tokio-runtime"] }
+pyo3 = { version = "0.27.2", features = ["generate-import-lib", "jiff-02"] }
+pyo3-async-runtimes = { version = "0.27.0", features = ["tokio-runtime"] }
 pyo3-stub-gen = { version = "0.17" }
 tokio = "1"
 

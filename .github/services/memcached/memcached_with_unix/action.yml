@@ -49,6 +49,4 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_MEMCACHED_ENDPOINT=unix:///tmp/memcached/memcached.sock
         OPENDAL_MEMCACHED_ROOT=/
-        OPENDAL_MEMCACHED_USERNAME=test
-        OPENDAL_MEMCACHED_PASSWORD=test
         EOF

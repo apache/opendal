@@ -292,3 +292,7 @@ pub mod rfc_6817_checksum {}
 /// Core
 #[doc = include_str!("6828_core.md")]
 pub mod rfc_6828_core {}
+
+/// Route Layer
+#[doc = include_str!("7130_route_layer.md")]
+pub mod rfc_7130_route_layer {}

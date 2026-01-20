@@ -385,6 +385,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-foyer")]
+    pub use opendal_layer_foyer::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
@@ -405,6 +407,8 @@ pub mod layers {
     pub use opendal_layer_prometheus_client::*;
     #[cfg(feature = "layers-retry")]
     pub use opendal_layer_retry::*;
+    #[cfg(feature = "layers-route")]
+    pub use opendal_layer_route::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

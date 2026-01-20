@@ -25,7 +25,6 @@ use std::sync::Arc;
 
 use backon::ExponentialBuilder;
 use backon::Retryable;
-use log::warn;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -255,10 +254,11 @@ pub struct DefaultRetryInterceptor;
 
 impl RetryInterceptor for DefaultRetryInterceptor {
     fn intercept(&self, err: &Error, dur: Duration) {
-        warn!(
+        log::warn!(
             target: "opendal::layers::retry",
             "will retry after {}s because: {}",
-            dur.as_secs_f64(), err)
+            dur.as_secs_f64(), err
+        );
     }
 }
 
@@ -613,8 +613,10 @@ mod tests {
     use bytes::Bytes;
     use futures::TryStreamExt;
     use futures::stream;
+    use logforth::append::Testing;
+    use logforth::filter::env_filter::EnvFilterBuilder;
+    use logforth::layout::TextLayout;
     use opendal_layer_logging::LoggingLayer;
-    use tracing_subscriber::filter::LevelFilter;
 
     use super::*;
 
@@ -835,12 +837,18 @@ mod tests {
         }
     }
 
+    fn setup() {
+        let _ = logforth::starter_log::builder()
+            .dispatch(|d| {
+                d.filter(EnvFilterBuilder::from_default_env().build())
+                    .append(Testing::default().with_layout(TextLayout::default()))
+            })
+            .try_apply();
+    }
+
     #[tokio::test]
     async fn test_retry_read() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -864,10 +872,7 @@ mod tests {
     /// This test is used to reproduce the panic issue while composing retry layer with timeout layer.
     #[tokio::test]
     async fn test_retry_write_fail_on_close() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(LevelFilter::TRACE)
-            .with_test_writer()
-            .try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -896,7 +901,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_list() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let builder = MockBuilder::default();
         let op = Operator::new(builder.clone())?
@@ -920,7 +925,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_batch() -> Result<()> {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
+        setup();
 
         let builder = MockBuilder::default();
         // set to a lower delay to make it run faster

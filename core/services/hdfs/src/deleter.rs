@@ -33,7 +33,7 @@ impl HdfsDeleter {
 }
 
 impl oio::OneShotDelete for HdfsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let p = build_rooted_abs_path(&self.core.root, &path);
 
         let meta = self.core.client.metadata(&p);
@@ -50,7 +50,11 @@ impl oio::OneShotDelete for HdfsDeleter {
         let meta = meta.ok().unwrap();
 
         let result = if meta.is_dir() {
-            self.core.client.remove_dir(&p)
+            if args.recursive() {
+                self.core.client.remove_dir_all(&p)
+            } else {
+                self.core.client.remove_dir(&p)
+            }
         } else {
             self.core.client.remove_file(&p)
         };

@@ -72,7 +72,7 @@ http-body = "1"
 jiff = { version = "0.2.17", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.10"
-mea = "0.5.3"
+mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [
@@ -94,11 +94,8 @@ uuid = { workspace = true, features = ["serde", "v4", "js"] }
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]
+logforth = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }

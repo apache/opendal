@@ -1146,8 +1146,6 @@ mod tests {
 
     #[test]
     fn test_build_endpoint() {
-        let _ = tracing_subscriber::fmt().with_test_writer().try_init();
-
         let endpoint_cases = vec![
             Some("s3.amazonaws.com"),
             Some("https://s3.amazonaws.com"),

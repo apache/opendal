@@ -218,6 +218,12 @@ impl AzdlsBuilder {
 
         Ok(AzdlsConfig::from(config).into_builder())
     }
+
+    /// Enable or disable HNS (Hierarchical Namespace) for this backend.
+    pub fn enable_hns(mut self, enable: bool) -> Self {
+        self.config.enable_hns = enable;
+        self
+    }
 }
 
 impl Builder for AzdlsBuilder {
@@ -282,7 +288,10 @@ impl Builder for AzdlsBuilder {
                             write_with_if_not_exists: true,
 
                             create_dir: true,
+
                             delete: true,
+                            delete_with_recursive: true,
+
                             rename: true,
 
                             list: true,
@@ -297,6 +306,7 @@ impl Builder for AzdlsBuilder {
                 filesystem: self.config.filesystem.clone(),
                 root,
                 endpoint,
+                enable_hns: self.config.enable_hns,
                 loader: cred_loader,
                 signer,
             }),

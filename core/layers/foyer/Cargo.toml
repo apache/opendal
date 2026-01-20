@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL koofr service implementation"
-name = "opendal-service-koofr"
+description = "Apache OpenDAL foyer hybrid cache layer"
+name = "opendal-layer-foyer"
 
 authors = { workspace = true }
 edition = { workspace = true }
@@ -31,13 +31,15 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-bytes = { workspace = true }
-http = { workspace = true }
-log = { workspace = true }
-mea = { workspace = true }
+bincode = "1"
+foyer = { version = "0.18", features = ["serde"] }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 
 [dev-dependencies]
+opendal-core = { path = "../../core", version = "0.55.0", features = [
+  "services-memory",
+] }
+size = "0.5"
+tempfile = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

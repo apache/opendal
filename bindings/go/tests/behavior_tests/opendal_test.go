@@ -65,6 +65,7 @@ func TestBehavior(t *testing.T) {
 	tests = append(tests, testsDelete(cap)...)
 	tests = append(tests, testsList(cap)...)
 	tests = append(tests, testsRead(cap)...)
+	tests = append(tests, testsPresign(cap)...)
 	tests = append(tests, testsRename(cap)...)
 	tests = append(tests, testsStat(cap)...)
 	tests = append(tests, testsWrite(cap)...)

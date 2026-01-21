@@ -16,6 +16,7 @@
 // under the License.
 
 mod deleter;
+mod error;
 mod full;
 mod writer;
 
@@ -25,33 +26,13 @@ use std::{
     sync::Arc,
 };
 
-use foyer::{Code, CodeError, Error as FoyerError, HybridCache};
+use foyer::{Code, CodeError, HybridCache};
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub use deleter::Deleter;
 pub use writer::Writer;
-
-/// Custom error type for when fetched data exceeds size limit.
-#[derive(Debug)]
-pub(crate) struct FetchSizeTooLarge;
-
-impl std::fmt::Display for FetchSizeTooLarge {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "fetched data size exceeds size limit")
-    }
-}
-
-impl std::error::Error for FetchSizeTooLarge {}
-
-pub(crate) fn extract_err(e: FoyerError) -> Error {
-    let e = match e.downcast::<Error>() {
-        Ok(e) => return e,
-        Err(e) => e,
-    };
-    Error::new(ErrorKind::Unexpected, e.to_string())
-}
 
 /// [`FoyerKey`] is a key for the foyer cache. It's encoded via bincode, which is
 /// backed by foyer's "serde" feature.
@@ -251,13 +232,15 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, HybridCacheBuilder, LargeEngineOptions, RecoverMode,
+        DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder, LargeEngineOptions,
+        RecoverMode,
     };
     use opendal_core::{Operator, services::Memory};
     use size::consts::MiB;
     use std::io::Cursor;
 
     use super::*;
+    use crate::error::extract_err;
 
     fn key(i: u8) -> String {
         format!("obj-{i}")

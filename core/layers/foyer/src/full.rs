@@ -29,11 +29,10 @@ use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
 use opendal_core::raw::oio::Read;
 
-use crate::FetchSizeTooLarge;
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
-use crate::extract_err;
+use crate::error::{FetchSizeTooLarge, extract_err};
 
 pub struct FullReader<A: Access> {
     inner: Arc<Inner<A>>,

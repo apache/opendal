@@ -6116,6 +6116,7 @@ dependencies = [
  "http 1.4.0",
  "mea 0.6.0",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]

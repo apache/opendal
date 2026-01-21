@@ -32,16 +32,23 @@ pub struct Writer<A: Access> {
     pub(crate) buf: oio::QueueBuf,
     pub(crate) path: String,
     pub(crate) inner: Arc<Inner<A>>,
+    pub(crate) size_limit: std::ops::Range<usize>,
     pub(crate) skip_cache: bool,
 }
 
 impl<A: Access> Writer<A> {
-    pub(crate) fn new(w: A::Writer, path: String, inner: Arc<Inner<A>>) -> Self {
+    pub(crate) fn new(
+        w: A::Writer,
+        path: String,
+        inner: Arc<Inner<A>>,
+        size_limit: std::ops::Range<usize>,
+    ) -> Self {
         Self {
             w,
             buf: oio::QueueBuf::new(),
             path,
             inner,
+            size_limit,
             skip_cache: false,
         }
     }
@@ -49,7 +56,7 @@ impl<A: Access> Writer<A> {
 
 impl<A: Access> oio::Write for Writer<A> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if self.inner.size_limit.contains(&(self.buf.len() + bs.len())) {
+        if self.size_limit.contains(&(self.buf.len() + bs.len())) {
             self.buf.push(bs.clone());
             self.skip_cache = false;
         } else {

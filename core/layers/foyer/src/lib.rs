@@ -214,7 +214,7 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        full::FullReader::new(self.inner.clone())
+        full::FullReader::new(self.inner.clone(), self.inner.size_limit.clone())
             .read(path, args)
             .await
     }
@@ -225,10 +225,11 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
         args: OpWrite,
     ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
         let inner = self.inner.clone();
+        let size_limit = self.inner.size_limit.clone();
         let path = path.to_string();
         async move {
             let (rp, w) = inner.accessor.write(&path, args).await?;
-            Ok((rp, Writer::new(w, path, inner)))
+            Ok((rp, Writer::new(w, path, inner, size_limit)))
         }
     }
 

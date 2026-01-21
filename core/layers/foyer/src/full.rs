@@ -37,11 +37,12 @@ use crate::extract_err;
 
 pub struct FullReader<A: Access> {
     inner: Arc<Inner<A>>,
+    size_limit: std::ops::Range<usize>,
 }
 
 impl<A: Access> FullReader<A> {
-    pub fn new(inner: Arc<Inner<A>>) -> Self {
-        Self { inner }
+    pub fn new(inner: Arc<Inner<A>>, size_limit: std::ops::Range<usize>) -> Self {
+        Self { inner, size_limit }
     }
 
     /// Read data from cache or underlying storage.
@@ -76,6 +77,7 @@ impl<A: Access> FullReader<A> {
                 },
                 || {
                     let inner = self.inner.clone();
+                    let size_limit = self.size_limit.clone();
                     let path_clone = path_str.clone();
                     async move {
                         // read the metadata first, if it's too large, do not cache
@@ -87,7 +89,7 @@ impl<A: Access> FullReader<A> {
                             .into_metadata();
 
                         let size = metadata.content_length() as usize;
-                        if !inner.size_limit.contains(&size) {
+                        if !size_limit.contains(&size) {
                             return Err(FoyerError::other(FetchSizeTooLarge));
                         }
 

@@ -91,6 +91,7 @@ default = [
   "layers-timeout",
 ]
 executors-tokio = ["opendal-core/executors-tokio"]
+http-client-reqwest = ["opendal-core/http-client-reqwest"]
 internal-path-cache = ["opendal-core/internal-path-cache"]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]

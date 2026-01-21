@@ -15,6 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+mod deleter;
+mod full;
+mod writer;
+
 use std::{
     future::Future,
     ops::{Bound, Deref, Range, RangeBounds},
@@ -23,13 +27,15 @@ use std::{
 
 use foyer::{Code, CodeError, Error as FoyerError, HybridCache};
 
-use opendal_core::raw::oio::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+pub use deleter::Deleter;
+pub use writer::Writer;
+
 /// Custom error type for when fetched data exceeds size limit.
 #[derive(Debug)]
-struct FetchSizeTooLarge;
+pub(crate) struct FetchSizeTooLarge;
 
 impl std::fmt::Display for FetchSizeTooLarge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -39,7 +45,7 @@ impl std::fmt::Display for FetchSizeTooLarge {
 
 impl std::error::Error for FetchSizeTooLarge {}
 
-fn extract_err(e: FoyerError) -> Error {
+pub(crate) fn extract_err(e: FoyerError) -> Error {
     let e = match e.downcast::<Error>() {
         Ok(e) => return e,
         Err(e) => e,
@@ -181,10 +187,10 @@ impl<A: Access> Layer<A> for FoyerLayer {
 }
 
 #[derive(Debug)]
-struct Inner<A: Access> {
-    accessor: A,
-    cache: HybridCache<FoyerKey, FoyerValue>,
-    size_limit: Range<usize>,
+pub(crate) struct Inner<A: Access> {
+    pub(crate) accessor: A,
+    pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
+    pub(crate) size_limit: Range<usize>,
 }
 
 #[derive(Debug)]
@@ -208,90 +214,9 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let path_str = path.to_string();
-        let version = args.version().map(|v| v.to_string());
-        let original_args = args.clone();
-
-        // Extract range bounds before async block to avoid lifetime issues
-        let (range_start, range_end) = {
-            let r = args.range();
-            let start = r.offset();
-            let end = r.size().map(|size| start + size);
-            (start, end)
-        };
-
-        // Use fetch to read data from cache or fallback to remote. fetch() can automatically
-        // handle the thundering herd problem by ensuring only one request is made for a given
-        // key.
-        //
-        // Please note that we only cache the object if it's smaller than size_limit. And we'll
-        // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
-        // range.
-        let result = self
-            .inner
-            .cache
-            .fetch(
-                FoyerKey {
-                    path: path_str.clone(),
-                    version: version.clone(),
-                },
-                || {
-                    let inner = self.inner.clone();
-                    let path_clone = path_str.clone();
-                    async move {
-                        // read the metadata first, if it's too large, do not cache
-                        let metadata = inner
-                            .accessor
-                            .stat(&path_clone, OpStat::default())
-                            .await
-                            .map_err(FoyerError::other)?
-                            .into_metadata();
-
-                        let size = metadata.content_length() as usize;
-                        if !inner.size_limit.contains(&size) {
-                            return Err(FoyerError::other(FetchSizeTooLarge));
-                        }
-
-                        // fetch the ENTIRE object from remote.
-                        let (_, mut reader) = inner
-                            .accessor
-                            .read(
-                                &path_clone,
-                                OpRead::default().with_range(BytesRange::new(0, None)),
-                            )
-                            .await
-                            .map_err(FoyerError::other)?;
-                        let buffer = reader.read_all().await.map_err(FoyerError::other)?;
-
-                        Ok(FoyerValue(buffer))
-                    }
-                },
-            )
-            .await;
-
-        // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
-        // we'll simply forward the request to the underlying accessor with user's given range.
-        match result {
-            Ok(entry) => {
-                let end = range_end.unwrap_or(entry.len() as u64);
-                let range = BytesContentRange::default()
-                    .with_range(range_start, end - 1)
-                    .with_size(entry.len() as _);
-                let buffer = entry.slice(range_start as usize..end as usize);
-                let rp = RpRead::new()
-                    .with_size(Some(buffer.len() as _))
-                    .with_range(Some(range));
-                Ok((rp, buffer))
-            }
-            Err(e) => match e.downcast::<FetchSizeTooLarge>() {
-                Ok(_) => {
-                    let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
-                    let buffer = reader.read_all().await?;
-                    Ok((rp, buffer))
-                }
-                Err(e) => Err(extract_err(e)),
-            },
-        }
+        full::FullReader::new(self.inner.clone())
+            .read(path, args)
+            .await
     }
 
     fn write(
@@ -300,18 +225,10 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
         args: OpWrite,
     ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
         let inner = self.inner.clone();
+        let path = path.to_string();
         async move {
-            let (rp, w) = self.inner.accessor.write(path, args).await?;
-            Ok((
-                rp,
-                Writer {
-                    w,
-                    buf: QueueBuf::new(),
-                    path: path.to_string(),
-                    inner,
-                    skip_cache: false,
-                },
-            ))
+            let (rp, w) = inner.accessor.write(&path, args).await?;
+            Ok((rp, Writer::new(w, path, inner)))
         }
     }
 
@@ -319,14 +236,7 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
         let inner = self.inner.clone();
         async move {
             let (rp, d) = inner.accessor.delete().await?;
-            Ok((
-                rp,
-                Deleter {
-                    deleter: d,
-                    keys: vec![],
-                    inner,
-                },
-            ))
+            Ok((rp, Deleter::new(d, inner)))
         }
     }
 
@@ -335,71 +245,6 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     }
 
     // TODO(MrCroxx): Implement copy, rename with foyer cache.
-}
-
-pub struct Writer<A: Access> {
-    w: A::Writer,
-    buf: QueueBuf,
-    path: String,
-    inner: Arc<Inner<A>>,
-    skip_cache: bool,
-}
-
-impl<A: Access> oio::Write for Writer<A> {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if self.inner.size_limit.contains(&(self.buf.len() + bs.len())) {
-            self.buf.push(bs.clone());
-            self.skip_cache = false;
-        } else {
-            self.buf.clear();
-            self.skip_cache = true;
-        }
-        self.w.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        let buffer = self.buf.clone().collect();
-        let metadata = self.w.close().await?;
-        if !self.skip_cache {
-            self.inner.cache.insert(
-                FoyerKey {
-                    path: self.path.clone(),
-                    version: metadata.version().map(|v| v.to_string()),
-                },
-                FoyerValue(buffer),
-            );
-        }
-        Ok(metadata)
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        self.buf.clear();
-        self.w.abort().await
-    }
-}
-
-pub struct Deleter<A: Access> {
-    deleter: A::Deleter,
-    keys: Vec<FoyerKey>,
-    inner: Arc<Inner<A>>,
-}
-
-impl<A: Access> oio::Delete for Deleter<A> {
-    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.deleter.delete(path, args.clone()).await?;
-        self.keys.push(FoyerKey {
-            path: path.to_string(),
-            version: args.version().map(|v| v.to_string()),
-        });
-        Ok(())
-    }
-
-    async fn close(&mut self) -> Result<()> {
-        for key in &self.keys {
-            self.inner.cache.remove(key);
-        }
-        self.deleter.close().await
-    }
 }
 
 #[cfg(test)]

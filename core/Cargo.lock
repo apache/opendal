@@ -6766,10 +6766,10 @@ name = "opendal-service-memcached"
 version = "0.55.0"
 dependencies = [
  "fastpool",
- "http 1.4.0",
  "opendal-core",
  "serde",
  "tokio",
+ "url",
 ]
 
 [[package]]

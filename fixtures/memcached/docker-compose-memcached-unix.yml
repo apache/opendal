@@ -15,27 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-description = "Apache OpenDAL Memcached service implementation"
-name = "opendal-service-memcached"
-
-authors = { workspace = true }
-edition = { workspace = true }
-homepage = { workspace = true }
-license = { workspace = true }
-repository = { workspace = true }
-rust-version = { workspace = true }
-version = { workspace = true }
-
-[package.metadata.docs.rs]
-all-features = true
-
-[dependencies]
-fastpool = "1.0.2"
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-serde = { workspace = true, features = ["derive"] }
-tokio = { workspace = true, features = ["net", "io-util"] }
-url = "2.5.7"
-
-[dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+services:
+  memcached:
+    image: bitnami/memcached:latest
+    environment:
+      # memcache's max item size is 1MiB, But opendal's behavior tests
+      # will produce larger file.
+      #
+      # Specify the setting here to make our test happy.
+      MEMCACHED_MAX_ITEM_SIZE: 16777216
+      # Enable Unix socket with extra flags
+      # -s: socket path
+      # -a: socket access mask (0777 for world-readable/writable)
+      MEMCACHED_EXTRA_FLAGS: "-s /tmp/memcached/memcached.sock -a 0777"
+    volumes:
+      - /tmp/memcached:/tmp/memcached
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /tmp/memcached/memcached.sock"]
+      interval: 5s
+      timeout: 5s
+      retries: 5

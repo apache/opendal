@@ -923,13 +923,19 @@ impl Operator {
     /// ```
     /// # use opendal_core::Result;
     /// # use opendal_core::Operator;
+    /// # use opendal_core::options;
     /// use bytes::Bytes;
     ///
     /// # async fn test(op: Operator) -> Result<()> {
     /// let mut w = op
-    ///     .writer_with("path/to/file")
-    ///     .chunk(4 * 1024 * 1024)
-    ///     .concurrent(8)
+    ///     .writer_options(
+    ///         "path/to/file",
+    ///         options::WriteOptions {
+    ///             chunk: Some(4 * 1024 * 1024),
+    ///             concurrent: 8,
+    ///           ..Default::default()
+    ///         },
+    ///     )
     ///     .await?;
     /// w.write(vec![0; 4096]).await?;
     /// w.write(vec![1; 4096]).await?;

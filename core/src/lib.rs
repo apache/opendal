@@ -274,6 +274,8 @@ pub mod services {
     pub use opendal_service_etcd::*;
     #[cfg(feature = "services-foundationdb")]
     pub use opendal_service_foundationdb::*;
+    #[cfg(feature = "services-foyer")]
+    pub use opendal_service_foyer::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]

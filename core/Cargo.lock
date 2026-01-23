@@ -5929,6 +5929,7 @@ dependencies = [
  "opendal-service-dropbox",
  "opendal-service-etcd",
  "opendal-service-foundationdb",
+ "opendal-service-foyer",
  "opendal-service-fs",
  "opendal-service-ftp",
  "opendal-service-gcs",
@@ -6549,6 +6550,20 @@ dependencies = [
  "foundationdb",
  "opendal-core",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-foyer"
+version = "0.55.0"
+dependencies = [
+ "foyer",
+ "log",
+ "opendal",
+ "opendal-core",
+ "serde",
+ "size",
+ "tempfile",
  "tokio",
 ]
 

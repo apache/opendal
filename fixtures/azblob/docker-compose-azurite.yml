@@ -17,6 +17,6 @@
 
 services:
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
     ports:
       - 10000:10000

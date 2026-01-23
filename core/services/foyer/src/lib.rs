@@ -47,38 +47,12 @@ pub use config::FoyerConfig;
 pub const FOYER_SCHEME: &str = "foyer";
 
 /// [`FoyerKey`] is a key for the foyer cache.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// It uses bincode (via serde) for efficient serialization.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct FoyerKey {
     /// The path of the key.
     pub path: String,
-}
-
-impl Code for FoyerKey {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        let bytes = self.path.as_bytes();
-        let len = bytes.len() as u64;
-        writer.write_all(&len.to_le_bytes())?;
-        writer.write_all(bytes)?;
-        Ok(())
-    }
-
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
-    where
-        Self: Sized,
-    {
-        let mut len_bytes = [0u8; 8];
-        reader.read_exact(&mut len_bytes)?;
-        let len = u64::from_le_bytes(len_bytes) as usize;
-        let mut buffer = vec![0u8; len];
-        reader.read_exact(&mut buffer)?;
-        let path =
-            String::from_utf8(buffer).map_err(|e| CodeError::Io(std::io::Error::other(e)))?;
-        Ok(FoyerKey { path })
-    }
-
-    fn estimated_size(&self) -> usize {
-        8 + self.path.len()
-    }
 }
 
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
@@ -163,9 +137,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new(cache.clone()))
-            .unwrap()
-            .finish();
+        let op = Operator::new(Foyer::new(cache.clone())).unwrap().finish();
 
         // Write some data
         for i in 0..10 {

@@ -37,9 +37,7 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-opendal = { path = "../..", version = "0.55.0", features = [
-  "services-memory",
-] }
+opendal = { path = "../..", version = "0.55.0", features = ["services-memory"] }
 opendal-core = { path = "../../core", version = "0.55.0", features = [
   "services-memory",
 ] }

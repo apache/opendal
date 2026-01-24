@@ -133,7 +133,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new(cache.clone())).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
 
         // Write some data
         for i in 0..10 {
@@ -182,7 +182,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new(cache)).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
 
         let data: Vec<u8> = (0..100).collect();
         op.write("test", data.clone()).await.unwrap();

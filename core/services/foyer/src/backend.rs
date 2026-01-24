@@ -36,7 +36,7 @@ use opendal_core::*;
 #[derive(Default)]
 pub struct FoyerBuilder {
     pub(super) config: FoyerConfig,
-    pub(super) cache: Option<HybridCache<FoyerKey, FoyerValue>>,
+    pub(super) cache: Option<Arc<HybridCache<FoyerKey, FoyerValue>>>,
 }
 
 impl Debug for FoyerBuilder {
@@ -69,9 +69,8 @@ impl FoyerBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(cache: HybridCache<FoyerKey, FoyerValue>) -> Self {
+    pub fn new() -> Self {
         Self {
-            cache: Some(cache),
             ..Default::default()
         }
     }
@@ -84,6 +83,12 @@ impl FoyerBuilder {
         self
     }
 
+    /// Set the cache of this backend.
+    pub fn cache(mut self, cache: HybridCache<FoyerKey, FoyerValue>) -> Self {
+        self.cache = Some(Arc::new(cache));
+        self
+    }
+
     /// Set the root path of this backend.
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = if path.is_empty() {
@@ -91,6 +96,12 @@ impl FoyerBuilder {
         } else {
             Some(path.to_string())
         };
+        self
+    }
+
+    /// Set the memory size of this backend.
+    pub fn memory(mut self, size: usize) -> Self {
+        self.config.memory = Some(size);
         self
     }
 }
@@ -101,13 +112,6 @@ impl Builder for FoyerBuilder {
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let cache = self.cache.ok_or_else(|| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "foyer cache is required, use Foyer::new(cache) to create builder",
-            )
-        })?;
-
         let root = normalize_root(
             self.config
                 .root
@@ -116,15 +120,17 @@ impl Builder for FoyerBuilder {
                 .as_str(),
         );
 
-        debug!("backend build finished: {:?}", self.config);
+        let mut core = FoyerCore::new(self.config.clone());
+        if let Some(cache) = self.cache {
+            core = core.with_cache(cache.clone());
+        }
 
-        let core = FoyerCore::new(cache, self.config.name.clone());
+        debug!("backend build finished: {:?}", self.config);
 
         Ok(FoyerBackend::new(core).with_normalized_root(root))
     }
 }
 
-/// FoyerBackend implements Access trait.
 #[derive(Debug, Clone)]
 pub struct FoyerBackend {
     core: Arc<FoyerCore>,
@@ -221,4 +227,9 @@ impl Access for FoyerBackend {
             oio::OneShotDeleter::new(FoyerDeleter::new(self.core.clone(), self.root.clone())),
         ))
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
 }

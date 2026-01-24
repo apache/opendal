@@ -16,62 +16,118 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
+use foyer::DirectFsDeviceOptions;
+use foyer::Engine;
 use foyer::HybridCache;
+use foyer::HybridCacheBuilder;
+use foyer::LargeEngineOptions;
+use foyer::RecoverMode;
+use log::debug;
 
 use opendal_core::Buffer;
 use opendal_core::Result;
 
+use super::FoyerConfig;
 use super::FoyerKey;
 use super::FoyerValue;
 
 /// FoyerCore holds the foyer HybridCache instance.
+///
+/// It supports lazy initialization when constructed from URI.
 #[derive(Clone)]
 pub struct FoyerCore {
-    pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
-    pub(crate) name: Option<String>,
+    /// OnceLock for lazy cache initialization.
+    cache: std::sync::OnceLock<Arc<HybridCache<FoyerKey, FoyerValue>>>,
+    /// Config
+    config: FoyerConfig,
 }
 
 impl Debug for FoyerCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("FoyerCore")
-            .field("name", &self.name)
+            .field("name", &self.config.name)
             .finish_non_exhaustive()
     }
 }
 
 impl FoyerCore {
-    pub fn new(cache: HybridCache<FoyerKey, FoyerValue>, name: Option<String>) -> Self {
-        Self { cache, name }
+    /// Create a new FoyerCore with a pre-built cache.
+    ///
+    /// This is used when the user provides a `HybridCache` via `Foyer::new(cache)`.
+    pub fn new(config: FoyerConfig) -> Self {
+        Self {
+            cache: std::sync::OnceLock::new(),
+            config: config,
+        }
+    }
+
+    /// Initialize the cache with the given pre-built instance.
+    pub(crate) fn with_cache(self, cache: Arc<HybridCache<FoyerKey, FoyerValue>>) -> Self {
+        let _ = self.cache.set(cache);
+        self
+    }
+
+    /// Get the cache, initializing lazily if needed.
+    async fn get_cache(&self) -> Result<&HybridCache<FoyerKey, FoyerValue>> {
+        if let Some(cache) = self.cache.get() {
+            return Ok(cache);
+        }
+
+        let cache = HybridCacheBuilder::new()
+            .memory(self.config.memory.unwrap_or(1024 * 1024))
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .map_err(|e| {
+                opendal_core::Error::new(
+                    opendal_core::ErrorKind::Unexpected,
+                    "failed to build foyer cache",
+                )
+                .set_source(e)
+            })?;
+
+        let _ = self.cache.set(Arc::new(cache));
+        // TODO: convert this error into Opendal_error
+        Ok(self.cache.get().unwrap())
     }
 
     pub fn name(&self) -> Option<&str> {
-        self.name.as_deref()
+        self.config.name.as_deref()
     }
 
     pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
+        let cache = self.get_cache().await?;
         let foyer_key = FoyerKey {
             path: key.to_string(),
         };
 
-        match self.cache.get(&foyer_key).await {
+        match cache.get(&foyer_key).await {
             Ok(Some(entry)) => Ok(Some(entry.value().0.clone())),
             Ok(None) => Ok(None),
             Err(_) => Ok(None),
         }
     }
 
-    pub fn insert(&self, key: &str, value: Buffer) {
-        let foyer_key = FoyerKey {
-            path: key.to_string(),
-        };
-        self.cache.insert(foyer_key, FoyerValue(value));
+    pub async fn insert(&self, key: &str, value: Buffer) -> Result<()> {
+        let cache = self.get_cache().await?;
+        cache.insert(
+            FoyerKey {
+                path: key.to_string(),
+            },
+            FoyerValue(value),
+        );
+        Ok(())
     }
 
-    pub fn remove(&self, key: &str) {
-        let foyer_key = FoyerKey {
+    pub async fn remove(&self, key: &str) -> Result<()> {
+        let cache = self.get_cache().await?;
+        cache.remove(&FoyerKey {
             path: key.to_string(),
-        };
-        self.cache.remove(&foyer_key);
+        });
+        Ok(())
     }
 }

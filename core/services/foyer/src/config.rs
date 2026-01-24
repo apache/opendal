@@ -30,6 +30,8 @@ pub struct FoyerConfig {
     pub name: Option<String>,
     /// Root path of this backend.
     pub root: Option<String>,
+    /// Memory capacity in bytes for the cache.
+    pub memory: Option<usize>,
 }
 
 impl Configurator for FoyerConfig {
@@ -47,6 +49,8 @@ impl Configurator for FoyerConfig {
                 map.insert("root".to_string(), root.to_string());
             }
         }
+
+        // TODO: add parse capacity
 
         Self::from_iter(map)
     }

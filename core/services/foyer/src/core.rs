@@ -65,7 +65,10 @@ fn parse_recover_mode(mode_str: &str) -> Result<RecoverMode> {
         "strict" => Ok(RecoverMode::Strict),
         _ => Err(Error::new(
             ErrorKind::ConfigInvalid,
-            format!("invalid recover_mode: {}, expected 'none', 'quiet', or 'strict'", mode_str),
+            format!(
+                "invalid recover_mode: {}, expected 'none', 'quiet', or 'strict'",
+                mode_str
+            ),
         )),
     }
 }
@@ -126,22 +129,13 @@ impl FoyerCore {
             builder = builder.with_device_options(device_options);
         }
 
-        let cache = Arc::new(
-            builder
-                .build()
-                .await
-                .map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "failed to build foyer cache")
-                        .set_source(e)
-                })?,
-        );
+        let cache = Arc::new(builder.build().await.map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "failed to build foyer cache").set_source(e)
+        })?);
 
-        self.cache.set(cache.clone()).map_err(|_| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "failed to initialize foyer cache",
-            )
-        })?;
+        self.cache
+            .set(cache.clone())
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "failed to initialize foyer cache"))?;
 
         Ok(cache)
     }

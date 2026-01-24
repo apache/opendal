@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::FoyerBuilder;
-use opendal_core::{Configurator, OperatorUri, Result};
+use opendal_core::{Configurator, Error, ErrorKind, OperatorUri, Result};
 
 /// Config for Foyer services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -31,6 +31,9 @@ pub struct FoyerConfig {
     /// Root path of this backend.
     pub root: Option<String>,
     /// Memory capacity in bytes for the cache.
+    ///
+    /// This is used when the cache is lazily initialized. Supports human-readable
+    /// formats like "1MiB", "64MB", "1GiB", etc.
     pub memory: Option<usize>,
 }
 
@@ -50,7 +53,18 @@ impl Configurator for FoyerConfig {
             }
         }
 
-        // TODO: add parse capacity
+        if let Some(memory_str) = uri.option("memory") {
+            match parse_capacity(memory_str) {
+                Ok(size) => {
+                    map.insert("memory".to_string(), size.to_string());
+                }
+                Err(e) => {
+                    return Err(Error::new(ErrorKind::ConfigInvalid, "invalid memory capacity")
+                        .with_context("service", "foyer")
+                        .set_source(e));
+                }
+            }
+        }
 
         Self::from_iter(map)
     }
@@ -60,5 +74,88 @@ impl Configurator for FoyerConfig {
             config: self,
             ..Default::default()
         }
+    }
+}
+
+fn parse_capacity(s: &str) -> Result<usize> {
+    let s = s.trim();
+
+    if let Ok(num) = s.parse::<usize>() {
+        return Ok(num);
+    }
+
+    let (num_str, unit) = s.split_at(
+        s.find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(s.len()),
+    );
+
+    let num: f64 = num_str
+        .trim()
+        .parse()
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "invalid number format"))?;
+
+    let multiplier = match unit.trim().to_lowercase().as_str() {
+        "" => 1,
+        "b" => 1,
+        "k" | "kb" => 1000,
+        "ki" | "kib" => 1024,
+        "m" | "mb" => 1000 * 1000,
+        "mi" | "mib" => 1024 * 1024,
+        "g" | "gb" => 1000 * 1000 * 1000,
+        "gi" | "gib" => 1024 * 1024 * 1024,
+        "t" | "tb" => 1000_usize * 1000 * 1000 * 1000,
+        "ti" | "tib" => 1024_usize * 1024 * 1024 * 1024,
+        _ => {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("unknown unit: {}", unit.trim()),
+            ))
+        }
+    };
+
+    Ok((num * multiplier as f64) as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
+
+    #[test]
+    fn test_parse_capacity() {
+        assert_eq!(parse_capacity("1024").unwrap(), 1024);
+        assert_eq!(parse_capacity("1KB").unwrap(), 1000);
+        assert_eq!(parse_capacity("1KiB").unwrap(), 1024);
+        assert_eq!(parse_capacity("1MB").unwrap(), 1000 * 1000);
+        assert_eq!(parse_capacity("1MiB").unwrap(), 1024 * 1024);
+        assert_eq!(parse_capacity("1GB").unwrap(), 1000 * 1000 * 1000);
+        assert_eq!(parse_capacity("1GiB").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_capacity("64 MiB").unwrap(), 64 * 1024 * 1024);
+        assert_eq!(parse_capacity("2.5GB").unwrap(), (2.5 * 1000.0 * 1000.0 * 1000.0) as usize);
+    }
+
+    #[test]
+    fn test_from_uri_sets_memory() {
+        let uri = OperatorUri::new(
+            "foyer:///cache?name=test&memory=64MiB",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FoyerConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name.as_deref(), Some("test"));
+        assert_eq!(cfg.root.as_deref(), Some("cache"));
+        assert_eq!(cfg.memory, Some(64 * 1024 * 1024));
+    }
+
+    #[test]
+    fn test_from_uri_sets_name_and_root() {
+        let uri =
+            OperatorUri::new("foyer:///data?name=session", Vec::<(String, String)>::new()).unwrap();
+
+        let cfg = FoyerConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.name.as_deref(), Some("session"));
+        assert_eq!(cfg.root.as_deref(), Some("data"));
     }
 }

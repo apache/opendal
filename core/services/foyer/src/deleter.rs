@@ -36,7 +36,7 @@ impl FoyerDeleter {
 impl oio::OneShotDelete for FoyerDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let p = build_abs_path(&self.root, &path);
-        self.core.remove(&p);
+        self.core.remove(&p).await?;
         Ok(())
     }
 }

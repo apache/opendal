@@ -48,26 +48,18 @@ impl Debug for FoyerBuilder {
 }
 
 impl FoyerBuilder {
-    /// Create a [`FoyerBuilder`] with the given [`foyer::HybridCache`].
+    /// Create a new [`FoyerBuilder`] with default settings.
+    ///
+    /// The cache will be lazily initialized when first accessed if not provided via [`Self::cache`].
     ///
     /// # Example
     ///
     /// ```no_run
     /// use opendal_service_foyer::Foyer;
-    /// use opendal_service_foyer::FoyerKey;
-    /// use opendal_service_foyer::FoyerValue;
-    /// use foyer::{HybridCacheBuilder, Engine};
     ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let cache = HybridCacheBuilder::new()
+    /// let builder = Foyer::new()
     ///     .memory(64 * 1024 * 1024)
-    ///     .storage(Engine::Large(Default::default()))
-    ///     .build()
-    ///     .await?;
-    ///
-    /// let builder = Foyer::new(cache);
-    /// # Ok(())
-    /// # }
+    ///     .root("/cache");
     /// ```
     pub fn new() -> Self {
         Self {
@@ -83,13 +75,36 @@ impl FoyerBuilder {
         self
     }
 
-    /// Set the cache of this backend.
+    /// Set a pre-built [`foyer::HybridCache`] instance.
+    ///
+    /// If provided, this cache will be used directly. Otherwise, a cache will be
+    /// lazily initialized using the configured memory size.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use opendal_service_foyer::Foyer;
+    /// use foyer::{HybridCacheBuilder, Engine};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let cache = HybridCacheBuilder::new()
+    ///     .memory(64 * 1024 * 1024)
+    ///     .storage(Engine::Large(Default::default()))
+    ///     .build()
+    ///     .await?;
+    ///
+    /// let builder = Foyer::new().cache(cache);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn cache(mut self, cache: HybridCache<FoyerKey, FoyerValue>) -> Self {
         self.cache = Some(Arc::new(cache));
         self
     }
 
     /// Set the root path of this backend.
+    ///
+    /// All operations will be relative to this root path.
     pub fn root(mut self, path: &str) -> Self {
         self.config.root = if path.is_empty() {
             None
@@ -99,7 +114,12 @@ impl FoyerBuilder {
         self
     }
 
-    /// Set the memory size of this backend.
+    /// Set the memory capacity in bytes for the cache.
+    ///
+    /// This is used when the cache is lazily initialized (i.e., when no pre-built cache
+    /// is provided via [`Self::cache`]).
+    ///
+    /// Default is 1 MiB (1024 * 1024 bytes).
     pub fn memory(mut self, size: usize) -> Self {
         self.config.memory = Some(size);
         self
@@ -230,6 +250,4 @@ impl Access for FoyerBackend {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-}
+mod tests {}

@@ -47,7 +47,7 @@ impl oio::Write for FoyerWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
-        self.core.insert(&self.path, buf);
+        self.core.insert(&self.path, buf).await?;
 
         let meta = Metadata::new(EntryMode::from_path(&self.path)).with_content_length(length);
         Ok(meta)

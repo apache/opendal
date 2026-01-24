@@ -18,13 +18,11 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use foyer::DirectFsDeviceOptions;
 use foyer::Engine;
 use foyer::HybridCache;
 use foyer::HybridCacheBuilder;
 use foyer::LargeEngineOptions;
 use foyer::RecoverMode;
-use log::debug;
 
 use opendal_core::Buffer;
 use opendal_core::Result;
@@ -52,6 +50,8 @@ impl Debug for FoyerCore {
     }
 }
 
+const FOYER_DEFAULT_MEMORY_BYTES: usize = 1024 * 1024 * 1024;
+
 impl FoyerCore {
     /// Create a new FoyerCore with a pre-built cache.
     ///
@@ -59,7 +59,7 @@ impl FoyerCore {
     pub fn new(config: FoyerConfig) -> Self {
         Self {
             cache: std::sync::OnceLock::new(),
-            config: config,
+            config,
         }
     }
 
@@ -70,29 +70,36 @@ impl FoyerCore {
     }
 
     /// Get the cache, initializing lazily if needed.
-    async fn get_cache(&self) -> Result<&HybridCache<FoyerKey, FoyerValue>> {
+    async fn get_cache(&self) -> Result<Arc<HybridCache<FoyerKey, FoyerValue>>> {
         if let Some(cache) = self.cache.get() {
-            return Ok(cache);
+            return Ok(cache.clone());
         }
 
-        let cache = HybridCacheBuilder::new()
-            .memory(self.config.memory.unwrap_or(1024 * 1024))
-            .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_recover_mode(RecoverMode::None)
-            .build()
-            .await
-            .map_err(|e| {
-                opendal_core::Error::new(
-                    opendal_core::ErrorKind::Unexpected,
-                    "failed to build foyer cache",
-                )
-                .set_source(e)
-            })?;
+        let cache = Arc::new(
+            HybridCacheBuilder::new()
+                .memory(self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES))
+                .with_shards(1)
+                .storage(Engine::Large(LargeEngineOptions::new()))
+                .with_recover_mode(RecoverMode::None)
+                .build()
+                .await
+                .map_err(|e| {
+                    opendal_core::Error::new(
+                        opendal_core::ErrorKind::Unexpected,
+                        "failed to build foyer cache",
+                    )
+                    .set_source(e)
+                })?,
+        );
 
-        let _ = self.cache.set(Arc::new(cache));
-        // TODO: convert this error into Opendal_error
-        Ok(self.cache.get().unwrap())
+        self.cache.set(cache.clone()).map_err(|_| {
+            opendal_core::Error::new(
+                opendal_core::ErrorKind::Unexpected,
+                "failed to initialize foyer cache",
+            )
+        })?;
+
+        Ok(cache)
     }
 
     pub fn name(&self) -> Option<&str> {

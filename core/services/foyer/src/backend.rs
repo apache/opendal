@@ -119,9 +119,60 @@ impl FoyerBuilder {
     /// This is used when the cache is lazily initialized (i.e., when no pre-built cache
     /// is provided via [`Self::cache`]).
     ///
-    /// Default is 1 MiB (1024 * 1024 bytes).
+    /// Default is 1 GiB (1024 * 1024 * 1024 bytes).
     pub fn memory(mut self, size: usize) -> Self {
         self.config.memory = Some(size);
+        self
+    }
+
+    /// Set the disk cache directory path.
+    ///
+    /// Enables hybrid cache with disk storage. When memory cache is full, data will
+    /// be persisted to this directory.
+    pub fn disk_path(mut self, path: &str) -> Self {
+        self.config.disk_path = if path.is_empty() {
+            None
+        } else {
+            Some(path.to_string())
+        };
+        self
+    }
+
+    /// Set the disk cache total capacity in bytes.
+    ///
+    /// Only used when `disk_path` is set.
+    pub fn disk_capacity(mut self, size: usize) -> Self {
+        self.config.disk_capacity = Some(size);
+        self
+    }
+
+    /// Set the individual cache file size in bytes.
+    ///
+    /// Default is 1 MiB (1024 * 1024 bytes).
+    /// Only used when `disk_path` is set.
+    pub fn disk_file_size(mut self, size: usize) -> Self {
+        self.config.disk_file_size = Some(size);
+        self
+    }
+
+    /// Set the recovery mode when starting the cache.
+    ///
+    /// Valid values: "none" (default), "quiet", "strict".
+    /// - "none": Don't recover from disk
+    /// - "quiet": Recover and skip errors
+    /// - "strict": Recover and panic on errors
+    pub fn recover_mode(mut self, mode: &str) -> Self {
+        if !mode.is_empty() {
+            self.config.recover_mode = Some(mode.to_string());
+        }
+        self
+    }
+
+    /// Set the number of shards for concurrent access.
+    ///
+    /// Default is 1. Higher values improve concurrency but increase overhead.
+    pub fn shards(mut self, count: usize) -> Self {
+        self.config.shards = Some(count);
         self
     }
 }

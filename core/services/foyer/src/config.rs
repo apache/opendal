@@ -35,6 +35,32 @@ pub struct FoyerConfig {
     /// This is used when the cache is lazily initialized. Supports human-readable
     /// formats like "1MiB", "64MB", "1GiB", etc.
     pub memory: Option<usize>,
+    /// Disk cache directory path.
+    ///
+    /// If set, enables hybrid cache with disk storage. Data will be persisted to
+    /// this directory when memory cache is full.
+    pub disk_path: Option<String>,
+    /// Disk cache total capacity in bytes.
+    ///
+    /// Supports human-readable formats like "1GiB", "100MB", etc.
+    /// Only used when `disk_path` is set.
+    pub disk_capacity: Option<usize>,
+    /// Individual cache file size in bytes.
+    ///
+    /// Supports human-readable formats. Default is 1MiB.
+    /// Only used when `disk_path` is set.
+    pub disk_file_size: Option<usize>,
+    /// Recovery mode when starting the cache.
+    ///
+    /// Valid values: "none" (default), "quiet", "strict".
+    /// - "none": Don't recover from disk
+    /// - "quiet": Recover and skip errors
+    /// - "strict": Recover and panic on errors
+    pub recover_mode: Option<String>,
+    /// Number of shards for concurrent access.
+    ///
+    /// Default is 1. Higher values improve concurrency but increase overhead.
+    pub shards: Option<usize>,
 }
 
 impl Configurator for FoyerConfig {
@@ -53,15 +79,24 @@ impl Configurator for FoyerConfig {
             }
         }
 
-        if let Some(memory_str) = uri.option("memory") {
-            match parse_capacity(memory_str) {
-                Ok(size) => {
-                    map.insert("memory".to_string(), size.to_string());
-                }
-                Err(e) => {
-                    return Err(Error::new(ErrorKind::ConfigInvalid, "invalid memory capacity")
-                        .with_context("service", "foyer")
-                        .set_source(e));
+        // Parse capacity values with human-readable format support
+        for (key, param_name) in [
+            ("memory", "memory"),
+            ("disk_capacity", "disk_capacity"),
+            ("disk_file_size", "disk_file_size"),
+        ] {
+            if let Some(value_str) = uri.option(param_name) {
+                match parse_capacity(value_str) {
+                    Ok(size) => {
+                        map.insert(key.to_string(), size.to_string());
+                    }
+                    Err(e) => {
+                        return Err(Error::new(
+                            ErrorKind::ConfigInvalid,
+                            format!("invalid {}: {}", param_name, e),
+                        )
+                        .with_context("service", "foyer"));
+                    }
                 }
             }
         }
@@ -109,7 +144,7 @@ fn parse_capacity(s: &str) -> Result<usize> {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 format!("unknown unit: {}", unit.trim()),
-            ))
+            ));
         }
     };
 
@@ -132,7 +167,10 @@ mod tests {
         assert_eq!(parse_capacity("1GB").unwrap(), 1000 * 1000 * 1000);
         assert_eq!(parse_capacity("1GiB").unwrap(), 1024 * 1024 * 1024);
         assert_eq!(parse_capacity("64 MiB").unwrap(), 64 * 1024 * 1024);
-        assert_eq!(parse_capacity("2.5GB").unwrap(), (2.5 * 1000.0 * 1000.0 * 1000.0) as usize);
+        assert_eq!(
+            parse_capacity("2.5GB").unwrap(),
+            (2.5 * 1000.0 * 1000.0 * 1000.0) as usize
+        );
     }
 
     #[test]
@@ -157,5 +195,33 @@ mod tests {
         let cfg = FoyerConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.name.as_deref(), Some("session"));
         assert_eq!(cfg.root.as_deref(), Some("data"));
+    }
+
+    #[test]
+    fn test_from_uri_sets_disk_config() {
+        let uri = OperatorUri::new(
+            "foyer:///cache?memory=64MiB&disk_path=/tmp/foyer&disk_capacity=1GiB&disk_file_size=2MiB",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FoyerConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.memory, Some(64 * 1024 * 1024));
+        assert_eq!(cfg.disk_path.as_deref(), Some("/tmp/foyer"));
+        assert_eq!(cfg.disk_capacity, Some(1024 * 1024 * 1024));
+        assert_eq!(cfg.disk_file_size, Some(2 * 1024 * 1024));
+    }
+
+    #[test]
+    fn test_from_uri_sets_recovery_and_shards() {
+        let uri = OperatorUri::new(
+            "foyer:///?recover_mode=quiet&shards=4",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = FoyerConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.recover_mode.as_deref(), Some("quiet"));
+        assert_eq!(cfg.shards, Some(4));
     }
 }

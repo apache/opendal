@@ -191,4 +191,38 @@ mod tests {
         let buf = op.read_with("test").range(10..20).await.unwrap();
         assert_eq!(buf.to_vec(), data[10..20]);
     }
+
+    #[tokio::test]
+    async fn test_hybrid_cache_via_config() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Test using the builder API with disk configuration
+        let op = Operator::new(
+            Foyer::new()
+                .memory(1024 * 1024) // 1MB memory
+                .disk_path(dir.path().to_str().unwrap())
+                .disk_capacity(16 * 1024 * 1024) // 16MB disk
+                .disk_file_size(1024 * 1024) // 1MB per file
+                .recover_mode("none")
+                .shards(1),
+        )
+        .unwrap()
+        .finish();
+
+        // Write some data
+        for i in 0..5 {
+            op.write(&key(i), value(i)).await.unwrap();
+        }
+
+        // Read back
+        for i in 0..5 {
+            let buf = op.read(&key(i)).await.unwrap();
+            assert_eq!(buf.to_vec(), value(i));
+        }
+
+        // Delete
+        for i in 0..5 {
+            op.delete(&key(i)).await.unwrap();
+        }
+    }
 }

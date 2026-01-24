@@ -16,8 +16,10 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::Arc;
 
+use foyer::DirectFsDeviceOptions;
 use foyer::Engine;
 use foyer::HybridCache;
 use foyer::HybridCacheBuilder;
@@ -25,6 +27,8 @@ use foyer::LargeEngineOptions;
 use foyer::RecoverMode;
 
 use opendal_core::Buffer;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 use opendal_core::Result;
 
 use super::FoyerConfig;
@@ -51,6 +55,20 @@ impl Debug for FoyerCore {
 }
 
 const FOYER_DEFAULT_MEMORY_BYTES: usize = 1024 * 1024 * 1024;
+const FOYER_DEFAULT_DISK_FILE_SIZE: usize = 1024 * 1024;
+const FOYER_DEFAULT_SHARDS: usize = 1;
+
+fn parse_recover_mode(mode_str: &str) -> Result<RecoverMode> {
+    match mode_str.to_lowercase().as_str() {
+        "none" => Ok(RecoverMode::None),
+        "quiet" => Ok(RecoverMode::Quiet),
+        "strict" => Ok(RecoverMode::Strict),
+        _ => Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("invalid recover_mode: {}, expected 'none', 'quiet', or 'strict'", mode_str),
+        )),
+    }
+}
 
 impl FoyerCore {
     /// Create a new FoyerCore with a pre-built cache.
@@ -75,26 +93,52 @@ impl FoyerCore {
             return Ok(cache.clone());
         }
 
+        let memory = self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES);
+        let shards = self.config.shards.unwrap_or(FOYER_DEFAULT_SHARDS);
+        let recover_mode = if let Some(ref mode_str) = self.config.recover_mode {
+            parse_recover_mode(mode_str)?
+        } else {
+            RecoverMode::None
+        };
+
+        let mut builder = HybridCacheBuilder::new()
+            .memory(memory)
+            .with_shards(shards)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_recover_mode(recover_mode);
+
+        // Configure disk storage if disk_path is provided
+        if let Some(ref disk_path) = self.config.disk_path {
+            let path = PathBuf::from(disk_path);
+
+            let mut device_options = DirectFsDeviceOptions::new(path);
+
+            if let Some(capacity) = self.config.disk_capacity {
+                device_options = device_options.with_capacity(capacity);
+            }
+
+            let file_size = self
+                .config
+                .disk_file_size
+                .unwrap_or(FOYER_DEFAULT_DISK_FILE_SIZE);
+            device_options = device_options.with_file_size(file_size);
+
+            builder = builder.with_device_options(device_options);
+        }
+
         let cache = Arc::new(
-            HybridCacheBuilder::new()
-                .memory(self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES))
-                .with_shards(1)
-                .storage(Engine::Large(LargeEngineOptions::new()))
-                .with_recover_mode(RecoverMode::None)
+            builder
                 .build()
                 .await
                 .map_err(|e| {
-                    opendal_core::Error::new(
-                        opendal_core::ErrorKind::Unexpected,
-                        "failed to build foyer cache",
-                    )
-                    .set_source(e)
+                    Error::new(ErrorKind::Unexpected, "failed to build foyer cache")
+                        .set_source(e)
                 })?,
         );
 
         self.cache.set(cache.clone()).map_err(|_| {
-            opendal_core::Error::new(
-                opendal_core::ErrorKind::Unexpected,
+            Error::new(
+                ErrorKind::Unexpected,
                 "failed to initialize foyer cache",
             )
         })?;

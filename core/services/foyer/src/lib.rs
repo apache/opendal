@@ -93,12 +93,8 @@ impl Code for FoyerValue {
 }
 
 /// Register this service into the given registry.
-///
-/// Note: Foyer service requires a pre-configured HybridCache, so it cannot
-/// be registered for URI-based construction. Use `Foyer::new(cache)` instead.
-pub fn register_foyer_service(_registry: &opendal_core::OperatorRegistry) {
-    // Foyer requires a HybridCache instance that cannot be constructed from config alone.
-    // Users should use Foyer::new(cache) directly instead of URI-based construction.
+pub fn register_foyer_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Foyer>(FOYER_SCHEME);
 }
 
 #[cfg(test)]

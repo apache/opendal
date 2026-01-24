@@ -98,6 +98,9 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-foundationdb")]
     opendal_service_foundationdb::register_foundationdb_service(registry);
 
+    #[cfg(feature = "services-foyer")]
+    opendal_service_foyer::register_foyer_service(registry);
+
     #[cfg(feature = "services-fs")]
     opendal_service_fs::register_fs_service(registry);
 

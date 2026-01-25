@@ -104,14 +104,12 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Memory-only cache via URI
-    let op = Operator::from_uri("foyer:///?memory=64MiB")?
-        .finish();
+    let op = Operator::from_uri("foyer:///?memory=64MiB")?;
 
     // Hybrid cache via URI
     let op = Operator::from_uri(
         "foyer:///cache?memory=64MiB&disk_path=/tmp/foyer&disk_capacity=1GiB"
-    )?
-    .finish();
+    )?;
 
     Ok(())
 }

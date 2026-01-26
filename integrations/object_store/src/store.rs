@@ -151,7 +151,7 @@ impl OpendalStore {
 }
 
 impl Debug for OpendalStore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("OpendalStore")
             .field("scheme", &self.info.scheme())
             .field("name", &self.info.name())
@@ -162,7 +162,7 @@ impl Debug for OpendalStore {
 }
 
 impl Display for OpendalStore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let info = self.inner.info();
         write!(
             f,
@@ -580,10 +580,6 @@ impl ObjectStore for OpendalStore {
         self.copy_request(from, to, false).await
     }
 
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, true).await
-    }
-
     async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
         self.inner
             .rename(
@@ -595,6 +591,10 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, from.as_ref()))?;
 
         Ok(())
+    }
+
+    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+        self.copy_request(from, to, true).await
     }
 }
 

@@ -125,6 +125,8 @@ pub struct opendal_capability {
     pub presign_stat: bool,
     /// If operator supports presign write.
     pub presign_write: bool,
+    /// If operator supports presign delete.
+    pub presign_delete: bool,
 
     /// If operator supports shared.
     pub shared: bool,
@@ -253,6 +255,7 @@ impl From<core::Capability> for opendal_capability {
             presign_read: value.presign_read,
             presign_stat: value.presign_stat,
             presign_write: value.presign_write,
+            presign_delete: value.presign_delete,
             shared: value.shared,
         }
     }

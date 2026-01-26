@@ -50,7 +50,7 @@ jobs:
           - { service: "s3", setup: "0_minio_s3" }
           - { service: "azblob", setup: "azurite_azblob" }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Set Rust Fuzz

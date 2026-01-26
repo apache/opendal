@@ -43,7 +43,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Haskell toolchain (ghc-9.4.8)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -57,7 +57,7 @@ jobs:
         run: |
           cargo clippy -- -D warnings
       - name: Restore haskell cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -69,7 +69,7 @@ jobs:
         run: |
           cabal test
       - name: Save haskell cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
@@ -90,7 +90,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Restore haskell cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           key: ${{ runner.os }}-haskell-${{ hashFiles('**/*.cabal', '**/Setup.hs') }}
           path: |
@@ -105,7 +105,7 @@ jobs:
           tar xf opendal-*.crate --strip-components=1
           cabal sdist
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bindings-haskell-sdist
           path: bindings/haskell/target/package/dist-newstyle/sdist/*.tar.gz

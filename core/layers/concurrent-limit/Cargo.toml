@@ -33,8 +33,9 @@ all-features = true
 [dependencies]
 futures = { workspace = true }
 http = { workspace = true }
-mea = "0.5.1"
+mea = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.55.0" }
+tokio = { workspace = true, features = ["macros", "rt", "time"] }

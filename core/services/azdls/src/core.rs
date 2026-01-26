@@ -38,6 +38,7 @@ use opendal_core::*;
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
+const X_MS_CONTINUATION: &str = "x-ms-continuation";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
@@ -46,6 +47,7 @@ pub struct AzdlsCore {
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,
+    pub enable_hns: bool,
 
     pub loader: AzureStorageLoader,
     pub signer: AzureStorageSigner,
@@ -57,6 +59,7 @@ impl Debug for AzdlsCore {
             .field("filesystem", &self.filesystem)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
+            .field("enable_hns", &self.enable_hns)
             .finish_non_exhaustive()
     }
 }
@@ -364,6 +367,60 @@ impl AzdlsCore {
 
         self.sign(&mut req).await?;
         self.send(req).await
+    }
+
+    pub async fn azdls_recursive_delete(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let base = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&p)
+        );
+
+        let mut continuation = String::new();
+
+        loop {
+            let mut url = QueryPairsWriter::new(&base).push("recursive", "true");
+
+            if self.enable_hns {
+                url = url.push("paginated", "true");
+            }
+
+            if !continuation.is_empty() {
+                url = url.push("continuation", &percent_encode_path(&continuation));
+            }
+
+            let mut req = Request::delete(url.finish())
+                .extension(Operation::Delete)
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?;
+
+            self.sign(&mut req).await?;
+            let resp = self.send(req).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {}
+                _ => return Err(parse_error(resp)),
+            }
+
+            let next = resp
+                .headers()
+                .get(X_MS_CONTINUATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .trim();
+
+            if next.is_empty() {
+                return Ok(resp);
+            }
+
+            continuation = next.to_string();
+        }
     }
 
     pub async fn azdls_list(

@@ -22,22 +22,104 @@ use fastpool::ObjectStatus;
 use fastpool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
+use std::io;
+use std::net::SocketAddr;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
+#[cfg(unix)]
+use tokio::net::UnixStream;
 
 use super::binary;
+
+#[derive(Debug)]
+pub enum SocketStream {
+    Tcp(TcpStream),
+    #[cfg(unix)]
+    Unix(UnixStream),
+}
+
+impl SocketStream {
+    pub async fn connect_tcp(addr_str: &str) -> io::Result<Self> {
+        let socket_addr: SocketAddr = addr_str
+            .parse()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let stream = TcpStream::connect(socket_addr).await?;
+        Ok(SocketStream::Tcp(stream))
+    }
+
+    #[cfg(unix)]
+    pub async fn connect_unix(path: &str) -> io::Result<Self> {
+        let stream = UnixStream::connect(path).await?;
+        Ok(SocketStream::Unix(stream))
+    }
+}
+
+impl AsyncRead for SocketStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+            #[cfg(unix)]
+            SocketStream::Unix(s) => Pin::new(s).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for SocketStream {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_write(cx, buf),
+            #[cfg(unix)]
+            SocketStream::Unix(s) => Pin::new(s).poll_write(cx, buf),
+        }
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_flush(cx),
+            #[cfg(unix)]
+            SocketStream::Unix(s) => Pin::new(s).poll_flush(cx),
+        }
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            SocketStream::Tcp(s) => Pin::new(s).poll_shutdown(cx),
+            #[cfg(unix)]
+            SocketStream::Unix(s) => Pin::new(s).poll_shutdown(cx),
+        }
+    }
+}
+
+/// Endpoint for memcached connection.
+#[derive(Clone, Debug)]
+pub enum Endpoint {
+    Tcp(String), // host:port
+    #[cfg(unix)]
+    Unix(String), // socket path
+}
 
 /// A connection manager for `memcache_async::ascii::Protocol`.
 #[derive(Clone)]
 struct MemcacheConnectionManager {
-    address: String,
+    endpoint: Endpoint,
     username: Option<String>,
     password: Option<String>,
 }
 
 impl MemcacheConnectionManager {
-    fn new(address: &str, username: Option<String>, password: Option<String>) -> Self {
+    fn new(endpoint: Endpoint, username: Option<String>, password: Option<String>) -> Self {
         Self {
-            address: address.to_string(),
+            endpoint,
             username,
             password,
         }
@@ -48,11 +130,17 @@ impl ManageObject for MemcacheConnectionManager {
     type Object = binary::Connection;
     type Error = Error;
 
-    /// TODO: Implement unix stream support.
     async fn create(&self) -> Result<Self::Object, Self::Error> {
-        let conn = TcpStream::connect(&self.address)
-            .await
-            .map_err(new_std_io_error)?;
+        let conn = match &self.endpoint {
+            Endpoint::Tcp(addr) => SocketStream::connect_tcp(addr)
+                .await
+                .map_err(new_std_io_error)?,
+            #[cfg(unix)]
+            Endpoint::Unix(path) => SocketStream::connect_unix(path)
+                .await
+                .map_err(new_std_io_error)?,
+        };
+
         let mut conn = binary::Connection::new(conn);
 
         if let (Some(username), Some(password)) = (self.username.as_ref(), self.password.as_ref()) {
@@ -81,7 +169,7 @@ pub struct MemcachedCore {
 
 impl MemcachedCore {
     pub fn new(
-        endpoint: String,
+        endpoint: Endpoint,
         username: Option<String>,
         password: Option<String>,
         default_ttl: Option<Duration>,
@@ -89,7 +177,7 @@ impl MemcachedCore {
     ) -> Self {
         let conn = bounded::Pool::new(
             bounded::PoolConfig::new(connection_pool_max_size.unwrap_or(10)),
-            MemcacheConnectionManager::new(endpoint.as_str(), username, password),
+            MemcacheConnectionManager::new(endpoint, username, password),
         );
 
         Self { default_ttl, conn }

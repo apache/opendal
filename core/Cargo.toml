@@ -46,7 +46,9 @@ bytes = "1.10"
 ctor = "0.6"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
-log = "0.4"
+log = { version = "0.4.29" }
+logforth = { version = "0.29.1", features = ["starter-log"] }
+mea = "0.6"
 quick-xml = { version = "0.38", default-features = false }
 rand = "0.8"
 reqsign = { version = "0.16.5", default-features = false }
@@ -54,6 +56,7 @@ serde = { version = "1", default-features = false }
 serde_json = "1"
 sha2 = "0.10"
 tokio = { version = "1.48", default-features = false }
+url = "2.5"
 uuid = { version = "1", default-features = false }
 
 [package]
@@ -98,6 +101,7 @@ layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
 layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
+layers-foyer = ["dep:opendal-layer-foyer"]
 layers-hotpath = ["dep:opendal-layer-hotpath"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-logging = ["dep:opendal-layer-logging"]
@@ -108,6 +112,7 @@ layers-otel-trace = ["dep:opendal-layer-oteltrace"]
 layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
+layers-route = ["dep:opendal-layer-route"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
@@ -210,6 +215,7 @@ opendal-layer-chaos = { path = "layers/chaos", version = "0.55.0", optional = tr
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-foyer = { path = "layers/foyer", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-hotpath = { path = "layers/hotpath", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-logging = { path = "layers/logging", version = "0.55.0", optional = true, default-features = false }
@@ -221,6 +227,7 @@ opendal-layer-oteltrace = { path = "layers/oteltrace", version = "0.55.0", optio
 opendal-layer-prometheus = { path = "layers/prometheus", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.55.0", optional = true, default-features = false }
+opendal-layer-route = { path = "layers/route", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.55.0", optional = true, default-features = false }
@@ -301,13 +308,10 @@ futures = { workspace = true, default-features = true }
 http = { workspace = true }
 libtest-mimic = "0.8"
 log = { workspace = true }
+logforth = { workspace = true }
 rand = { workspace = true }
 reqwest = "0.12.24"
 sha2 = { workspace = true }
 size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }
 uuid = { workspace = true, features = ["serde", "v4"] }

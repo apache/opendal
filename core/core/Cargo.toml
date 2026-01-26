@@ -69,10 +69,10 @@ bytes = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
 http-body = "1"
-jiff = { version = "0.2.15", features = ["serde"] }
+jiff = { version = "0.2.17", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.10"
-mea = "0.5.1"
+mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqwest = { version = "0.12.24", features = [
@@ -81,7 +81,7 @@ reqwest = { version = "0.12.24", features = [
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "io-util"] }
-url = "2.5"
+url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 
 # Optional dependencies
@@ -94,11 +94,8 @@ uuid = { workspace = true, features = ["serde", "v4", "js"] }
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]
+logforth = { workspace = true }
 pretty_assertions = "1"
 rand = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = [
-  "env-filter",
-  "tracing-log",
-] }

@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -65,7 +65,7 @@ jobs:
         run: ls -la pkg/
 
       - name: Upload artifact (source gem)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: opendal-ruby-gem-source
           path: bindings/ruby/pkg/*.gem
@@ -110,7 +110,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -138,7 +138,7 @@ jobs:
           cp -r pkg/*.gem pkg_out/
 
       - name: Upload gem artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: opendal-ruby-gem-${{ matrix.platform }}
           path: bindings/ruby/pkg_out/*.gem
@@ -162,7 +162,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -173,7 +173,7 @@ jobs:
           working-directory: bindings/ruby
 
       - name: Download gem artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v7
         with:
           pattern: opendal-ruby-gem-*
           path: bindings/ruby/pkg/

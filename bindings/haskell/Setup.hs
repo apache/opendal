@@ -24,7 +24,7 @@ import Distribution.Simple
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Setup
 import Distribution.Simple.Utils
-#if MIN_VERSION_Cabal_syntax(3,14,0)
+#if MIN_VERSION_Cabal(3,14,0)
 import Distribution.Utils.Path (makeSymbolicPath)
 #endif
 import Distribution.System
@@ -57,7 +57,7 @@ rustConfHook (description, buildInfo) flags = do
                     { PD.libBuildInfo =
                         libraryBuildInfo
                           { PD.extraLibDirs =
-#if MIN_VERSION_Cabal_syntax(3,14,0)
+#if MIN_VERSION_Cabal(3,14,0)
                               makeSymbolicPath dir : PD.extraLibDirs libraryBuildInfo,
 #else
                               dir : PD.extraLibDirs libraryBuildInfo,

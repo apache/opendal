@@ -31,7 +31,7 @@ extra-source-files: src/*.rs, Cargo.toml
 
 build-type:         Custom
 custom-setup
-    setup-depends:  Cabal, Cabal-syntax, base, directory, process
+    setup-depends:  Cabal, base, directory, process
 
 source-repository head
     type:     git

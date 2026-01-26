@@ -5,431 +5,221 @@
 
 # Summary
 
-This RFC proposes the addition of a Cache Layer to OpenDAL, providing transparent read-through and write-through caching capabilities. The Cache Layer allows users to improve performance by caching data from a slower storage service (e.g., S3, HDFS) to a faster one (e.g., Memory, Moka, Redis).
+This RFC proposes a Cache Layer for OpenDAL that composes:
+
+- a **source** `Operator` (the backend you actually want to read/write), and
+- a **cache** `Operator` (a faster backend, for example Memory/Moka/Redis), and
+- a user-extensible **`CachePolicy`** that decides _whether to use cache_, _whether to fill_, and _how to shape cache objects_ (e.g. whole-object vs chunked).
+
+The layer itself stays thin: policy controls cache behavior, while concrete cache backends control eviction/TTL/limits.
 
 # Motivation
 
-Storage access performance varies greatly across different storage services.
-Remote object stores like S3 or GCS have much higher latency than local storage or in-memory caches.
-In many applications, particularly those with read-heavy workloads or repeated access to the same data, caching can significantly improve performance.
+Storage access performance varies greatly across different storage services. Remote object stores like S3 or GCS have much higher latency than local storage or in-memory caches. In many applications, particularly those with read-heavy workloads or repeated access to the same data, caching can significantly improve performance.
 
-Currently, users who want to implement caching with OpenDAL must manually:
+Without a built-in cache layer, users have to implement common patterns repeatedly:
 
-1. Check if data exists in cache service
-2. If cache misses, fetch from original storage and manually populate cache
-3. Handle cache invalidation and consistency manually
+1. Look up in cache
+2. On miss, read from source
+3. Decide whether/when/how to populate cache
+4. Handle best-effort consistency (e.g., invalidation on writes/deletes) themselves
 
-By introducing a dedicated Cache Layer, we can:
+A Cache Layer inside OpenDAL can:
 
-- Provide a unified, transparent caching solution within OpenDAL
-- Eliminate boilerplate code for common caching patterns
-- Allow flexible configuration of caching policies
-- Enable performance optimization with minimal code changes
-- Leverage existing OpenDAL services as cache storage
+- Provide a unified and composable caching abstraction.
+- Keep cache decisions user-controlled via policy (including bypass/fill/chunking).
+- Reuse existing OpenDAL services as cache backends.
 
 # Guide-level explanation
 
-The Cache Layer allows you to wrap any existing service with a caching mechanism.
-When data is accessed through this layer, it will automatically be cached in your specified cache service.
-The cache layer is designed to be straightforward, and delegates cache management policies (like TTL, eviction policy) to the underlying cache service.
+## Mental model
 
-## Basic Usage
+`CacheLayer` wraps a source `Operator` with a cache `Operator`. On each operation (read/stat/write/delete), the layer consults a `CachePolicy` to decide:
+
+- whether to **bypass** cache entirely for this request, or **use** cache.
+- if cache is used and a miss happens, whether to **fill** cache.
+- whether to cache as a **whole object** or in **chunks** (range-aware / 1:M mapping between source object and cache entries).
+
+Cache eviction/TTL is handled by the chosen cache backend itself.
+
+## Basic usage
 
 ```rust
-use opendal::{layers::CacheLayer, services::Memory, services::S3, Operator};
+use opendal::{
+  layers::{CacheLayer, CachePolicy, WholeCachePolicy},
+  services::Memory,
+  Operator,
+};
 
 #[tokio::main]
 async fn main() -> opendal::Result<()> {
-    // Create a memory operator to use as cache
-    let memory = Operator::new(Memory::default())?;
+    let cache = Operator::new(Memory::default())?.finish();
 
-    // Create a primary storage operator (e.g., S3)
-    let s3 = Operator::new(
-        S3::default()
-            .bucket("my-bucket")
-            .region("us-east-1")
-            .build()?
-        )?
+    let policy = WholeCachePolicy::new()
+        .fill_on_read_miss(true)
+        .invalidate_on_write(true)
+        .invalidate_on_delete(true);
+
+    let op = Operator::new(/* source service builder */)?
+        .finish()
+        .layer(CacheLayer::new(cache, policy))
         .finish();
 
-    // Wrap the primary storage with the cache layer
-    let op = s3.layer(CacheLayer::new(memory)).finish();
-
-    // Use the operator as normal - caching is transparent
-    let data = op.read("path/to/file").await?;
-
-    // Later reads will be served from cache if available
-    let cached_data = op.read("path/to/file").await?;
-
+    let _ = op.read("path/to/file").await?;
     Ok(())
 }
 ```
 
-## Using Different Cache Services
+This example highlights the intended responsibilities:
 
-The Cache Layer can use any OpenDAL service as cache service:
-
-```rust
-// Using Redis as cache
-use opendal::services::Redis;
-
-let redis_cache = Operator::new(
-    Redis::default()
-        .endpoint("redis://localhost:6379")
-    )?
-    .finish();
-
-let op = s3.layer(CacheLayer::new(redis_cache)).finish();
-```
-
-```rust
-// Using Moka (in-memory cache with advanced features)
-use opendal::services::Moka;
-
-let moka_cache = Operator::new(
-        Moka::default()
-            .max_capacity(1000)
-            .time_to_live(Duration::from_secs(3600)) // TTL managed by Moka
-    )?
-    .finish();
-
-let op = s3.layer(CacheLayer::new(moka_cache)).finish();
-```
-
-## Multiple Cache Layers
-
-You can stack multiple cache layers for a multi-tier caching strategy:
-
-```rust
-// L1 cache: Fast in-memory cache
-let l1_cache = Operator::new(Memory::default())?.finish();
-
-// L2 cache: Larger but slightly slower cache (e.g., Redis)
-let l2_cache = Operator::new(
-        Redis::default().endpoint("redis://localhost:6379")
-    )?
-    .finish();
-
-// Stack the caches: L1 -> L2 -> S3
-let op = s3
-    .layer(CacheLayer::new(l2_cache))  // L2 cache
-    .layer(CacheLayer::new(l1_cache))  // L1 cache
-    .finish();
-```
-
-## Configuration Options
-
-The Cache Layer provides minimal configuration to keep it simple:
-
-```rust
-let op = s3.layer(
-    CacheLayer::new(memory)
-        .with_options(CacheOptions {
-            // Enable read-through caching (default: true)
-            read: true,
-            // Enable cache promotion during read operations (default: true)
-            read_promotion: true,
-            // Enable write-through caching (default: true)
-            write: true,
-        })
-    )
-    .finish();
-```
-
-- `read` option: When disabled, reads bypass the cache entirely.
-- `read_promotion` option: When disabled, data fetched from the inner service on a miss will not be stored back into the cache.
-- `write` option: When enabled, bytes written to the inner service are also stored into the cache.
+- `CacheLayer` is glue code that composes `source + cache + policy`.
+- `CachePolicy` decides behavior; the cache backend decides eviction/TTL.
 
 # Reference-level explanation
 
-## Architecture
+## Public API surface
 
-The Cache Layer implements the `Layer` trait and wraps an underlying `Access` implementation with caching capabilities.
-It introduces a `CacheService` trait that defines the interface for cache operations.
+To keep the public API small and consistent with the rest of OpenDAL, the cache layer should accept `Operator` as inputs (both source and cache). Internally it can obtain the underlying accessor/dispatcher as needed.
 
-### Customizable Cache Storage
+This RFC proposes:
+
+- `CacheLayer::new(cache: Operator, policy: impl CachePolicy) -> CacheLayer`
+- `CachePolicy` trait: defines evaluation and shaping behavior.
+- Minimal supporting request/decision types (`Cache*Request`, `CacheReadDecision`, `CacheWriteDecision`, `CacheLayout`).
+
+Notably, this design does **not** introduce a parallel “cache backend trait” separate from OpenDAL; the cache backend is just an `Operator`.
+
+### CachePolicy
+
+`CachePolicy` decides what to do for each operation. To keep decisions aligned with OpenDAL
+semantics, the policy receives a typed request that borrows the corresponding `Op*` options.
 
 ```rust
-/// `CacheService` defines the backing storage interface for [`CacheLayer`].
-/// It should behave like a simple object store: get/set bytes by key and
-/// expose lightweight metadata for existence checks.
-pub trait CacheService: Clone + Send + Sync + 'static {
-    /// Identifier of the cache backend, used mainly for logging and debugging.
-    fn scheme(&self) -> &'static str;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CacheLayout {
+    Whole,
+    Chunked { size: u32 },
+}
 
-    /// Read cached content by `key`. Returns `Ok(None)` on cache miss instead of `NotFound`.
-    fn read(&self, key: &str) -> impl Future<Output = Result<Option<Buffer>>> + MaybeSend;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CacheReadDecision {
+    /// Do not consult cache and do not fill it for this request.
+    Bypass,
+    /// Use cache; optionally define layout and whether to fill on miss.
+    Use { layout: CacheLayout, fill: bool },
+}
 
-    /// Write full bytes for `key`, replacing any existing value.
-    fn write(&self, key: &str, value: Vec<u8>) -> impl Future<Output = Result<()>> + MaybeSend;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CacheWriteDecision {
+    /// Do not consult cache and do not fill/invalidate it for this request.
+    Bypass,
+    /// Best-effort invalidation after a successful write/delete.
+    Invalidate { layout: CacheLayout },
+    /// Write-through caching after a successful write.
+    WriteThrough { layout: CacheLayout },
+}
 
-    /// Fetch metadata for `key`. Should return [`ErrorKind::NotFound`] on miss.
-    fn stat(&self, key: &str) -> impl Future<Output = Result<Metadata>> + MaybeSend;
+pub struct CacheReadRequest<'a> {
+    /// Path as seen by OpenDAL.
+    pub path: &'a str,
+    /// Read options from OpenDAL.
+    pub op: &'a OpRead,
+}
 
-    /// Check whether `key` exists in the cache.
-    fn exists(&self, key: &str) -> impl Future<Output = Result<bool>> + MaybeSend;
+pub struct CacheStatRequest<'a> {
+    /// Path as seen by OpenDAL.
+    pub path: &'a str,
+    /// Stat options from OpenDAL.
+    pub op: &'a OpStat,
+}
+
+pub struct CacheWriteRequest<'a> {
+    /// Path as seen by OpenDAL.
+    pub path: &'a str,
+    /// Write options from OpenDAL.
+    pub op: &'a OpWrite,
+}
+
+pub struct CacheDeleteRequest<'a> {
+    /// Path as seen by OpenDAL.
+    pub path: &'a str,
+    /// Delete options from OpenDAL.
+    pub op: &'a OpDelete,
+}
+
+pub trait CachePolicy: Send + Sync + 'static {
+    fn on_read(&self, req: CacheReadRequest<'_>) -> CacheReadDecision;
+    fn on_stat(&self, req: CacheStatRequest<'_>) -> CacheReadDecision;
+    fn on_write(&self, req: CacheWriteRequest<'_>) -> CacheWriteDecision;
+    fn on_delete(&self, req: CacheDeleteRequest<'_>) -> CacheWriteDecision;
 }
 ```
 
-OpenDAL `Operator` implements `CacheService` trait, making any OpenDAL service usable as a cache service.
+OpenDAL may provide some basic policies:
 
-```rust
-impl CacheService for Operator {
-    fn scheme(&self) -> &'static str {
-        self.info().scheme()
-    }
+- `WholeCachePolicy`: whole-object caching for reads; optional fill; best-effort invalidation on write/delete.
+- `ChunkedCachePolicy`: range-aware chunk caching (1:M mapping from source object to cache keys).
+- `MetadataOnlyCachePolicy`: cache only metadata (stat) for selected paths.
 
-    async fn read(&self, key: &str) -> Result<Option<Buffer>> {
-        let r = Operator::read(self, key).await;
-        match r {
-            Ok(r) => Ok(Some(r)),
-            Err(err) => match err.kind() {
-                ErrorKind::NotFound => Ok(None),
-                _ => Err(err),
-            },
-        }
-    }
+Users can implement `CachePolicy` to match their own access patterns (e.g. parquet/iceberg range scans, content immutability assumptions, etc).
 
-    async fn write(&self, key: &str, value: Vec<u8>) -> Result<()> {
-        Operator::write(self, key, value).await.map(|_| ())
-    }
+## Cache consistency model (best effort)
 
-    async fn stat(&self, key: &str) -> Result<Metadata> {
-        Operator::stat(self, key).await
-    }
+This layer provides **best-effort** consistency between cache and source:
 
-    async fn exists(&self, key: &str) -> Result<bool> {
-        Operator::exists(self, key).await
-    }
-}
-```
+- On `read`: may serve from cache when allowed by policy; on miss may fill depending on policy.
+- On `write`: the layer should **invalidate** relevant cache entries after a successful write (best effort). If the write is cached (write-through), then cache will contain the new content. If write-through is disabled by policy, invalidation prevents serving stale data.
+- On `delete`: the layer should **invalidate** relevant cache entries after a successful delete (best effort), to avoid serving deleted content from cache.
 
-### CacheLayer && CacheAccessor
+Cache failures (e.g. Redis unavailable) should not fail the source operation by default; they only reduce caching effectiveness.
 
-The layer wraps the underlying access with `CacheAccessor`, which implements caching logic for each operation.
+## Cache key shaping
 
-```rust
-#[derive(Clone, Copy, Debug)]
-pub struct CacheOptions {
-    /// Enable cache lookups before hitting the inner service.
-    pub read: bool,
-    /// Promote data read from the inner service into the cache (read-through fill).
-    ///
-    /// Note: This option only takes effect when [`CacheOptions::read`] is enabled.
-    pub read_promotion: bool,
-    /// Write-through caching for data written to the inner service.
-    pub write: bool,
-}
+A cache entry key is not required to be identical to the source path:
 
-pub struct CacheAccessor<A, S> {
-    inner: A,
-    cache_service: Arc<S>,
-    cache_options: CacheOptions,
-}
+- Whole-object caching can use `{path}` (optionally with a namespace prefix).
+- Chunked caching can use `{path}@{offset}-{len}` (or an equivalent scheme).
 
-impl<A: Access, S: CacheService> LayeredAccess for CacheAccessor<A, S> {
-    type Inner = A;
-    type Reader = CacheReader<A::Reader, S>;
-    type Writer = CacheWriter<A::Writer, S>;
-    type Lister = A::Lister;
-    type Deleter = A::Deleter;
+The shaping is driven by `CachePolicy` (via `CacheLayout` and request fields like range).
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
+## Out of scope
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let cache_key = path.to_owned();
-
-        // Try cache first if read caching is enabled
-        if self.cache_options.read {
-            match self.cache_service.read(&cache_key).await {
-                Ok(Some(cached_data)) => {
-                    // Cache hit
-                    return Ok((RpRead::new(), CacheReader::from_buffer(cached_data)));
-                }
-                Ok(None) => { /* Cache miss, continue to underlying service */ }
-                Err(_) => { /* Cache error, continue to underlying service */ }
-            }
-        }
-
-        // Query underlying service
-        let (rp, reader) = self.inner.read(path, args).await?;
-
-        // Create a reader that will cache data as it's read
-        Ok((
-            rp,
-            CacheReader::new(
-                reader,
-                self.cache_service.clone(),
-                cache_key,
-                self.cache_options.read_promotion,
-            ),
-        ))
-    }
-
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let cache_key = path.to_owned();
-
-        // Always try to write to underlying storage first
-        let (rp, writer) = self.inner.write(path, args).await?;
-
-        // Create a writer that will cache data as it's written
-        Ok((
-            rp,
-            CacheWriter::new(
-                writer,
-                self.cache_service.clone(),
-                cache_key,
-                self.cache_options.write,
-            ),
-        ))
-    }
-
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let cache_key = &path;
-
-        // Check cache first if read caching is enabled
-        if self.cache_options.read {
-            match self.cache_service.stat(cache_key).await {
-                Ok(metadata) => {
-                    // Cache hit - key exists in cache service
-                    return Ok(RpStat::new(metadata));
-                }
-                Err(_) => { /* Cache miss, continue to underlying service */ }
-            }
-        }
-
-        // Fallback to underlying service
-        self.inner.stat(path, args).await
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        self.inner.delete().await
-    }
-
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        // For list operations, we typically don't cache results
-        // as they can be large and change frequently
-        self.inner.list(path, args).await
-    }
-}
-```
-
-### CacheReader
-
-The `CacheReader` handles the complexity of reading data either from cache or underlying storage, with optional cache promotion:
-
-```rust
-/// Reader that caches data as it reads from the underlying service
-pub enum CacheReader<R, S> {
-    /// Reader backed by cached data
-    Cached { data: Buffer, pos: usize },
-    /// Reader that reads from underlying service and caches the data
-    Uncached {
-        inner: R,
-        cache_service: Arc<S>,
-        cache_key: String,
-        cache_read_promotion: bool,
-        buffer: BytesMut,
-    },
-}
-```
-
-#### Cache Hit Path
-
-- The reader is created with the cached `Buffer` and starts at position 0
-- Subsequent `read()` calls return chunks of the cached data
-- No network I/O or underlying storage access is needed
-- Reading is completed entirely from cache
-
-#### Cache Miss Path
-
-- The reader wraps the underlying storage reader
-- Each `read()` call forwards to the underlying reader
-- If `cache_read_promotion` is enabled, data is accumulated in an internal `buffer`
-- When reading is complete (EOF reached), the accumulated data is stored in cache for future reads
-- This ensures that later reads of the same file will be cache hits
-
-### CacheWriter
-
-The `CacheWriter` handles write-through caching by writing to both the underlying storage and cache:
-
-```rust
-/// Writer that caches data as it writes to the underlying service
-pub struct CacheWriter<W, S> {
-    inner: W,
-    cache_service: Arc<S>,
-    cache_key: String,
-    cache_write: bool,
-    buffer: BytesMut,
-}
-```
-
-1. **Buffer Accumulation**: All written data is accumulated in an internal `buffer`
-2. **Primary Write**: Data is always written to the underlying service first via `inner.write()`
-3. **Cache Write**: If `cache_write` is enabled and the writing to underlying service succeeds, the complete data is written to cache
-4. **Atomic Caching**: Cache operations happen only after successful completion to ensure cache consistency
-
-### Error Handling
-
-Cache operations are designed to be transparent and non-blocking:
-
-- Cache errors don't fail the underlying operation
-- Cache misses fall back to underlying service
-- Write operations succeed even if caching fails
-
-### Key Generation
-
-Cache keys are generated from the file path.
-The current implementation uses the path directly as the cache key, which works well for most use cases.
-Future improvements could include:
-
-- Key prefixing for namespace isolation
-- Hashing for very long paths
-- Custom key generation strategies
+- Caching results of `list`.
+- Providing strong consistency guarantees across external writers.
+- Mandating specific eviction/TTL/size policies (left to cache backend).
 
 # Drawbacks
 
-1. **Cache Consistency**: The layer doesn't provide strong consistency guarantees between cache and underlying service.
-   External modifications to the underlying storage won't automatically invalidate the cache.
-
-2. **No Cache Invalidation API**: There's no built-in way to explicitly invalidate cache entries, relying entirely on the underlying cache service's policies.
+- Cache correctness depends on user policy choices (bypass/fill/chunking/invalidation).
+- Best-effort invalidation does not handle external mutations to the source content.
+- Chunked caching introduces additional complexity in key mapping and invalidation.
 
 # Rationale and alternatives
 
-## Why This Design?
+## Why CachePolicy instead of boolean options?
 
-1. **Simplicity**: By delegating cache policies to the underlying storage service, the Cache Layer remains simple and focused.
+Embedding booleans makes the cache layer grow “policy” over time (ranges, chunking, metadata-only, bypass rules).
+A `CachePolicy` keeps the layer thin and makes behavior user-extensible without expanding the layer’s public API for every new scenario.
 
-2. **Flexibility**: Users can choose any OpenDAL service as a cache service, allowing them to pick the right tool for their use case.
+## Why accept Operator instead of a new CacheService trait?
 
-3. **Composability**: The layer design allows stacking multiple cache layers for complex caching strategies.
-
-4. **Transparency**: The caching is completely transparent to the application code.
-
-## Alternative Designs Considered
-
-### Built-in Cache Policies
-
-This was rejected because:
-
-- It would duplicate functionality already available in specialized cache services
-- It would make the layer more complex and harder to maintain
+Using `Operator` as the cache backend avoids creating a parallel storage abstraction surface and keeps cache backends consistent with existing OpenDAL services. Internally, the layer can convert `Operator` to the underlying accessor.
 
 # Prior art
 
-None
+- Database and filesystem cache layers commonly separate “storage backend” from “policy/strategy”.
+- Range/chunk caches are common for analytical formats (parquet/iceberg) to avoid whole-object read amplification.
 
 # Unresolved questions
 
-1. **Cache Key Strategy**: Should we provide options for custom cache key generation (e.g., hashing, prefixing)?
-
-2. **Invalidation API**: Should we provide explicit cache invalidation methods, or rely entirely on the underlying cache storage?
+1. Cache key namespace strategy: should we standardize a prefix (e.g. `__opendal_cache__/`) to prevent collisions?
+2. Range reads with chunked caching: how should partial hits and range alignment behave?
+3. Metadata caching boundary: which metadata fields should be trusted/required when serving from cache?
 
 # Future possibilities
 
-- Customizable Cache Key Generation:
-  - Options for hashing, prefixing, or other strategies
-- Cache Statistics and Monitoring:
-  - Built-in metrics for cache performance (hit/miss rates, latency)
+- Tiered caching with different policies per layer (L1/L2) and optional promotion strategies.
+- Built-in metrics (hit/miss, fill latency, invalidation failures).
+- More advanced directives (e.g. “metadata-only”, “write-back”) when there are clear use cases.
+- Configurable error handling strategy (best-effort vs strict mode for cache failures).
+- Version-aware cache keys for backends that support object versioning.

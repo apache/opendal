@@ -26,7 +26,10 @@ use super::backend::OpfsBuilder;
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct OpfsConfig {}
+pub struct OpfsConfig {
+    /// root dir for backend
+    pub root: Option<String>,
+}
 
 impl Debug for OpfsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -22,9 +22,18 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign::AliyunConfig;
-use reqsign::AliyunLoader;
-use reqsign::AliyunOssSigner;
+use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
+use reqsign_aliyun_oss::EnvCredentialProvider;
+use reqsign_aliyun_oss::RequestSigner;
+use reqsign_aliyun_oss::StaticCredentialProvider;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredentialChain;
+use reqsign_core::Signer;
+use reqsign_core::StaticEnv;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::OSS_SCHEME;
 use super::config::OssConfig;
@@ -431,46 +440,63 @@ impl Builder for OssBuilder {
             ),
         };
 
-        let mut cfg = AliyunConfig::default();
-        // Load cfg from env first.
-        cfg = cfg.from_env();
+        // NOTE: `AssumeRoleWithOidcCredentialProvider` still reads `role_arn`, `oidc_provider_arn`
+        // and `oidc_token_file` from `Context` environment variables at runtime. Until reqsign
+        // exposes typed builder APIs for all of them, we overlay config values into a `StaticEnv`
+        // snapshot here.
+        let os_env = OsEnv;
+        let mut envs = os_env.vars();
 
-        if let Some(v) = self.config.access_key_id {
-            cfg.access_key_id = Some(v);
+        if let Some(v) = &self.config.role_arn {
+            envs.insert("ALIBABA_CLOUD_ROLE_ARN".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.oidc_provider_arn {
+            envs.insert("ALIBABA_CLOUD_OIDC_PROVIDER_ARN".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.oidc_token_file {
+            envs.insert("ALIBABA_CLOUD_OIDC_TOKEN_FILE".to_string(), v.clone());
         }
 
-        if let Some(v) = self.config.access_key_secret {
-            cfg.access_key_secret = Some(v);
+        let mut assume_role = AssumeRoleWithOidcCredentialProvider::new();
+
+        if let Some(sts_endpoint) = &self.config.sts_endpoint {
+            if sts_endpoint.starts_with("http://") || sts_endpoint.starts_with("https://") {
+                assume_role = assume_role.with_sts_endpoint(sts_endpoint.clone());
+            } else {
+                envs.insert(
+                    "ALIBABA_CLOUD_STS_ENDPOINT".to_string(),
+                    sts_endpoint.clone(),
+                );
+            }
         }
 
-        if let Some(v) = self.config.security_token {
-            cfg.security_token = Some(v);
+        if let Some(role_session_name) = &self.config.role_session_name {
+            assume_role = assume_role.with_role_session_name(role_session_name.clone());
         }
 
-        if let Some(v) = self.config.role_arn {
-            cfg.role_arn = Some(v);
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(StaticEnv {
+                home_dir: os_env.home_dir(),
+                envs,
+            });
+
+        let mut provider = ProvideCredentialChain::new()
+            .push(EnvCredentialProvider::new())
+            .push(assume_role);
+
+        if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.access_key_secret) {
+            let static_provider = if let Some(token) = self.config.security_token.as_deref() {
+                StaticCredentialProvider::new(ak, sk).with_security_token(token)
+            } else {
+                StaticCredentialProvider::new(ak, sk)
+            };
+            provider = provider.push_front(static_provider);
         }
 
-        // override default role_session_name if set
-        if let Some(v) = self.config.role_session_name {
-            cfg.role_session_name = v;
-        }
-
-        if let Some(v) = self.config.oidc_provider_arn {
-            cfg.oidc_provider_arn = Some(v);
-        }
-
-        if let Some(v) = self.config.oidc_token_file {
-            cfg.oidc_token_file = Some(v);
-        }
-
-        if let Some(v) = self.config.sts_endpoint {
-            cfg.sts_endpoint = Some(v);
-        }
-
-        let loader = AliyunLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
-
-        let signer = AliyunOssSigner::new(bucket);
+        let request_signer = RequestSigner::new(bucket);
+        let signer = Signer::new(ctx, provider, request_signer);
 
         let delete_max_size = self
             .config
@@ -554,7 +580,6 @@ impl Builder for OssBuilder {
                 presign_endpoint,
                 allow_anonymous: self.config.allow_anonymous,
                 signer,
-                loader,
                 server_side_encryption,
                 server_side_encryption_key_id,
             }),
@@ -689,9 +714,8 @@ impl Access for OssBackend {
                 "operation is not supported",
             )),
         };
-        let mut req = req?;
-
-        self.core.sign_query(&mut req, args.expire()).await?;
+        let req = req?;
+        let req = self.core.sign_query(req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

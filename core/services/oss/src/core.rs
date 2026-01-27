@@ -29,7 +29,6 @@ use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
-use http::header::HOST;
 use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;

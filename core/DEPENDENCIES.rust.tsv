@@ -99,8 +99,9 @@ rand@0.8.5	X									X
 rand_chacha@0.3.1	X									X		
 rand_core@0.6.4	X									X		
 reqsign@0.16.5	X											
+reqsign-aliyun-oss@2.0.2	X											
 reqsign-aws-v4@2.0.1	X											
-reqsign-core@2.0.1	X											
+reqsign-core@2.0.2	X											
 reqsign-file-read-tokio@2.0.1	X											
 reqsign-http-send-reqwest@2.0.1	X											
 reqwest@0.12.24	X									X		

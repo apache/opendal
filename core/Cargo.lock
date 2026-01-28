@@ -6894,7 +6894,10 @@ dependencies = [
  "opendal-core",
  "pretty_assertions",
  "quick-xml",
- "reqsign",
+ "reqsign-aliyun-oss",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
  "serde",
  "tokio",
 ]
@@ -8661,6 +8664,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "reqsign-aliyun-oss"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca53e7f1b5767da409d861e864d6c2867e710a500103582196bd6fff8f103d32"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "form_urlencoded",
+ "http 1.4.0",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "reqsign-aws-v4"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8684,9 +8704,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-core"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39da118ccf3bdb067ac6cc40136fec99bc5ba418cbd388dc88e4ce0e5d0b1423"
+checksum = "9ba66eb941c0f723269a394baf3b19a2fa697a1e593f3e902779df6c35d24e21"
 dependencies = [
  "anyhow",
  "async-trait",

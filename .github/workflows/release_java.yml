@@ -42,8 +42,12 @@ jobs:
         include:
           - os: ubuntu-latest
             classifier: linux-x86_64
+          - os: ubuntu-latest
+            classifier: linux-x86_64-musl
           - os: ubuntu-24.04-arm
             classifier: linux-aarch_64
+          - os: ubuntu-24.04-arm
+            classifier: linux-aarch_64-musl
           - os: windows-latest
             classifier: windows-x86_64
           - os: macos-latest
@@ -76,16 +80,55 @@ jobs:
         if: ${{ contains(matrix.os, 'ubuntu') }}
         run: pip install cargo-zigbuild
 
+      - name: Build linux musl JNI library in Alpine
+        if: ${{ contains(matrix.os, 'ubuntu') && contains(matrix.classifier, 'musl') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST_UID="$(id -u)"
+          HOST_GID="$(id -g)"
+          PLATFORM="linux/amd64"
+          if [[ "${{ matrix.classifier }}" == *"aarch_64"* ]]; then
+            PLATFORM="linux/arm64"
+          fi
+
+          docker run --rm \
+            --platform "$PLATFORM" \
+            -e HOST_UID="$HOST_UID" \
+            -e HOST_GID="$HOST_GID" \
+            -v "$GITHUB_WORKSPACE":/work \
+            -w /work/bindings/java \
+            rust:1.85-alpine3.20 \
+            sh -lc '
+              set -eu
+              apk add --no-cache python3 build-base cmake pkgconfig git protobuf sqlite-dev zlib-dev
+              export PATH=/usr/local/cargo/bin:$PATH
+
+              python3 tools/build.py \
+                --classifier "${{ matrix.classifier }}" \
+                --profile release \
+                --features services-all \
+                --enable-zigbuild false
+
+              chown -R "$HOST_UID:$HOST_GID" /work/bindings/java/target
+            '
+
       - name: Local staging
         working-directory: bindings/java
         shell: bash
         run: |
+          EXTRA_MVN_ARGS=""
+          if [[ "${{ matrix.classifier }}" == *"musl" ]]; then
+            EXTRA_MVN_ARGS="-Dexec.skip=true"
+          fi
+
           ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
             -DskipTests=true \
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.features=services-all \
             -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
+            $EXTRA_MVN_ARGS \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
             -DserverId=apache.releases.https \
@@ -135,11 +178,21 @@ jobs:
         with:
           name: linux-x86_64-local-staging
           path: ~/linux-x86_64-local-staging
+      - name: Download linux x86_64 (musl) staging directory
+        uses: actions/download-artifact@v5
+        with:
+          name: linux-x86_64-musl-local-staging
+          path: ~/linux-x86_64-musl-local-staging
       - name: Download linux aarch_64 staging directory
         uses: actions/download-artifact@v7
         with:
           name: linux-aarch_64-local-staging
           path: ~/linux-aarch_64-local-staging
+      - name: Download linux aarch_64 (musl) staging directory
+        uses: actions/download-artifact@v5
+        with:
+          name: linux-aarch_64-musl-local-staging
+          path: ~/linux-aarch_64-musl-local-staging
       - name: Download darwin staging directory
         uses: actions/download-artifact@v7
         with:
@@ -160,7 +213,9 @@ jobs:
           python ./scripts/merge_local_staging.py $LOCAL_STAGING_DIR/staging \
             ~/windows-x86_64-local-staging/staging \
             ~/linux-x86_64-local-staging/staging \
+            ~/linux-x86_64-musl-local-staging/staging \
             ~/linux-aarch_64-local-staging/staging \
+            ~/linux-aarch_64-musl-local-staging/staging \
             ~/osx-x86_64-local-staging/staging \
             ~/osx-aarch_64-local-staging/staging
 

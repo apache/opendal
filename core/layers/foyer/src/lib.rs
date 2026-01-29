@@ -47,7 +47,7 @@ pub use writer::Writer;
 /// # Variants
 ///
 /// - `Full`: Caches the entire object (used in non-chunked mode)
-/// - `Metadata`: Caches object metadata for chunked mode (content_length, version, etag)
+/// - `ChunkMetadata`: Caches object metadata for chunked mode (content_length, version, etag)
 /// - `Chunk`: Caches a specific chunk of the object
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum FoyerKey {

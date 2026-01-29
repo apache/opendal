@@ -43,22 +43,24 @@ impl<A: Access> Writer<A> {
         inner: Arc<Inner<A>>,
         size_limit: std::ops::Range<usize>,
     ) -> Self {
+        // In chunked mode, skip caching entirely
+        let skip_cache = inner.chunk_size.is_some();
         Self {
             w,
             buf: oio::QueueBuf::new(),
             path,
             inner,
             size_limit,
-            skip_cache: false,
+            skip_cache,
         }
     }
 }
 
 impl<A: Access> oio::Write for Writer<A> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if self.size_limit.contains(&(self.buf.len() + bs.len())) {
+        // Only buffer if not in chunked mode and within size limit
+        if !self.skip_cache && self.size_limit.contains(&(self.buf.len() + bs.len())) {
             self.buf.push(bs.clone());
-            self.skip_cache = false;
         } else {
             self.buf.clear();
             self.skip_cache = true;
@@ -69,6 +71,7 @@ impl<A: Access> oio::Write for Writer<A> {
     async fn close(&mut self) -> Result<Metadata> {
         let buffer = self.buf.clone().collect();
         let metadata = self.w.close().await?;
+        // Only cache in full mode (not chunked mode)
         if !self.skip_cache {
             self.inner.cache.insert(
                 FoyerKey::Full {

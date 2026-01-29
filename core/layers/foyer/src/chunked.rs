@@ -94,7 +94,8 @@ impl<A: Access> ChunkedReader<A> {
                 .await?;
 
             // Slice the chunk to get only the needed portion
-            let end = (chunk_info.offset_in_chunk + chunk_info.length_in_chunk).min(chunk_data.len());
+            let end =
+                (chunk_info.offset_in_chunk + chunk_info.length_in_chunk).min(chunk_data.len());
             let sliced = chunk_data.slice(chunk_info.offset_in_chunk..end);
             total_len += sliced.len() as u64;
             result_bufs.push(sliced);
@@ -106,6 +107,7 @@ impl<A: Access> ChunkedReader<A> {
             .with_range(range_start, range_end.saturating_sub(1))
             .with_size(object_size);
 
+        // TODO: use non-contiguous buffer
         let buffer: Buffer = result_bufs
             .into_iter()
             .flat_map(|b| b.to_bytes())
@@ -123,11 +125,7 @@ impl<A: Access> ChunkedReader<A> {
     ///
     /// Uses simple get/insert pattern: check cache first, on miss stat from backend
     /// and insert into cache.
-    async fn fetch_metadata(
-        &self,
-        path: &str,
-        version: Option<String>,
-    ) -> Result<CachedMetadata> {
+    async fn fetch_metadata(&self, path: &str, version: Option<String>) -> Result<CachedMetadata> {
         let key = FoyerKey::Metadata {
             path: path.to_string(),
             chunk_size: self.chunk_size,
@@ -203,9 +201,7 @@ impl<A: Access> ChunkedReader<A> {
         let buffer = reader.read_all().await?;
 
         // Insert into cache
-        self.inner
-            .cache
-            .insert(key, FoyerValue(buffer.clone()));
+        self.inner.cache.insert(key, FoyerValue(buffer.clone()));
 
         Ok(buffer)
     }
@@ -236,7 +232,12 @@ struct ChunkInfo {
 /// # Returns
 /// (aligned_start, aligned_end) - Both aligned to chunk boundaries, clamped to object_size
 #[allow(dead_code)]
-fn align_range(range_start: u64, range_end: u64, chunk_size: usize, object_size: u64) -> (u64, u64) {
+fn align_range(
+    range_start: u64,
+    range_end: u64,
+    chunk_size: usize,
+    object_size: u64,
+) -> (u64, u64) {
     let chunk_size = chunk_size as u64;
 
     // Align start down to chunk boundary

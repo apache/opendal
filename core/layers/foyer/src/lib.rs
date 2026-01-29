@@ -772,4 +772,352 @@ mod tests {
         assert_eq!(read_data.len(), 1024);
         assert_eq!(read_data.to_vec(), data[1024..2048]);
     }
+
+    #[tokio::test]
+    async fn test_chunked_metadata_caching() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_chunk_size(1024))
+            .finish();
+
+        let data = vec![42u8; 5000];
+        op.write("meta.bin", data.clone()).await.unwrap();
+
+        // First read to cache metadata and chunks
+        let read1 = op.read_with("meta.bin").range(0..1000).await.unwrap();
+        assert_eq!(read1.len(), 1000);
+
+        // Clear only data cache (metadata should remain if properly keyed)
+        // Second read from different range - metadata should be cached
+        let read2 = op.read_with("meta.bin").range(3000..4000).await.unwrap();
+        assert_eq!(read2.len(), 1000);
+        assert_eq!(read2.to_vec(), data[3000..4000]);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_different_chunk_sizes() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(2 * 1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let data = vec![88u8; 10000];
+
+        // Test with 1KB chunks
+        let op1 = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_chunk_size(1024))
+            .finish();
+        op1.write("chunk_size_test.bin", data.clone()).await.unwrap();
+        let read1 = op1.read_with("chunk_size_test.bin").range(2000..4000).await.unwrap();
+        assert_eq!(read1.len(), 2000);
+
+        // Test with 2KB chunks - should create different cache keys
+        let op2 = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_chunk_size(2048))
+            .finish();
+        op2.write("chunk_size_test2.bin", data.clone()).await.unwrap();
+        let read2 = op2.read_with("chunk_size_test2.bin").range(2000..4000).await.unwrap();
+        assert_eq!(read2.len(), 2000);
+        assert_eq!(read2.to_vec(), data[2000..4000]);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_cache_persistence() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_chunk_size(1024))
+            .finish();
+
+        let data: Vec<u8> = (0..5000).map(|i| (i % 256) as u8).collect();
+        op.write("persist.bin", data.clone()).await.unwrap();
+
+        // Read to populate cache
+        let read1 = op.read_with("persist.bin").range(1000..3000).await.unwrap();
+        assert_eq!(read1.to_vec(), data[1000..3000]);
+
+        // Verify cache hit by reading again (overlapping range)
+        let read2 = op.read_with("persist.bin").range(1500..2500).await.unwrap();
+        assert_eq!(read2.to_vec(), data[1500..2500]);
+
+        // Non-overlapping range should fetch new chunks
+        let read3 = op.read_with("persist.bin").range(4000..5000).await.unwrap();
+        assert_eq!(read3.to_vec(), data[4000..5000]);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_boundary_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache).with_chunk_size(1024))
+            .finish();
+
+        let data: Vec<u8> = (0..4096).map(|i| (i % 256) as u8).collect();
+        op.write("boundary.bin", data.clone()).await.unwrap();
+
+        // Read from exact chunk start
+        let read1 = op.read_with("boundary.bin").range(1024..1524).await.unwrap();
+        assert_eq!(read1.to_vec(), data[1024..1524]);
+
+        // Read to exact chunk end
+        let read2 = op.read_with("boundary.bin").range(500..1024).await.unwrap();
+        assert_eq!(read2.to_vec(), data[500..1024]);
+
+        // Read across chunk boundary
+        let read3 = op.read_with("boundary.bin").range(1020..1030).await.unwrap();
+        assert_eq!(read3.to_vec(), data[1020..1030]);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_large_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(4 * 1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(32 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache).with_chunk_size(4096))
+            .finish();
+
+        // 100KB file - 25 chunks
+        let data: Vec<u8> = (0..100_000).map(|i| (i % 256) as u8).collect();
+        op.write("large.bin", data.clone()).await.unwrap();
+
+        // Read various sections
+        let read1 = op.read_with("large.bin").range(10_000..20_000).await.unwrap();
+        assert_eq!(read1.len(), 10_000);
+        assert_eq!(read1.to_vec(), data[10_000..20_000]);
+
+        let read2 = op.read_with("large.bin").range(50_000..60_000).await.unwrap();
+        assert_eq!(read2.len(), 10_000);
+        assert_eq!(read2.to_vec(), data[50_000..60_000]);
+
+        // Read entire file
+        let read_all = op.read("large.bin").await.unwrap();
+        assert_eq!(read_all.len(), 100_000);
+        assert_eq!(read_all.to_vec(), data);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_sequential_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache).with_chunk_size(1024))
+            .finish();
+
+        let data: Vec<u8> = (0..10_000).map(|i| (i % 256) as u8).collect();
+        op.write("sequential.bin", data.clone()).await.unwrap();
+
+        // Simulate sequential reading pattern
+        for offset in (0..10_000).step_by(500) {
+            let end = (offset + 500).min(data.len());
+            let read_data = op
+                .read_with("sequential.bin")
+                .range(offset as u64..end as u64)
+                .await
+                .unwrap();
+            assert_eq!(read_data.to_vec(), data[offset..end]);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_random_access() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(2 * 1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache).with_chunk_size(1024))
+            .finish();
+
+        let data: Vec<u8> = (0..20_000).map(|i| (i % 256) as u8).collect();
+        op.write("random.bin", data.clone()).await.unwrap();
+
+        // Random access pattern
+        let ranges = [
+            (5000, 5500),
+            (15000, 15200),
+            (1000, 2000),
+            (18000, 19000),
+            (500, 1500),
+        ];
+
+        for (start, end) in ranges {
+            let read_data = op
+                .read_with("random.bin")
+                .range(start..end)
+                .await
+                .unwrap();
+            assert_eq!(read_data.to_vec(), data[start as usize..end as usize]);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_with_clear_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_chunk_size(1024))
+            .finish();
+
+        let data = vec![99u8; 5000];
+        op.write("clear_test.bin", data.clone()).await.unwrap();
+
+        // First read to populate cache
+        let read1 = op.read_with("clear_test.bin").range(1000..2000).await.unwrap();
+        assert_eq!(read1.to_vec(), data[1000..2000]);
+
+        // Clear cache
+        cache.clear().await.unwrap();
+
+        // Read again - should still work (fetch from backend)
+        let read2 = op.read_with("clear_test.bin").range(1000..2000).await.unwrap();
+        assert_eq!(read2.to_vec(), data[1000..2000]);
+    }
+
+    #[tokio::test]
+    async fn test_chunked_single_byte_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache).with_chunk_size(1024))
+            .finish();
+
+        let data: Vec<u8> = (0..3000).map(|i| (i % 256) as u8).collect();
+        op.write("single_byte.bin", data.clone()).await.unwrap();
+
+        // Read single bytes at various positions
+        let positions = [0, 1023, 1024, 2047, 2048, 2999];
+        for pos in positions {
+            let read_data = op
+                .read_with("single_byte.bin")
+                .range(pos..pos + 1)
+                .await
+                .unwrap();
+            assert_eq!(read_data.len(), 1);
+            assert_eq!(read_data.to_vec()[0], data[pos as usize]);
+        }
+    }
 }

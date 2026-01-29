@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-mod cached_metadata;
-mod chunk_utils;
 mod chunked;
 mod deleter;
 mod error;

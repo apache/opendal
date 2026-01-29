@@ -57,7 +57,7 @@ pub enum FoyerKey {
         version: Option<String>,
     },
     /// Cache key for object metadata (chunked mode)
-    Metadata {
+    ChunkMetadata {
         path: String,
         chunk_size: usize,
         version: Option<String>,
@@ -513,12 +513,12 @@ mod tests {
                 version: Some("long-version-".to_string().repeat(50)),
             },
             // Test Metadata variant
-            FoyerKey::Metadata {
+            FoyerKey::ChunkMetadata {
                 path: "meta/path".to_string(),
                 chunk_size: 1024,
                 version: None,
             },
-            FoyerKey::Metadata {
+            FoyerKey::ChunkMetadata {
                 path: "meta/versioned".to_string(),
                 chunk_size: 4096,
                 version: Some("v2".to_string()),
@@ -833,8 +833,14 @@ mod tests {
             .unwrap()
             .layer(FoyerLayer::new(cache.clone()).with_chunk_size(1024))
             .finish();
-        op1.write("chunk_size_test.bin", data.clone()).await.unwrap();
-        let read1 = op1.read_with("chunk_size_test.bin").range(2000..4000).await.unwrap();
+        op1.write("chunk_size_test.bin", data.clone())
+            .await
+            .unwrap();
+        let read1 = op1
+            .read_with("chunk_size_test.bin")
+            .range(2000..4000)
+            .await
+            .unwrap();
         assert_eq!(read1.len(), 2000);
 
         // Test with 2KB chunks - should create different cache keys
@@ -842,8 +848,14 @@ mod tests {
             .unwrap()
             .layer(FoyerLayer::new(cache.clone()).with_chunk_size(2048))
             .finish();
-        op2.write("chunk_size_test2.bin", data.clone()).await.unwrap();
-        let read2 = op2.read_with("chunk_size_test2.bin").range(2000..4000).await.unwrap();
+        op2.write("chunk_size_test2.bin", data.clone())
+            .await
+            .unwrap();
+        let read2 = op2
+            .read_with("chunk_size_test2.bin")
+            .range(2000..4000)
+            .await
+            .unwrap();
         assert_eq!(read2.len(), 2000);
         assert_eq!(read2.to_vec(), data[2000..4000]);
     }
@@ -912,7 +924,11 @@ mod tests {
         op.write("boundary.bin", data.clone()).await.unwrap();
 
         // Read from exact chunk start
-        let read1 = op.read_with("boundary.bin").range(1024..1524).await.unwrap();
+        let read1 = op
+            .read_with("boundary.bin")
+            .range(1024..1524)
+            .await
+            .unwrap();
         assert_eq!(read1.to_vec(), data[1024..1524]);
 
         // Read to exact chunk end
@@ -920,7 +936,11 @@ mod tests {
         assert_eq!(read2.to_vec(), data[500..1024]);
 
         // Read across chunk boundary
-        let read3 = op.read_with("boundary.bin").range(1020..1030).await.unwrap();
+        let read3 = op
+            .read_with("boundary.bin")
+            .range(1020..1030)
+            .await
+            .unwrap();
         assert_eq!(read3.to_vec(), data[1020..1030]);
     }
 
@@ -951,11 +971,19 @@ mod tests {
         op.write("large.bin", data.clone()).await.unwrap();
 
         // Read various sections
-        let read1 = op.read_with("large.bin").range(10_000..20_000).await.unwrap();
+        let read1 = op
+            .read_with("large.bin")
+            .range(10_000..20_000)
+            .await
+            .unwrap();
         assert_eq!(read1.len(), 10_000);
         assert_eq!(read1.to_vec(), data[10_000..20_000]);
 
-        let read2 = op.read_with("large.bin").range(50_000..60_000).await.unwrap();
+        let read2 = op
+            .read_with("large.bin")
+            .range(50_000..60_000)
+            .await
+            .unwrap();
         assert_eq!(read2.len(), 10_000);
         assert_eq!(read2.to_vec(), data[50_000..60_000]);
 
@@ -1037,11 +1065,7 @@ mod tests {
         ];
 
         for (start, end) in ranges {
-            let read_data = op
-                .read_with("random.bin")
-                .range(start..end)
-                .await
-                .unwrap();
+            let read_data = op.read_with("random.bin").range(start..end).await.unwrap();
             assert_eq!(read_data.to_vec(), data[start as usize..end as usize]);
         }
     }
@@ -1072,14 +1096,22 @@ mod tests {
         op.write("clear_test.bin", data.clone()).await.unwrap();
 
         // First read to populate cache
-        let read1 = op.read_with("clear_test.bin").range(1000..2000).await.unwrap();
+        let read1 = op
+            .read_with("clear_test.bin")
+            .range(1000..2000)
+            .await
+            .unwrap();
         assert_eq!(read1.to_vec(), data[1000..2000]);
 
         // Clear cache
         cache.clear().await.unwrap();
 
         // Read again - should still work (fetch from backend)
-        let read2 = op.read_with("clear_test.bin").range(1000..2000).await.unwrap();
+        let read2 = op
+            .read_with("clear_test.bin")
+            .range(1000..2000)
+            .await
+            .unwrap();
         assert_eq!(read2.to_vec(), data[1000..2000]);
     }
 

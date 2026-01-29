@@ -126,7 +126,7 @@ impl<A: Access> ChunkedReader<A> {
     /// Uses simple get/insert pattern: check cache first, on miss stat from backend
     /// and insert into cache.
     async fn fetch_metadata(&self, path: &str, version: Option<String>) -> Result<CachedMetadata> {
-        let key = FoyerKey::Metadata {
+        let key = FoyerKey::ChunkMetadata {
             path: path.to_string(),
             chunk_size: self.chunk_size,
             version: version.clone(),

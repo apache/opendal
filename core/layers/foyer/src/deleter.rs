@@ -44,7 +44,7 @@ impl<A: Access> Deleter<A> {
 impl<A: Access> oio::Delete for Deleter<A> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.deleter.delete(path, args.clone()).await?;
-        self.keys.push(FoyerKey {
+        self.keys.push(FoyerKey::Full {
             path: path.to_string(),
             version: args.version().map(|v| v.to_string()),
         });

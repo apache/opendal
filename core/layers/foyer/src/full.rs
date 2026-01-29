@@ -70,7 +70,7 @@ impl<A: Access> FullReader<A> {
             .inner
             .cache
             .fetch(
-                FoyerKey {
+                FoyerKey::Full {
                     path: path_str.clone(),
                     version: version.clone(),
                 },

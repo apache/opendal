@@ -71,7 +71,7 @@ impl<A: Access> oio::Write for Writer<A> {
         let metadata = self.w.close().await?;
         if !self.skip_cache {
             self.inner.cache.insert(
-                FoyerKey {
+                FoyerKey::Full {
                     path: self.path.clone(),
                     version: metadata.version().map(|v| v.to_string()),
                 },

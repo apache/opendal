@@ -29,6 +29,7 @@ use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
 use opendal_core::raw::oio::Read;
 
+use crate::CachedBuffer;
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
@@ -103,7 +104,7 @@ impl<A: Access> FullReader<A> {
                             .map_err(FoyerError::other)?;
                         let buffer = reader.read_all().await.map_err(FoyerError::other)?;
 
-                        Ok(FoyerValue(buffer))
+                        Ok(FoyerValue::Buffer(CachedBuffer(buffer)))
                     }
                 },
             )
@@ -111,26 +112,34 @@ impl<A: Access> FullReader<A> {
 
         // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
         // we'll simply forward the request to the underlying accessor with user's given range.
-        match result {
-            Ok(entry) => {
-                let end = range_end.unwrap_or(entry.len() as u64);
-                let range = BytesContentRange::default()
-                    .with_range(range_start, end - 1)
-                    .with_size(entry.len() as _);
-                let buffer = entry.slice(range_start as usize..end as usize);
-                let rp = RpRead::new()
-                    .with_size(Some(buffer.len() as _))
-                    .with_range(Some(range));
-                Ok((rp, buffer))
-            }
+        let buffer = match result {
+            Ok(entry) => match entry.value() {
+                FoyerValue::Buffer(cached) => cached.0.clone(),
+                _ => {
+                    // fallback to underlying accessor if cache miss
+                    let (_, mut reader) =
+                        self.inner.accessor.read(path, original_args).await?;
+                    reader.read_all().await?
+                }
+            },
             Err(e) => match e.downcast::<FetchSizeTooLarge>() {
                 Ok(_) => {
-                    let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
-                    let buffer = reader.read_all().await?;
-                    Ok((rp, buffer))
+                    // fallback to underlying accessor if object size is too big
+                    let (_, mut reader) = self.inner.accessor.read(path, original_args).await?;
+                    reader.read_all().await?
                 }
-                Err(e) => Err(extract_err(e)),
+                Err(e) => return Err(extract_err(e)),
             },
-        }
+        };
+
+        let end = range_end.unwrap_or(buffer.len() as u64);
+        let range = BytesContentRange::default()
+            .with_range(range_start, end - 1)
+            .with_size(buffer.len() as _);
+        let sliced = buffer.slice(range_start as usize..end as usize);
+        let rp = RpRead::new()
+            .with_size(Some(sliced.len() as _))
+            .with_range(Some(range));
+        Ok((rp, sliced))
     }
 }

@@ -27,22 +27,11 @@ use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
 use opendal_core::raw::oio::Read;
 
+use crate::CachedBuffer;
+use crate::CachedChunkMetadata;
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
-
-/// Cached metadata for an object in chunked mode.
-///
-/// This stores essential information needed for chunk-based reading:
-/// - `content_length`: Total size of the object
-/// - `version`: Object version (if versioning is enabled)
-/// - `etag`: Entity tag for cache validation
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct CachedMetadata {
-    content_length: u64,
-    version: Option<String>,
-    etag: Option<String>,
-}
 
 /// ChunkedReader reads objects in fixed-size chunks, caching each chunk independently.
 ///
@@ -120,10 +109,11 @@ impl<A: Access> ChunkedReader<A> {
     }
 
     /// Fetch object metadata from cache or backend.
-    ///
-    /// Uses simple get/insert pattern: check cache first, on miss stat from backend
-    /// and insert into cache.
-    async fn fetch_metadata(&self, path: &str, version: Option<String>) -> Result<CachedMetadata> {
+    async fn fetch_metadata(
+        &self,
+        path: &str,
+        version: Option<String>,
+    ) -> Result<CachedChunkMetadata> {
         let key = FoyerKey::ChunkMetadata {
             path: path.to_string(),
             chunk_size: self.chunk_size,
@@ -132,11 +122,10 @@ impl<A: Access> ChunkedReader<A> {
 
         // Try cache first
         if let Ok(Some(entry)) = self.inner.cache.get(&key).await {
-            let bytes = entry.value().0.to_vec();
-            if let Ok(cached) = bincode::deserialize::<CachedMetadata>(&bytes) {
-                return Ok(cached);
+            if let FoyerValue::ChunkMetadata(cached) = entry.value() {
+                return Ok(cached.clone());
             }
-            // Deserialization failed - cache entry is corrupted, fall through to re-fetch
+            // Cache entry is wrong variant, fall through to re-fetch
         }
 
         // Cache miss - fetch from backend
@@ -147,18 +136,16 @@ impl<A: Access> ChunkedReader<A> {
             .await?
             .into_metadata();
 
-        let cached = CachedMetadata {
+        let cached = CachedChunkMetadata {
             content_length: metadata.content_length(),
             version: metadata.version().map(|v| v.to_string()),
             etag: metadata.etag().map(|v| v.to_string()),
         };
 
-        // Serialize and insert into cache
-        if let Ok(encoded) = bincode::serialize(&cached) {
-            self.inner
-                .cache
-                .insert(key, FoyerValue(Buffer::from(encoded)));
-        }
+        // Insert into cache
+        self.inner
+            .cache
+            .insert(key, FoyerValue::ChunkMetadata(cached.clone()));
 
         Ok(cached)
     }
@@ -183,7 +170,9 @@ impl<A: Access> ChunkedReader<A> {
 
         // Try cache first
         if let Ok(Some(entry)) = self.inner.cache.get(&key).await {
-            return Ok(entry.value().0.clone());
+            if let FoyerValue::Buffer(cached) = entry.value() {
+                return Ok(cached.0.clone());
+            }
         }
 
         // Cache miss - fetch from backend
@@ -199,7 +188,9 @@ impl<A: Access> ChunkedReader<A> {
         let buffer = reader.read_all().await?;
 
         // Insert into cache
-        self.inner.cache.insert(key, FoyerValue(buffer.clone()));
+        self.inner
+            .cache
+            .insert(key, FoyerValue::Buffer(CachedBuffer(buffer.clone())));
 
         Ok(buffer)
     }

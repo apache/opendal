@@ -23,11 +23,11 @@ mod writer;
 
 use std::{
     future::Future,
-    ops::{Bound, Deref, Range, RangeBounds},
+    ops::{Bound, Range, RangeBounds},
     sync::Arc,
 };
 
-use foyer::{Code, CodeError, HybridCache};
+use foyer::HybridCache;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -71,41 +71,45 @@ pub enum FoyerKey {
     },
 }
 
-/// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
-#[derive(Debug)]
-pub struct FoyerValue(pub Buffer);
+/// [`FoyerValue`] is a value type for the foyer cache that can store either
+/// a raw buffer or cached metadata.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum FoyerValue {
+    /// Raw buffer data (used for full objects and chunks)
+    Buffer(CachedBuffer),
+    /// Cached metadata for chunked mode
+    ChunkMetadata(CachedChunkMetadata),
+}
 
-impl Deref for FoyerValue {
-    type Target = Buffer;
+/// A serializable wrapper around [`Buffer`].
+#[derive(Debug, Clone)]
+pub struct CachedBuffer(pub Buffer);
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl serde::Serialize for CachedBuffer {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serde::Serialize::serialize(&self.0.to_vec(), serializer)
     }
 }
 
-impl Code for FoyerValue {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
-        let len = self.0.len() as u64;
-        writer.write_all(&len.to_le_bytes())?;
-        std::io::copy(&mut self.0.clone(), writer)?;
-        Ok(())
-    }
-
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+impl<'de> serde::Deserialize<'de> for CachedBuffer {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        Self: Sized,
+        D: serde::Deserializer<'de>,
     {
-        let mut len_bytes = [0u8; 8];
-        reader.read_exact(&mut len_bytes)?;
-        let len = u64::from_le_bytes(len_bytes) as usize;
-        let mut buffer = vec![0u8; len];
-        reader.read_exact(&mut buffer[..len])?;
-        Ok(FoyerValue(buffer.into()))
+        let vec = Vec::<u8>::deserialize(deserializer)?;
+        Ok(CachedBuffer(Buffer::from(vec)))
     }
+}
 
-    fn estimated_size(&self) -> usize {
-        8 + self.0.len()
-    }
+/// Cached metadata for an object in chunked mode.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CachedChunkMetadata {
+    pub content_length: u64,
+    pub version: Option<String>,
+    pub etag: Option<String>,
 }
 
 /// Hybrid cache layer for OpenDAL that uses [foyer](https://github.com/foyer-rs/foyer) for caching.
@@ -305,8 +309,8 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder, LargeEngineOptions,
-        RecoverMode,
+        Code, DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder,
+        LargeEngineOptions, RecoverMode,
     };
     use opendal_core::{Operator, services::Memory};
     use size::consts::MiB;

@@ -23,6 +23,7 @@ use opendal_core::Result;
 use opendal_core::raw::Access;
 use opendal_core::raw::oio;
 
+use crate::CachedBuffer;
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
@@ -78,7 +79,7 @@ impl<A: Access> oio::Write for Writer<A> {
                     path: self.path.clone(),
                     version: metadata.version().map(|v| v.to_string()),
                 },
-                FoyerValue(buffer),
+                FoyerValue::Buffer(CachedBuffer(buffer)),
             );
         }
         Ok(metadata)

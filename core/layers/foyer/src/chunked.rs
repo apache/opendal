@@ -96,7 +96,6 @@ impl<A: Access> ChunkedReader<A> {
             .with_range(range_start, range_end.saturating_sub(1))
             .with_size(object_size);
 
-        // Use non-contiguous buffer to avoid memory copy.
         // Buffer implements Iterator<Item = Bytes>, so flatten() extracts all Bytes chunks,
         // then collect() uses FromIterator<Bytes> to create a non-contiguous Buffer.
         let buffer: Buffer = result_bufs.into_iter().flatten().collect();
@@ -207,42 +206,6 @@ struct ChunkInfo {
     length_in_chunk: usize,
 }
 
-/// Align a range to chunk boundaries.
-///
-/// Returns the aligned (start, end) positions that cover the original range.
-/// The end position is exclusive.
-///
-/// # Arguments
-/// * `range_start` - Start of the requested range
-/// * `range_end` - End of the requested range (exclusive)
-/// * `chunk_size` - Size of each chunk
-/// * `object_size` - Total size of the object
-///
-/// # Returns
-/// (aligned_start, aligned_end) - Both aligned to chunk boundaries, clamped to object_size
-#[allow(dead_code)]
-fn align_range(
-    range_start: u64,
-    range_end: u64,
-    chunk_size: usize,
-    object_size: u64,
-) -> (u64, u64) {
-    let chunk_size = chunk_size as u64;
-
-    // Align start down to chunk boundary
-    let aligned_start = (range_start / chunk_size) * chunk_size;
-
-    // Align end up to chunk boundary, but don't exceed object size
-    let aligned_end = if range_end == 0 {
-        0
-    } else {
-        let chunks_needed = range_end.div_ceil(chunk_size);
-        (chunks_needed * chunk_size).min(object_size)
-    };
-
-    (aligned_start, aligned_end)
-}
-
 /// Split a range into individual chunk read operations.
 ///
 /// # Arguments
@@ -302,50 +265,6 @@ fn split_range_into_chunks(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_align_range_basic() {
-        // Range within a single chunk
-        let (start, end) = align_range(100, 200, 1024, 4096);
-        assert_eq!(start, 0);
-        assert_eq!(end, 1024);
-
-        // Range spanning multiple chunks
-        let (start, end) = align_range(1000, 3000, 1024, 4096);
-        assert_eq!(start, 0);
-        assert_eq!(end, 3072);
-    }
-
-    #[test]
-    fn test_align_range_at_boundaries() {
-        // Start at chunk boundary
-        let (start, end) = align_range(1024, 2000, 1024, 4096);
-        assert_eq!(start, 1024);
-        assert_eq!(end, 2048);
-
-        // End at chunk boundary
-        let (start, end) = align_range(100, 2048, 1024, 4096);
-        assert_eq!(start, 0);
-        assert_eq!(end, 2048);
-
-        // Both at boundaries
-        let (start, end) = align_range(1024, 2048, 1024, 4096);
-        assert_eq!(start, 1024);
-        assert_eq!(end, 2048);
-    }
-
-    #[test]
-    fn test_align_range_clamp_to_object_size() {
-        // Range extends beyond object
-        let (start, end) = align_range(3000, 5000, 1024, 4096);
-        assert_eq!(start, 2048);
-        assert_eq!(end, 4096);
-
-        // Object smaller than chunk
-        let (start, end) = align_range(0, 500, 1024, 500);
-        assert_eq!(start, 0);
-        assert_eq!(end, 500);
-    }
 
     #[test]
     fn test_split_range_single_chunk() {

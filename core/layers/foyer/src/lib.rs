@@ -674,11 +674,7 @@ mod tests {
         assert_eq!(read3.to_vec(), data[4500..5000]);
 
         // Read to end (no explicit end)
-        let read4 = op
-            .read_with("range_test.bin")
-            .range(4000..)
-            .await
-            .unwrap();
+        let read4 = op.read_with("range_test.bin").range(4000..).await.unwrap();
         assert_eq!(read4.to_vec(), data[4000..]);
     }
 

@@ -123,7 +123,7 @@ impl<A: Access> FullReader<A> {
                     return Ok((rp, sliced));
                 }
                 _ => {
-                    // fallback to underlying accessor if cached value missmatch, this should not
+                    // fallback to underlying accessor if cached value mismatch, this should not
                     // happen, but if it does, let's simply regard it as a cache miss and fetch the
                     // data again.
                 }

@@ -112,34 +112,54 @@ impl<A: Access> FullReader<A> {
 
         // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
         // we'll simply forward the request to the underlying accessor with user's given range.
-        let buffer = match result {
+        match result {
             Ok(entry) => match entry.value() {
-                FoyerValue::Buffer(cached) => cached.0.clone(),
+                FoyerValue::Buffer(cached) => {
+                    let full_buffer = cached.0.clone();
+                    let full_size = full_buffer.len() as u64;
+                    let end = range_end.unwrap_or(full_size);
+                    let sliced = full_buffer.slice(range_start as usize..end as usize);
+                    let rp = make_rp_read(range_start, sliced.len() as u64, Some(full_size));
+                    return Ok((rp, sliced));
+                }
                 _ => {
-                    // fallback to underlying accessor if cache miss
-                    let (_, mut reader) =
-                        self.inner.accessor.read(path, original_args).await?;
-                    reader.read_all().await?
+                    // fallback to underlying accessor if cached value missmatch, this should not
+                    // happen, but if it does, let's simply regard it as a cache miss and fetch the
+                    // data again.
                 }
             },
             Err(e) => match e.downcast::<FetchSizeTooLarge>() {
                 Ok(_) => {
                     // fallback to underlying accessor if object size is too big
-                    let (_, mut reader) = self.inner.accessor.read(path, original_args).await?;
-                    reader.read_all().await?
                 }
                 Err(e) => return Err(extract_err(e)),
             },
         };
 
-        let end = range_end.unwrap_or(buffer.len() as u64);
-        let range = BytesContentRange::default()
-            .with_range(range_start, end - 1)
-            .with_size(buffer.len() as _);
-        let sliced = buffer.slice(range_start as usize..end as usize);
-        let rp = RpRead::new()
-            .with_size(Some(sliced.len() as _))
-            .with_range(Some(range));
-        Ok((rp, sliced))
+        let (_, mut reader) = self.inner.accessor.read(path, original_args).await?;
+        let buffer = reader.read_all().await?;
+        let rp = make_rp_read(range_start, buffer.len() as u64, None);
+        Ok((rp, buffer))
     }
+}
+
+/// Build RpRead with range information.
+///
+/// - `range_start`: Start offset of the returned data
+/// - `buffer_len`: Length of the returned buffer
+/// - `total_size`: Total object size if known (for cache hit), None for fallback path
+fn make_rp_read(range_start: u64, buffer_len: u64, total_size: Option<u64>) -> RpRead {
+    if buffer_len == 0 {
+        return RpRead::new().with_size(Some(0));
+    }
+
+    let range_end = range_start + buffer_len - 1;
+    let mut range = BytesContentRange::default().with_range(range_start, range_end);
+    if let Some(size) = total_size {
+        range = range.with_size(size);
+    }
+
+    RpRead::new()
+        .with_size(Some(buffer_len))
+        .with_range(Some(range))
 }

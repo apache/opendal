@@ -446,6 +446,272 @@ mod tests {
         assert_eq!(read_small_range.to_vec(), small_data[0..1024]);
     }
 
+    #[tokio::test]
+    async fn test_full_fetch_size_too_large_fallback() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        // Size limit: 1KB to 5KB - files outside this range trigger FetchSizeTooLarge
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..5 * 1024))
+            .finish();
+
+        // Large file exceeding upper limit
+        let large_data: Vec<u8> = (0..10 * 1024).map(|i| (i % 256) as u8).collect();
+        op.write("large.bin", large_data.clone()).await.unwrap();
+
+        // Full read should work via FetchSizeTooLarge fallback
+        let read_full = op.read("large.bin").await.unwrap();
+        assert_eq!(read_full.len(), large_data.len());
+        assert_eq!(read_full.to_vec(), large_data);
+
+        // Range read on large file should also work
+        let read_range = op.read_with("large.bin").range(1000..5000).await.unwrap();
+        assert_eq!(read_range.len(), 4000);
+        assert_eq!(read_range.to_vec(), large_data[1000..5000]);
+
+        // Verify cache was NOT populated for large file
+        let key = FoyerKey::Full {
+            path: "large.bin".to_string(),
+            version: None,
+        };
+        let cached = cache.get(&key).await;
+        assert!(
+            cached.is_err() || cached.unwrap().is_none(),
+            "large file should not be cached"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_full_below_minimum_size_limit() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        // Size limit: 1KB to 10KB - files smaller than 1KB trigger FetchSizeTooLarge
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..10 * 1024))
+            .finish();
+
+        // Tiny file below minimum limit
+        let tiny_data = vec![42u8; 500];
+        op.write("tiny.bin", tiny_data.clone()).await.unwrap();
+
+        // Should still be readable via fallback
+        let read_data = op.read("tiny.bin").await.unwrap();
+        assert_eq!(read_data.to_vec(), tiny_data);
+
+        // Range read should also work
+        let read_range = op.read_with("tiny.bin").range(100..300).await.unwrap();
+        assert_eq!(read_range.len(), 200);
+        assert_eq!(read_range.to_vec(), tiny_data[100..300]);
+
+        // Verify cache was NOT populated
+        let key = FoyerKey::Full {
+            path: "tiny.bin".to_string(),
+            version: None,
+        };
+        let cached = cache.get(&key).await;
+        assert!(
+            cached.is_err() || cached.unwrap().is_none(),
+            "tiny file should not be cached"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_full_at_size_limit_boundaries() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        // Size limit: exactly 1024..2048 (1KB to 2KB exclusive)
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..2048))
+            .finish();
+
+        // File at exactly lower bound (1024 bytes) - should be cached
+        let at_lower = vec![1u8; 1024];
+        op.write("at_lower.bin", at_lower.clone()).await.unwrap();
+        let read = op.read("at_lower.bin").await.unwrap();
+        assert_eq!(read.to_vec(), at_lower);
+
+        // File just below lower bound (1023 bytes) - should NOT be cached
+        let below_lower = vec![2u8; 1023];
+        op.write("below_lower.bin", below_lower.clone())
+            .await
+            .unwrap();
+        let read = op.read("below_lower.bin").await.unwrap();
+        assert_eq!(read.to_vec(), below_lower);
+
+        // File just below upper bound (2047 bytes) - should be cached
+        let below_upper = vec![3u8; 2047];
+        op.write("below_upper.bin", below_upper.clone())
+            .await
+            .unwrap();
+        let read = op.read("below_upper.bin").await.unwrap();
+        assert_eq!(read.to_vec(), below_upper);
+
+        // File at exactly upper bound (2048 bytes) - should NOT be cached (exclusive)
+        let at_upper = vec![4u8; 2048];
+        op.write("at_upper.bin", at_upper.clone()).await.unwrap();
+        let read = op.read("at_upper.bin").await.unwrap();
+        assert_eq!(read.to_vec(), at_upper);
+
+        // Verify caching behavior
+        let key_at_lower = FoyerKey::Full {
+            path: "at_lower.bin".to_string(),
+            version: None,
+        };
+        let key_below_lower = FoyerKey::Full {
+            path: "below_lower.bin".to_string(),
+            version: None,
+        };
+        let key_below_upper = FoyerKey::Full {
+            path: "below_upper.bin".to_string(),
+            version: None,
+        };
+        let key_at_upper = FoyerKey::Full {
+            path: "at_upper.bin".to_string(),
+            version: None,
+        };
+
+        // at_lower and below_upper should be cached
+        assert!(cache.get(&key_at_lower).await.unwrap().is_some());
+        assert!(cache.get(&key_below_upper).await.unwrap().is_some());
+
+        // below_lower and at_upper should NOT be cached
+        let cached = cache.get(&key_below_lower).await;
+        assert!(cached.is_err() || cached.unwrap().is_none());
+        let cached = cache.get(&key_at_upper).await;
+        assert!(cached.is_err() || cached.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_full_range_read_from_cache() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()))
+            .finish();
+
+        let data: Vec<u8> = (0..5000).map(|i| (i % 256) as u8).collect();
+        op.write("range_test.bin", data.clone()).await.unwrap();
+
+        // First read populates cache
+        let _ = op.read("range_test.bin").await.unwrap();
+
+        // Various range reads from cache
+        let read1 = op.read_with("range_test.bin").range(0..100).await.unwrap();
+        assert_eq!(read1.to_vec(), data[0..100]);
+
+        let read2 = op
+            .read_with("range_test.bin")
+            .range(1000..2000)
+            .await
+            .unwrap();
+        assert_eq!(read2.to_vec(), data[1000..2000]);
+
+        let read3 = op
+            .read_with("range_test.bin")
+            .range(4500..5000)
+            .await
+            .unwrap();
+        assert_eq!(read3.to_vec(), data[4500..5000]);
+
+        // Read to end (no explicit end)
+        let read4 = op
+            .read_with("range_test.bin")
+            .range(4000..)
+            .await
+            .unwrap();
+        assert_eq!(read4.to_vec(), data[4000..]);
+    }
+
+    #[tokio::test]
+    async fn test_full_empty_file() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let cache = HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage(Engine::Large(LargeEngineOptions::new()))
+            .with_device_options(
+                DirectFsDeviceOptions::new(dir.path())
+                    .with_capacity(16 * MiB as usize)
+                    .with_file_size(MiB as usize),
+            )
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap();
+
+        // Size limit starting from 0 to include empty files
+        let op = Operator::new(Memory::default())
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(0..1024))
+            .finish();
+
+        op.write("empty.bin", Vec::<u8>::new()).await.unwrap();
+
+        let read = op.read("empty.bin").await.unwrap();
+        assert_eq!(read.len(), 0);
+    }
+
     #[test]
     fn test_error() {
         let e = Error::new(ErrorKind::NotFound, "not found");

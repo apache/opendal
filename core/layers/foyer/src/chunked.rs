@@ -107,12 +107,10 @@ impl<A: Access> ChunkedReader<A> {
             .with_range(range_start, range_end.saturating_sub(1))
             .with_size(object_size);
 
-        // TODO: use non-contiguous buffer
-        let buffer: Buffer = result_bufs
-            .into_iter()
-            .flat_map(|b| b.to_bytes())
-            .collect::<Vec<_>>()
-            .into();
+        // Use non-contiguous buffer to avoid memory copy.
+        // Buffer implements Iterator<Item = Bytes>, so flatten() extracts all Bytes chunks,
+        // then collect() uses FromIterator<Bytes> to create a non-contiguous Buffer.
+        let buffer: Buffer = result_bufs.into_iter().flatten().collect();
 
         let rp = RpRead::new()
             .with_size(Some(buffer.len() as u64))

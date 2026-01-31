@@ -84,6 +84,10 @@ pub struct AzblobConfig {
     /// Skip signature will skip loading credentials and signing requests.
     #[serde(default)]
     pub skip_signature: bool,
+
+    /// Enable soft deletes for this storage account.
+    #[serde(default)]
+    pub enable_soft_deletes: bool,
 }
 
 impl Debug for AzblobConfig {
@@ -92,6 +96,7 @@ impl Debug for AzblobConfig {
             .field("root", &self.root)
             .field("container", &self.container)
             .field("endpoint", &self.endpoint)
+            .field("enable_soft_deletes", &self.enable_soft_deletes)
             .finish_non_exhaustive()
     }
 }

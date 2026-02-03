@@ -36,10 +36,10 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, features = [
-  "services-aliyun",
-  "reqwest_request",
-] }
+reqsign-aliyun-oss = { version = "2.0.2", default-features = false }
+reqsign-core = { version = "2.0.1", default-features = false }
+reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
+reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

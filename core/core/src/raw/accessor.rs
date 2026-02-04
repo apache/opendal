@@ -177,6 +177,28 @@ pub trait Access: Send + Sync + Debug + Unpin + 'static {
         )))
     }
 
+    /// Invoke the `undelete` operation on the specified path to restore a soft-deleted object.
+    ///
+    /// Require [`Capability::undelete`]
+    ///
+    /// # Behavior
+    ///
+    /// - `undelete` restores a soft-deleted object to its active state.
+    /// - `undelete` SHOULD return `Ok(())` if the path is restored successfully.
+    /// - `undelete` SHOULD return error if the path is not soft-deleted or doesn't exist.
+    fn undelete(
+        &self,
+        path: &str,
+        args: OpUndelete,
+    ) -> impl Future<Output = Result<RpUndelete>> + MaybeSend {
+        let (_, _) = (path, args);
+
+        ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
+    }
+
     /// Invoke the `list` operation on the specified path.
     ///
     /// Require [`Capability::list`]
@@ -286,6 +308,12 @@ pub trait AccessDyn: Send + Sync + Debug + Unpin {
     ) -> BoxedFuture<'a, Result<(RpWrite, oio::Writer)>>;
     /// Dyn version of [`Accessor::delete`]
     fn delete_dyn(&self) -> BoxedFuture<'_, Result<(RpDelete, oio::Deleter)>>;
+    /// Dyn version of [`Accessor::undelete`]
+    fn undelete_dyn<'a>(
+        &'a self,
+        path: &'a str,
+        args: OpUndelete,
+    ) -> BoxedFuture<'a, Result<RpUndelete>>;
     /// Dyn version of [`Accessor::list`]
     fn list_dyn<'a>(
         &'a self,
@@ -359,6 +387,14 @@ where
         Box::pin(self.delete())
     }
 
+    fn undelete_dyn<'a>(
+        &'a self,
+        path: &'a str,
+        args: OpUndelete,
+    ) -> BoxedFuture<'a, Result<RpUndelete>> {
+        Box::pin(self.undelete(path, args))
+    }
+
     fn list_dyn<'a>(
         &'a self,
         path: &'a str,
@@ -422,6 +458,10 @@ impl Access for dyn AccessDyn {
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.delete_dyn().await
+    }
+
+    async fn undelete(&self, path: &str, args: OpUndelete) -> Result<RpUndelete> {
+        self.undelete_dyn(path, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -503,6 +543,14 @@ impl<T: Access + ?Sized> Access for Arc<T> {
 
     fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
         async move { self.as_ref().delete().await }
+    }
+
+    fn undelete(
+        &self,
+        path: &str,
+        args: OpUndelete,
+    ) -> impl Future<Output = Result<RpUndelete>> + MaybeSend {
+        async move { self.as_ref().undelete(path, args).await }
     }
 
     fn list(

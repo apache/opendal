@@ -340,6 +340,15 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
+    async fn undelete(&self, path: &str, args: OpUndelete) -> Result<RpUndelete> {
+        { || self.inner.undelete(path, args.clone()) }
+            .retry(self.builder)
+            .when(|e| e.is_temporary())
+            .notify(|err, dur| self.notify.intercept(err, dur))
+            .await
+            .map_err(|e| e.set_persistent())
+    }
+
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
         { || self.inner.copy(from, to, args.clone()) }
             .retry(self.builder)

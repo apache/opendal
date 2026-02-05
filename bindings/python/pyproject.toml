@@ -46,9 +46,8 @@ benchmark = [
   "greenlet>=3.1.1",
   "pydantic>=2.10.6",
 ]
-dev = ["maturin>=1.8.2"]
+dev = ["maturin>=1.9.4,<2.0", "ruff>=0.9.10", "ty>=0.0.15"]
 docs = ["mkdocs", "mkdocs-material", "mkdocstrings[python]", "mkdocs-jupyter"]
-lint = ["ruff>=0.9.10"]
 test = [
   "pytest>=8.3.5",
   "pytest-asyncio>=0.25.3",
@@ -57,10 +56,8 @@ test = [
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
 module-name = "opendal._opendal"
 python-source = "python"
-strip = true
 
 [tool.uv]
 cache-keys = [

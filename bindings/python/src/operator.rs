@@ -57,8 +57,8 @@ fn normalize_scheme(raw: &str) -> String {
 /// --------
 /// AsyncOperator
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.operator")]
-pub struct Operator {
+#[pyclass(module = "opendal.operator", name = "Operator")]
+pub struct PyOperator {
     core: ocore::blocking::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
@@ -66,12 +66,12 @@ pub struct Operator {
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl Operator {
+impl PyOperator {
     /// Create a new blocking `Operator`.
     ///
     /// Parameters
     /// ----------
-    /// scheme : str | opendal.services.Scheme
+    /// scheme : str
     ///     The scheme of the service.
     /// **kwargs : dict
     ///     The options for the service.
@@ -80,24 +80,11 @@ impl Operator {
     /// -------
     /// Operator
     ///     The new operator.
-    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, *, **kwargs))]
-    pub fn new(
-        #[gen_stub(override_type(type_repr = "builtins.str | opendal.services.Scheme", imports=("builtins", "opendal.services")))]
-        scheme: Bound<PyAny>,
-        kwargs: Option<&Bound<PyDict>>,
-    ) -> PyResult<Self> {
-        let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
-            scheme_str.to_string()
-        } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
-            String::from(py_scheme)
-        } else {
-            return Err(Unsupported::new_err(
-                "Invalid type for scheme, expected str or Scheme",
-            ));
-        };
-        let scheme = normalize_scheme(&scheme);
+    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+        let scheme = normalize_scheme(scheme);
+
         let map = kwargs
             .map(|v| {
                 v.extract::<HashMap<String, String>>()
@@ -105,7 +92,7 @@ impl Operator {
             })
             .unwrap_or_default();
 
-        Ok(Operator {
+        Ok(PyOperator {
             core: build_blocking_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
@@ -123,7 +110,11 @@ impl Operator {
     /// -------
     /// Operator
     ///     A new operator with the layer added.
-    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+    pub fn layer(
+        &self,
+        #[gen_stub(override_type(type_repr = "opendal.layers.Layer", imports=("opendal")))]
+        layer: &layers::Layer,
+    ) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
         let runtime = pyo3_async_runtimes::tokio::get_runtime();
@@ -153,6 +144,10 @@ impl Operator {
     /// -------
     /// File
     ///     A file-like object.
+    #[gen_stub(override_return_type(
+        type_repr="opendal.file.File",
+        imports=("opendal")
+    ))]
     #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open(
         &self,
@@ -264,9 +259,9 @@ impl Operator {
         size: Option<usize>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -409,6 +404,10 @@ impl Operator {
     /// Metadata
     ///     The metadata of the file.
     #[allow(clippy::too_many_arguments)]
+    #[gen_stub(override_return_type(
+        type_repr="opendal.types.Metadata",
+        imports=("opendal")
+    ))]
     #[pyo3(signature = (path, *,
         version=None,
         if_match=None,
@@ -424,9 +423,9 @@ impl Operator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -484,6 +483,8 @@ impl Operator {
     /// path : str
     ///     The path to remove.
     pub fn remove_all(&self, path: PathBuf) -> PyResult<()> {
+        // TODO: change signature for delete options
+
         use ocore::options::DeleteOptions;
         let path = path.to_string_lossy().to_string();
         self.core
@@ -567,7 +568,7 @@ impl Operator {
     ///     An iterator over the entries in the directory.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Iterable[opendal.types.Entry]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     #[pyo3(signature = (path, *,
         limit=None,
@@ -603,10 +604,6 @@ impl Operator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
-    ///
     /// Parameters
     /// ----------
     /// path : str
@@ -626,13 +623,14 @@ impl Operator {
     ///     An iterator over the entries in the directory.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Iterable[opendal.types.Entry]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     #[pyo3(signature = (path, *,
         limit=None,
         start_after=None,
         versions=None,
         deleted=None))]
+    #[deprecated(note = "Use `list()` with `recursive=True` instead")]
     pub fn scan(
         &self,
         path: PathBuf,
@@ -650,6 +648,10 @@ impl Operator {
     /// -------
     /// Capability
     ///     The capability of the operator.
+    #[gen_stub(override_return_type(
+        type_repr="opendal.capability.Capability",
+        imports=("opendal")
+    ))]
     pub fn capability(&self) -> PyResult<capability::PyCapability> {
         Ok(capability::PyCapability::new(
             self.core.info().full_capability(),
@@ -672,8 +674,8 @@ impl Operator {
     /// -------
     /// AsyncOperator
     ///     The async operator.
-    pub fn to_async_operator(&self) -> PyResult<AsyncOperator> {
-        Ok(AsyncOperator {
+    pub fn to_async_operator(&self) -> PyResult<PyAsyncOperator> {
+        Ok(PyAsyncOperator {
             core: self.core.clone().into(),
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),
@@ -711,8 +713,8 @@ impl Operator {
 /// --------
 /// Operator
 #[gen_stub_pyclass]
-#[pyclass(module = "opendal.operator")]
-pub struct AsyncOperator {
+#[pyclass(module = "opendal.operator", name = "AsyncOperator")]
+pub struct PyAsyncOperator {
     core: ocore::Operator,
     __scheme: String,
     __map: HashMap<String, String>,
@@ -720,12 +722,12 @@ pub struct AsyncOperator {
 
 #[gen_stub_pymethods]
 #[pymethods]
-impl AsyncOperator {
+impl PyAsyncOperator {
     /// Create a new `AsyncOperator`.
     ///
     /// Parameters
     /// ----------
-    /// scheme : str | opendal.services.Scheme
+    /// scheme : str
     ///     The scheme of the service.
     /// **kwargs : dict
     ///     The options for the service.
@@ -734,24 +736,10 @@ impl AsyncOperator {
     /// -------
     /// AsyncOperator
     ///     The new async operator.
-    #[gen_stub(skip)]
     #[new]
     #[pyo3(signature = (scheme, * ,**kwargs))]
-    pub fn new(
-        #[gen_stub(override_type(type_repr = "builtins.str | opendal.services.Scheme", imports=("builtins", "opendal.services")))]
-        scheme: Bound<PyAny>,
-        kwargs: Option<&Bound<PyDict>>,
-    ) -> PyResult<Self> {
-        let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
-            scheme_str.to_string()
-        } else if let Ok(py_scheme) = scheme.extract::<PyScheme>() {
-            String::from(py_scheme)
-        } else {
-            return Err(Unsupported::new_err(
-                "Invalid type for scheme, expected str or Scheme",
-            ));
-        };
-        let scheme = normalize_scheme(&scheme);
+    pub fn new(scheme: &str, kwargs: Option<&Bound<PyDict>>) -> PyResult<Self> {
+        let scheme = normalize_scheme(scheme);
 
         let map = kwargs
             .map(|v| {
@@ -760,7 +748,7 @@ impl AsyncOperator {
             })
             .unwrap_or_default();
 
-        Ok(AsyncOperator {
+        Ok(PyAsyncOperator {
             core: build_operator(&scheme, map.clone())?,
             __scheme: scheme,
             __map: map,
@@ -778,7 +766,11 @@ impl AsyncOperator {
     /// -------
     /// AsyncOperator
     ///     A new operator with the layer added.
-    pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
+    pub fn layer(
+        &self,
+        #[gen_stub(override_type(type_repr = "opendal.layers.Layer", imports=("opendal")))]
+        layer: &layers::Layer,
+    ) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone());
         Ok(Self {
             core: op,
@@ -806,7 +798,7 @@ impl AsyncOperator {
     ///     An awaitable that returns a file-like object.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.file.AsyncFile]",
-        imports=("collections.abc", "opendal.file")
+        imports=("collections.abc", "opendal")
     ))]
     #[pyo3(signature = (path, mode, *, **kwargs))]
     pub fn open<'p>(
@@ -929,9 +921,9 @@ impl AsyncOperator {
         size: Option<usize>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -1096,8 +1088,8 @@ impl AsyncOperator {
     ///     An awaitable that returns the metadata of the file.
     #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
-        type_repr="collections.abc.Awaitable[Metadata]",
-        imports=("collections.abc")
+        type_repr="collections.abc.Awaitable[opendal.types.Metadata]",
+        imports=("collections.abc", "opendal")
     ))]
     #[pyo3(signature = (path, *,
         version=None,
@@ -1115,9 +1107,9 @@ impl AsyncOperator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -1359,7 +1351,7 @@ impl AsyncOperator {
     #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     #[pyo3(signature = (path, *,
         limit=None,
@@ -1400,10 +1392,6 @@ impl AsyncOperator {
 
     /// Recursively list entries in the given directory.
     ///
-    /// Deprecated
-    /// ----------
-    ///     Use `list()` with `recursive=True` instead.
-    ///
     /// Parameters
     /// ----------
     /// path : str
@@ -1423,14 +1411,14 @@ impl AsyncOperator {
     ///     An awaitable that returns an async iterator over the entries.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[collections.abc.AsyncIterable[opendal.types.Entry]]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
-    #[gen_stub(skip)]
     #[pyo3(signature = (path, *,
         limit=None,
         start_after=None,
         versions=None,
         deleted=None))]
+    #[deprecated(note = "Use `list()` with `recursive=True` instead")]
     pub fn scan<'p>(
         &'p self,
         py: Python<'p>,
@@ -1458,7 +1446,7 @@ impl AsyncOperator {
     ///     An awaitable that returns a presigned request object.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     pub fn presign_stat<'p>(
         &'p self,
@@ -1494,7 +1482,7 @@ impl AsyncOperator {
     ///     An awaitable that returns a presigned request object.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     pub fn presign_read<'p>(
         &'p self,
@@ -1530,7 +1518,7 @@ impl AsyncOperator {
     ///     An awaitable that returns a presigned request object.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     pub fn presign_write<'p>(
         &'p self,
@@ -1566,7 +1554,7 @@ impl AsyncOperator {
     ///     An awaitable that returns a presigned request object.
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
-        imports=("collections.abc", "opendal.types")
+        imports=("collections.abc", "opendal")
     ))]
     pub fn presign_delete<'p>(
         &'p self,
@@ -1593,6 +1581,10 @@ impl AsyncOperator {
     /// -------
     /// Capability
     ///     The capability of the operator.
+    #[gen_stub(override_return_type(
+        type_repr="opendal.capability.Capability",
+        imports=("opendal")
+    ))]
     pub fn capability(&self) -> PyResult<PyCapability> {
         Ok(capability::PyCapability::new(
             self.core.info().full_capability(),
@@ -1605,12 +1597,12 @@ impl AsyncOperator {
     /// -------
     /// Operator
     ///     The blocking operator.
-    pub fn to_operator(&self) -> PyResult<Operator> {
+    pub fn to_operator(&self) -> PyResult<PyOperator> {
         let runtime = pyo3_async_runtimes::tokio::get_runtime();
         let _guard = runtime.enter();
         let op = ocore::blocking::Operator::new(self.core.clone()).map_err(format_pyerr)?;
 
-        Ok(Operator {
+        Ok(PyOperator {
             core: op,
             __scheme: self.__scheme.clone(),
             __map: self.__map.clone(),

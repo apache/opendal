@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ruff: noqa: D104
-import builtins
+# ruff: noqa: D104, F405, F403
 
 from opendal._core import *  # ty: ignore
 from opendal.operator import AsyncOperator, Operator

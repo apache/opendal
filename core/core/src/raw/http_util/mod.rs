@@ -23,12 +23,14 @@
 //! it easier to develop services and layers outside opendal.
 
 mod client;
-/// temporary client used by several features
-#[allow(unused_imports)]
-pub use client::GLOBAL_REQWEST_CLIENT;
 pub use client::HttpClient;
 pub use client::HttpFetch;
 pub use client::HttpFetcher;
+
+#[cfg(feature = "http-client-reqwest")]
+pub(crate) mod reqwest_impl;
+#[cfg(feature = "http-client-reqwest")]
+pub use self::reqwest_impl::GLOBAL_REQWEST_CLIENT;
 
 mod body;
 pub use body::HttpBody;

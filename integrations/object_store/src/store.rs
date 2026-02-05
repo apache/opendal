@@ -29,7 +29,6 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use mea::mutex::Mutex;
 use mea::oneshot;
-use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
@@ -41,6 +40,7 @@ use object_store::path::Path;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
+use object_store::{ListResult, RenameOptions};
 use opendal::Buffer;
 use opendal::Writer;
 use opendal::options::CopyOptions;
@@ -225,23 +225,6 @@ impl ObjectStore for OpendalStore {
         let version = rp.version().map(|s| s.to_string());
 
         Ok(PutResult { e_tag, version })
-    }
-
-    async fn put_multipart(
-        &self,
-        location: &Path,
-    ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        let writer = self
-            .inner
-            .writer_with(&decoded_location)
-            .concurrent(8)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-        let upload = OpendalMultipartUpload::new(writer, location.clone());
-
-        Ok(Box::new(upload))
     }
 
     async fn put_multipart_opts(
@@ -430,15 +413,27 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn delete(&self, location: &Path) -> object_store::Result<()> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        self.inner
-            .delete(&decoded_location)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        Ok(())
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<Path>>,
+    ) -> BoxStream<'static, object_store::Result<Path>> {
+        // TODO: use batch delete to optimize performance
+        let client = self.inner.clone();
+        locations
+            .then(move |location| {
+                let client = client.clone();
+                async move {
+                    let location = location?;
+                    let decoded_location = percent_decode_path(location.as_ref());
+                    client
+                        .delete(&decoded_location)
+                        .into_send()
+                        .await
+                        .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                    Ok(location)
+                }
+            })
+            .boxed()
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
@@ -576,11 +571,23 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, false).await
+    async fn copy_opts(
+        &self,
+        from: &Path,
+        to: &Path,
+        options: object_store::CopyOptions,
+    ) -> object_store::Result<()> {
+        let if_not_exists = matches!(options.mode, object_store::CopyMode::Create);
+        self.copy_request(from, to, if_not_exists).await
     }
 
-    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
+    async fn rename_opts(
+        &self,
+        from: &Path,
+        to: &Path,
+        // TODO: if we need to support rename options in the future
+        _options: RenameOptions,
+    ) -> object_store::Result<()> {
         self.inner
             .rename(
                 &percent_decode_path(from.as_ref()),
@@ -591,10 +598,6 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, from.as_ref()))?;
 
         Ok(())
-    }
-
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, true).await
     }
 }
 
@@ -691,7 +694,7 @@ impl Debug for OpendalMultipartUpload {
 mod tests {
     use bytes::Bytes;
     use object_store::path::Path;
-    use object_store::{ObjectStore, WriteMultipart};
+    use object_store::{ObjectStore, ObjectStoreExt, WriteMultipart};
     use opendal::services;
     use rand::prelude::*;
     use std::sync::Arc;

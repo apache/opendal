@@ -99,6 +99,19 @@ impl OpDeleter {
     }
 }
 
+/// Args for `undelete` operation.
+///
+/// The path must be normalized.
+#[derive(Debug, Clone, Default)]
+pub struct OpUndelete {}
+
+impl OpUndelete {
+    /// Create a new `OpUndelete`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Args for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpList {

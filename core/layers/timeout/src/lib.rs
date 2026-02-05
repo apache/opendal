@@ -256,6 +256,11 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
+    async fn undelete(&self, path: &str, args: OpUndelete) -> Result<RpUndelete> {
+        self.timeout(Operation::Undelete, self.inner.undelete(path, args))
+            .await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.io_timeout(Operation::List, self.inner.list(path, args))
             .await

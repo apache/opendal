@@ -35,6 +35,7 @@ use md5::Md5;
 use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
+use reqsign_aws_v4::ECSCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
@@ -412,6 +413,69 @@ impl S3Builder {
         self
     }
 
+    /// Set container credentials relative URI for ECS Task IAM roles.
+    ///
+    /// Used in ECS environments where the base metadata endpoint is known.
+    /// The relative URI is appended to the default ECS endpoint (169.254.170.2).
+    ///
+    /// Example: "/v2/credentials/my-role-name"
+    pub fn container_credentials_relative_uri(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_credentials_relative_uri = Some(uri.to_string());
+        }
+        self
+    }
+
+    /// Set container credentials endpoint for EKS Pod Identity, Fargate, or custom setups.
+    ///
+    /// Complete URL for fetching credentials. Used in:
+    /// - EKS Pod Identity environments
+    /// - AWS Fargate environments
+    /// - Custom container credential endpoints
+    ///
+    /// Example: "http://169.254.170.2/v2/credentials/my-role"
+    pub fn container_credentials_endpoint(mut self, endpoint: &str) -> Self {
+        if !endpoint.is_empty() {
+            self.config.container_credentials_endpoint = Some(endpoint.to_string());
+        }
+        self
+    }
+
+    /// Set authorization token for container credentials requests.
+    ///
+    /// Token used for authenticating with the container credentials endpoint.
+    /// This is an alternative to `container_authorization_token_file`.
+    pub fn container_authorization_token(mut self, token: &str) -> Self {
+        if !token.is_empty() {
+            self.config.container_authorization_token = Some(token.to_string());
+        }
+        self
+    }
+
+    /// Set path to file containing authorization token for container credentials.
+    ///
+    /// File should contain the authorization token for authenticating with the
+    /// container credentials endpoint. Required for EKS Pod Identity.
+    ///
+    /// This is an alternative to `container_authorization_token`.
+    pub fn container_authorization_token_file(mut self, file_path: &str) -> Self {
+        if !file_path.is_empty() {
+            self.config.container_authorization_token_file = Some(file_path.to_string());
+        }
+        self
+    }
+
+    /// Set override for the container metadata URI base endpoint.
+    ///
+    /// Used to override the default http://169.254.170.2 endpoint.
+    /// Typically used for testing or custom container credential setups.
+    pub fn container_metadata_uri_override(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_metadata_uri_override = Some(uri.to_string());
+        }
+        self
+    }
+
     /// Disable load credential from ec2 metadata.
     ///
     /// This option is used to disable the default behavior of opendal
@@ -457,6 +521,15 @@ impl S3Builder {
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_providers = Some(chain);
         self
+    }
+
+    /// Check if any ECS container credentials configuration is present.
+    fn has_ecs_config(config: &S3Config) -> bool {
+        config.container_credentials_endpoint.is_some()
+            || config.container_credentials_relative_uri.is_some()
+            || config.container_authorization_token.is_some()
+            || config.container_authorization_token_file.is_some()
+            || config.container_metadata_uri_override.is_some()
     }
 
     /// Check if `bucket` is valid.
@@ -828,6 +901,33 @@ impl Builder for S3Builder {
                 StaticCredentialProvider::new(ak, sk)
             };
             provider = provider.push_front(static_provider);
+        }
+
+        // Insert ECS credential provider if container credentials are configured.
+        if Self::has_ecs_config(&config) {
+            let mut ecs_provider = ECSCredentialProvider::new();
+
+            if let Some(ref endpoint) = config.container_credentials_endpoint {
+                ecs_provider = ecs_provider.with_endpoint(endpoint);
+            }
+
+            if let Some(ref relative_uri) = config.container_credentials_relative_uri {
+                ecs_provider = ecs_provider.with_relative_uri(relative_uri);
+            }
+
+            if let Some(ref token) = config.container_authorization_token {
+                ecs_provider = ecs_provider.with_auth_token(token);
+            }
+
+            if let Some(ref token_file) = config.container_authorization_token_file {
+                ecs_provider = ecs_provider.with_auth_token_file(token_file);
+            }
+
+            if let Some(ref uri_override) = config.container_metadata_uri_override {
+                ecs_provider = ecs_provider.with_metadata_uri_override(uri_override);
+            }
+
+            provider = provider.push_front(ecs_provider);
         }
 
         // Insert assume role provider if user provided.

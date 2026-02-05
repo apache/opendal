@@ -54,7 +54,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     add_pymodule!(py, m, "file", [File, AsyncFile])?;
 
     // Capability module
-    add_pymodule!(py, m, "capability", [Capability])?;
+    add_pymodule!(py, m, "capability", [PyCapability])?;
 
     // Services module
     add_pymodule!(py, m, "services", [PyScheme])?;

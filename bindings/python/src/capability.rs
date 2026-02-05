@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use pyo3::prelude::*;
+use crate::*;
 
 /// Capability defines the supported operations and their constraints for an Operator.
 ///
@@ -25,9 +25,9 @@ use pyo3::prelude::*;
 /// - Basic operations support (read, write, delete, etc.)
 /// - Advanced operation variants (conditional operations, metadata handling)
 /// - Operational constraints (size limits, batch limitations)
-#[crate::gen_stub_pyclass]
-#[pyclass(get_all, module = "opendal.capability")]
-pub struct Capability {
+#[gen_stub_pyclass]
+#[pyclass(get_all, name = "Capability", module = "opendal.capability")]
+pub struct PyCapability {
     /// If operator supports stat.
     pub stat: bool,
     /// If operator supports stat with if match.
@@ -127,8 +127,8 @@ pub struct Capability {
     pub shared: bool,
 }
 
-impl Capability {
-    pub fn new(capability: opendal::Capability) -> Self {
+impl PyCapability {
+    pub fn new(capability: ocore::Capability) -> Self {
         Self {
             stat: capability.stat,
             stat_with_if_match: capability.stat_with_if_match,

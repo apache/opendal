@@ -38,39 +38,42 @@ setup:
 [group('maintenance')]
 clean:
     @echo "{{ BOLD }}--- Cleaning Rust build artifacts (Cargo) ---{{ NORMAL }}"
-    @cargo clean
-    @echo "{{ BOLD }}--- Removing .venv/, build/, dist/ directories, and other caches ---{{ NORMAL }}"
-    @rm -rf .venv/ build/ dist/ .pytest_cache/ .mypy_cache/ .hypothesis/ .ruff_cache/
-    @echo "{{ BOLD }}--- Removing Python bytecode and compiled extensions ---{{ NORMAL }}"
-    @find . -type f -name '*.py[co]' -delete \
-        -o -type d -name __pycache__ -exec rm -rf {} + \
-        -o -type f -name '_opendal*.so' -delete
+    @cargo clean --quiet
+    @echo "{{ BOLD }}--- Removing build directories, other caches, python bytecode and compiled extensions ---{{ NORMAL }}"
+    @find . \
+        \( -type d \( -name __pycache__ -o -name .venv -o -name .build -o -name dist -o -name .pytest_cache -o -name .mypy_cache -o -name .hypothesis -o -name .ruff_cache \) -prune -exec rm -rf {} + \) \
+        -o \
+        \( -type f \( -name '*.py[co]' -o -name '_*.so' \) -delete \)
 
 # ==============================================================================
 # Dev & Build
 # ==============================================================================
 
 # Generate Python type stubs
-[group('build')]
+[group('dev')]
 stub-gen: setup
-    @echo "{{ BOLD }}--- Generating Python type stubs ---{{ NORMAL }}"
-    @cargo run --quiet --manifest-path=../../dev/Cargo.toml -- generate -l python
+    @echo "{{ BOLD }}--- Generating stubs for (opendal) ---{{ NORMAL }}"
     @cargo run --quiet --bin stub_gen
     @echo "{{ BOLD }}--- Formatting and fixing generated stubs ---{{ NORMAL }}"
+    @just _post-gen-cleanup
+
+# Internal: Post-generation cleanup (fix linting and formatting)
+[private]
+_post-gen-cleanup:
     -@bash -c 'shopt -s globstar; uv run ruff check **/*.pyi --fix --unsafe-fixes --silent || true'
     @just fmt
 
 # Compile and produce a release wheel with optimizations
 [group('release')]
 build-release *args: stub-gen
-    @echo "{{ BOLD }}--- Building release wheel ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Building release wheel (opendal) ---{{ NORMAL }}"
     @uv run maturin build -m ./Cargo.toml --profile release --strip --release --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the release wheel in the current venv
 [group('release')]
 install-release *args: stub-gen
-    @echo "{{ BOLD }}--- Installing release wheel ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Installing release wheel (opendal) ---{{ NORMAL }}"
     @uv run maturin develop -m ./Cargo.toml --profile release --strip --release {{ args }}
 
 # Build and install the release wheel in the current venv
@@ -84,20 +87,20 @@ bench: install-release
 # Build only a source distribution (sdist) without compiling
 [group('release')]
 sdist *args: stub-gen
-    @echo "{{ BOLD }}--- Building source distribution without compiling ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Building source distribution without compiling (opendal) ---{{ NORMAL }}"
     @uv run maturin sdist -m ./Cargo.toml --out dist {{ args }}
 
 # Compile and produce a development wheel
 [group('dev')]
 build-dev *args: stub-gen
-    @echo "{{ BOLD }}--- Building development wheel ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Building development wheel (opendal) ---{{ NORMAL }}"
     @uv run maturin build -m ./Cargo.toml --out dist {{ args }}
     @uv run mkdocs build
 
 # Build and install the development wheel in the current venv
 [group('dev')]
 install-dev *args: stub-gen
-    @echo "{{ BOLD }}--- Installing development wheel ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Installing development wheel (opendal) ---{{ NORMAL }}"
     @uv run maturin develop -m ./Cargo.toml {{ args }}
 
 # Run tests
@@ -113,11 +116,12 @@ test *args: install-dev
 # Run all lint checks for Rust and Python
 [group('lint')]
 lint: setup
-    @echo "{{ BOLD }}--- Running Rust linter (Clippy) ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Running Rust linter ---{{ NORMAL }}"
     ## remove `-A clippy::incompatible_msrv` until https://github.com/rust-lang/rust-clippy/issues/15792 is fixed and released
     @cargo clippy -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
-    @echo "{{ BOLD }}--- Running Python linter (Ruff) ---{{ NORMAL }}"
+    @echo "{{ BOLD }}--- Running Python linter ---{{ NORMAL }}"
     @uv run ruff check
+    @uv run ty check ./python
 
 # Format all code (Rust, Python, etc.)
 [group('lint')]

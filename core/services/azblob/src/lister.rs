@@ -32,10 +32,17 @@ pub struct AzblobLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
+    deleted: bool,
 }
 
 impl AzblobLister {
-    pub fn new(core: Arc<AzblobCore>, path: String, recursive: bool, limit: Option<usize>) -> Self {
+    pub fn new(
+        core: Arc<AzblobCore>,
+        path: String,
+        recursive: bool,
+        limit: Option<usize>,
+        deleted: bool,
+    ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
         Self {
@@ -43,6 +50,7 @@ impl AzblobLister {
             path,
             delimiter,
             limit,
+            deleted,
         }
     }
 }
@@ -51,7 +59,13 @@ impl oio::PageList for AzblobLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         let resp = self
             .core
-            .azblob_list_blobs(&self.path, &ctx.token, self.delimiter, self.limit)
+            .azblob_list_blobs(
+                &self.path,
+                &ctx.token,
+                self.delimiter,
+                self.limit,
+                self.deleted,
+            )
             .await?;
 
         if resp.status() != http::StatusCode::OK {
@@ -88,7 +102,7 @@ impl oio::PageList for AzblobLister {
                 path = "/".to_string();
             }
 
-            let meta = Metadata::new(EntryMode::from_path(&path))
+            let mut meta = Metadata::new(EntryMode::from_path(&path))
                 // Keep fit with ETag header.
                 .with_etag(format!("\"{}\"", object.properties.etag.as_str()))
                 .with_content_length(object.properties.content_length)
@@ -97,6 +111,11 @@ impl oio::PageList for AzblobLister {
                 .with_last_modified(Timestamp::parse_rfc2822(
                     object.properties.last_modified.as_str(),
                 )?);
+
+            // Mark as deleted if this is a delete marker
+            if object.deleted.unwrap_or(false) {
+                meta = meta.with_is_deleted(true);
+            }
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);

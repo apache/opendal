@@ -237,6 +237,15 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set the soft delete feature for this backend.
+    ///
+    /// If enabled, deleted blobs will be retained for the configured retention period
+    /// and can be listed using list_with_deleted.
+    pub fn enable_soft_deletes(mut self, enabled: bool) -> Self {
+        self.config.enable_soft_deletes = enabled;
+        self
+    }
+
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -402,6 +411,7 @@ impl Builder for AzblobBuilder {
 
                             list: true,
                             list_with_recursive: true,
+                            list_with_deleted: self.config.enable_soft_deletes,
 
                             presign: self.config.sas_token.is_some(),
                             presign_stat: self.config.sas_token.is_some(),
@@ -514,6 +524,7 @@ impl Access for AzblobBackend {
             path.to_string(),
             args.recursive(),
             args.limit(),
+            args.deleted(),
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))

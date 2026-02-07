@@ -25,8 +25,12 @@ def list_packages():
     packages = ["core"]
 
     for dir in ["integrations", "bin", "bindings"]:
+        base = ROOT_DIR / dir
+        if not base.exists():
+            # Skip directories that do not exist in this workspace
+            continue
         cur = []
-        for path in (ROOT_DIR / dir).iterdir():
+        for path in base.iterdir():
             if path.is_dir():
                 cur.append(path.relative_to(ROOT_DIR))
         cur.sort()

@@ -19,16 +19,18 @@
 
 #include <ctime>
 #include <random>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-#include "gtest/gtest.h"
-#include "opendal.hpp"
+#include "framework/test_framework.hpp"
 
-class OpendalTest : public ::testing::Test {
+namespace opendal::test {
+
+class OpenDALBasicTest : public ::testing::Test {
  protected:
-  opendal::Operator op;
+  opendal::Operator op_;
 
   std::string scheme;
   std::unordered_map<std::string, std::string> config;
@@ -40,13 +42,13 @@ class OpendalTest : public ::testing::Test {
     scheme = "memory";
     rng.seed(time(nullptr));
 
-    op = opendal::Operator(scheme, config);
-    EXPECT_TRUE(op.available());
+    op_ = opendal::Operator(scheme, config);
+    EXPECT_TRUE(op_.Available());
   }
 };
 
 // Scenario: OpenDAL Blocking Operations
-TEST_F(OpendalTest, BasicTest) {
+OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   std::string file_path = "test";
   std::string file_path_copied = "test_copied";
   std::string file_path_renamed = "test_renamed";
@@ -54,28 +56,28 @@ TEST_F(OpendalTest, BasicTest) {
   std::string_view data = "abc";
 
   // write
-  op.write(file_path, data);
+  op_.Write(file_path, data);
 
   // read
-  auto res = op.read(file_path);
+  auto res = op_.Read(file_path);
   EXPECT_EQ(res, data);
 
-  // is_exist
-  EXPECT_TRUE(op.exists(file_path));
+  // check existence
+  EXPECT_TRUE(op_.Exists(file_path));
 
-  // create_dir
-  op.create_dir(dir_path);
-  EXPECT_TRUE(op.exists(dir_path));
+  // create directory
+  op_.CreateDir(dir_path);
+  EXPECT_TRUE(op_.Exists(dir_path));
 
-  // stat
-  auto metadata = op.stat(file_path);
+  // get metadata
+  auto metadata = op_.Stat(file_path);
   EXPECT_EQ(metadata.type, opendal::EntryMode::FILE);
   EXPECT_EQ(metadata.content_length, data.size());
 
-  // list
+  // list entries
   auto list_file_path = dir_path + file_path;
-  op.write(list_file_path, data);
-  auto entries = op.list(dir_path);
+  op_.Write(list_file_path, data);
+  auto entries = op_.List(dir_path);
   EXPECT_EQ(entries.size(), 2);
   std::set<std::string> paths;
   for (const auto &entry : entries) {
@@ -84,38 +86,38 @@ TEST_F(OpendalTest, BasicTest) {
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
   EXPECT_TRUE(paths.find(list_file_path) != paths.end());
 
-  // remove
-  op.remove(file_path_renamed);
-  op.remove(dir_path);
-  EXPECT_FALSE(op.exists(file_path_renamed));
+  // remove files
+  op_.Remove(file_path_renamed);
+  op_.Remove(dir_path);
+  EXPECT_FALSE(op_.Exists(file_path_renamed));
 }
 
-TEST_F(OpendalTest, ReaderTest) {
+OPENDAL_TEST_F(OpenDALTest, ReaderTest) {
   std::string file_path = "test";
   constexpr int size = 2000;
   std::string data(size, 0);
 
   for (auto &d : data) {
-    d = rng() % 256;
+    d = rng_() % 256;
   }
 
   // write
-  op.write(file_path, data);
+  op_.Write(file_path, data);
 
-  // reader
-  auto reader = op.reader(file_path);
+  // get reader
+  auto reader = op_.GetReader(file_path);
   // uint8_t part_data[100];
   std::string part_data(100, 0);
-  reader.seek(200, std::ios::cur);
-  reader.read(part_data.data(), 100);
-  EXPECT_EQ(reader.seek(0, std::ios::cur), 300);
+  reader.Seek(200, std::ios::cur);
+  reader.Read(part_data.data(), 100);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 300);
   for (int i = 0; i < 100; ++i) {
     EXPECT_EQ(part_data[i], data[200 + i]);
   }
-  reader.seek(0, std::ios::beg);
+  reader.Seek(0, std::ios::beg);
 
-  // stream
-  opendal::ReaderStream stream(op.reader(file_path));
+  // reader stream
+  opendal::ReaderStream stream(op_.GetReader(file_path));
 
   auto read_fn = [&](std::size_t to_read, std::streampos expected_tellg) {
     std::vector<char> v(to_read);
@@ -137,19 +139,19 @@ TEST_F(OpendalTest, ReaderTest) {
   EXPECT_EQ(reader_data, data);
 }
 
-TEST_F(OpendalTest, ListerTest) {
+OPENDAL_TEST_F(OpenDALTest, ListerTest) {
   std::string dir_path = "test_dir/";
-  op.create_dir(dir_path);
+  op_.CreateDir(dir_path);
   auto test1_path = dir_path + "test1";
-  op.write(test1_path, "123");
+  op_.Write(test1_path, "123");
   auto test2_path = dir_path + "test2";
-  op.write(test2_path, "456");
+  op_.Write(test2_path, "456");
 
-  auto lister = op.lister("test_dir/");
+  auto lister = op_.GetLister("test_dir/");
 
   std::set<std::string> paths;
   for (const auto &entry : lister) {
-      paths.insert(entry.path);
+    paths.insert(entry.path);
   }
   EXPECT_EQ(paths.size(), 3);
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
@@ -157,7 +159,4 @@ TEST_F(OpendalTest, ListerTest) {
   EXPECT_TRUE(paths.find(test2_path) != paths.end());
 }
 
-int main(int argc, char **argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
-}
+} // namespace opendal::test

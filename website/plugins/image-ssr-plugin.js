@@ -18,13 +18,11 @@
  */
 
 const path = require("path");
-const fs = require("fs-extra");
-const axios = require("axios");
+const fs = require("fs/promises");
 const { createHash } = require("crypto");
 const cheerio = require("cheerio");
-const url = require("url");
 
-module.exports = function (context) {
+module.exports = function (_context) {
   const processedImages = new Map();
 
   function getImageFilename(imageUrl) {
@@ -32,7 +30,7 @@ module.exports = function (context) {
     let ext = ".jpg";
 
     try {
-      const parsedUrl = url.parse(imageUrl);
+      const parsedUrl = new URL(imageUrl);
       const pathname = parsedUrl.pathname || "";
 
       const pathExt = path.extname(pathname);
@@ -45,9 +43,16 @@ module.exports = function (context) {
       ) {
         ext = ".svg";
       }
-    } catch (e) {}
+    } catch {}
 
     return `${hash}${ext}`;
+  }
+
+  function existsAsync(path) {
+    return fs.access(path).then(
+      () => true,
+      () => false
+    );
   }
 
   async function downloadImage(imageUrl, buildDir) {
@@ -60,25 +65,38 @@ module.exports = function (context) {
       const buildImagesDir = path.join(buildDir, "img/external");
       const buildOutputPath = path.join(buildImagesDir, filename);
 
-      fs.ensureDirSync(buildImagesDir);
+      // Create directory recursively if it doesn't exist
+      await fs.mkdir(buildImagesDir, { recursive: true });
 
-      if (!fs.existsSync(buildOutputPath)) {
+      if (!(await existsAsync(buildOutputPath))) {
         console.log(`Downloading image: ${imageUrl}`);
 
-        const response = await axios({
-          url: imageUrl,
-          responseType: "arraybuffer",
-          timeout: 20000,
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
-          },
-          maxRedirects: 5,
-          validateStatus: (status) => status < 400,
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-        await fs.writeFile(buildOutputPath, response.data);
+        try {
+          const response = await fetch(imageUrl, {
+            signal: controller.signal,
+            headers: {
+              "User-Agent":
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              Accept: "image/webp,image/apng,image/*,*/*;q=0.8",
+            },
+            redirect: "follow",
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+
+          const buffer = await response.arrayBuffer();
+          await fs.writeFile(buildOutputPath, Buffer.from(buffer));
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          throw fetchError;
+        }
       }
 
       const localUrl = `/img/external/${filename}`;
@@ -213,7 +231,7 @@ module.exports = function (context) {
                   modified = true;
                 }
               })
-              .catch(() => {}),
+              .catch(() => {})
           );
         });
 

@@ -175,6 +175,13 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			// cancel must be called after all ffi calls
+			// to prevent `use after free` panics.
+			cancel()
+		}
+	}()
 
 	options := ffiOperatorOptionsNew.symbol(ctx)()
 	setOptions := ffiOperatorOptionsSet.symbol(ctx)
@@ -190,7 +197,6 @@ func NewOperator(scheme Scheme, opts OperatorOptions) (op *Operator, err error) 
 
 	inner, err := ffiOperatorNew.symbol(ctx)(scheme, options)
 	if err != nil {
-		cancel()
 		return
 	}
 

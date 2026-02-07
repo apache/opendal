@@ -96,3 +96,7 @@
 .navbar__logo img {
   height: 120%;
 }
+
+.footer__logo {
+  margin-top: unset;
+}

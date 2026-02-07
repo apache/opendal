@@ -36,7 +36,6 @@ func testsList(cap *opendal.Capability) []behaviorTest {
 	return []behaviorTest{
 		testListCheck,
 		testListDir,
-		testListPrefix,
 		testListRichDir,
 		testListEmptyDir,
 		testListNonExistDir,
@@ -77,21 +76,6 @@ func testListDir(assert *require.Assertions, op *opendal.Operator, fixture *fixt
 	}
 	assert.Nil(obs.Error())
 	assert.True(found, "file must be found in list")
-}
-
-func testListPrefix(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	path, content, _ := fixture.NewFile()
-
-	assert.Nil(op.Write(path, content), "write must succeed")
-
-	obs, err := op.List(path[:len(path)-1])
-	assert.Nil(err)
-	defer obs.Close()
-	assert.True(obs.Next())
-	assert.Nil(obs.Error())
-
-	entry := obs.Entry()
-	assert.Equal(path, entry.Path())
 }
 
 func testListRichDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {

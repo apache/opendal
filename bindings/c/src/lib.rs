@@ -22,6 +22,8 @@
 // This crate is the C binding for the OpenDAL project.
 // Nearly all the functions exposed to C FFI are unsafe.
 #![allow(clippy::missing_safety_doc)]
+// Allow unknown cfgs like `cbindgen` used in cfg_attr for header generation.
+#![allow(unexpected_cfgs)]
 
 //! The Apache OpenDAL C binding.
 //!
@@ -44,6 +46,11 @@ mod operator;
 pub use operator::opendal_operator;
 
 mod operator_info;
+
+mod presign;
+pub use presign::opendal_http_header_pair;
+pub use presign::opendal_presigned_request;
+pub use presign::opendal_result_presign;
 
 mod result;
 pub use result::opendal_result_exists;

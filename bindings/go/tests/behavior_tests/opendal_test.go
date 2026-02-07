@@ -65,6 +65,7 @@ func TestBehavior(t *testing.T) {
 	tests = append(tests, testsDelete(cap)...)
 	tests = append(tests, testsList(cap)...)
 	tests = append(tests, testsRead(cap)...)
+	tests = append(tests, testsPresign(cap)...)
 	tests = append(tests, testsRename(cap)...)
 	tests = append(tests, testsStat(cap)...)
 	tests = append(tests, testsWrite(cap)...)
@@ -97,7 +98,9 @@ func newOperator() (op *opendal.Operator, closeFunc func(), err error) {
 	test := os.Getenv("OPENDAL_TEST")
 	var scheme opendal.Scheme
 	for _, s := range schemes {
-		if s.Name() != test {
+		// This is a temporary fix; it can be removed once we fix the template generation code in opendal-go-services.
+		normalizedSchemeName := strings.ReplaceAll(test, "_", "-")
+		if s.Name() != test && s.Name() != normalizedSchemeName {
 			continue
 		}
 		err = s.LoadOnce()

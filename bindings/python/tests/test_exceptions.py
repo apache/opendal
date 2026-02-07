@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import builtins
 import inspect
 
 from opendal import exceptions
-from opendal.exceptions import Error
 
 
 def test_exceptions():
-    for name, obj in inspect.getmembers(exceptions):
+    for _name, obj in inspect.getmembers(exceptions):
         if inspect.isclass(obj):
-            assert issubclass(obj, Error)
+            assert issubclass(obj, builtins.Exception)

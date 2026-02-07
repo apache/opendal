@@ -28,4 +28,4 @@ def test_capability_exception(service_name, operator):
     cap = operator.capability()
     assert cap is not None
     with pytest.raises(AttributeError):
-        cap.read_demo
+        _ = cap.read_demo

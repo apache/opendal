@@ -54,9 +54,11 @@ impl opendal_metadata {
     /// \brief Free the heap-allocated metadata used by opendal_metadata
     #[no_mangle]
     pub unsafe extern "C" fn opendal_metadata_free(ptr: *mut opendal_metadata) {
-        if !ptr.is_null() {
-            drop(Box::from_raw((*ptr).inner as *mut core::Metadata));
-            drop(Box::from_raw(ptr));
+        unsafe {
+            if !ptr.is_null() {
+                drop(Box::from_raw((*ptr).inner as *mut core::Metadata));
+                drop(Box::from_raw(ptr));
+            }
         }
     }
 
@@ -129,7 +131,7 @@ impl opendal_metadata {
         let mtime = self.deref().last_modified();
         match mtime {
             None => -1,
-            Some(time) => time.timestamp_millis(),
+            Some(time) => time.into_inner().as_millisecond(),
         }
     }
 }

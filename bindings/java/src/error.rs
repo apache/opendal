@@ -19,9 +19,9 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
+use jni::JNIEnv;
 use jni::objects::JThrowable;
 use jni::objects::JValue;
-use jni::JNIEnv;
 use opendal::ErrorKind;
 
 pub(crate) struct Error {

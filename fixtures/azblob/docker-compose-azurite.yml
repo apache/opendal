@@ -15,10 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-version: '3.8'
-
 services:
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite
     ports:
       - 10000:10000
+    command: ["azurite", "--blobHost", "0.0.0.0", "--skipApiVersionCheck"]

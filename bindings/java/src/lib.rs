@@ -17,17 +17,17 @@
 
 use std::collections::HashMap;
 
+use jni::JNIEnv;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::jboolean;
 use jni::sys::jint;
 use jni::sys::jlong;
-use jni::JNIEnv;
-use opendal::raw::PresignedRequest;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
 use opendal::OperatorInfo;
+use opendal::raw::PresignedRequest;
 use opendal::{Capability, Error, ErrorKind};
 
 mod async_operator;
@@ -156,8 +156,8 @@ fn make_metadata<'a>(env: &mut JNIEnv<'a>, metadata: Metadata) -> Result<JObject
                     "ofEpochSecond",
                     "(JJ)Ljava/time/Instant;",
                     &[
-                        JValue::Long(v.timestamp()),
-                        JValue::Long(v.timestamp_subsec_nanos() as jlong),
+                        JValue::Long(v.into_inner().as_second()),
+                        JValue::Long(v.into_inner().subsec_nanosecond() as jlong),
                     ],
                 )?
                 .l()?)
@@ -217,9 +217,9 @@ fn make_write_options<'a>(
         v => {
             return Err(Error::new(
                 ErrorKind::Unexpected,
-                format!("Concurrent must be positive, instead got: {}", v),
+                format!("Concurrent must be positive, instead got: {v}"),
             )
-            .into())
+            .into());
         }
     };
     Ok(opendal::options::WriteOptions {
@@ -254,12 +254,12 @@ fn make_stat_options(env: &mut JNIEnv, options: &JObject) -> Result<opendal::opt
     Ok(opendal::options::StatOptions {
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
-        if_modified_since: convert::read_instant_field_to_date_time(
+        if_modified_since: convert::read_instant_field_to_timestamp(
             env,
             options,
             "ifModifiedSince",
         )?,
-        if_unmodified_since: convert::read_instant_field_to_date_time(
+        if_unmodified_since: convert::read_instant_field_to_timestamp(
             env,
             options,
             "ifUnmodifiedSince",
@@ -273,4 +273,24 @@ fn make_stat_options(env: &mut JNIEnv, options: &JObject) -> Result<opendal::opt
             "overrideContentDisposition",
         )?,
     })
+}
+
+fn make_read_options<'a>(
+    env: &mut JNIEnv<'a>,
+    options: &JObject,
+) -> Result<opendal::options::ReadOptions> {
+    let offset = convert::read_int64_field(env, options, "offset")?;
+    let length = convert::read_int64_field(env, options, "length")?;
+
+    Ok(opendal::options::ReadOptions {
+        range: convert::offset_length_to_range(offset, length)?.into(),
+        ..Default::default()
+    })
+}
+
+fn make_reader_options<'a>(
+    _: &mut JNIEnv<'a>,
+    _: &JObject,
+) -> Result<opendal::options::ReaderOptions> {
+    Ok(opendal::options::ReaderOptions::default())
 }

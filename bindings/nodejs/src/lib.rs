@@ -21,15 +21,19 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
-use std::str::FromStr;
 use std::time::Duration;
 
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
-use opendal::options::StatOptions;
+use opendal::options::{
+    DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
+};
+
+use crate::layer::Layer;
 
 mod capability;
+mod layer;
 mod options;
 
 #[napi]
@@ -44,24 +48,14 @@ impl Operator {
     /// And the options,
     /// please refer to the documentation of the corresponding service for the corresponding parameters.
     /// Note that the current options key is snake_case.
-    #[napi(constructor)]
+    #[napi(constructor, async_runtime)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let scheme = opendal::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
         let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
 
-        let blocking_op = {
-            let handle = tokio::runtime::Handle::current();
-            let _guard = handle.enter();
-
-            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
-        };
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
 
         Ok(Operator {
             async_op,
@@ -214,10 +208,15 @@ impl Operator {
     /// const buf = await op.read("path/to/file");
     /// ```
     #[napi]
-    pub async fn read(&self, path: String) -> Result<Buffer> {
+    pub async fn read(
+        &self,
+        path: String,
+        options: Option<options::ReadOptions>,
+    ) -> Result<Buffer> {
+        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
         let res = self
             .async_op
-            .read(&path)
+            .read_options(&path, options)
             .await
             .map_err(format_napi_error)?
             .to_vec();
@@ -228,15 +227,20 @@ impl Operator {
     ///
     /// It could be used to read large file in a streaming way.
     #[napi]
-    pub async fn reader(&self, path: String) -> Result<Reader> {
+    pub async fn reader(
+        &self,
+        path: String,
+        options: Option<options::ReaderOptions>,
+    ) -> Result<Reader> {
+        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
         let r = self
             .async_op
-            .reader(&path)
+            .reader_options(&path, options)
             .await
             .map_err(format_napi_error)?;
         Ok(Reader {
             inner: r
-                .into_futures_async_read(..)
+                .into_futures_async_read(std::ops::RangeFull)
                 .await
                 .map_err(format_napi_error)?,
         })
@@ -249,10 +253,11 @@ impl Operator {
     /// const buf = op.readSync("path/to/file");
     /// ```
     #[napi]
-    pub fn read_sync(&self, path: String) -> Result<Buffer> {
+    pub fn read_sync(&self, path: String, options: Option<options::ReadOptions>) -> Result<Buffer> {
+        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
         let res = self
             .blocking_op
-            .read(&path)
+            .read_options(&path, options)
             .map_err(format_napi_error)?
             .to_vec();
         Ok(res.into())
@@ -262,8 +267,16 @@ impl Operator {
     ///
     /// It could be used to read large file in a streaming way.
     #[napi]
-    pub fn reader_sync(&self, path: String) -> Result<BlockingReader> {
-        let r = self.blocking_op.reader(&path).map_err(format_napi_error)?;
+    pub fn reader_sync(
+        &self,
+        path: String,
+        options: Option<options::ReaderOptions>,
+    ) -> Result<BlockingReader> {
+        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
+        let r = self
+            .blocking_op
+            .reader_options(&path, options)
+            .map_err(format_napi_error)?;
         Ok(BlockingReader {
             inner: r.into_std_read(..).map_err(format_napi_error)?,
         })
@@ -285,31 +298,19 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<WriteOptions>,
-    ) -> Result<()> {
+        options: Option<options::WriteOptions>,
+    ) -> Result<Metadata> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let mut writer = self.async_op.write_with(&path, c);
-        if let Some(options) = options {
-            if let Some(append) = options.append {
-                writer = writer.append(append);
-            }
-            if let Some(chunk) = options.chunk {
-                writer = writer.chunk(chunk.get_u64().1 as usize);
-            }
-            if let Some(ref content_type) = options.content_type {
-                writer = writer.content_type(content_type);
-            }
-            if let Some(ref content_disposition) = options.content_disposition {
-                writer = writer.content_disposition(content_disposition);
-            }
-            if let Some(ref cache_control) = options.cache_control {
-                writer = writer.cache_control(cache_control);
-            }
-        }
-        writer.await.map(|_| ()).map_err(format_napi_error)
+        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let metadata = self
+            .async_op
+            .write_options(&path, c, options)
+            .await
+            .map_err(format_napi_error)?;
+        Ok(Metadata(metadata))
     }
 
     //noinspection DuplicatedCode
@@ -317,7 +318,11 @@ impl Operator {
     ///
     /// It could be used to write large file in a streaming way.
     #[napi]
-    pub async fn writer(&self, path: String, options: Option<WriteOptions>) -> Result<Writer> {
+    pub async fn writer(
+        &self,
+        path: String,
+        options: Option<options::WriteOptions>,
+    ) -> Result<Writer> {
         let options = options.unwrap_or_default();
         let writer = self
             .async_op
@@ -334,7 +339,7 @@ impl Operator {
     pub fn writer_sync(
         &self,
         path: String,
-        options: Option<WriteOptions>,
+        options: Option<options::WriteOptions>,
     ) -> Result<BlockingWriter> {
         let options = options.unwrap_or_default();
         let writer = self
@@ -360,17 +365,18 @@ impl Operator {
         &self,
         path: String,
         content: Either<Buffer, String>,
-        options: Option<WriteOptions>,
-    ) -> Result<()> {
+        options: Option<options::WriteOptions>,
+    ) -> Result<Metadata> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.unwrap_or_default();
-        self.blocking_op
-            .write_options(&path, c, options.into())
+        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let metadata = self
+            .blocking_op
+            .write_options(&path, c, options)
             .map_err(format_napi_error)?;
-        Ok(())
+        Ok(Metadata(metadata))
     }
 
     /// Copy file according to given `from` and `to` path.
@@ -439,8 +445,16 @@ impl Operator {
     /// await op.delete("test");
     /// ```
     #[napi]
-    pub async fn delete(&self, path: String) -> Result<()> {
-        self.async_op.delete(&path).await.map_err(format_napi_error)
+    pub async fn delete(
+        &self,
+        path: String,
+        options: Option<options::DeleteOptions>,
+    ) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.async_op
+            .delete_options(&path, options)
+            .await
+            .map_err(format_napi_error)
     }
 
     /// Delete the given path synchronously.
@@ -450,8 +464,11 @@ impl Operator {
     /// op.deleteSync("test");
     /// ```
     #[napi]
-    pub fn delete_sync(&self, path: String) -> Result<()> {
-        self.blocking_op.delete(&path).map_err(format_napi_error)
+    pub fn delete_sync(&self, path: String, options: Option<options::DeleteOptions>) -> Result<()> {
+        let options = options.map_or_else(DeleteOptions::default, DeleteOptions::from);
+        self.blocking_op
+            .delete_options(&path, options)
+            .map_err(format_napi_error)
     }
 
     /// Remove given paths.
@@ -471,6 +488,22 @@ impl Operator {
             .map_err(format_napi_error)
     }
 
+    /// Remove given paths.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// op.removeSync(["abc", "def"]);
+    /// ```
+    #[napi]
+    pub fn remove_sync(&self, paths: Vec<String>) -> Result<()> {
+        self.blocking_op
+            .delete_iter(paths)
+            .map_err(format_napi_error)
+    }
+
     /// Remove the path and all nested dirs and files recursively.
     ///
     /// ### Notes
@@ -483,8 +516,32 @@ impl Operator {
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
         self.async_op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
+            .map_err(format_napi_error)
+    }
+
+    /// Remove the path and all nested dirs and files recursively.
+    ///
+    /// ### Notes
+    /// If underlying services support delete in batch, we will use batch delete instead.
+    ///
+    /// ### Examples
+    /// ```javascript
+    /// op.removeAllSync("path/to/dir/");
+    /// ```
+    #[napi]
+    pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        use opendal::options::DeleteOptions;
+        self.blocking_op
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_napi_error)
     }
 
@@ -520,22 +577,19 @@ impl Operator {
     /// }
     /// ```
     #[napi]
-    pub async fn list(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let mut l = self.async_op.list_with(&path);
-        if let Some(options) = options {
-            if let Some(limit) = options.limit {
-                l = l.limit(limit as usize);
-            }
-            if let Some(recursive) = options.recursive {
-                l = l.recursive(recursive);
-            }
-        }
+    pub async fn list(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Vec<Entry>> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .list_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
 
-        Ok(l.await
-            .map_err(format_napi_error)?
-            .iter()
-            .map(|e| Entry(e.to_owned()))
-            .collect())
+        Ok(l.into_iter().map(Entry).collect())
     }
 
     /// List the given path synchronously.
@@ -563,21 +617,113 @@ impl Operator {
     /// ```javascript
     /// const list = op.listSync("path/to/dir/", { recursive: true });
     /// for (let entry of list) {
-    ///   let meta = op.statSync(entry.path);
+    ///   let path = entry.path();
+    ///   let meta = entry.metadata();
     ///   if (meta.isFile) {
     ///     // do something
     ///   }
     /// }
     /// ```
     #[napi]
-    pub fn list_sync(&self, path: String, options: Option<ListOptions>) -> Result<Vec<Entry>> {
-        let options = options.unwrap_or_default();
+    pub fn list_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Vec<Entry>> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
         let l = self
             .blocking_op
-            .list_options(&path, options.into())
+            .list_options(&path, options)
             .map_err(format_napi_error)?;
 
         Ok(l.into_iter().map(Entry).collect())
+    }
+
+    /// Create a lister to list entries at given path.
+    ///
+    /// This function returns a Lister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/");
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub async fn lister(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Lister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .lister_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
+
+        Ok(Lister(l))
+    }
+
+    /// Create a lister to list entries at given path synchronously.
+    ///
+    /// This function returns a BlockingLister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/");
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub fn lister_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<BlockingLister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .blocking_op
+            .lister_options(&path, options)
+            .map_err(format_napi_error)?;
+
+        Ok(BlockingLister(l))
     }
 
     /// Get a presigned request for read.
@@ -661,6 +807,12 @@ impl Entry {
     pub fn path(&self) -> String {
         self.0.path().to_string()
     }
+
+    /// Return the metadata of this entry.
+    #[napi]
+    pub fn metadata(&self) -> Metadata {
+        Metadata(self.0.metadata().clone())
+    }
 }
 
 #[napi]
@@ -701,6 +853,19 @@ impl Metadata {
         self.0.is_file()
     }
 
+    /// This function returns `true` if the file represented by this metadata has been marked for
+    /// deletion or has been permanently deleted.
+    #[napi]
+    pub fn is_deleted(&self) -> bool {
+        self.0.is_deleted()
+    }
+
+    /// Cache-Control of this object.
+    #[napi(getter)]
+    pub fn cache_control(&self) -> Option<String> {
+        self.0.cache_control().map(|s| s.to_string())
+    }
+
     /// Content-Disposition of this object
     #[napi(getter)]
     pub fn content_disposition(&self) -> Option<String> {
@@ -711,6 +876,12 @@ impl Metadata {
     #[napi(getter)]
     pub fn content_length(&self) -> Option<u64> {
         self.0.content_length().into()
+    }
+
+    /// Content Encoding of this object
+    #[napi(getter)]
+    pub fn content_encoding(&self) -> Option<String> {
+        self.0.content_encoding().map(|s| s.to_string())
     }
 
     /// Content MD5 of this object.
@@ -725,6 +896,12 @@ impl Metadata {
         self.0.content_type().map(|s| s.to_string())
     }
 
+    /// User Metadata of this object.
+    #[napi(getter)]
+    pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
+        self.0.user_metadata().cloned()
+    }
+
     /// ETag of this object.
     #[napi(getter)]
     pub fn etag(&self) -> Option<String> {
@@ -736,7 +913,7 @@ impl Metadata {
     /// We will output this time in RFC3339 format like `1996-12-19T16:39:57+08:00`.
     #[napi(getter)]
     pub fn last_modified(&self) -> Option<String> {
-        self.0.last_modified().map(|ta| ta.to_rfc3339())
+        self.0.last_modified().map(|ta| ta.to_string())
     }
 
     /// mode represent this entry's mode.
@@ -749,23 +926,6 @@ impl Metadata {
     #[napi(getter)]
     pub fn version(&self) -> Option<String> {
         self.0.version().map(|v| v.to_string())
-    }
-}
-
-#[napi(object)]
-#[derive(Default)]
-pub struct ListOptions {
-    pub limit: Option<u32>,
-    pub recursive: Option<bool>,
-}
-
-impl From<ListOptions> for opendal::options::ListOptions {
-    fn from(value: ListOptions) -> Self {
-        Self {
-            limit: value.limit.map(|v| v as usize),
-            recursive: value.recursive.unwrap_or_default(),
-            ..Default::default()
-        }
     }
 }
 
@@ -901,51 +1061,6 @@ impl Writer {
     }
 }
 
-#[napi(object)]
-#[derive(Default)]
-pub struct WriteOptions {
-    /// Append bytes into a path.
-    ///
-    /// ### Notes
-    ///
-    /// - It always appends content to the end of the file.
-    /// - It will create file if the path does not exist.
-    pub append: Option<bool>,
-
-    /// Set the chunk of op.
-    ///
-    /// If chunk is set, the data will be chunked by the underlying writer.
-    ///
-    /// ## NOTE
-    ///
-    /// A service could have their own minimum chunk size while perform write
-    /// operations like multipart uploads. So the chunk size may be larger than
-    /// the given buffer size.
-    pub chunk: Option<BigInt>,
-
-    /// Set the [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) of op.
-    pub content_type: Option<String>,
-
-    /// Set the [Content-Disposition](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition) of op.
-    pub content_disposition: Option<String>,
-
-    /// Set the [Cache-Control](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control) of op.
-    pub cache_control: Option<String>,
-}
-
-impl From<WriteOptions> for opendal::options::WriteOptions {
-    fn from(value: WriteOptions) -> Self {
-        Self {
-            append: value.append.unwrap_or_default(),
-            chunk: value.chunk.map(|v| v.get_u64().1 as usize),
-            content_type: value.content_type,
-            content_disposition: value.content_disposition,
-            cache_control: value.cache_control,
-            ..Default::default()
-        }
-    }
-}
-
 /// Lister is designed to list entries at a given path in an asynchronous
 /// manner.
 #[napi]
@@ -1028,29 +1143,15 @@ impl PresignedRequest {
     }
 }
 
-pub trait NodeLayer: Send + Sync {
-    fn layer(&self, op: opendal::Operator) -> opendal::Operator;
-}
-
-/// A public layer wrapper
-#[napi]
-pub struct Layer {
-    inner: Box<dyn NodeLayer>,
-}
-
 #[napi]
 impl Operator {
     /// Add a layer to this operator.
-    #[napi]
-    pub fn layer(&self, layer: External<Layer>) -> Result<Self> {
+    #[napi(async_runtime)]
+    pub fn layer(&self, layer: &External<Layer>) -> Result<Self> {
         let async_op = layer.inner.layer(self.async_op.clone());
 
-        let blocking_op = {
-            let handle = tokio::runtime::Handle::current();
-            let _guard = handle.enter();
-
-            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?
-        };
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
 
         Ok(Self {
             async_op,
@@ -1059,129 +1160,9 @@ impl Operator {
     }
 }
 
-impl NodeLayer for opendal::layers::RetryLayer {
-    fn layer(&self, op: opendal::Operator) -> opendal::Operator {
-        op.layer(self.clone())
-    }
-}
-
-/// Retry layer
-///
-/// Add retry for temporary failed operations.
-///
-/// # Notes
-///
-/// This layer will retry failed operations when [`Error::is_temporary`]
-/// returns true.
-/// If the operation still failed, this layer will set error to
-/// `Persistent` which means error has been retried.
-///
-/// `write` and `blocking_write` don't support retry so far,
-/// visit [this issue](https://github.com/apache/opendal/issues/1223) for more details.
-///
-/// # Examples
-///
-/// ```javascript
-/// const op = new Operator("file", { root: "/tmp" })
-///
-/// const retry = new RetryLayer();
-/// retry.max_times = 3;
-/// retry.jitter = true;
-///
-/// op.layer(retry.build());
-/// ```
-#[derive(Default)]
-#[napi]
-pub struct RetryLayer {
-    jitter: bool,
-    max_times: Option<u32>,
-    factor: Option<f64>,
-    max_delay: Option<f64>,
-    min_delay: Option<f64>,
-}
-
-#[napi]
-impl RetryLayer {
-    #[napi(constructor)]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set jitter of current backoff.
-    ///
-    /// If jitter is enabled, ExponentialBackoff will add a random jitter in `[0, min_delay)`
-    /// to current delay.
-    #[napi(setter)]
-    pub fn jitter(&mut self, v: bool) {
-        self.jitter = v;
-    }
-
-    /// Set max_times of current backoff.
-    ///
-    /// Backoff will return `None` if max times are reached.
-    #[napi(setter)]
-    pub fn max_times(&mut self, v: u32) {
-        self.max_times = Some(v);
-    }
-
-    /// Set factor of current backoff.
-    ///
-    /// # Panics
-    ///
-    /// This function will panic if the input factor is smaller than `1.0`.
-    #[napi(setter)]
-    pub fn factor(&mut self, v: f64) {
-        self.factor = Some(v);
-    }
-
-    /// Set max_delay of current backoff.
-    ///
-    /// Delay will not increase if the current delay is larger than max_delay.
-    ///
-    /// # Notes
-    ///
-    /// - The unit of max_delay is millisecond.
-    #[napi(setter)]
-    pub fn max_delay(&mut self, v: f64) {
-        self.max_delay = Some(v);
-    }
-
-    /// Set min_delay of current backoff.
-    ///
-    /// # Notes
-    ///
-    /// - The unit of min_delay is millisecond.
-    #[napi(setter)]
-    pub fn min_delay(&mut self, v: f64) {
-        self.min_delay = Some(v);
-    }
-
-    #[napi]
-    pub fn build(&self) -> External<Layer> {
-        let mut l = opendal::layers::RetryLayer::default();
-        if self.jitter {
-            l = l.with_jitter();
-        }
-        if let Some(max_times) = self.max_times {
-            l = l.with_max_times(max_times as usize);
-        }
-        if let Some(factor) = self.factor {
-            l = l.with_factor(factor as f32);
-        }
-        if let Some(max_delay) = self.max_delay {
-            l = l.with_max_delay(Duration::from_millis(max_delay as u64));
-        }
-        if let Some(min_delay) = self.min_delay {
-            l = l.with_min_delay(Duration::from_millis(min_delay as u64));
-        }
-
-        External::new(Layer { inner: Box::new(l) })
-    }
-}
-
 /// Format opendal error to napi error.
 ///
 /// FIXME: handle error correctly.
 fn format_napi_error(err: impl Display) -> Error {
-    Error::from_reason(format!("{}", err))
+    Error::from_reason(format!("{err}"))
 }

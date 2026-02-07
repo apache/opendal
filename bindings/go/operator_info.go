@@ -219,6 +219,10 @@ func (c *Capability) PresignWrite() bool {
 	return c.inner.presignWrite == 1
 }
 
+func (c *Capability) PresignDelete() bool {
+	return c.inner.presignDelete == 1
+}
+
 func (c *Capability) Shared() bool {
 	return c.inner.shared == 1
 }

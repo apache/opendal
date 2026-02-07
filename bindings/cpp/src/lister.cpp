@@ -24,7 +24,7 @@
 
 namespace opendal {
 
-void Lister::destroy() noexcept {
+void Lister::Destroy() noexcept {
   if (lister_) {
     ffi::delete_lister(lister_);
     lister_ = nullptr;
@@ -37,9 +37,9 @@ Lister::Lister(Lister &&other) noexcept : lister_{other.lister_} {
   other.lister_ = nullptr;
 }
 
-Lister::~Lister() noexcept { destroy(); }
+Lister::~Lister() noexcept { Destroy(); }
 
-std::optional<Entry> Lister::next() {
+std::optional<Entry> Lister::Next() {
   auto entry = lister_->next();
 
   if (!entry.has_value) {

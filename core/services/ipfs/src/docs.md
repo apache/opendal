@@ -1,0 +1,44 @@
+## Capabilities
+
+This service can be used to:
+
+- [ ] ~~create_dir~~
+- [x] stat
+- [x] read
+- [ ] ~~write~~
+- [ ] ~~delete~~
+- [x] list
+- [ ] ~~copy~~
+- [ ] ~~rename~~
+- [ ] presign
+
+## Configuration
+
+- `root`: Set the work directory for backend
+- `endpoint`: Customizable endpoint setting
+
+You can refer to [`IpfsBuilder`]'s docs for more information
+
+## Example
+
+### Via Builder
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_ipfs::Ipfs;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // create backend builder
+    let mut builder = Ipfs::default()
+        // set the endpoint for OpenDAL
+        .endpoint("https://ipfs.io")
+        // set the root for OpenDAL
+        .root("/ipfs/QmPpCt1aYGb9JWJRmXRUnmJtVgeFFTJGzWFYEEX7bo9zGJ");
+
+    let op: Operator = Operator::new(builder)?.finish();
+
+    Ok(())
+}
+```

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
@@ -24,46 +25,44 @@ use jni::sys::jlong;
 use jni::sys::jobject;
 use jni::sys::jobjectArray;
 use jni::sys::jsize;
-use jni::JNIEnv;
 use opendal::blocking;
-use opendal::options;
 
-use crate::convert::{
-    bytes_to_jbytearray, jstring_to_string, offset_length_to_range, read_int64_field,
-};
-use crate::make_metadata;
 use crate::Result;
+use crate::convert::{bytes_to_jbytearray, jstring_to_string};
+use crate::make_metadata;
 use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_disposeInternal(
     _: JNIEnv,
     _: JObject,
     op: *mut blocking::Operator,
 ) {
-    drop(Box::from_raw(op));
+    unsafe {
+        drop(Box::from_raw(op));
+    }
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_duplicate(
     _: JNIEnv,
     _: JObject,
     op: *mut blocking::Operator,
 ) -> jlong {
-    let op = &mut *op;
+    let op = unsafe { &mut *op };
     Box::into_raw(Box::new(op.clone())) as jlong
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
     mut env: JNIEnv,
     _: JClass,
@@ -71,7 +70,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_read(
     path: JString,
     read_options: JObject,
 ) -> jbyteArray {
-    intern_read(&mut env, &mut *op, path, read_options).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_read(&mut env, op_ref, path, read_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JByteArray::default().into_raw()
     })
@@ -83,18 +83,11 @@ fn intern_read(
     path: JString,
     options: JObject,
 ) -> Result<jbyteArray> {
+    use crate::make_read_options;
+
     let path = jstring_to_string(env, &path)?;
-
-    let offset = read_int64_field(env, &options, "offset")?;
-    let length = read_int64_field(env, &options, "length")?;
-
-    let content = op.read_options(
-        &path,
-        options::ReadOptions {
-            range: offset_length_to_range(offset, length)?.into(),
-            ..Default::default()
-        },
-    )?;
+    let options = make_read_options(env, &options)?;
+    let content = op.read_options(&path, options)?;
 
     let result = bytes_to_jbytearray(env, content.to_bytes())?;
     Ok(result.into_raw())
@@ -103,7 +96,7 @@ fn intern_read(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     mut env: JNIEnv,
     _: JClass,
@@ -112,7 +105,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_write(
     content: JByteArray,
     write_options: JObject,
 ) {
-    intern_write(&mut env, &mut *op, path, content, write_options).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_write(&mut env, op_ref, path, content, write_options).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
@@ -135,7 +129,7 @@ fn intern_write(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     mut env: JNIEnv,
     _: JClass,
@@ -143,7 +137,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_stat(
     path: JString,
     stat_options: JObject,
 ) -> jobject {
-    intern_stat(&mut env, &mut *op, path, stat_options).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_stat(&mut env, op_ref, path, stat_options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })
@@ -164,14 +159,15 @@ fn intern_stat(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete(
     mut env: JNIEnv,
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
 ) {
-    intern_delete(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_delete(&mut env, op_ref, path).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
@@ -184,14 +180,15 @@ fn intern_delete(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createDir(
     mut env: JNIEnv,
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
 ) {
-    intern_create_dir(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_create_dir(&mut env, op_ref, path).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
@@ -204,7 +201,7 @@ fn intern_create_dir(env: &mut JNIEnv, op: &mut blocking::Operator, path: JStrin
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy(
     mut env: JNIEnv,
     _: JClass,
@@ -212,7 +209,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_copy(
     source_path: JString,
     target_path: JString,
 ) {
-    intern_copy(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_copy(&mut env, op_ref, source_path, target_path).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
@@ -232,7 +230,7 @@ fn intern_copy(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename(
     mut env: JNIEnv,
     _: JClass,
@@ -240,7 +238,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_rename(
     source_path: JString,
     target_path: JString,
 ) {
-    intern_rename(&mut env, &mut *op, source_path, target_path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_rename(&mut env, op_ref, source_path, target_path).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
@@ -260,28 +259,36 @@ fn intern_rename(
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_removeAll(
     mut env: JNIEnv,
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
 ) {
-    intern_remove_all(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_remove_all(&mut env, op_ref, path).unwrap_or_else(|e| {
         e.throw(&mut env);
     })
 }
 
 fn intern_remove_all(env: &mut JNIEnv, op: &mut blocking::Operator, path: JString) -> Result<()> {
+    use opendal::options::DeleteOptions;
     let path = jstring_to_string(env, &path)?;
 
-    Ok(op.remove_all(&path)?)
+    Ok(op.delete_options(
+        &path,
+        DeleteOptions {
+            recursive: true,
+            ..Default::default()
+        },
+    )?)
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     mut env: JNIEnv,
     _: JClass,
@@ -289,7 +296,8 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_list(
     path: JString,
     options: JObject,
 ) -> jobjectArray {
-    intern_list(&mut env, &mut *op, path, options).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_list(&mut env, op_ref, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         JObject::default().into_raw()
     })

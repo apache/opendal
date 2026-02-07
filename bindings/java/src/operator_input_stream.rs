@@ -15,13 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use jni::JNIEnv;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::sys::jbyteArray;
 use jni::sys::jlong;
-use jni::JNIEnv;
 use opendal::blocking;
 use opendal::blocking::StdBytesIterator;
 
@@ -30,14 +30,16 @@ use crate::convert::jstring_to_string;
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader(
     mut env: JNIEnv,
     _: JClass,
     op: *mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> jlong {
-    intern_construct_reader(&mut env, &mut *op, path).unwrap_or_else(|e| {
+    let op_ref = unsafe { &mut *op };
+    intern_construct_reader(&mut env, op_ref, path, options).unwrap_or_else(|e| {
         e.throw(&mut env);
         0
     })
@@ -47,34 +49,49 @@ fn intern_construct_reader(
     env: &mut JNIEnv,
     op: &mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> crate::Result<jlong> {
+    use crate::convert;
+    use crate::make_reader_options;
+
     let path = jstring_to_string(env, &path)?;
-    let reader = op.reader(&path)?.into_bytes_iterator(..)?;
+    let reader_options = make_reader_options(env, &options)?;
+
+    let offset = convert::read_int64_field(env, &options, "offset")?;
+    let length = convert::read_int64_field(env, &options, "length")?;
+    let range = convert::offset_length_to_range(offset, length)?;
+
+    let reader = op
+        .reader_options(&path, reader_options)?
+        .into_bytes_iterator(range)?;
     Ok(Box::into_raw(Box::new(reader)) as jlong)
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader(
     _: JNIEnv,
     _: JClass,
     reader: *mut StdBytesIterator,
 ) {
-    drop(Box::from_raw(reader));
+    unsafe {
+        drop(Box::from_raw(reader));
+    }
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes(
     mut env: JNIEnv,
     _: JClass,
     reader: *mut StdBytesIterator,
 ) -> jbyteArray {
-    intern_read_next_bytes(&mut env, &mut *reader).unwrap_or_else(|e| {
+    let reader_ref = unsafe { &mut *reader };
+    intern_read_next_bytes(&mut env, reader_ref).unwrap_or_else(|e| {
         e.throw(&mut env);
         JByteArray::default().into_raw()
     })

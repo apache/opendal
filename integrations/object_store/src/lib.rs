@@ -68,6 +68,10 @@ mod utils;
 #[cfg(feature = "services-s3")]
 mod amazon_s3;
 
+mod service;
+
+pub use service::{ObjectStoreBuilder, ObjectStoreService};
+
 // Make sure `send_wrapper` works as expected
 #[cfg(all(feature = "send_wrapper", test))]
 mod assert_send {
@@ -92,4 +96,16 @@ mod assert_send {
         assert_send(store.list_with_offset(None, &"test".into()));
         assert_send(store.list_with_delimiter(None));
     }
+}
+
+fn timestamp_to_datetime(ts: opendal::raw::Timestamp) -> Option<chrono::DateTime<chrono::Utc>> {
+    let jiff_ts = ts.into_inner();
+    chrono::DateTime::<chrono::Utc>::from_timestamp(
+        jiff_ts.as_second(),
+        jiff_ts.subsec_nanosecond() as u32,
+    )
+}
+
+fn datetime_to_timestamp(dt: chrono::DateTime<chrono::Utc>) -> Option<opendal::raw::Timestamp> {
+    opendal::raw::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32).ok()
 }

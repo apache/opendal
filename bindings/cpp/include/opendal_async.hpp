@@ -27,7 +27,6 @@
 #include <unordered_map>
 
 #include "async.rs.h"
-#include "async_defs.hpp"
 
 namespace opendal::async {
 
@@ -45,46 +44,44 @@ class Operator {
   Operator &operator=(Operator &&) = default;
   ~Operator() = default;
 
-  using ReadFuture = opendal::ffi::async::RustFutureRead;
-  ReadFuture read(std::string_view path);
+  using ReadFuture = opendal::ffi::async_op::RustFutureRead;
+  ReadFuture Read(std::string_view path);
 
-  using WriteFuture = opendal::ffi::async::RustFutureWrite;
-  WriteFuture write(std::string_view path, std::span<uint8_t> data);
+  using WriteFuture = opendal::ffi::async_op::RustFutureWrite;
+  WriteFuture Write(std::string_view path, std::span<uint8_t> data);
 
-  using ListFuture = opendal::ffi::async::RustFutureList;
-  ListFuture list(std::string_view path);
+  using ListFuture = opendal::ffi::async_op::RustFutureList;
+  ListFuture List(std::string_view path);
 
-  using ExistsFuture = opendal::ffi::async::RustFutureBool;
-  ExistsFuture exists(std::string_view path);
+  using ExistsFuture = opendal::ffi::async_op::RustFutureBool;
+  ExistsFuture Exists(std::string_view path);
 
-  using CreateDirFuture = opendal::ffi::async::RustFutureWrite;
-  CreateDirFuture create_dir(std::string_view path);
+  using CreateDirFuture = opendal::ffi::async_op::RustFutureWrite;
+  CreateDirFuture CreateDir(std::string_view path);
 
-  using CopyFuture = opendal::ffi::async::RustFutureWrite;
-  CopyFuture copy(std::string_view from, std::string_view to);
+  using CopyFuture = opendal::ffi::async_op::RustFutureWrite;
+  CopyFuture Copy(std::string_view from, std::string_view to);
 
-  using RenameFuture = opendal::ffi::async::RustFutureWrite;
-  RenameFuture rename(std::string_view from, std::string_view to);
+  using RenameFuture = opendal::ffi::async_op::RustFutureWrite;
+  RenameFuture Rename(std::string_view from, std::string_view to);
 
-  using DeleteFuture = opendal::ffi::async::RustFutureWrite;
-  DeleteFuture delete_path(std::string_view path);
+  using DeleteFuture = opendal::ffi::async_op::RustFutureWrite;
+  DeleteFuture DeletePath(std::string_view path);
 
-  using RemoveAllFuture = opendal::ffi::async::RustFutureWrite;
-  RemoveAllFuture remove_all(std::string_view path);
+  using ReaderFuture = opendal::ffi::async_op::RustFutureReaderId;
+  ReaderFuture GetReader(std::string_view path);
 
-  using ReaderFuture = opendal::ffi::async::RustFutureReaderId;
-  ReaderFuture reader(std::string_view path);
-
-  using ListerFuture = opendal::ffi::async::RustFutureListerId;
-  ListerFuture lister(std::string_view path);
+  using ListerFuture = opendal::ffi::async_op::RustFutureListerId;
+  ListerFuture GetLister(std::string_view path);
 
  private:
-  rust::Box<opendal::ffi::async::Operator> operator_;
+  rust::Box<opendal::ffi::async_op::Operator> operator_;
 };
 
 /**
  * @class Reader
- * @brief Async Reader is designed to read data from a specific path in an asynchronous manner.
+ * @brief Async Reader is designed to read data from a specific path in an
+ * asynchronous manner.
  * @details It provides streaming read operations with range support.
  */
 class Reader {
@@ -101,32 +98,33 @@ class Reader {
   // Constructor from ID (for tests and advanced usage)
   explicit Reader(size_t reader_id) noexcept;
 
-  using ReadFuture = opendal::ffi::async::RustFutureRead;
-  
+  using ReadFuture = opendal::ffi::async_op::RustFutureRead;
+
   /**
    * @brief Read data from the specified range
    * @param start Start offset in bytes
    * @param len Number of bytes to read
    * @return Future that resolves to the read data
    */
-  ReadFuture read(uint64_t start, uint64_t len);
+  ReadFuture Read(uint64_t start, uint64_t len);
 
  private:
   friend class Operator;
-  
-  void destroy() noexcept;
+
+  void Destroy() noexcept;
 
   size_t reader_id_{0};
 };
 
 /**
  * @class Lister
- * @brief Async Lister is designed to list entries at a specified path in an asynchronous manner.
+ * @brief Async Lister is designed to list entries at a specified path in an
+ * asynchronous manner.
  * @details It provides streaming iteration over directory entries.
  */
 class Lister {
  public:
-  // Disable copy and assign  
+  // Disable copy and assign
   Lister(const Lister &) = delete;
   Lister &operator=(const Lister &) = delete;
 
@@ -138,18 +136,19 @@ class Lister {
   // Constructor from ID (for tests and advanced usage)
   explicit Lister(size_t lister_id) noexcept;
 
-  using NextFuture = opendal::ffi::async::RustFutureEntryOption;
-  
+  using NextFuture = opendal::ffi::async_op::RustFutureEntryOption;
+
   /**
    * @brief Get the next entry in the listing
-   * @return Future that resolves to the next entry path, or empty string if no more entries
+   * @return Future that resolves to the next entry path, or empty string if no
+   * more entries
    */
-  NextFuture next();
+  NextFuture Next();
 
  private:
   friend class Operator;
-  
-  void destroy() noexcept;
+
+  void Destroy() noexcept;
 
   size_t lister_id_{0};
 };

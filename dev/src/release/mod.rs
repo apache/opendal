@@ -16,8 +16,8 @@
 // under the License.
 
 use crate::{find_command, workspace_dir};
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use sha2::{Digest, Sha512};
 use std::io::BufReader;
 
@@ -108,7 +108,7 @@ fn archive_and_checksum(package: &package::Package, files: &[&str]) -> anyhow::R
 
         let checksum = workspace_dir()
             .join("dist")
-            .join(format!("{}.sha512", filename));
+            .join(format!("{filename}.sha512"));
         std::fs::write(checksum, checksum_lines)?;
     }
 

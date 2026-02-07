@@ -1,0 +1,440 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+//! Concurrent request limit layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::Context;
+use std::task::Poll;
+
+use futures::Stream;
+use futures::StreamExt;
+use mea::semaphore::OwnedSemaphorePermit;
+use mea::semaphore::Semaphore;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+/// ConcurrentLimitSemaphore abstracts a semaphore-like concurrency primitive
+/// that yields an owned permit released on drop.
+pub trait ConcurrentLimitSemaphore: Send + Sync + Clone + Unpin + 'static {
+    /// The owned permit type associated with the semaphore. Dropping it
+    /// must release the permit back to the semaphore.
+    type Permit: Send + Sync + 'static;
+
+    /// Acquire an owned permit asynchronously.
+    fn acquire(&self) -> impl Future<Output = Self::Permit> + MaybeSend;
+}
+
+impl ConcurrentLimitSemaphore for Arc<Semaphore> {
+    type Permit = OwnedSemaphorePermit;
+
+    async fn acquire(&self) -> Self::Permit {
+        self.clone().acquire_owned(1).await
+    }
+}
+
+/// Add concurrent request limit.
+///
+/// # Notes
+///
+/// Users can control how many concurrent connections could be established
+/// between OpenDAL and underlying storage services.
+///
+/// All operators wrapped by this layer will share a common semaphore. This
+/// allows you to reuse the same layer across multiple operators, ensuring
+/// that the total number of concurrent requests across the entire
+/// application does not exceed the limit.
+///
+/// # Examples
+///
+/// Add a concurrent limit layer to the operator:
+///
+/// ```no_run
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+/// #
+/// # fn main() -> Result<()> {
+/// let _ = Operator::new(services::Memory::default())?
+///     .layer(ConcurrentLimitLayer::new(1024))
+///     .finish();
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Share a concurrent limit layer between the operators:
+///
+/// ```no_run
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+/// #
+/// # fn main() -> Result<()> {
+/// let limit = ConcurrentLimitLayer::new(1024);
+///
+/// let _operator_a = Operator::new(services::Memory::default())?
+///     .layer(limit.clone())
+///     .finish();
+/// let _operator_b = Operator::new(services::Memory::default())?
+///     .layer(limit.clone())
+///     .finish();
+/// # Ok(())
+/// # }
+/// ```
+#[derive(Clone)]
+pub struct ConcurrentLimitLayer<S: ConcurrentLimitSemaphore = Arc<Semaphore>> {
+    operation_semaphore: S,
+    http_semaphore: Option<S>,
+}
+
+impl ConcurrentLimitLayer<Arc<Semaphore>> {
+    /// Create a new `ConcurrentLimitLayer` with the specified number of
+    /// permits.
+    ///
+    /// These permits will be applied to all operations.
+    pub fn new(permits: usize) -> Self {
+        Self::with_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+
+    /// Set a concurrent limit for HTTP requests.
+    ///
+    /// This convenience helper constructs a new semaphore with the specified
+    /// number of permits and calls [`ConcurrentLimitLayer::with_http_semaphore`].
+    /// Use [`ConcurrentLimitLayer::with_http_semaphore`] directly when reusing
+    /// a shared semaphore.
+    pub fn with_http_concurrent_limit(self, permits: usize) -> Self {
+        self.with_http_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+}
+
+impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
+    /// Create a layer with any ConcurrentLimitSemaphore implementation.
+    ///
+    /// ```
+    /// # use std::sync::Arc;
+    /// # use mea::semaphore::Semaphore;
+    /// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+    /// let semaphore = Arc::new(Semaphore::new(1024));
+    /// let _layer = ConcurrentLimitLayer::with_semaphore(semaphore);
+    /// ```
+    pub fn with_semaphore(operation_semaphore: S) -> Self {
+        Self {
+            operation_semaphore,
+            http_semaphore: None,
+        }
+    }
+
+    /// Provide a custom HTTP concurrency semaphore instance.
+    pub fn with_http_semaphore(mut self, semaphore: S) -> Self {
+        self.http_semaphore = Some(semaphore);
+        self
+    }
+}
+
+impl<A: Access, S: ConcurrentLimitSemaphore> Layer<A> for ConcurrentLimitLayer<S>
+where
+    S::Permit: Unpin,
+{
+    type LayeredAccess = ConcurrentLimitAccessor<A, S>;
+
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        let info = inner.info();
+
+        // Update http client with concurrent limit http fetcher.
+        info.update_http_client(|client| {
+            HttpClient::with(ConcurrentLimitHttpFetcher::<S> {
+                inner: client.into_inner(),
+                http_semaphore: self.http_semaphore.clone(),
+            })
+        });
+
+        ConcurrentLimitAccessor {
+            inner,
+            semaphore: self.operation_semaphore.clone(),
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct ConcurrentLimitHttpFetcher<S: ConcurrentLimitSemaphore> {
+    inner: HttpFetcher,
+    http_semaphore: Option<S>,
+}
+
+impl<S: ConcurrentLimitSemaphore> HttpFetch for ConcurrentLimitHttpFetcher<S>
+where
+    S::Permit: Unpin,
+{
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let Some(semaphore) = self.http_semaphore.clone() else {
+            return self.inner.fetch(req).await;
+        };
+
+        let permit = semaphore.acquire().await;
+
+        let resp = self.inner.fetch(req).await?;
+        let (parts, body) = resp.into_parts();
+        let body = body.map_inner(|s| {
+            Box::new(ConcurrentLimitStream::<_, S::Permit> {
+                inner: s,
+                _permit: permit,
+            })
+        });
+        Ok(http::Response::from_parts(parts, body))
+    }
+}
+
+struct ConcurrentLimitStream<S, P> {
+    inner: S,
+    // Hold on this permit until this reader has been dropped.
+    _permit: P,
+}
+
+impl<S, P> Stream for ConcurrentLimitStream<S, P>
+where
+    S: Stream<Item = Result<Buffer>> + Unpin + 'static,
+    P: Unpin,
+{
+    type Item = Result<Buffer>;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // Safe due to Unpin bounds on S and P (thus on Self).
+        let this = self.get_mut();
+        this.inner.poll_next_unpin(cx)
+    }
+}
+
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct ConcurrentLimitAccessor<A: Access, S: ConcurrentLimitSemaphore> {
+    inner: A,
+    semaphore: S,
+}
+
+impl<A: Access, S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitAccessor<A, S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConcurrentLimitAccessor")
+            .field("inner", &self.inner)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<A: Access, S: ConcurrentLimitSemaphore> LayeredAccess for ConcurrentLimitAccessor<A, S>
+where
+    S::Permit: Unpin,
+{
+    type Inner = A;
+    type Reader = ConcurrentLimitWrapper<A::Reader, S::Permit>;
+    type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
+    type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
+    type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
+
+    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+        let _permit = self.semaphore.acquire().await;
+
+        self.inner.create_dir(path, args).await
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let permit = self.semaphore.acquire().await;
+
+        self.inner
+            .read(path, args)
+            .await
+            .map(|(rp, r)| (rp, ConcurrentLimitWrapper::new(r, permit)))
+    }
+
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let permit = self.semaphore.acquire().await;
+
+        self.inner
+            .write(path, args)
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+    }
+
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let _permit = self.semaphore.acquire().await;
+
+        self.inner.stat(path, args).await
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let permit = self.semaphore.acquire().await;
+
+        self.inner
+            .delete()
+            .await
+            .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let permit = self.semaphore.acquire().await;
+
+        self.inner
+            .list(path, args)
+            .await
+            .map(|(rp, s)| (rp, ConcurrentLimitWrapper::new(s, permit)))
+    }
+}
+
+#[doc(hidden)]
+pub struct ConcurrentLimitWrapper<R, P> {
+    inner: R,
+
+    // Hold on this permit until this reader has been dropped.
+    _permit: P,
+}
+
+impl<R, P> ConcurrentLimitWrapper<R, P> {
+    fn new(inner: R, permit: P) -> Self {
+        Self {
+            inner,
+            _permit: permit,
+        }
+    }
+}
+
+impl<R: oio::Read, P: Send + Sync + 'static + Unpin> oio::Read for ConcurrentLimitWrapper<R, P> {
+    async fn read(&mut self) -> Result<Buffer> {
+        self.inner.read().await
+    }
+}
+
+impl<R: oio::Write, P: Send + Sync + 'static + Unpin> oio::Write for ConcurrentLimitWrapper<R, P> {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
+impl<R: oio::List, P: Send + Sync + 'static + Unpin> oio::List for ConcurrentLimitWrapper<R, P> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        self.inner.next().await
+    }
+}
+
+impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
+    for ConcurrentLimitWrapper<R, P>
+{
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        self.inner.delete(path, args).await
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::Operator;
+    use opendal_core::services;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    use futures::stream;
+    use http::Response;
+
+    #[tokio::test]
+    async fn operation_semaphore_can_be_shared() {
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
+
+        let permit = semaphore.clone().acquire_owned(1).await;
+
+        let op = Operator::new(services::Memory::default())
+            .expect("operator must build")
+            .layer(layer)
+            .finish();
+
+        let blocked = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            blocked.is_err(),
+            "operation should be limited by shared semaphore"
+        );
+
+        drop(permit);
+
+        let completed = timeout(Duration::from_millis(50), op.stat("any")).await;
+        assert!(
+            completed.is_ok(),
+            "operation should proceed once permit is released"
+        );
+    }
+
+    #[tokio::test]
+    async fn http_semaphore_holds_until_body_dropped() {
+        struct DummyFetcher;
+
+        impl HttpFetch for DummyFetcher {
+            async fn fetch(&self, _req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+                let body = HttpBody::new(stream::empty(), None);
+                Ok(Response::builder()
+                    .status(http::StatusCode::OK)
+                    .body(body)
+                    .expect("response must build"))
+            }
+        }
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::new(1).with_http_semaphore(semaphore.clone());
+        let fetcher = ConcurrentLimitHttpFetcher::<Arc<Semaphore>> {
+            inner: HttpClient::with(DummyFetcher).into_inner(),
+            http_semaphore: layer.http_semaphore.clone(),
+        };
+
+        let request = http::Request::builder()
+            .uri("http://example.invalid/")
+            .body(Buffer::new())
+            .expect("request must build");
+        let _resp = fetcher
+            .fetch(request)
+            .await
+            .expect("first fetch should succeed");
+
+        let request = http::Request::builder()
+            .uri("http://example.invalid/")
+            .body(Buffer::new())
+            .expect("request must build");
+        let blocked = timeout(Duration::from_millis(50), fetcher.fetch(request)).await;
+        assert!(
+            blocked.is_err(),
+            "http fetch should block while the body holds the permit"
+        );
+    }
+}

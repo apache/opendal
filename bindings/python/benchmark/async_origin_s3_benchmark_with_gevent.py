@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# ruff: noqa: E402
+
 import timeit
 
 from gevent import monkey
@@ -61,43 +63,37 @@ TEST_CASE = [
 
 
 def async_origin_s3_write():
-    tasks = []
-    for case in TEST_CASE:
-        tasks.append(
-            gevent.spawn(
-                S3_CLIENT.put_object,
-                **dict(
-                    Bucket=SETTINGS.aws_s3_bucket,
-                    Key=f"benchmark/async_write/{case['name']}",
-                    Body=case["data"],
-                ),
-            )
+    tasks = [
+        gevent.spawn(
+            S3_CLIENT.put_object,
+            Bucket=SETTINGS.aws_s3_bucket,
+            Key=f"benchmark/async_write/{case['name']}",
+            Body=case["data"],
         )
+        for case in TEST_CASE
+    ]
     gevent.joinall(tasks)
 
 
 def async_origin_s3_read():
-    tasks = []
-    for case in TEST_CASE:
-        tasks.append(
-            gevent.spawn(
-                S3_CLIENT.get_object,
-                **dict(
-                    Bucket=SETTINGS.aws_s3_bucket,
-                    Key=f"benchmark/async_write/{case['name']}",
-                ),
-            )
+    tasks = [
+        gevent.spawn(
+            S3_CLIENT.get_object,
+            Bucket=SETTINGS.aws_s3_bucket,
+            Key=f"benchmark/async_write/{case['name']}",
         )
+        for case in TEST_CASE
+    ]
     gevent.joinall(tasks)
-    read_tasks = []
-    for task in tasks:
-        read_tasks.append(gevent.spawn(task.value["Body"].read))
+
+    read_tasks = [gevent.spawn(task.value["Body"].read) for task in tasks]
     gevent.joinall(read_tasks)
 
 
 def async_s3_benchmark():
     for func in (async_origin_s3_write, async_origin_s3_read):
-        print(f"{func.__name__}: {timeit.timeit(func, number=3)}")
+        fn_name = func.__name__
+        print(f"async_origin_s3_benchmark::{fn_name}: {timeit.timeit(func, number=3)}")
 
 
 if __name__ == "__main__":

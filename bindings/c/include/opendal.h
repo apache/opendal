@@ -87,6 +87,8 @@ typedef enum opendal_code {
   OPENDAL_RANGE_NOT_SATISFIED,
 } opendal_code;
 
+typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;
+
 /**
  * \brief opendal_bytes carries raw-bytes with its length
  *
@@ -578,10 +580,50 @@ typedef struct opendal_capability {
    */
   bool presign_write;
   /**
+   * If operator supports presign delete.
+   */
+  bool presign_delete;
+  /**
    * If operator supports shared.
    */
   bool shared;
 } opendal_capability;
+
+/**
+ * \brief The underlying presigned request, which contains the HTTP method, URI, and headers.
+ * This is an opaque struct, please use the accessor functions to get the fields.
+ */
+typedef struct opendal_presigned_request {
+  struct opendal_presigned_request_inner *inner;
+} opendal_presigned_request;
+
+/**
+ * @brief The result of a presign operation.
+ */
+typedef struct opendal_result_presign {
+  /**
+   * The presigned request.
+   */
+  struct opendal_presigned_request *req;
+  /**
+   * The error.
+   */
+  struct opendal_error *error;
+} opendal_result_presign;
+
+/**
+ * \brief The key-value pair for the headers of the presigned request.
+ */
+typedef struct opendal_http_header_pair {
+  /**
+   * The key of the header.
+   */
+  const char *key;
+  /**
+   * The value of the header.
+   */
+  const char *value;
+} opendal_http_header_pair;
 
 /**
  * \brief The is the result type returned by opendal_reader_read().
@@ -1046,7 +1088,6 @@ struct opendal_error *opendal_operator_delete(const struct opendal_operator *op,
  *
  * * If the `path` points to NULL, this function panics, i.e. exits with information
  */
-__attribute__((deprecated("Use opendal_operator_exists() instead.")))
 struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
                                                          const char *path);
 
@@ -1378,6 +1419,59 @@ struct opendal_capability opendal_operator_info_get_full_capability(const struct
 struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
 
 /**
+ * \brief Presign a read operation.
+ */
+struct opendal_result_presign opendal_operator_presign_read(const struct opendal_operator *op,
+                                                            const char *path,
+                                                            uint64_t expire_secs);
+
+/**
+ * \brief Presign a write operation.
+ */
+struct opendal_result_presign opendal_operator_presign_write(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             uint64_t expire_secs);
+
+/**
+ * \brief Presign a delete operation.
+ */
+struct opendal_result_presign opendal_operator_presign_delete(const struct opendal_operator *op,
+                                                              const char *path,
+                                                              uint64_t expire_secs);
+
+/**
+ * \brief Presign a stat operation.
+ */
+struct opendal_result_presign opendal_operator_presign_stat(const struct opendal_operator *op,
+                                                            const char *path,
+                                                            uint64_t expire_secs);
+
+/**
+ * Get the method of the presigned request.
+ */
+const char *opendal_presigned_request_method(const struct opendal_presigned_request *req);
+
+/**
+ * Get the URI of the presigned request.
+ */
+const char *opendal_presigned_request_uri(const struct opendal_presigned_request *req);
+
+/**
+ * Get the headers of the presigned request.
+ */
+const struct opendal_http_header_pair *opendal_presigned_request_headers(const struct opendal_presigned_request *req);
+
+/**
+ * Get the length of the headers of the presigned request.
+ */
+uintptr_t opendal_presigned_request_headers_len(const struct opendal_presigned_request *req);
+
+/**
+ * \brief Free the presigned request.
+ */
+void opendal_presigned_request_free(struct opendal_presigned_request *req);
+
+/**
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
@@ -1481,7 +1575,7 @@ struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
 void opendal_writer_free(struct opendal_writer *ptr);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* _OPENDAL_H */
+#endif  /* _OPENDAL_H */

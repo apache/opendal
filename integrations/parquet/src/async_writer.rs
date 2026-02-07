@@ -109,8 +109,8 @@ mod tests {
 
     use super::*;
     use arrow::array::{ArrayRef, Int64Array, RecordBatch};
-    use opendal::{services, Operator};
-    use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, AsyncArrowWriter};
+    use opendal::{Operator, services};
+    use parquet::arrow::{AsyncArrowWriter, arrow_reader::ParquetRecordBatchReaderBuilder};
 
     #[tokio::test]
     async fn test_basic() {

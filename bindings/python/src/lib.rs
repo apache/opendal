@@ -38,52 +38,68 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
+mod services;
+use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
+pub use services::*;
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Operator>()?;
-    m.add_class::<AsyncOperator>()?;
+    // Add version
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
-    m.add_class::<File>()?;
-    m.add_class::<AsyncFile>()?;
+    // Operator module
+    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
 
-    m.add_class::<Entry>()?;
-    m.add_class::<EntryMode>()?;
-    m.add_class::<Metadata>()?;
-    m.add_class::<PresignedRequest>()?;
-    m.add_class::<Capability>()?;
+    // File module
+    add_pymodule!(py, m, "file", [File, AsyncFile])?;
+
+    // Capability module
+    add_pymodule!(py, m, "capability", [Capability])?;
+
+    // Services module
+    add_pymodule!(py, m, "services", [PyScheme])?;
+
+    // Layers module
+    add_pymodule!(
+        py,
+        m,
+        "layers",
+        [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
+    )?;
+
+    // Types module
+    add_pymodule!(
+        py,
+        m,
+        "types",
+        [Entry, EntryMode, Metadata, PresignedRequest]
+    )?;
 
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;
     m.add_class::<ListOptions>()?;
     m.add_class::<StatOptions>()?;
 
-    // Layer module
-    let layers_module = PyModule::new(py, "layers")?;
-    layers_module.add_class::<Layer>()?;
-    layers_module.add_class::<RetryLayer>()?;
-    layers_module.add_class::<ConcurrentLimitLayer>()?;
-    layers_module.add_class::<MimeGuessLayer>()?;
-    m.add_submodule(&layers_module)?;
-    py.import("sys")?
-        .getattr("modules")?
-        .set_item("opendal.layers", layers_module)?;
-
-    let exception_module = PyModule::new(py, "exceptions")?;
-    exception_module.add("Error", py.get_type::<Error>())?;
-    exception_module.add("Unexpected", py.get_type::<Unexpected>())?;
-    exception_module.add("Unsupported", py.get_type::<Unsupported>())?;
-    exception_module.add("ConfigInvalid", py.get_type::<ConfigInvalid>())?;
-    exception_module.add("NotFound", py.get_type::<NotFound>())?;
-    exception_module.add("PermissionDenied", py.get_type::<PermissionDenied>())?;
-    exception_module.add("IsADirectory", py.get_type::<IsADirectory>())?;
-    exception_module.add("NotADirectory", py.get_type::<NotADirectory>())?;
-    exception_module.add("AlreadyExists", py.get_type::<AlreadyExists>())?;
-    exception_module.add("IsSameFile", py.get_type::<IsSameFile>())?;
-    exception_module.add("ConditionNotMatch", py.get_type::<ConditionNotMatch>())?;
-    m.add_submodule(&exception_module)?;
-    py.import("sys")?
-        .getattr("modules")?
-        .set_item("opendal.exceptions", exception_module)?;
+    // Exceptions module
+    add_pyexceptions!(
+        py,
+        m,
+        "exceptions",
+        [
+            Error,
+            Unexpected,
+            Unsupported,
+            ConfigInvalid,
+            NotFound,
+            PermissionDenied,
+            IsADirectory,
+            NotADirectory,
+            AlreadyExists,
+            IsSameFile,
+            ConditionNotMatch
+        ]
+    )?;
     Ok(())
 }
+
+define_stub_info_gatherer!(stub_info);

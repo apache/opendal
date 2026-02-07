@@ -24,7 +24,9 @@ use anyhow::Result;
 
 pub fn run(language: &str) -> Result<()> {
     let workspace_dir = workspace_dir();
-    let services_path = workspace_dir.join("core/src/services").canonicalize()?;
+    let services_path = workspace_dir
+        .join("core/core/src/services")
+        .canonicalize()?;
     let services = parser::parse(&services_path.to_string_lossy())?;
 
     match language {

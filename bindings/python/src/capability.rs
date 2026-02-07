@@ -17,9 +17,16 @@
 
 use pyo3::prelude::*;
 
-/// Capability is used to describe what operations are supported
-/// by current Operator.
-#[pyclass(get_all, module = "opendal")]
+/// Capability defines the supported operations and their constraints for an Operator.
+///
+/// This structure provides a comprehensive description of an Operator's
+/// capabilities, including:
+///
+/// - Basic operations support (read, write, delete, etc.)
+/// - Advanced operation variants (conditional operations, metadata handling)
+/// - Operational constraints (size limits, batch limitations)
+#[crate::gen_stub_pyclass]
+#[pyclass(get_all, module = "opendal.capability")]
 pub struct Capability {
     /// If operator supports stat.
     pub stat: bool,
@@ -28,56 +35,59 @@ pub struct Capability {
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
 
-    /// Indicates if the operator supports read operations.
+    /// If the operator supports read operations.
     pub read: bool,
-    /// Indicates if conditional read operations using If-Match are supported.
+    /// If conditional read operations using If-Match are supported.
     pub read_with_if_match: bool,
-    /// Indicates if conditional read operations using If-None-Match are supported.
+    /// If conditional read operations using If-None-Match are supported.
     pub read_with_if_none_match: bool,
-    /// Indicates if conditional read operations using If-Modified-Since are supported.
+    /// If conditional read operations using If-Modified-Since are supported.
     pub read_with_if_modified_since: bool,
-    /// Indicates if conditional read operations using If-Unmodified-Since are supported.
+    /// If conditional read operations using If-Unmodified-Since are supported.
     pub read_with_if_unmodified_since: bool,
-    /// Indicates if Cache-Control header override is supported during read operations.
+    /// If Cache-Control header override is supported during read operations.
     pub read_with_override_cache_control: bool,
-    /// Indicates if Content-Disposition header override is supported during read operations.
+    /// If Content-Disposition header can be overridden during read operations.
     pub read_with_override_content_disposition: bool,
-    /// Indicates if Content-Type header override is supported during read operations.
+    /// If Content-Type header override is supported during read operations.
     pub read_with_override_content_type: bool,
-    /// Indicates if versions read operations are supported.
+    /// If versions read operations are supported.
     pub read_with_version: bool,
 
-    /// Indicates if the operator supports write operations.
+    /// If the operator supports write operations.
     pub write: bool,
-    /// Indicates if multiple write operations can be performed on the same object.
+    /// If multiple write operations can be performed on the same object.
     pub write_can_multi: bool,
-    /// Indicates if writing empty content is supported.
+    /// If writing empty content is supported.
     pub write_can_empty: bool,
-    /// Indicates if append operations are supported.
+    /// If append operations are supported.
     pub write_can_append: bool,
-    /// Indicates if Content-Type can be specified during write operations.
+    /// If Content-Type can be specified during write operations.
     pub write_with_content_type: bool,
-    /// Indicates if Content-Disposition can be specified during write operations.
+    /// If Content-Disposition can be specified during write operations.
     pub write_with_content_disposition: bool,
-    /// Indicates if Content-Encoding can be specified during write operations.
+    /// If Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
-    /// Indicates if Cache-Control can be specified during write operations.
+    /// If Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
-    /// Indicates if conditional write operations using If-Match are supported.
+    /// If conditional write operations using If-Match are supported.
     pub write_with_if_match: bool,
-    /// Indicates if conditional write operations using If-None-Match are supported.
+    /// If conditional write operations using If-None-Match are supported.
     pub write_with_if_none_match: bool,
-    /// Indicates if write operations can be conditional on object non-existence.
+    /// If write operations can be conditional on object non-existence.
     pub write_with_if_not_exists: bool,
-    /// Indicates if custom user metadata can be attached during write operations.
+    /// If custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
     /// Maximum size supported for multipart uploads.
+    ///
     /// For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: Option<usize>,
     /// Minimum size required for multipart uploads (except for the last part).
+    ///
     /// For example, AWS S3 requires at least 5MiB per part.
     pub write_multi_min_size: Option<usize>,
     /// Maximum total size supported for write operations.
+    ///
     /// For example, Cloudflare D1 has a 1MB total size limit.
     pub write_total_max_size: Option<usize>,
 

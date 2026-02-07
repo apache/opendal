@@ -19,9 +19,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use anyhow::Result;
-use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use futures::TryStreamExt;
+use futures::stream::FuturesUnordered;
 use log::debug;
 
 use crate::*;
@@ -115,7 +115,8 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
 pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
 
@@ -139,7 +140,7 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
-    op.remove_all(parent).await?;
+    op.delete_with(parent).recursive(true).await?;
     Ok(())
 }
 
@@ -229,7 +230,7 @@ pub async fn test_list_non_exist_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
@@ -256,8 +257,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     }
     assert!(
         found,
-        "dir should be found in list, but only got: {:?}",
-        entries
+        "dir should be found in list, but only got: {entries:?}"
     );
 
     op.delete(&path).await.expect("delete must succeed");
@@ -310,7 +310,7 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 3, "dir should only got 3 objects");
 
@@ -399,7 +399,7 @@ pub async fn test_list_with_start_after(op: Operator) -> Result<()> {
 
     assert_eq!(expected, actual);
 
-    op.remove_all(dir).await?;
+    op.delete_with(dir).recursive(true).await?;
 
     Ok(())
 }
@@ -412,7 +412,7 @@ pub async fn test_list_non_exist_dir_with_recursive(op: Operator) -> Result<()> 
     while let Some(de) = obs.try_next().await? {
         objects.insert(de.path().to_string(), de);
     }
-    debug!("got objects: {:?}", objects);
+    debug!("got objects: {objects:?}");
 
     assert_eq!(objects.len(), 0, "dir should only return empty");
     Ok(())
@@ -556,7 +556,9 @@ pub async fn test_remove_all(op: Operator) -> Result<()> {
         }
     }
 
-    op.remove_all(&format!("{parent}/x/")).await?;
+    op.delete_with(&format!("{parent}/x/"))
+        .recursive(true)
+        .await?;
 
     for path in expected.iter() {
         if path.ends_with('/') {
@@ -598,7 +600,7 @@ pub async fn test_list_files_with_versions(op: Operator) -> Result<()> {
 
     let parent = TEST_FIXTURE.new_dir_path();
     let file_name = TEST_FIXTURE.new_file_path();
-    let file_path = format!("{}{}", parent, file_name);
+    let file_path = format!("{parent}{file_name}");
     op.write(file_path.as_str(), "1").await?;
     op.write(file_path.as_str(), "2").await?;
 
@@ -623,7 +625,7 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
 
     let parent = TEST_FIXTURE.new_dir_path();
     let file_name = TEST_FIXTURE.new_file_path();
-    let file_path = format!("{}{}", parent, file_name);
+    let file_path = format!("{parent}{file_name}");
     op.write(file_path.as_str(), "1").await?;
 
     // List with deleted should include self too.
@@ -654,7 +656,8 @@ pub async fn test_list_files_with_deleted(op: Operator) -> Result<()> {
 pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
-    if op.info().scheme() == Scheme::Gdrive {
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
     if !op.info().full_capability().list_with_versions {
@@ -672,7 +675,7 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
     }
     let mut expected: Vec<String> = expected
         .into_iter()
-        .flat_map(|v| std::iter::repeat(v).take(2))
+        .flat_map(|v| std::iter::repeat_n(v, 2))
         .collect();
     expected.push(parent.to_string());
 
@@ -687,7 +690,7 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
 
     assert_eq!(actual, expected);
 
-    op.remove_all(parent).await?;
+    op.delete_with(parent).recursive(true).await?;
     Ok(())
 }
 
@@ -727,14 +730,14 @@ pub async fn test_list_with_versions_and_start_after(op: Operator) -> Result<()>
     let expected: Vec<String> = given.into_iter().skip(3).collect();
     let mut expected: Vec<String> = expected
         .into_iter()
-        .flat_map(|v| std::iter::repeat(v).take(2))
+        .flat_map(|v| std::iter::repeat_n(v, 2))
         .collect();
 
     expected.sort_unstable();
     actual.sort_unstable();
     assert_eq!(expected, actual);
 
-    op.remove_all(dir).await?;
+    op.delete_with(dir).recursive(true).await?;
 
     Ok(())
 }

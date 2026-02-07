@@ -23,7 +23,6 @@ This crate can help you to access ANY storage services with the same FTP API.
 ```rust
 use anyhow::Result;
 use opendal::Operator;
-use opendal::Scheme;
 use opendal::services;
 use unftp_sbe_opendal::OpendalStorage;
 

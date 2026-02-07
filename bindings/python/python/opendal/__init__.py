@@ -15,6 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from ._opendal import *
+# ruff: noqa: D104
+from __future__ import annotations
 
-__all__ = _opendal.__all__
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    __version__: str
+    from opendal import capability, exceptions, file, layers, services, types
+else:
+    from opendal._opendal import (
+        __version__,  # noqa: F401
+        capability,
+        exceptions,
+        file,
+        layers,
+        services,
+        types,
+    )
+
+from opendal.operator import AsyncOperator, Operator  # pyright:ignore
+
+__all__ = [
+    "capability",
+    "exceptions",
+    "file",
+    "layers",
+    "services",
+    "types",
+    "AsyncOperator",
+    "Operator",
+]

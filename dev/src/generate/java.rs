@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::generate::parser::{sorted_services, Config, ConfigType, Services};
+use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::Result;
 use minijinja::value::ViaDeserialize;
-use minijinja::{context, Environment};
+use minijinja::{Environment, context};
 use std::fs;
 use std::path::PathBuf;
 
@@ -64,7 +64,7 @@ fn make_field(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error>
     let html = markdown::to_html(&field.comments);
     writeln!(w, "/**")?;
     for line in html.lines() {
-        writeln!(w, " * {}", line)?;
+        writeln!(w, " * {line}")?;
     }
     if let Some(deprecated) = &field.deprecated {
         writeln!(w, " *")?;
@@ -138,10 +138,10 @@ fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja:
 
     if field.optional {
         writeln!(w, "if ({} != null) {{", case_java_field_name(&field.name))?;
-        writeln!(w, "    {}", populate)?;
+        writeln!(w, "    {populate}")?;
         writeln!(w, "}}")?;
     } else {
-        writeln!(w, "{}", populate)?;
+        writeln!(w, "{populate}")?;
     }
 
     Ok(result)

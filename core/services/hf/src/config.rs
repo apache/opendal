@@ -78,9 +78,11 @@ impl opendal_core::Configurator for HfConfig {
     type Builder = HfBuilder;
 
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
+        let opts = uri.options();
+
         // Reconstruct the full path from authority (name) and root.
-        // OperatorUri splits "hf://datasets/user/repo" into
-        // name="datasets" and root="user/repo".
+        // OperatorUri splits "hf://datasets/user/repo@rev/path" into
+        // name="datasets" and root="user/repo@rev/path".
         let mut path = String::new();
         if let Some(name) = uri.name() {
             if !name.is_empty() {
@@ -96,13 +98,35 @@ impl opendal_core::Configurator for HfConfig {
             }
         }
 
-        let parsed = HfUri::parse(&path)?;
-        Ok(Self {
-            repo_type: parsed.repo.repo_type,
-            repo_id: Some(parsed.repo.repo_id),
-            revision: parsed.repo.revision,
-            ..Default::default()
-        })
+        if !path.is_empty() {
+            // Full URI like "hf://datasets/user/repo@rev/path"
+            let parsed = HfUri::parse(&path)?;
+            Ok(Self {
+                repo_type: parsed.repo.repo_type,
+                repo_id: Some(parsed.repo.repo_id),
+                revision: parsed.repo.revision,
+                token: opts.get("token").cloned(),
+                endpoint: opts.get("endpoint").cloned(),
+                ..Default::default()
+            })
+        } else {
+            // Bare scheme from via_iter, all config is in options.
+            let repo_type = opts
+                .get("repo_type")
+                .map(|s| RepoType::parse(s))
+                .transpose()?
+                .unwrap_or_default();
+            Ok(Self {
+                repo_type,
+                repo_id: opts.get("repo_id").cloned(),
+                revision: opts.get("revision").cloned(),
+                root: opts.get("root").cloned(),
+                token: opts.get("token").cloned(),
+                endpoint: opts.get("endpoint").cloned(),
+                xet: opts.get("xet").is_some_and(|v| v == "true"),
+                ..Default::default()
+            })
+        }
     }
 
     fn into_builder(self) -> Self::Builder {
@@ -130,5 +154,32 @@ mod tests {
         assert_eq!(cfg.repo_id.as_deref(), Some("username/my_dataset"));
         assert_eq!(cfg.revision.as_deref(), Some("dev"));
         assert!(cfg.root.is_none());
+    }
+
+    #[test]
+    fn from_uri_via_iter_options() {
+        use opendal_core::Configurator;
+        use opendal_core::OperatorUri;
+
+        // Simulates the via_iter path: bare scheme with options map.
+        let uri = OperatorUri::new(
+            "huggingface",
+            vec![
+                ("repo_type".to_string(), "dataset".to_string()),
+                (
+                    "repo_id".to_string(),
+                    "opendal/huggingface-testdata".to_string(),
+                ),
+                ("revision".to_string(), "main".to_string()),
+                ("root".to_string(), "/testdata/".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = HfConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.repo_type, RepoType::Dataset);
+        assert_eq!(cfg.repo_id.as_deref(), Some("opendal/huggingface-testdata"));
+        assert_eq!(cfg.revision.as_deref(), Some("main"));
+        assert_eq!(cfg.root.as_deref(), Some("/testdata/"));
     }
 }

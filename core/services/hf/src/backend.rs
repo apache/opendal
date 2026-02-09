@@ -179,7 +179,7 @@ impl Builder for HfBuilder {
                 .set_native_capability(Capability {
                     stat: true,
                     read: true,
-                    write: true,
+                    write: token.is_some(),
                     list: true,
                     list_with_recursive: true,
                     shared: true,

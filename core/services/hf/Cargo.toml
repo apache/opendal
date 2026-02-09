@@ -55,18 +55,15 @@ sha2 = "0.10"
 tempfile = "3"
 
 # XET storage protocol support (optional)
+async-trait = { version = "0.1", optional = true }
+cas_types = { git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
+futures = { workspace = true, optional = true }
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ], optional = true }
-# xet-data = { package = "data", git = "https://github.com/huggingface/xet-core", optional = true }
-# cas_types = { git = "https://github.com/huggingface/xet-core", optional = true }
-# xet-utils = { package = "utils", git = "https://github.com/huggingface/xet-core", optional = true }
-async-trait = { version = "0.1", optional = true }
-cas_types = { path = "/Users/kszucs/Workspace/xet-core/cas_types", optional = true }
-futures = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync", "rt"], optional = true }
-xet-data = { package = "data", path = "/Users/kszucs/Workspace/xet-core/data", optional = true }
-xet-utils = { package = "utils", path = "/Users/kszucs/Workspace/xet-core/utils", optional = true }
+xet-data = { package = "data", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
+xet-utils = { package = "utils", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
 
 [dev-dependencies]
 futures = { workspace = true }

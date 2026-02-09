@@ -1,15 +1,31 @@
-- Proposal Name: (`undelete`)
+- Proposal Name: (`restore_api`)
 - Start Date: 2025-02-04
 - RFC PR: [apache/opendal#7178](https://github.com/apache/opendal/pull/7178)
 - Tracking Issue: [apache/opendal#4321](https://github.com/apache/opendal/issues/4321)
 
 # Summary
 
-Implement two complementary approaches for restoring deleted files in OpenDAL:
+Implement restoring a deleted version or a file.
+
+# Motivation
+
+Cloud storage providers implement data recovery through different mechanisms:
+
+- Example 1: **AWS S3** uses versioning exclusively. Deleted objects become "delete markers" and can be restored by copying a previous version or removing the delete marker.
+- Example 2: **GCS and Azure Blob Storage**  provide both versioning AND soft delete as separate, independent features that can be enabled separately or together.
+
+Currently, there is no standardized way in OpenDAL to restore deleted objects across these different paradigms. This creates challenges for downstream projects that need data recovery capabilities. For example, iceberg-java [already supports file restore](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/io/SupportsRecoveryOperations.java) in some cloud environments, while iceberg-rust, written with OpenDAL, does not provide this functionality yet.
+
+In order to secure data pipelines, users currently have to maintain implementations of restore logic across multiple languages and storage backends. Having this functionality in OpenDAL would centralize this capability and make it available to all downstream users.
+
+# Guide-level explanation
+
+OpenDAL provides two ways to restore deleted files, depending on the storage backend's capabilities:
 
 1. **Version-based restoration**: Extend the `copy` operation with an optional source `version` parameter to enable promoting non-current versions to the current version (for storage systems with versioning support)
 2. **Soft delete restoration**: Add an `undelete` operation for storage systems that implement soft delete as a distinct feature from versioning (GCS and Azure Blob Storage)
-3. Provide a high-level `restore` API that automatically chooses the right approach based on service capabilities, defaulting to versioning approach:
+
+We might also provide a high-level `restore` API that automatically chooses the right approach based on service capabilities, defaulting to versioning approach:
 
 ```rust
 impl Operator {
@@ -39,20 +55,6 @@ impl Operator {
 }
 ```
 
-# Motivation
-
-Cloud storage providers implement data recovery through different mechanisms:
-
-- Example 1: **AWS S3** uses versioning exclusively. Deleted objects become "delete markers" and can be restored by copying a previous version or removing the delete marker.
-- Example 2: **GCS and Azure Blob Storage**  provide both versioning AND soft delete as separate, independent features that can be enabled separately or together.
-
-Currently, there is no standardized way in OpenDAL to restore deleted objects across these different paradigms. This creates challenges for downstream projects that need data recovery capabilities. For example, iceberg-java [already supports file restore](https://github.com/apache/iceberg/blob/main/api/src/main/java/org/apache/iceberg/io/SupportsRecoveryOperations.java) in some cloud environments, while iceberg-rust, written with OpenDAL, does not provide this functionality yet.
-
-In order to secure data pipelines, users currently have to maintain implementations of restore logic across multiple languages and storage backends. Having this functionality in OpenDAL would centralize this capability and make it available to all downstream users.
-
-# Guide-level explanation
-
-OpenDAL provides two ways to restore deleted files, depending on the storage backend's capabilities:
 
 ## Approach 1: Version-Based Restoration (Copy with Version)
 

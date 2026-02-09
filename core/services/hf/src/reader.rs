@@ -162,11 +162,7 @@ mod tests {
 
         HfCore {
             info: info.into(),
-            repo: HfRepo::new(
-                repo_type,
-                repo_id.to_string(),
-                Some("main".to_string()),
-            ),
+            repo: HfRepo::new(repo_type, repo_id.to_string(), Some("main".to_string())),
             root: "/".to_string(),
             token: None,
             endpoint: "https://huggingface.co".to_string(),

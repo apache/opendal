@@ -92,11 +92,7 @@ impl HfWriter {
 
     /// Upload file content to XET storage.
     #[cfg(feature = "xet")]
-    async fn upload_xet(
-        core: &HfCore,
-        path: &str,
-        body: Buffer,
-    ) -> Result<LfsFile> {
+    async fn upload_xet(core: &HfCore, path: &str, body: Buffer) -> Result<LfsFile> {
         let bytes = body.to_bytes();
         let size = bytes.len() as u64;
 
@@ -149,9 +145,7 @@ impl HfWriter {
         for _ in 0..MAX_RETRIES {
             match self.try_upload_and_commit(body.clone()).await {
                 Ok(meta) => return Ok(meta),
-                Err(err)
-                    if err.kind() == ErrorKind::ConditionNotMatch || err.is_temporary() =>
-                {
+                Err(err) if err.kind() == ErrorKind::ConditionNotMatch || err.is_temporary() => {
                     last_err = Some(err);
                     continue;
                 }

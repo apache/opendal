@@ -30,7 +30,20 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = []
+xet = [
+    "dep:reqwest",
+    "dep:xet-data",
+    "dep:cas_types",
+    "dep:xet-utils",
+    "dep:tokio",
+    "dep:futures",
+    "dep:async-trait",
+]
+
 [dependencies]
+base64 = { workspace = true }
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
@@ -38,7 +51,23 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 percent-encoding = "2"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = "0.10"
+tempfile = "3"
+
+# XET storage protocol support (optional)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
+# xet-data = { package = "data", git = "https://github.com/huggingface/xet-core", optional = true }
+# cas_types = { git = "https://github.com/huggingface/xet-core", optional = true }
+# xet-utils = { package = "utils", git = "https://github.com/huggingface/xet-core", optional = true }
+xet-data = { package = "data", path = "/Users/kszucs/Workspace/xet-core/data", optional = true }
+cas_types = { path = "/Users/kszucs/Workspace/xet-core/cas_types", optional = true }
+xet-utils = { package = "utils", path = "/Users/kszucs/Workspace/xet-core/utils", optional = true }
+futures = { workspace = true, optional = true }
+async-trait = { version = "0.1", optional = true }
+tokio = { workspace = true, features = ["sync", "rt"], optional = true }
 
 [dev-dependencies]
 futures = { workspace = true }
+opendal-core = { path = "../../core", version = "0.55.0", features = ["reqwest-rustls-tls"] }
+serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

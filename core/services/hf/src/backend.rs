@@ -17,17 +17,15 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use http::Response;
-use http::StatusCode;
 use log::debug;
 
 use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
-use super::core::HfStatus;
-use super::error::parse_error;
 use super::lister::HfLister;
+use super::reader::HfReader;
+use super::uri::{HfRepo, RepoType};
+use super::writer::HfWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -50,7 +48,9 @@ impl HfBuilder {
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
-            self.config.repo_type = Some(repo_type.to_string());
+            if let Ok(rt) = RepoType::parse(repo_type) {
+                self.config.repo_type = rt;
+            }
         }
         self
     }
@@ -118,27 +118,26 @@ impl HfBuilder {
         }
         self
     }
+
+    /// Enable XET storage protocol for reads.
+    ///
+    /// When true and the `xet` feature is compiled in, reads will
+    /// check for XET-backed files and use the XET protocol for
+    /// downloading. Default is false.
+    pub fn xet(mut self, xet: bool) -> Self {
+        self.config.xet = xet;
+        self
+    }
 }
 
 impl Builder for HfBuilder {
     type Config = HfConfig;
 
-    /// Build an HfBackend.
+    /// Build a HfBackend.
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let repo_type = match self.config.repo_type.as_deref() {
-            Some("model") => Ok(RepoType::Model),
-            Some("dataset") | Some("datasets") => Ok(RepoType::Dataset),
-            Some("space") => Ok(RepoType::Space),
-            Some(repo_type) => Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                format!("unknown repo_type: {repo_type}").as_str(),
-            )
-            .with_operation("Builder::build")
-            .with_context("service", HF_SCHEME)),
-            None => Ok(RepoType::Model),
-        }?;
+        let repo_type = self.config.repo_type;
         debug!("backend use repo_type: {:?}", &repo_type);
 
         let repo_id = match &self.config.repo_id {
@@ -174,26 +173,30 @@ impl Builder for HfBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
+        let info: Arc<AccessorInfo> = {
+            let am = AccessorInfo::default();
+            am.set_scheme(HF_SCHEME)
+                .set_native_capability(Capability {
+                    stat: true,
+                    read: true,
+                    write: true,
+                    list: true,
+                    list_with_recursive: true,
+                    shared: true,
+                    ..Default::default()
+                });
+            am.into()
+        };
+
         Ok(HfBackend {
             core: Arc::new(HfCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(HF_SCHEME).set_native_capability(Capability {
-                        stat: true,
-                        read: true,
-                        list: true,
-                        list_with_recursive: true,
-                        shared: true,
-                        ..Default::default()
-                    });
-                    am.into()
-                },
-                repo_type,
-                repo_id,
-                revision,
+                info,
+                repo: HfRepo::new(repo_type, repo_id, Some(revision)),
                 root,
                 token,
                 endpoint,
+                #[cfg(feature = "xet")]
+                xet_enabled: self.config.xet,
             }),
         })
     }
@@ -206,8 +209,8 @@ pub struct HfBackend {
 }
 
 impl Access for HfBackend {
-    type Reader = HttpBody;
-    type Writer = ();
+    type Reader = HfReader;
+    type Writer = oio::OneShotWriter<HfWriter>;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = ();
 
@@ -221,64 +224,13 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.hf_path_info(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body();
-
-                let decoded_response: Vec<HfStatus> =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                // NOTE: if the file is not found, the server will return 200 with an empty array
-                if let Some(status) = decoded_response.first() {
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
-                    }
-
-                    meta.set_content_length(status.size);
-
-                    // Use LFS OID as ETag if available, otherwise use regular OID
-                    let etag = if let Some(lfs) = &status.lfs {
-                        &lfs.oid
-                    } else {
-                        &status.oid
-                    };
-                    meta.set_etag(etag);
-
-                    match status.type_.as_str() {
-                        "directory" => meta.set_mode(EntryMode::DIR),
-                        "file" => meta.set_mode(EntryMode::FILE),
-                        _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
-                    };
-                } else {
-                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
-                }
-
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let info = self.core.path_info(path).await?;
+        Ok(RpStat::new(info.metadata()?))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.hf_resolve(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        let reader = HfReader::try_new(&self.core, path, args.range()).await?;
+        Ok((RpRead::default(), reader))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -286,15 +238,11 @@ impl Access for HfBackend {
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
-}
 
-/// Repository type of Hugging Face. Supports `model`, `dataset`, and `space`.
-/// [Reference](https://huggingface.co/docs/hub/repositories)
-#[derive(Debug, Clone, Copy)]
-pub enum RepoType {
-    Model,
-    Dataset,
-    Space,
+    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = HfWriter::new(&self.core, path, args);
+        Ok((RpWrite::default(), oio::OneShotWriter::new(writer)))
+    }
 }
 
 #[cfg(test)]
@@ -317,5 +265,98 @@ mod tests {
             .repo_type("space")
             .build()
             .expect("builder should accept space repo type");
+    }
+
+    #[test]
+    fn test_both_schemes_are_supported() {
+        use opendal_core::OperatorRegistry;
+
+        let registry = OperatorRegistry::new();
+        super::super::register_hf_service(&registry);
+
+        // Test short scheme "hf"
+        let op = registry
+            .load("hf://user/repo")
+            .expect("short scheme should be registered and work");
+        assert_eq!(op.info().scheme(), "hf");
+
+        // Test long scheme "huggingface"
+        let op = registry
+            .load("huggingface://user/repo")
+            .expect("long scheme should be registered and work");
+        assert_eq!(op.info().scheme(), "hf");
+    }
+
+    /// Parquet magic bytes: "PAR1"
+    const PARQUET_MAGIC: &[u8] = b"PAR1";
+
+    fn mbpp_operator() -> Operator {
+        let builder = HfBuilder::default()
+            .repo_type("dataset")
+            .repo_id("google-research-datasets/mbpp")
+            .revision("main")
+            .root("/");
+
+        Operator::new(builder).unwrap().finish()
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_parquet_http() {
+        let op = mbpp_operator();
+        let path = "full/train-00000-of-00001.parquet";
+
+        let meta = op.stat(path).await.expect("stat should succeed");
+        assert!(meta.content_length() > 0);
+
+        // Read the first 4 bytes to check parquet header magic
+        let header = op
+            .read_with(path)
+            .range(0..4)
+            .await
+            .expect("read header should succeed");
+        assert_eq!(&header.to_vec(), PARQUET_MAGIC);
+
+        // Read the last 4 bytes to check parquet footer magic
+        let size = meta.content_length();
+        let footer = op
+            .read_with(path)
+            .range(size - 4..size)
+            .await
+            .expect("read footer should succeed");
+        assert_eq!(&footer.to_vec(), PARQUET_MAGIC);
+    }
+
+    #[cfg(feature = "xet")]
+    fn mbpp_operator_xet() -> Operator {
+        let repo_id = std::env::var("HF_OPENDAL_DATASET")
+            .unwrap_or_else(|_| "google-research-datasets/mbpp".to_string());
+        let mut builder = HfBuilder::default()
+            .repo_type("dataset")
+            .repo_id(&repo_id)
+            .revision("main")
+            .root("/")
+            .xet(true);
+
+        if let Ok(token) = std::env::var("HF_OPENDAL_TOKEN") {
+            builder = builder.token(&token);
+        }
+
+        Operator::new(builder).unwrap().finish()
+    }
+
+    #[cfg(feature = "xet")]
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_parquet_xet() {
+        let op = mbpp_operator_xet();
+        let path = "full/train-00000-of-00001.parquet";
+
+        // Full read via XET and verify parquet magic at both ends
+        let data = op.read(path).await.expect("xet read should succeed");
+        let bytes = data.to_vec();
+        assert!(bytes.len() > 8);
+        assert_eq!(&bytes[..4], PARQUET_MAGIC);
+        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 }

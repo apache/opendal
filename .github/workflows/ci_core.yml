@@ -94,7 +94,7 @@ jobs:
           cargo update zerofrom --precise 0.1.5
           cargo update idna_adapter --precise 1.2.0
           cargo update litemap --precise 0.7.4
-          cargo update ctor --precise 0.6.1
+          cargo update ctor@0.6.3 --precise 0.6.1
           cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
   build_default_features:

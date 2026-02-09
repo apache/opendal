@@ -32,6 +32,9 @@ mod config;
 mod core;
 mod error;
 mod lister;
+mod reader;
+mod writer;
+mod uri;
 
 pub use backend::HfBuilder as Hf;
 pub use config::HfConfig;

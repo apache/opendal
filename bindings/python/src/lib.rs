@@ -28,6 +28,7 @@ mod lister;
 pub use lister::*;
 mod metadata;
 pub use metadata::*;
+#[allow(deprecated)]
 mod operator;
 pub use operator::*;
 mod file;
@@ -38,9 +39,7 @@ mod errors;
 pub use errors::*;
 mod options;
 pub use options::*;
-mod services;
 use pyo3_stub_gen::{define_stub_info_gatherer, derive::*};
-pub use services::*;
 
 #[pymodule(gil_used = false)]
 fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -48,16 +47,13 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
 
     // Operator module
-    add_pymodule!(py, m, "operator", [Operator, AsyncOperator])?;
+    add_pymodule!(py, m, "operator", [PyOperator, PyAsyncOperator])?;
 
     // File module
     add_pymodule!(py, m, "file", [File, AsyncFile])?;
 
     // Capability module
-    add_pymodule!(py, m, "capability", [Capability])?;
-
-    // Services module
-    add_pymodule!(py, m, "services", [PyScheme])?;
+    add_pymodule!(py, m, "capability", [PyCapability])?;
 
     // Layers module
     add_pymodule!(

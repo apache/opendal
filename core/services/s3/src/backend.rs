@@ -682,6 +682,12 @@ impl S3Builder {
 
         None
     }
+
+    /// Set default ACL for new objects.
+    pub fn default_acl(mut self, acl: &str) -> Self {
+        self.config.default_acl = Some(acl.to_string());
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -960,6 +966,7 @@ impl Builder for S3Builder {
                 enable_request_payer: config.enable_request_payer,
                 signer,
                 checksum_algorithm,
+                default_acl: config.default_acl,
             }),
         })
     }

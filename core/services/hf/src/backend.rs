@@ -182,6 +182,7 @@ impl Builder for HfBuilder {
                     read: true,
                     write: token.is_some(),
                     delete: token.is_some(),
+                    delete_max_size: Some(100),
                     list: true,
                     list_with_recursive: true,
                     shared: true,
@@ -214,7 +215,7 @@ impl Access for HfBackend {
     type Reader = HfReader;
     type Writer = oio::OneShotWriter<HfWriter>;
     type Lister = oio::PageLister<HfLister>;
-    type Deleter = oio::OneShotDeleter<HfDeleter>;
+    type Deleter = oio::BatchDeleter<HfDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -249,7 +250,10 @@ impl Access for HfBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(HfDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(
+                HfDeleter::new(self.core.clone()),
+                self.core.info.full_capability().delete_max_size,
+            ),
         ))
     }
 }

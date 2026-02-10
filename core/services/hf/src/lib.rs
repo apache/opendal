@@ -35,6 +35,7 @@ mod lister;
 mod reader;
 mod writer;
 mod uri;
+mod deleter;
 
 pub use backend::HfBuilder as Hf;
 pub use config::HfConfig;

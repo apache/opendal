@@ -21,6 +21,7 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
+use http::StatusCode;
 use http::header;
 use serde::Deserialize;
 
@@ -63,6 +64,11 @@ pub(super) struct LfsFile {
     pub size: u64,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub(super) struct DeletedFile {
+    pub path: String,
+}
+
 #[derive(serde::Serialize)]
 pub(super) struct MixedCommitPayload {
     pub summary: String,
@@ -70,6 +76,8 @@ pub(super) struct MixedCommitPayload {
     pub files: Vec<CommitFile>,
     #[serde(rename = "lfsFiles", skip_serializing_if = "Vec::is_empty")]
     pub lfs_files: Vec<LfsFile>,
+    #[serde(rename = "deletedFiles", skip_serializing_if = "Vec::is_empty")]
+    pub deleted_files: Vec<DeletedFile>,
 }
 
 // API response types
@@ -381,46 +389,37 @@ impl HfCore {
         Ok(resp)
     }
 
-    /// Commit uploaded files to the repository.
+    /// Commit file changes (uploads and/or deletions) to the repository.
     pub(super) async fn commit_files(
         &self,
         regular_files: Vec<CommitFile>,
         lfs_files: Vec<LfsFile>,
-    ) -> Result<http::Response<Buffer>> {
+        deleted_files: Vec<DeletedFile>,
+    ) -> Result<()> {
         let _token = self.token.as_deref().ok_or_else(|| {
             Error::new(
                 ErrorKind::PermissionDenied,
-                "token is required for write operations",
+                "token is required for commit operations",
             )
             .with_operation("commit")
         })?;
 
-        let mut summary_paths = Vec::new();
-        for file in &regular_files {
-            summary_paths.push(file.path.clone());
-        }
-        for file in &lfs_files {
-            summary_paths.push(file.path.clone());
-        }
-
-        let summary = if summary_paths.len() == 1 {
-            format!("Upload {} via OpenDAL", summary_paths[0])
-        } else {
-            format!("Upload {} files via OpenDAL", summary_paths.len())
-        };
+        let first_path = regular_files
+            .first()
+            .map(|f| f.path.as_str())
+            .or_else(|| lfs_files.first().map(|f| f.path.as_str()))
+            .or_else(|| deleted_files.first().map(|f| f.path.as_str()))
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files to commit"))?;
 
         let client = self.info.http_client();
-        // Use the first file's path to determine the commit URL
-        let first_path = summary_paths
-            .first()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files to commit"))?;
         let uri = self.repo.uri(&self.root, first_path);
         let url = uri.commit_url(&self.endpoint);
 
         let payload = MixedCommitPayload {
-            summary,
+            summary: "Commit via OpenDAL".to_string(),
             files: regular_files,
             lfs_files,
+            deleted_files,
         };
 
         let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
@@ -432,7 +431,11 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        client.send(req).await
+        let resp = client.send(req).await?;
+        match resp.status() {
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
     }
 }
 

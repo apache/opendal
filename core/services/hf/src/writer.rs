@@ -18,12 +18,11 @@
 use std::sync::Arc;
 
 use base64::Engine;
-use http::StatusCode;
 use sha2::{Digest, Sha256};
 
-use super::core::{CommitFile, HfCore, LfsFile, PreuploadFile};
+use super::core::{CommitFile, HfCore, PreuploadFile};
 #[cfg(feature = "xet")]
-use super::core::{XetTokenRefresher, map_xet_error};
+use super::core::{LfsFile, XetTokenRefresher, map_xet_error};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -181,12 +180,10 @@ impl HfWriter {
         // Commit the files
         let regular_files: Vec<_> = commit_file.into_iter().collect();
         let lfs_files: Vec<_> = lfs_file.into_iter().collect();
-        let resp = self.core.commit_files(regular_files, lfs_files).await?;
-
-        match resp.status() {
-            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
-            _ => Err(super::error::parse_error(resp)),
-        }
+        self.core
+            .commit_files(regular_files, lfs_files, vec![])
+            .await?;
+        Ok(Metadata::default())
     }
 }
 
@@ -236,16 +233,9 @@ mod tests {
             .await
             .expect("upload should succeed");
 
-        let resp = core
-            .commit_files(vec![commit_file], vec![])
+        core.commit_files(vec![commit_file], vec![], vec![])
             .await
             .expect("commit should succeed");
-
-        assert!(
-            resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED,
-            "expected OK or CREATED status, got {}",
-            resp.status()
-        );
     }
 
     #[tokio::test]
@@ -288,16 +278,9 @@ mod tests {
             .await
             .expect("xet upload should succeed");
 
-        let resp = core
-            .commit_files(vec![], vec![lfs_file])
+        core.commit_files(vec![], vec![lfs_file], vec![])
             .await
             .expect("commit should succeed");
-
-        assert!(
-            resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED,
-            "expected OK or CREATED status, got {}",
-            resp.status()
-        );
     }
 
     #[cfg(feature = "xet")]

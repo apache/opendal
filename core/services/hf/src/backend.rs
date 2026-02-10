@@ -22,6 +22,7 @@ use log::debug;
 use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
+use super::deleter::HfDeleter;
 use super::lister::HfLister;
 use super::reader::HfReader;
 use super::uri::{HfRepo, RepoType};
@@ -180,6 +181,7 @@ impl Builder for HfBuilder {
                     stat: true,
                     read: true,
                     write: token.is_some(),
+                    delete: token.is_some(),
                     list: true,
                     list_with_recursive: true,
                     shared: true,
@@ -212,7 +214,7 @@ impl Access for HfBackend {
     type Reader = HfReader;
     type Writer = oio::OneShotWriter<HfWriter>;
     type Lister = oio::PageLister<HfLister>;
-    type Deleter = ();
+    type Deleter = oio::OneShotDeleter<HfDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -242,6 +244,13 @@ impl Access for HfBackend {
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let writer = HfWriter::new(&self.core, path, args);
         Ok((RpWrite::default(), oio::OneShotWriter::new(writer)))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        Ok((
+            RpDelete::default(),
+            oio::OneShotDeleter::new(HfDeleter::new(self.core.clone())),
+        ))
     }
 }
 

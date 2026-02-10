@@ -477,6 +477,38 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
+    async fn undelete(&self, path: &str, args: OpUndelete) -> Result<RpUndelete> {
+        self.logger.log(
+            &self.info,
+            Operation::Undelete,
+            &[("path", path)],
+            "started",
+            None,
+        );
+
+        self.inner
+            .undelete(path, args)
+            .await
+            .inspect(|_| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Undelete,
+                    &[("path", path)],
+                    "finished",
+                    None,
+                );
+            })
+            .inspect_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Undelete,
+                    &[("path", path)],
+                    "failed",
+                    Some(err),
+                );
+            })
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.logger.log(
             &self.info,

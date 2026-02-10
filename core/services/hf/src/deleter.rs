@@ -85,6 +85,7 @@ mod tests {
             root: "/".to_string(),
             token: std::env::var("HF_OPENDAL_TOKEN").ok(),
             endpoint: "https://huggingface.co".to_string(),
+            max_retries: 3,
             #[cfg(feature = "xet")]
             xet_enabled: false,
         }

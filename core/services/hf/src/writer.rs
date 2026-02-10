@@ -132,29 +132,7 @@ impl HfWriter {
         })
     }
 
-    /// Upload file and commit based on determined mode.
-    ///
-    /// Retries on commit conflicts (HTTP 412) and transient server errors
-    /// (HTTP 5xx), matching the behavior of the official HuggingFace Hub
-    /// client.
     async fn upload_and_commit(&self, body: Buffer) -> Result<Metadata> {
-        const MAX_RETRIES: usize = 3;
-
-        let mut last_err = None;
-        for _ in 0..MAX_RETRIES {
-            match self.try_upload_and_commit(body.clone()).await {
-                Ok(meta) => return Ok(meta),
-                Err(err) if err.kind() == ErrorKind::ConditionNotMatch || err.is_temporary() => {
-                    last_err = Some(err);
-                    continue;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-        Err(last_err.unwrap())
-    }
-
-    async fn try_upload_and_commit(&self, body: Buffer) -> Result<Metadata> {
         #[cfg_attr(not(feature = "xet"), allow(unused_variables))]
         let mode = Self::determine_upload_mode(&self.core, &self.path, &body).await?;
 
@@ -216,6 +194,7 @@ mod tests {
             root: "/".to_string(),
             token: std::env::var("HF_OPENDAL_TOKEN").ok(),
             endpoint: "https://huggingface.co".to_string(),
+            max_retries: 3,
             #[cfg(feature = "xet")]
             xet_enabled: _xet,
         }

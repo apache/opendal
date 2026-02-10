@@ -166,6 +166,7 @@ mod tests {
             root: "/".to_string(),
             token: None,
             endpoint: "https://huggingface.co".to_string(),
+            max_retries: 3,
             #[cfg(feature = "xet")]
             xet_enabled: _xet,
         }

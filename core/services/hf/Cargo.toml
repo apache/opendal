@@ -37,7 +37,8 @@ xet = [
   "dep:xet-data",
   "dep:cas_types",
   "dep:xet-utils",
-  "dep:tokio",
+  "tokio/sync",
+  "tokio/rt",
   "dep:futures",
   "dep:async-trait",
 ]
@@ -53,6 +54,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = "0.10"
 tempfile = "3"
+tokio = { workspace = true, features = ["time"] }
 
 # XET storage protocol support (optional)
 async-trait = { version = "0.1", optional = true }
@@ -61,7 +63,6 @@ futures = { workspace = true, optional = true }
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ], optional = true }
-tokio = { workspace = true, features = ["sync", "rt"], optional = true }
 xet-data = { package = "data", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
 xet-utils = { package = "utils", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
 
@@ -70,5 +71,6 @@ futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", features = [
   "reqwest-rustls-tls",
 ] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

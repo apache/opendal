@@ -33,9 +33,15 @@ use futures::StreamExt;
 
 use super::core::HfCore;
 #[cfg(feature = "xet")]
-use super::core::{XetFile, XetTokenRefresher, map_xet_error};
+use super::core::{XetTokenRefresher, map_xet_error};
 use opendal_core::raw::*;
 use opendal_core::*;
+
+#[cfg(feature = "xet")]
+struct XetFile {
+    hash: String,
+    size: u64,
+}
 
 #[cfg(feature = "xet")]
 type XetByteStream =
@@ -56,7 +62,7 @@ impl HfReader {
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         #[cfg(feature = "xet")]
         if core.xet_enabled {
-            if let Some(xet_file) = core.get_xet_file(path).await? {
+            if let Some(xet_file) = Self::maybe_xet_file(core, path).await? {
                 return Self::download_xet(core, &xet_file, range).await;
             }
         }
@@ -64,9 +70,60 @@ impl HfReader {
         Self::download_http(core, path, range).await
     }
 
+    /// Issue a HEAD request and extract XET file info (hash and size).
+    ///
+    /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
+    ///
+    /// Uses a dedicated no-redirect HTTP client so we can inspect
+    /// headers (e.g. `X-Xet-Hash`) on the 302 response.
+    #[cfg(feature = "xet")]
+    async fn maybe_xet_file(core: &HfCore, path: &str) -> Result<Option<XetFile>> {
+        let uri = core.uri(path);
+        let url = uri.resolve_url(&core.endpoint);
+
+        let req = core
+            .request(http::Method::HEAD, &url, Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let mut attempt = 0;
+        let resp = loop {
+            let resp = core.no_redirect_client.send(req.clone()).await?;
+
+            attempt += 1;
+            let retryable = resp.status().is_server_error();
+            if attempt >= core.max_retries || !retryable {
+                break resp;
+            }
+        };
+
+        let hash = resp
+            .headers()
+            .get("X-Xet-Hash")
+            .and_then(|v| v.to_str().ok())
+            .filter(|s| !s.is_empty());
+
+        let Some(hash) = hash else {
+            return Ok(None);
+        };
+
+        let size = resp
+            .headers()
+            .get("X-Linked-Size")
+            .or_else(|| resp.headers().get(http::header::CONTENT_LENGTH))
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        Ok(Some(XetFile {
+            hash: hash.to_string(),
+            size,
+        }))
+    }
+
     pub async fn download_http(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         let client = core.info.http_client();
-        let uri = core.repo.uri(&core.root, path);
+        let uri = core.uri(path);
         let url = uri.resolve_url(&core.endpoint);
 
         let mut req = core.request(http::Method::GET, &url, Operation::Read);
@@ -91,11 +148,7 @@ impl HfReader {
     }
 
     #[cfg(feature = "xet")]
-    pub async fn download_xet(
-        core: &HfCore,
-        xet_file: &XetFile,
-        range: BytesRange,
-    ) -> Result<Self> {
+    async fn download_xet(core: &HfCore, xet_file: &XetFile, range: BytesRange) -> Result<Self> {
         let token = core.get_xet_token("read").await?;
 
         let file_info = xet_data::XetFileInfo::new(xet_file.hash.clone(), xet_file.size);
@@ -145,151 +198,60 @@ impl oio::Read for HfReader {
 
 #[cfg(test)]
 mod tests {
-    use super::super::core::HfCore;
-    use super::super::uri::{HfRepo, RepoType};
-    use super::*;
+    #[cfg(feature = "xet")]
+    use super::super::backend::test_utils::mbpp_xet_operator;
+    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
 
     /// Parquet magic bytes: "PAR1"
     const PARQUET_MAGIC: &[u8] = b"PAR1";
 
-    fn testing_core(repo_type: RepoType, repo_id: &str, _xet: bool) -> HfCore {
-        let info = AccessorInfo::default();
-        info.set_scheme("huggingface")
-            .set_native_capability(Capability {
-                read: true,
-                ..Default::default()
-            });
-
-        HfCore {
-            info: info.into(),
-            repo: HfRepo::new(repo_type, repo_id.to_string(), Some("main".to_string())),
-            root: "/".to_string(),
-            token: None,
-            endpoint: "https://huggingface.co".to_string(),
-            max_retries: 3,
-            #[cfg(feature = "xet")]
-            xet_enabled: _xet,
-        }
-    }
-
-    async fn read_all(reader: &mut HfReader) -> Vec<u8> {
-        use oio::Read;
-
-        let mut buf = Vec::new();
-        loop {
-            let chunk = reader.read().await.expect("read should succeed");
-            if chunk.is_empty() {
-                break;
-            }
-            buf.extend_from_slice(&chunk.to_bytes());
-        }
-        buf
-    }
-
     #[tokio::test]
-    async fn test_download_http_model() {
-        let core = testing_core(RepoType::Model, "openai-community/gpt2", false);
-        let mut reader = HfReader::download_http(&core, "config.json", BytesRange::default())
-            .await
-            .expect("download should succeed");
-
-        let data = read_all(&mut reader).await;
-        serde_json::from_slice::<serde_json::Value>(&data)
+    async fn test_read_model_config() {
+        let op = gpt2_operator();
+        let data = op.read("config.json").await.expect("read should succeed");
+        serde_json::from_slice::<serde_json::Value>(&data.to_vec())
             .expect("config.json should be valid JSON");
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn test_download_http_dataset_parquet() {
-        let core = testing_core(RepoType::Dataset, "google-research-datasets/mbpp", false);
-        let range = BytesRange::new(0, Some(4));
-        let mut reader = HfReader::download_http(&core, "full/train-00000-of-00001.parquet", range)
+    #[ignore = "requires network access"]
+    async fn test_read_http_parquet_header() {
+        let op = mbpp_operator();
+        let data = op
+            .read_with("full/train-00000-of-00001.parquet")
+            .range(0..4)
             .await
-            .expect("download should succeed");
-
-        let data = read_all(&mut reader).await;
-        assert_eq!(&data, PARQUET_MAGIC);
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_download_http_range() {
-        let core = testing_core(RepoType::Dataset, "google-research-datasets/mbpp", false);
-        let range = BytesRange::new(0, Some(4));
-        let mut reader = HfReader::download_http(&core, "full/train-00000-of-00001.parquet", range)
-            .await
-            .expect("range download should succeed");
-
-        let data = read_all(&mut reader).await;
-        assert_eq!(data.len(), 4);
-        assert_eq!(&data, PARQUET_MAGIC);
-    }
-
-    #[tokio::test]
-    async fn test_download_dispatches_to_http() {
-        let core = testing_core(RepoType::Model, "openai-community/gpt2", false);
-        let reader = HfReader::try_new(&core, "config.json", BytesRange::default())
-            .await
-            .expect("download should succeed");
-
-        assert!(matches!(reader, HfReader::Http(_)));
+            .expect("read should succeed");
+        assert_eq!(&data.to_vec(), PARQUET_MAGIC);
     }
 
     #[cfg(feature = "xet")]
     #[tokio::test]
-    #[ignore]
-    async fn test_download_xet_parquet() {
-        let core = testing_core(RepoType::Dataset, "google-research-datasets/mbpp", true);
-        let xet_file = core
-            .get_xet_file("full/train-00000-of-00001.parquet")
+    #[ignore = "requires network access"]
+    async fn test_read_xet_parquet() {
+        let op = mbpp_xet_operator();
+        let data = op
+            .read("full/train-00000-of-00001.parquet")
             .await
-            .expect("xet probe should succeed")
-            .expect("parquet file should be xet-backed");
-
-        let mut reader = HfReader::download_xet(&core, &xet_file, BytesRange::default())
-            .await
-            .expect("xet download should succeed");
-
-        let data = read_all(&mut reader).await;
-        assert!(data.len() > 8);
-        assert_eq!(&data[..4], PARQUET_MAGIC);
-        assert_eq!(&data[data.len() - 4..], PARQUET_MAGIC);
+            .expect("xet read should succeed");
+        let bytes = data.to_vec();
+        assert!(bytes.len() > 8);
+        assert_eq!(&bytes[..4], PARQUET_MAGIC);
+        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 
     #[cfg(feature = "xet")]
     #[tokio::test]
-    #[ignore]
-    async fn test_download_xet_range() {
-        let core = testing_core(RepoType::Dataset, "google-research-datasets/mbpp", true);
-        let xet_file = core
-            .get_xet_file("full/train-00000-of-00001.parquet")
+    #[ignore = "requires network access"]
+    async fn test_read_xet_range() {
+        let op = mbpp_xet_operator();
+        let data = op
+            .read_with("full/train-00000-of-00001.parquet")
+            .range(0..4)
             .await
-            .expect("xet probe should succeed")
-            .expect("parquet file should be xet-backed");
-
-        let range = BytesRange::new(0, Some(4));
-        let mut reader = HfReader::download_xet(&core, &xet_file, range)
-            .await
-            .expect("xet range download should succeed");
-
-        let data = read_all(&mut reader).await;
-        assert_eq!(data.len(), 4);
-        assert_eq!(&data, PARQUET_MAGIC);
-    }
-
-    #[cfg(feature = "xet")]
-    #[tokio::test]
-    #[ignore]
-    async fn test_download_dispatches_to_xet() {
-        let core = testing_core(RepoType::Dataset, "google-research-datasets/mbpp", true);
-        let reader = HfReader::try_new(
-            &core,
-            "full/train-00000-of-00001.parquet",
-            BytesRange::default(),
-        )
-        .await
-        .expect("download should succeed");
-
-        assert!(matches!(reader, HfReader::Xet(_)));
+            .expect("xet range read should succeed");
+        let bytes = data.to_vec();
+        assert_eq!(bytes.len(), 4);
+        assert_eq!(&bytes, PARQUET_MAGIC);
     }
 }

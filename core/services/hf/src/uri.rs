@@ -107,6 +107,22 @@ impl HfRepo {
         )
     }
 
+    /// Build the Git LFS batch API URL for this repository.
+    ///
+    /// Pattern: `{endpoint}/{type_prefix}{repo_id}.git/info/lfs/objects/batch`
+    /// where type_prefix is "" for models, "datasets/" for datasets, "spaces/" for spaces.
+    pub fn lfs_batch_url(&self, endpoint: &str) -> String {
+        let type_prefix = match self.repo_type {
+            RepoType::Model => "",
+            RepoType::Dataset => "datasets/",
+            RepoType::Space => "spaces/",
+        };
+        format!(
+            "{}/{}{}.git/info/lfs/objects/batch",
+            endpoint, type_prefix, &self.repo_id,
+        )
+    }
+
     /// Build the XET token API URL for this repository.
     #[cfg(feature = "xet")]
     pub fn xet_token_url(&self, endpoint: &str, token_type: &str) -> String {

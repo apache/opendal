@@ -12,7 +12,7 @@ This service can be used to:
 - [x] stat
 - [x] read
 - [x] write
-- [ ] delete
+- [x] delete
 - [x] list
 - [ ] copy
 - [ ] rename

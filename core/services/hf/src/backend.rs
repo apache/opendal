@@ -129,6 +129,15 @@ impl HfBuilder {
         self.config.xet = xet;
         self
     }
+
+    /// Set the maximum number of retries for commit operations.
+    ///
+    /// Retries on commit conflicts (HTTP 412) and transient server
+    /// errors (HTTP 5xx). Default is 3.
+    pub fn max_retries(mut self, max_retries: usize) -> Self {
+        self.config.max_retries = Some(max_retries);
+        self
+    }
 }
 
 impl Builder for HfBuilder {
@@ -198,6 +207,7 @@ impl Builder for HfBuilder {
                 root,
                 token,
                 endpoint,
+                max_retries: self.config.max_retries.unwrap_or(3),
                 #[cfg(feature = "xet")]
                 xet_enabled: self.config.xet,
             }),
@@ -237,9 +247,8 @@ impl Access for HfBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
-
-        Ok((RpList::default(), oio::PageLister::new(l)))
+        let lister = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
+        Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -248,12 +257,11 @@ impl Access for HfBackend {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = HfDeleter::new(self.core.clone());
+        let delete_max_size = self.core.info.full_capability().delete_max_size;
         Ok((
             RpDelete::default(),
-            oio::BatchDeleter::new(
-                HfDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
+            oio::BatchDeleter::new(deleter, delete_max_size),
         ))
     }
 }

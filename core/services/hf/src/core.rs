@@ -21,7 +21,6 @@ use std::sync::Arc;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
-use http::StatusCode;
 use http::header;
 use serde::Deserialize;
 
@@ -184,6 +183,7 @@ pub struct HfCore {
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
+    pub max_retries: usize,
 
     #[cfg(feature = "xet")]
     pub xet_enabled: bool,
@@ -238,17 +238,42 @@ impl HfCore {
     ///
     /// Returns the response parts (status, headers, etc.) alongside the
     /// deserialized body so callers can inspect headers when needed.
+    ///
+    /// When `max_retries` > 1, retries on commit conflicts (HTTP 412) and
+    /// transient server errors (HTTP 5xx), matching the behavior of the
+    /// official HuggingFace Hub client.
     async fn send_request<T: serde::de::DeserializeOwned>(
         &self,
         req: Request<Buffer>,
+        max_retries: usize,
     ) -> Result<(http::response::Parts, T)> {
-        let resp = self.info.http_client().send(req).await?;
-        if !resp.status().is_success() {
-            return Err(parse_error(resp));
+        let client = self.info.http_client();
+        let mut attempt = 0;
+        loop {
+            match client.send(req.clone()).await {
+                Ok(resp) if resp.status().is_success() => {
+                    let (parts, body) = resp.into_parts();
+                    let parsed = serde_json::from_reader(body.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    return Ok((parts, parsed));
+                }
+                Ok(resp) => {
+                    attempt += 1;
+                    let err = parse_error(resp);
+                    let retryable =
+                        err.kind() == ErrorKind::ConditionNotMatch || err.is_temporary();
+                    if attempt >= max_retries || !retryable {
+                        return Err(err);
+                    }
+                }
+                Err(err) => {
+                    attempt += 1;
+                    if attempt >= max_retries || !err.is_temporary() {
+                        return Err(err);
+                    }
+                }
+            }
         }
-        let (parts, body) = resp.into_parts();
-        let parsed = serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
-        Ok((parts, parsed))
     }
 
     pub async fn path_info(&self, path: &str) -> Result<PathInfo> {
@@ -261,7 +286,7 @@ impl HfCore {
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(Bytes::from(form_body)))
             .map_err(new_request_build_error)?;
-        let (_, mut files) = self.send_request::<Vec<PathInfo>>(req).await?;
+        let (_, mut files) = self.send_request::<Vec<PathInfo>>(req, 1).await?;
 
         // NOTE: if the file is not found, the server will return 200 with an empty array
         if files.is_empty() {
@@ -284,7 +309,7 @@ impl HfCore {
             .request(http::Method::GET, &url, Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (parts, files) = self.send_request::<Vec<PathInfo>>(req).await?;
+        let (parts, files) = self.send_request::<Vec<PathInfo>>(req, 1).await?;
 
         let next_cursor = parts
             .headers
@@ -302,16 +327,17 @@ impl HfCore {
             .request(http::Method::GET, &url, Operation::Read)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let (_, token) = self.send_request(req).await?;
+        let (_, token) = self.send_request(req, 1).await?;
         Ok(token)
     }
 
     /// Issue a HEAD request and extract XET file info (hash and size).
     ///
-    /// Uses a custom HTTP client that does NOT follow redirects so we can
-    /// inspect response headers (e.g. `X-Xet-Hash`) from the 302 response.
-    ///
     /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
+    ///
+    /// NOTE: Cannot use `send_request` here because we need a custom
+    /// no-redirect HTTP client to inspect headers (e.g. `X-Xet-Hash`)
+    /// from the 302 response, and the response is not JSON.
     #[cfg(feature = "xet")]
     pub(super) async fn get_xet_file(&self, path: &str) -> Result<Option<XetFile>> {
         let uri = self.repo.uri(&self.root, path);
@@ -330,7 +356,17 @@ impl HfCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = client.send(req).await?;
+        // Retry on transient errors, same as send_request.
+        let mut attempt = 0;
+        let resp = loop {
+            let resp = client.send(req.clone()).await?;
+
+            attempt += 1;
+            let retryable = resp.status().is_server_error();
+            if attempt >= self.max_retries || !retryable {
+                break resp;
+            }
+        };
 
         let hash = resp
             .headers()
@@ -385,11 +421,15 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        let (_, resp) = self.send_request(req).await?;
+        let (_, resp) = self.send_request(req, 1).await?;
         Ok(resp)
     }
 
     /// Commit file changes (uploads and/or deletions) to the repository.
+    ///
+    /// Retries on commit conflicts (HTTP 412) and transient server errors
+    /// (HTTP 5xx), matching the behavior of the official HuggingFace Hub
+    /// client.
     pub(super) async fn commit_files(
         &self,
         regular_files: Vec<CommitFile>,
@@ -411,7 +451,6 @@ impl HfCore {
             .or_else(|| deleted_files.first().map(|f| f.path.as_str()))
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files to commit"))?;
 
-        let client = self.info.http_client();
         let uri = self.repo.uri(&self.root, first_path);
         let url = uri.commit_url(&self.endpoint);
 
@@ -431,11 +470,9 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        let resp = client.send(req).await?;
-        match resp.status() {
-            StatusCode::OK | StatusCode::CREATED => Ok(()),
-            _ => Err(parse_error(resp)),
-        }
+        self.send_request::<serde_json::Value>(req, self.max_retries)
+            .await?;
+        Ok(())
     }
 }
 
@@ -537,6 +574,7 @@ pub(crate) mod test_utils {
             root: "/".to_string(),
             token: None,
             endpoint: endpoint.to_string(),
+            max_retries: 3,
             #[cfg(feature = "xet")]
             xet_enabled: false,
         };

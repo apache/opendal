@@ -64,7 +64,7 @@ pub(super) struct LfsFile {
     pub size: u64,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub(super) struct DeletedFile {
     pub path: String,
 }

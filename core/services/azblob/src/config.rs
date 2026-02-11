@@ -76,6 +76,10 @@ pub struct AzblobConfig {
 
     /// The maximum batch operations of Azblob service backend.
     pub batch_max_operations: Option<usize>,
+
+    /// Enable soft deletes for this storage account.
+    #[serde(default)]
+    pub enable_soft_deletes: bool,
 }
 
 impl Debug for AzblobConfig {
@@ -84,6 +88,7 @@ impl Debug for AzblobConfig {
             .field("root", &self.root)
             .field("container", &self.container)
             .field("endpoint", &self.endpoint)
+            .field("enable_soft_deletes", &self.enable_soft_deletes)
             .finish_non_exhaustive()
     }
 }

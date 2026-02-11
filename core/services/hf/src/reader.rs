@@ -15,13 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "xet")]
-use std::pin::Pin;
-#[cfg(feature = "xet")]
-use std::sync::Arc;
-
-#[cfg(feature = "xet")]
-use bytes::Bytes;
 use http::Response;
 use http::StatusCode;
 use http::header;
@@ -33,24 +26,18 @@ use futures::StreamExt;
 
 use super::core::HfCore;
 #[cfg(feature = "xet")]
-use super::core::{XetTokenRefresher, map_xet_error};
+use super::core::map_xet_error;
 use opendal_core::raw::*;
 use opendal_core::*;
-
 #[cfg(feature = "xet")]
-struct XetFile {
-    hash: String,
-    size: u64,
-}
-
+use xet_data::XetFileInfo;
 #[cfg(feature = "xet")]
-type XetByteStream =
-    Pin<Box<dyn futures::Stream<Item = xet_data::errors::Result<Bytes>> + Send + Sync>>;
+use xet_data::streaming::XetReader;
 
 pub enum HfReader {
     Http(HttpBody),
     #[cfg(feature = "xet")]
-    Xet(XetByteStream),
+    Xet(XetReader),
 }
 
 impl HfReader {
@@ -62,66 +49,15 @@ impl HfReader {
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         #[cfg(feature = "xet")]
         if core.xet_enabled {
-            if let Some(xet_file) = Self::maybe_xet_file(core, path).await? {
-                return Self::download_xet(core, &xet_file, range).await;
+            if let Some(xet_file) = core.maybe_xet_file(path).await? {
+                return Self::try_new_xet(core, &xet_file, range).await;
             }
         }
 
-        Self::download_http(core, path, range).await
+        Self::try_new_http(core, path, range).await
     }
 
-    /// Issue a HEAD request and extract XET file info (hash and size).
-    ///
-    /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
-    ///
-    /// Uses a dedicated no-redirect HTTP client so we can inspect
-    /// headers (e.g. `X-Xet-Hash`) on the 302 response.
-    #[cfg(feature = "xet")]
-    async fn maybe_xet_file(core: &HfCore, path: &str) -> Result<Option<XetFile>> {
-        let uri = core.uri(path);
-        let url = uri.resolve_url(&core.endpoint);
-
-        let req = core
-            .request(http::Method::HEAD, &url, Operation::Stat)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
-        let mut attempt = 0;
-        let resp = loop {
-            let resp = core.no_redirect_client.send(req.clone()).await?;
-
-            attempt += 1;
-            let retryable = resp.status().is_server_error();
-            if attempt >= core.max_retries || !retryable {
-                break resp;
-            }
-        };
-
-        let hash = resp
-            .headers()
-            .get("X-Xet-Hash")
-            .and_then(|v| v.to_str().ok())
-            .filter(|s| !s.is_empty());
-
-        let Some(hash) = hash else {
-            return Ok(None);
-        };
-
-        let size = resp
-            .headers()
-            .get("X-Linked-Size")
-            .or_else(|| resp.headers().get(http::header::CONTENT_LENGTH))
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(0);
-
-        Ok(Some(XetFile {
-            hash: hash.to_string(),
-            size,
-        }))
-    }
-
-    pub async fn download_http(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
+    pub async fn try_new_http(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         let client = core.info.http_client();
         let uri = core.uri(path);
         let url = uri.resolve_url(&core.endpoint);
@@ -148,37 +84,25 @@ impl HfReader {
     }
 
     #[cfg(feature = "xet")]
-    async fn download_xet(core: &HfCore, xet_file: &XetFile, range: BytesRange) -> Result<Self> {
-        let token = core.get_xet_token("read").await?;
-
-        let file_info = xet_data::XetFileInfo::new(xet_file.hash.clone(), xet_file.size);
+    async fn try_new_xet(
+        core: &HfCore,
+        file_info: &XetFileInfo,
+        range: BytesRange,
+    ) -> Result<Self> {
+        let client = core.xet_client("read").await?;
 
         let file_range = if !range.is_full() {
             let offset = range.offset();
-            let size = range.size().unwrap_or(xet_file.size - offset);
-            let end = offset + size;
-            Some(FileRange::new(offset, end))
+            let size = range.size().unwrap_or(file_info.file_size() - offset);
+            Some(FileRange::new(offset, offset + size))
         } else {
             None
         };
 
-        let refresher = Arc::new(XetTokenRefresher::new(core, "read"));
-
-        let mut streams = xet_data::data_client::download_bytes_async(
-            vec![file_info],
-            Some(vec![file_range]),
-            Some(token.cas_url),
-            Some((token.access_token, token.exp)),
-            Some(refresher),
-            None,
-            "opendal/1.0".to_string(),
-            256,
-        )
-        .await
-        .map_err(map_xet_error)?;
-
-        let stream = streams.remove(0);
-        Ok(Self::Xet(Box::pin(stream)))
+        let reader = client
+            .read(file_info.clone(), file_range, None, 256)
+            .map_err(map_xet_error)?;
+        Ok(Self::Xet(reader))
     }
 }
 

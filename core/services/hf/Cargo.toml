@@ -51,16 +51,15 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 percent-encoding = "2"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-sha2 = "0.10"
 # XET storage protocol support (optional)
 async-trait = { version = "0.1", optional = true }
-cas_types = { git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
+cas_types = { git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
 futures = { workspace = true, optional = true }
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ], optional = true }
-xet-data = { package = "data", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
-xet-utils = { package = "utils", git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }
+xet-data = { package = "data", git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
+xet-utils = { package = "utils", git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
 
 [dev-dependencies]
 futures = { workspace = true }

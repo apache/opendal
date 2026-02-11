@@ -234,7 +234,7 @@ pub struct HfBackend {
 
 impl Access for HfBackend {
     type Reader = HfReader;
-    type Writer = oio::OneShotWriter<HfWriter>;
+    type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
 
@@ -262,9 +262,9 @@ impl Access for HfBackend {
         Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = HfWriter::new(&self.core, path, args);
-        Ok((RpWrite::default(), oio::OneShotWriter::new(writer)))
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = HfWriter::try_new(self.core.clone(), path.to_string()).await?;
+        Ok((RpWrite::default(), writer))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {

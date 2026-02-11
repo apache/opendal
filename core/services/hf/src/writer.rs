@@ -55,10 +55,7 @@ impl HfWriter {
             #[cfg(feature = "xet")]
             if core.xet_enabled {
                 let client = core.xet_client("write").await?;
-                let writer = client
-                    .write(None, None, None)
-                    .await
-                    .map_err(map_xet_error)?;
+                let writer = client.write(None).await.map_err(map_xet_error)?;
                 return Ok(HfWriter::Xet {
                     core,
                     path,

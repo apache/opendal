@@ -35,7 +35,6 @@ pub enum HfWriter {
     Regular {
         core: Arc<HfCore>,
         path: String,
-        size: u64,
         buf: Vec<Buffer>,
     },
     /// XET writer for large files using streaming protocol.
@@ -43,7 +42,6 @@ pub enum HfWriter {
     Xet {
         core: Arc<HfCore>,
         path: String,
-        size: u64,
         writer: Mutex<XetWriter>,
     },
 }
@@ -64,7 +62,6 @@ impl HfWriter {
                 return Ok(HfWriter::Xet {
                     core,
                     path,
-                    size: 0,
                     writer: Mutex::new(writer),
                 });
             }
@@ -77,7 +74,6 @@ impl HfWriter {
         Ok(HfWriter::Regular {
             core,
             path,
-            size: 0,
             buf: Vec::new(),
         })
     }
@@ -95,35 +91,25 @@ impl HfWriter {
 impl oio::Write for HfWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         match self {
-            HfWriter::Regular { size, buf, .. } => {
-                *size += bs.len() as u64;
+            HfWriter::Regular { buf, .. } => {
                 buf.push(bs);
                 Ok(())
             }
             #[cfg(feature = "xet")]
-            HfWriter::Xet { size, writer, .. } => {
-                *size += bs.len() as u64;
-                writer
-                    .get_mut()
-                    .unwrap()
-                    .write(bs.to_bytes())
-                    .await
-                    .map_err(map_xet_error)
-            }
+            HfWriter::Xet { writer, .. } => writer
+                .get_mut()
+                .unwrap()
+                .write(bs.to_bytes())
+                .await
+                .map_err(map_xet_error),
         }
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         match self {
             HfWriter::Regular {
-                core,
-                path,
-                size,
-                buf,
-                ..
+                core, path, buf, ..
             } => {
-                let content_length = *size;
-
                 // Flatten buffer
                 let mut data = Vec::new();
                 for buf in std::mem::take(buf) {
@@ -133,20 +119,14 @@ impl oio::Write for HfWriter {
                 let file = Self::prepare_commit_file(path, &data);
                 let resp = core.commit_files(vec![file], vec![], vec![]).await?;
 
-                let mut meta = Metadata::default().with_content_length(content_length);
+                let mut meta = Metadata::default().with_content_length(data.len() as u64);
                 if let Some(commit_oid) = resp.commit_oid {
                     meta = meta.with_version(commit_oid);
                 }
                 Ok(meta)
             }
             #[cfg(feature = "xet")]
-            HfWriter::Xet {
-                core,
-                path,
-                size,
-                writer,
-            } => {
-                let content_length = *size;
+            HfWriter::Xet { core, path, writer } => {
                 let file_info = writer
                     .get_mut()
                     .unwrap()
@@ -163,11 +143,11 @@ impl oio::Write for HfWriter {
                     path: path.clone(),
                     oid: sha256.to_string(),
                     algo: "sha256".to_string(),
-                    size: content_length,
+                    size: file_info.file_size(),
                 };
                 let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
 
-                let mut meta = Metadata::default().with_content_length(content_length);
+                let mut meta = Metadata::default().with_content_length(file_info.file_size());
                 if let Some(commit_oid) = resp.commit_oid {
                     meta = meta.with_version(commit_oid);
                 }

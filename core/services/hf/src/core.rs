@@ -28,12 +28,42 @@ use http::header;
 use serde::Deserialize;
 
 #[cfg(feature = "xet")]
+use xet_data::XetFileInfo;
+#[cfg(feature = "xet")]
+use xet_data::streaming::XetClient;
+#[cfg(feature = "xet")]
 use xet_utils::auth::TokenRefresher;
 
 use super::error::parse_error;
 use super::uri::HfRepo;
 use opendal_core::raw::*;
 use opendal_core::*;
+
+/// API payload structures for preupload operations
+#[derive(serde::Serialize)]
+struct PreuploadFile {
+    path: String,
+    size: i64,
+    sample: String,
+}
+
+#[derive(serde::Serialize)]
+struct PreuploadRequest {
+    files: Vec<PreuploadFile>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct PreuploadFileResponse {
+    #[allow(dead_code)]
+    path: String,
+    #[serde(rename = "uploadMode")]
+    upload_mode: String,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct PreuploadResponse {
+    files: Vec<PreuploadFileResponse>,
+}
 
 /// API payload structures for commit operations
 #[derive(Debug, serde::Serialize)]
@@ -140,6 +170,35 @@ pub(super) struct XetToken {
     pub access_token: String,
     pub cas_url: String,
     pub exp: u64,
+}
+
+#[cfg(feature = "xet")]
+pub(super) struct XetTokenRefresher {
+    core: HfCore,
+    token_type: &'static str,
+}
+
+#[cfg(feature = "xet")]
+impl XetTokenRefresher {
+    pub(super) fn new(core: &HfCore, token_type: &'static str) -> Self {
+        Self {
+            core: core.clone(),
+            token_type,
+        }
+    }
+}
+
+#[cfg(feature = "xet")]
+#[async_trait::async_trait]
+impl TokenRefresher for XetTokenRefresher {
+    async fn refresh(&self) -> std::result::Result<(String, u64), xet_utils::errors::AuthError> {
+        let token = self
+            .core
+            .xet_token(self.token_type)
+            .await
+            .map_err(xet_utils::errors::AuthError::token_refresh_failure)?;
+        Ok((token.access_token, token.exp))
+    }
 }
 
 // Core HuggingFace client that manages API interactions, authentication
@@ -299,7 +358,7 @@ impl HfCore {
     }
 
     #[cfg(feature = "xet")]
-    pub(super) async fn get_xet_token(&self, token_type: &str) -> Result<XetToken> {
+    pub(super) async fn xet_token(&self, token_type: &str) -> Result<XetToken> {
         let url = self.repo.xet_token_url(&self.endpoint, token_type);
         let req = self
             .request(http::Method::GET, &url, Operation::Read)
@@ -309,11 +368,106 @@ impl HfCore {
         Ok(token)
     }
 
+    #[cfg(feature = "xet")]
+    pub(super) async fn xet_client(&self, token_type: &'static str) -> Result<XetClient> {
+        let token = self.xet_token(token_type).await?;
+        let refresher = Arc::new(XetTokenRefresher::new(self, token_type));
+        XetClient::new(
+            Some(token.cas_url),
+            Some((token.access_token, token.exp)),
+            Some(refresher),
+            "opendal/1.0".to_string(),
+        )
+        .map_err(map_xet_error)
+    }
+
+    /// Issue a HEAD request and extract XET file info (hash and size).
+    ///
+    /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
+    ///
+    /// Uses a dedicated no-redirect HTTP client so we can inspect
+    /// headers (e.g. `X-Xet-Hash`) on the 302 response.
+    #[cfg(feature = "xet")]
+    pub(super) async fn maybe_xet_file(&self, path: &str) -> Result<Option<XetFileInfo>> {
+        let uri = self.uri(path);
+        let url = uri.resolve_url(&self.endpoint);
+
+        let req = self
+            .request(http::Method::HEAD, &url, Operation::Stat)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let mut attempt = 0;
+        let resp = loop {
+            let resp = self.no_redirect_client.send(req.clone()).await?;
+
+            attempt += 1;
+            let retryable = resp.status().is_server_error();
+            if attempt >= self.max_retries || !retryable {
+                break resp;
+            }
+        };
+
+        let hash = resp
+            .headers()
+            .get("X-Xet-Hash")
+            .and_then(|v| v.to_str().ok())
+            .filter(|s| !s.is_empty());
+
+        let Some(hash) = hash else {
+            return Ok(None);
+        };
+
+        let size = resp
+            .headers()
+            .get("X-Linked-Size")
+            .or_else(|| resp.headers().get(header::CONTENT_LENGTH))
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        Ok(Some(XetFileInfo::new(hash.to_string(), size)))
+    }
+
     /// Commit file changes (uploads and/or deletions) to the repository.
     ///
     /// Retries on commit conflicts (HTTP 412) and transient server errors
     /// (HTTP 5xx), matching the behavior of the official HuggingFace Hub
     /// client.
+    /// Determine upload mode by calling the preupload API.
+    ///
+    /// Returns the upload mode string from the API (e.g., "regular" or "lfs").
+    pub(super) async fn determine_upload_mode(&self, path: &str) -> Result<String> {
+        let uri = self.uri(path);
+        let preupload_url = uri.preupload_url(&self.endpoint);
+
+        let preupload_payload = PreuploadRequest {
+            files: vec![PreuploadFile {
+                path: path.to_string(),
+                size: -1,
+                sample: String::new(),
+            }],
+        };
+        let json_body = serde_json::to_vec(&preupload_payload).map_err(new_json_serialize_error)?;
+
+        let req = self
+            .request(http::Method::POST, &preupload_url, Operation::Write)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Buffer::from(json_body))
+            .map_err(new_request_build_error)?;
+
+        let (_, preupload_resp): (_, PreuploadResponse) = self.send_parse(req).await?;
+
+        let mode = preupload_resp
+            .files
+            .first()
+            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files in preupload response"))?
+            .upload_mode
+            .clone();
+
+        Ok(mode)
+    }
+
     pub(super) async fn commit_files(
         &self,
         regular_files: Vec<CommitFile>,
@@ -356,35 +510,6 @@ impl HfCore {
 
         let (_, resp) = self.send_parse::<CommitResponse>(req).await?;
         Ok(resp)
-    }
-}
-
-#[cfg(feature = "xet")]
-pub(super) struct XetTokenRefresher {
-    core: HfCore,
-    token_type: &'static str,
-}
-
-#[cfg(feature = "xet")]
-impl XetTokenRefresher {
-    pub(super) fn new(core: &HfCore, token_type: &'static str) -> Self {
-        Self {
-            core: core.clone(),
-            token_type,
-        }
-    }
-}
-
-#[cfg(feature = "xet")]
-#[async_trait::async_trait]
-impl TokenRefresher for XetTokenRefresher {
-    async fn refresh(&self) -> std::result::Result<(String, u64), xet_utils::errors::AuthError> {
-        let token = self
-            .core
-            .get_xet_token(self.token_type)
-            .await
-            .map_err(xet_utils::errors::AuthError::token_refresh_failure)?;
-        Ok((token.access_token, token.exp))
     }
 }
 

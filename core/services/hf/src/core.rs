@@ -18,6 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use backon::ExponentialBuilder;
+use backon::Retryable;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -237,43 +239,30 @@ impl HfCore {
         self.repo.uri(&self.root, path)
     }
 
-    /// Exponential backoff: 200ms, 400ms, 800ms, … capped at ~6s.
-    async fn backoff(attempt: usize) {
-        let millis = 200u64 * (1u64 << attempt.min(5));
-        tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
-    }
-
     /// Send a request with retries, returning the successful response.
     ///
     /// Retries on commit conflicts (HTTP 412) and transient server errors
     /// (HTTP 5xx) up to `self.max_retries` attempts with exponential backoff.
     pub(super) async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+        let backoff = ExponentialBuilder::default()
+            .with_min_delay(std::time::Duration::from_millis(200))
+            .with_max_delay(std::time::Duration::from_millis(6400))
+            .with_max_times(self.max_retries.saturating_sub(1));
         let client = self.info.http_client();
-        let mut attempt = 0;
-        loop {
-            match client.send(req.clone()).await {
-                Ok(resp) if resp.status().is_success() => {
-                    return Ok(resp);
-                }
-                Ok(resp) => {
-                    attempt += 1;
-                    let err = parse_error(resp);
-                    let retryable =
-                        err.kind() == ErrorKind::ConditionNotMatch || err.is_temporary();
-                    if attempt >= self.max_retries || !retryable {
-                        return Err(err);
-                    }
-                    Self::backoff(attempt).await;
-                }
-                Err(err) => {
-                    attempt += 1;
-                    if attempt >= self.max_retries || !err.is_temporary() {
-                        return Err(err);
-                    }
-                    Self::backoff(attempt).await;
-                }
+
+        let send_once = || async {
+            let resp = client.send(req.clone()).await?;
+            if resp.status().is_success() {
+                Ok(resp)
+            } else {
+                Err(parse_error(resp))
             }
-        }
+        };
+
+        send_once
+            .retry(backoff)
+            .when(|e: &Error| e.kind() == ErrorKind::ConditionNotMatch || e.is_temporary())
+            .await
     }
 
     /// Send a request, check for success, and deserialize the JSON response.

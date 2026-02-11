@@ -21,12 +21,11 @@ use bytes::Buf;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::StatusCode;
+use opendal_core::raw::*;
+use opendal_core::*;
 
 use super::core::*;
 use super::error::parse_error;
-use opendal_core::raw::oio::MultipartPart;
-use opendal_core::raw::*;
-use opendal_core::*;
 
 pub type ObsWriters = TwoWays<oio::MultipartWriter<ObsWriter>, oio::AppendWriter<ObsWriter>>;
 
@@ -64,11 +63,11 @@ impl ObsWriter {
 
 impl oio::MultipartWrite for ObsWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
+        let req = self
             .core
             .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        self.core.sign(&mut req).await?;
+        let req = self.core.sign(req).await?;
 
         let resp = self.core.send(req).await?;
 
@@ -110,7 +109,7 @@ impl oio::MultipartWrite for ObsWriter {
         part_number: usize,
         size: u64,
         body: Buffer,
-    ) -> Result<MultipartPart> {
+    ) -> Result<oio::MultipartPart> {
         // Obs service requires part number must between [1..=10000]
         let part_number = part_number + 1;
 
@@ -132,7 +131,7 @@ impl oio::MultipartWrite for ObsWriter {
                     })?
                     .to_string();
 
-                Ok(MultipartPart {
+                Ok(oio::MultipartPart {
                     part_number,
                     etag,
                     checksum: None,
@@ -142,7 +141,11 @@ impl oio::MultipartWrite for ObsWriter {
         }
     }
 
-    async fn complete_part(&self, upload_id: &str, parts: &[MultipartPart]) -> Result<Metadata> {
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
         let parts = parts
             .iter()
             .map(|p| CompleteMultipartUploadRequestPart {
@@ -209,11 +212,11 @@ impl oio::AppendWrite for ObsWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
+        let req = self
             .core
             .obs_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        self.core.sign(&mut req).await?;
+        let req = self.core.sign(req).await?;
 
         let resp = self.core.send(req).await?;
 

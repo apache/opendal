@@ -66,25 +66,6 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn test_delete_once() {
-        let op = testing_operator();
-        let path = "tests/delete-test.txt";
-
-        op.write(path, b"temporary content".as_slice())
-            .await
-            .expect("write should succeed");
-
-        op.delete(path).await.expect("delete should succeed");
-
-        let err = op
-            .stat(path)
-            .await
-            .expect_err("stat should fail after delete");
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-    }
-
-    #[tokio::test]
-    #[ignore]
     async fn test_delete_nonexistent() {
         let op = testing_operator();
 
@@ -95,12 +76,35 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn test_delete_batch() {
+    async fn test_delete_then_read() {
         let op = testing_operator();
-        let paths = ["tests/batch-del-1.txt", "tests/batch-del-2.txt"];
+        let path = "tests/delete-then-read.txt";
+
+        op.write(path, b"will be deleted".as_slice())
+            .await
+            .expect("write should succeed");
+
+        op.delete(path).await.expect("delete should succeed");
+
+        let err = op
+            .read(path)
+            .await
+            .expect_err("read after delete should fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_batch_delete() {
+        let op = testing_operator();
+        let paths = [
+            "tests/batch-del-a.txt",
+            "tests/batch-del-b.txt",
+            "tests/batch-del-c.txt",
+        ];
 
         for path in &paths {
-            op.write(path, b"temp".as_slice())
+            op.write(path, b"batch delete test".as_slice())
                 .await
                 .expect("write should succeed");
         }

@@ -52,7 +52,6 @@ percent-encoding = "2"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = "0.10"
-tempfile = "3"
 # XET storage protocol support (optional)
 async-trait = { version = "0.1", optional = true }
 cas_types = { git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }

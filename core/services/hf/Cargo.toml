@@ -37,13 +37,12 @@ xet = [
   "dep:xet-data",
   "dep:cas_types",
   "dep:xet-utils",
-  "tokio/sync",
-  "tokio/rt",
   "dep:futures",
   "dep:async-trait",
 ]
 
 [dependencies]
+backon = "1.6"
 base64 = { workspace = true }
 bytes = { workspace = true }
 http = { workspace = true }
@@ -54,8 +53,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = "0.10"
 tempfile = "3"
-tokio = { workspace = true, features = ["time"] }
-
 # XET storage protocol support (optional)
 async-trait = { version = "0.1", optional = true }
 cas_types = { git = "https://github.com/kszucs/xet-core", branch = "download_bytes", optional = true }

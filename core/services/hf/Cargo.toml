@@ -34,9 +34,7 @@ all-features = true
 default = []
 xet = [
   "dep:reqwest",
-  "dep:xet-data",
-  "dep:cas_types",
-  "dep:xet-utils",
+  "dep:subxet",
   "dep:futures",
   "dep:async-trait",
 ]
@@ -53,13 +51,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 # XET storage protocol support (optional)
 async-trait = { version = "0.1", optional = true }
-cas_types = { git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
 futures = { workspace = true, optional = true }
 reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
 ], optional = true }
-xet-data = { package = "data", git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
-xet-utils = { package = "utils", git = "https://github.com/kszucs/xet-core.git", branch = "download_bytes", optional = true }
+subxet = { git = "https://github.com/kszucs/subxet", optional = true }
 
 [dev-dependencies]
 futures = { workspace = true }

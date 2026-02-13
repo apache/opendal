@@ -21,9 +21,11 @@ use std::sync::Mutex;
 
 use base64::Engine;
 
+#[cfg(feature = "xet")]
+use super::core::{BucketOperation, LfsFile, map_xet_error};
 use super::core::{CommitFile, HfCore};
 #[cfg(feature = "xet")]
-use super::core::{LfsFile, map_xet_error};
+use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 #[cfg(feature = "xet")]
@@ -49,6 +51,24 @@ pub enum HfWriter {
 impl HfWriter {
     /// Create a new writer by determining the upload mode from the API.
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
+        // Buckets always use XET and don't have a preupload endpoint
+        #[cfg(feature = "xet")]
+        if core.repo.repo_type == RepoType::Bucket {
+            if !core.xet_enabled {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "buckets require XET to be enabled",
+                ));
+            }
+            let client = core.xet_client("write").await?;
+            let writer = client.write(None).await.map_err(map_xet_error)?;
+            return Ok(HfWriter::Xet {
+                core,
+                path,
+                writer: Mutex::new(writer),
+            });
+        }
+
         let mode_str = core.determine_upload_mode(&path).await?;
 
         if mode_str == "lfs" {
@@ -130,25 +150,38 @@ impl oio::Write for HfWriter {
                     .close()
                     .await
                     .map_err(map_xet_error)?;
-                let sha256 = file_info.sha256().ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "xet upload did not return sha256 hash",
-                    )
-                })?;
-                let lfs_file = LfsFile {
-                    path: path.clone(),
-                    oid: sha256.to_string(),
-                    algo: "sha256".to_string(),
-                    size: file_info.file_size(),
-                };
-                let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
 
-                let mut meta = Metadata::default().with_content_length(file_info.file_size());
-                if let Some(commit_oid) = resp.commit_oid {
-                    meta = meta.with_version(commit_oid);
+                let meta = Metadata::default().with_content_length(file_info.file_size());
+
+                if core.repo.repo_type == RepoType::Bucket {
+                    let xet_hash = file_info.hash().to_string();
+                    let operation = BucketOperation::AddFile {
+                        path: path.clone(),
+                        xet_hash,
+                    };
+                    core.bucket_batch(vec![operation]).await?;
+                    Ok(meta)
+                } else {
+                    let sha256 = file_info.sha256().ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "xet upload did not return sha256 hash",
+                        )
+                    })?;
+                    let lfs_file = LfsFile {
+                        path: path.clone(),
+                        oid: sha256.to_string(),
+                        algo: "sha256".to_string(),
+                        size: file_info.file_size(),
+                    };
+                    let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
+
+                    if let Some(commit_oid) = resp.commit_oid {
+                        Ok(meta.with_version(commit_oid))
+                    } else {
+                        Ok(meta)
+                    }
                 }
-                Ok(meta)
             }
         }
     }
@@ -171,7 +204,7 @@ impl oio::Write for HfWriter {
 mod tests {
     use super::super::backend::test_utils::testing_operator;
     #[cfg(feature = "xet")]
-    use super::super::backend::test_utils::testing_xet_operator;
+    use super::super::backend::test_utils::{testing_bucket_operator, testing_xet_operator};
     use super::*;
     use base64::Engine;
 
@@ -365,6 +398,68 @@ mod tests {
 
         let data = op.read(path).await.expect("read should succeed");
         assert_eq!(data.to_bytes().as_ref(), content);
+
+        let _ = op.delete(path).await;
+    }
+
+    // --- Bucket tests (require HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN) ---
+
+    #[cfg(feature = "xet")]
+    #[tokio::test]
+    #[ignore]
+    async fn test_bucket_write() {
+        let op = testing_bucket_operator();
+        let path = "test-bucket-file.txt";
+        let content = b"Hello from bucket!";
+
+        op.write(path, content.as_slice())
+            .await
+            .expect("bucket write should succeed");
+
+        let data = op.read(path).await.expect("read should succeed");
+        assert_eq!(data.to_bytes().as_ref(), content);
+
+        let _ = op.delete(path).await;
+    }
+
+    #[cfg(feature = "xet")]
+    #[tokio::test]
+    #[ignore]
+    async fn test_bucket_write_roundtrip() {
+        let op = testing_bucket_operator();
+        let path = "tests/bucket-roundtrip.bin";
+        let content = b"Binary content for bucket roundtrip test";
+
+        op.write(path, content.as_slice())
+            .await
+            .expect("bucket write should succeed");
+
+        let data = op.read(path).await.expect("read should succeed");
+        assert_eq!(data.to_bytes().as_ref(), content);
+
+        let meta = op.stat(path).await.expect("stat should succeed");
+        assert_eq!(meta.content_length(), content.len() as u64);
+
+        let _ = op.delete(path).await;
+    }
+
+    #[cfg(feature = "xet")]
+    #[tokio::test]
+    #[ignore]
+    async fn test_bucket_overwrite() {
+        let op = testing_bucket_operator();
+        let path = "tests/bucket-overwrite.txt";
+
+        op.write(path, b"first content".as_slice())
+            .await
+            .expect("first write should succeed");
+
+        op.write(path, b"second content".as_slice())
+            .await
+            .expect("overwrite should succeed");
+
+        let data = op.read(path).await.expect("read should succeed");
+        assert_eq!(data.to_bytes().as_ref(), b"second content");
 
         let _ = op.delete(path).await;
     }

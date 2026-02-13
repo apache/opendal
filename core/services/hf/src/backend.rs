@@ -45,6 +45,7 @@ impl HfBuilder {
     /// - dataset
     /// - datasets (alias for dataset)
     /// - space
+    /// - bucket
     ///
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
@@ -298,6 +299,13 @@ pub(super) mod test_utils {
         (repo_id, token)
     }
 
+    #[cfg(feature = "xet")]
+    pub fn testing_bucket_credentials() -> (String, String) {
+        let repo_id = std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+        (repo_id, token)
+    }
+
     /// Operator for a private dataset requiring HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN.
     /// Uses higher max_retries to tolerate concurrent commit conflicts (412).
     pub fn testing_operator() -> Operator {
@@ -320,6 +328,24 @@ pub(super) mod test_utils {
         let op = Operator::new(
             HfBuilder::default()
                 .repo_type("dataset")
+                .repo_id(&repo_id)
+                .token(&token)
+                .enable_xet()
+                .max_retries(10),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
+
+    /// Operator for a bucket requiring HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
+    /// Buckets always use XET for writes.
+    #[cfg(feature = "xet")]
+    pub fn testing_bucket_operator() -> Operator {
+        let (repo_id, token) = testing_bucket_credentials();
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("bucket")
                 .repo_id(&repo_id)
                 .token(&token)
                 .enable_xet()

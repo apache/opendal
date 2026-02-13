@@ -22,7 +22,7 @@ use serde::Serialize;
 use super::HUGGINGFACE_SCHEME;
 use opendal_core::raw::*;
 
-/// Repository type of Huggingface. Supports `model`, `dataset`, and `space`.
+/// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
 /// [Reference](https://huggingface.co/docs/hub/repositories)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -31,6 +31,7 @@ pub enum RepoType {
     Model,
     Dataset,
     Space,
+    Bucket,
 }
 
 impl RepoType {
@@ -39,6 +40,7 @@ impl RepoType {
             "model" | "models" => Ok(Self::Model),
             "dataset" | "datasets" => Ok(Self::Dataset),
             "space" | "spaces" => Ok(Self::Space),
+            "bucket" | "buckets" => Ok(Self::Bucket),
             other => Err(opendal_core::Error::new(
                 opendal_core::ErrorKind::ConfigInvalid,
                 format!("unknown repo type: {other}"),
@@ -52,6 +54,7 @@ impl RepoType {
             Self::Model => "model",
             Self::Dataset => "dataset",
             Self::Space => "space",
+            Self::Bucket => "bucket",
         }
     }
 
@@ -60,6 +63,7 @@ impl RepoType {
             Self::Model => "models",
             Self::Dataset => "datasets",
             Self::Space => "spaces",
+            Self::Bucket => "buckets",
         }
     }
 }
@@ -98,42 +102,49 @@ impl HfRepo {
 
     /// Build the paths-info API URL for this repository.
     pub fn paths_info_url(&self, endpoint: &str) -> String {
-        format!(
-            "{}/api/{}/{}/paths-info/{}",
-            endpoint,
-            self.repo_type.as_plural_str(),
-            &self.repo_id,
-            percent_encode_revision(self.revision()),
-        )
-    }
-
-    /// Build the Git LFS batch API URL for this repository.
-    ///
-    /// Pattern: `{endpoint}/{type_prefix}{repo_id}.git/info/lfs/objects/batch`
-    /// where type_prefix is "" for models, "datasets/" for datasets, "spaces/" for spaces.
-    pub fn lfs_batch_url(&self, endpoint: &str) -> String {
-        let type_prefix = match self.repo_type {
-            RepoType::Model => "",
-            RepoType::Dataset => "datasets/",
-            RepoType::Space => "spaces/",
-        };
-        format!(
-            "{}/{}{}.git/info/lfs/objects/batch",
-            endpoint, type_prefix, &self.repo_id,
-        )
+        match self.repo_type {
+            RepoType::Bucket => {
+                format!("{}/api/buckets/{}/paths-info", endpoint, &self.repo_id)
+            }
+            _ => {
+                format!(
+                    "{}/api/{}/{}/paths-info/{}",
+                    endpoint,
+                    self.repo_type.as_plural_str(),
+                    &self.repo_id,
+                    percent_encode_revision(self.revision()),
+                )
+            }
+        }
     }
 
     /// Build the XET token API URL for this repository.
     #[cfg(feature = "xet")]
     pub fn xet_token_url(&self, endpoint: &str, token_type: &str) -> String {
-        format!(
-            "{}/api/{}/{}/xet-{}-token/{}",
-            endpoint,
-            self.repo_type.as_plural_str(),
-            &self.repo_id,
-            token_type,
-            self.revision(),
-        )
+        match self.repo_type {
+            RepoType::Bucket => {
+                format!(
+                    "{}/api/buckets/{}/xet-{}-token",
+                    endpoint, &self.repo_id, token_type
+                )
+            }
+            _ => {
+                format!(
+                    "{}/api/{}/{}/xet-{}-token/{}",
+                    endpoint,
+                    self.repo_type.as_plural_str(),
+                    &self.repo_id,
+                    token_type,
+                    self.revision(),
+                )
+            }
+        }
+    }
+
+    /// Build the bucket batch API URL for this repository.
+    #[cfg(feature = "xet")]
+    pub fn bucket_batch_url(&self, endpoint: &str) -> String {
+        format!("{}/api/buckets/{}/batch", endpoint, &self.repo_id)
     }
 }
 
@@ -273,6 +284,12 @@ impl HfUri {
                 format!(
                     "{}/spaces/{}/resolve/{}/{}",
                     endpoint, &self.repo.repo_id, revision, path
+                )
+            }
+            RepoType::Bucket => {
+                format!(
+                    "{}/buckets/{}/resolve/{}",
+                    endpoint, &self.repo.repo_id, path
                 )
             }
         }
@@ -534,5 +551,57 @@ mod tests {
         assert_eq!(p.repo.repo_id, "username/my_space");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
+    }
+
+    #[test]
+    fn resolve_buckets_prefix() {
+        let p = resolve("buckets/username/my_bucket");
+        assert_eq!(p.repo.repo_type, RepoType::Bucket);
+        assert_eq!(p.repo.repo_id, "username/my_bucket");
+        assert!(p.repo.revision.is_none());
+        assert_eq!(p.path, "");
+    }
+
+    #[test]
+    fn resolve_buckets_with_path() {
+        let p = resolve("buckets/username/my_bucket/data/file.txt");
+        assert_eq!(p.repo.repo_type, RepoType::Bucket);
+        assert_eq!(p.repo.repo_id, "username/my_bucket");
+        assert!(p.repo.revision.is_none());
+        assert_eq!(p.path, "data/file.txt");
+    }
+
+    #[test]
+    fn test_bucket_resolve_url() {
+        let p = resolve("buckets/user/bucket/file.txt");
+        let url = p.resolve_url("https://huggingface.co");
+        assert_eq!(
+            url,
+            "https://huggingface.co/buckets/user/bucket/resolve/file.txt"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "xet")]
+    fn test_bucket_xet_token_urls() {
+        let p = resolve("buckets/user/bucket");
+        let read_url = p.repo.xet_token_url("https://huggingface.co", "read");
+        let write_url = p.repo.xet_token_url("https://huggingface.co", "write");
+        assert_eq!(
+            read_url,
+            "https://huggingface.co/api/buckets/user/bucket/xet-read-token"
+        );
+        assert_eq!(
+            write_url,
+            "https://huggingface.co/api/buckets/user/bucket/xet-write-token"
+        );
+    }
+
+    #[test]
+    #[cfg(feature = "xet")]
+    fn test_bucket_batch_url() {
+        let p = resolve("buckets/user/bucket");
+        let url = p.repo.bucket_batch_url("https://huggingface.co");
+        assert_eq!(url, "https://huggingface.co/api/buckets/user/bucket/batch");
     }
 }

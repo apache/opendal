@@ -86,6 +86,18 @@ pub(super) struct DeletedFile {
     pub path: String,
 }
 
+/// Bucket batch operation payload structures
+#[cfg(feature = "xet")]
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(super) enum BucketOperation {
+    #[serde(rename_all = "camelCase")]
+    AddFile { path: String, xet_hash: String },
+    #[serde(rename_all = "camelCase")]
+    #[allow(dead_code)]
+    DeleteFile { path: String },
+}
+
 #[derive(serde::Serialize)]
 pub(super) struct MixedCommitPayload {
     pub summary: String,
@@ -113,7 +125,8 @@ pub(super) struct CommitResponse {
 pub(super) struct PathInfo {
     #[serde(rename = "type")]
     pub type_: String,
-    pub oid: String,
+    #[serde(default)]
+    pub oid: Option<String>,
     pub size: u64,
     #[serde(default)]
     pub lfs: Option<LfsInfo>,
@@ -141,12 +154,12 @@ impl PathInfo {
 
         if mode == EntryMode::FILE {
             meta.set_content_length(self.size);
-            let etag = if let Some(lfs) = &self.lfs {
-                &lfs.oid
-            } else {
-                &self.oid
-            };
-            meta.set_etag(etag);
+            // For buckets, oid may be None; for regular repos, prefer lfs.oid then oid
+            if let Some(lfs) = &self.lfs {
+                meta.set_etag(&lfs.oid);
+            } else if let Some(oid) = &self.oid {
+                meta.set_etag(oid);
+            }
         }
 
         Ok(meta)
@@ -510,6 +523,46 @@ impl HfCore {
 
         let (_, resp) = self.send_parse::<CommitResponse>(req).await?;
         Ok(resp)
+    }
+
+    /// Upload files to a bucket using the batch API.
+    ///
+    /// Sends operations as JSON lines (one operation per line).
+    #[cfg(feature = "xet")]
+    pub(super) async fn bucket_batch(&self, operations: Vec<BucketOperation>) -> Result<()> {
+        let _token = self.token.as_deref().ok_or_else(|| {
+            Error::new(
+                ErrorKind::PermissionDenied,
+                "token is required for bucket operations",
+            )
+            .with_operation("bucket_batch")
+        })?;
+
+        if operations.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "no operations to perform",
+            ));
+        }
+
+        let url = self.repo.bucket_batch_url(&self.endpoint);
+
+        let mut body = String::new();
+        for op in operations {
+            let json = serde_json::to_string(&op).map_err(new_json_serialize_error)?;
+            body.push_str(&json);
+            body.push('\n');
+        }
+
+        let req = self
+            .request(http::Method::POST, &url, Operation::Write)
+            .header(header::CONTENT_TYPE, "application/x-ndjson")
+            .header(header::CONTENT_LENGTH, body.len())
+            .body(Buffer::from(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await?;
+        Ok(())
     }
 }
 

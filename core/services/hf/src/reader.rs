@@ -27,6 +27,8 @@ use futures::StreamExt;
 use super::core::HfCore;
 #[cfg(feature = "xet")]
 use super::core::map_xet_error;
+#[cfg(feature = "xet")]
+use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 #[cfg(feature = "xet")]
@@ -43,12 +45,24 @@ pub enum HfReader {
 impl HfReader {
     /// Create a reader, automatically choosing between XET and HTTP.
     ///
-    /// When XET is enabled a HEAD request probes for the `X-Xet-Hash`
-    /// header. Files stored on XET are downloaded via the CAS protocol;
-    /// all others fall back to a regular HTTP GET.
+    /// Buckets always use XET. For other repo types, when XET is enabled
+    /// a HEAD request probes for the `X-Xet-Hash` header. Files stored on
+    /// XET are downloaded via the CAS protocol; all others fall back to HTTP GET.
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
         #[cfg(feature = "xet")]
         if core.xet_enabled {
+            // Buckets always use XET
+            if core.repo.repo_type == RepoType::Bucket {
+                if let Some(xet_file) = core.maybe_xet_file(path).await? {
+                    return Self::try_new_xet(core, &xet_file, range).await;
+                }
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "bucket file is missing XET metadata",
+                ));
+            }
+
+            // For other repos, probe for XET
             if let Some(xet_file) = core.maybe_xet_file(path).await? {
                 return Self::try_new_xet(core, &xet_file, range).await;
             }

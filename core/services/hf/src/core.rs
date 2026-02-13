@@ -28,11 +28,11 @@ use http::header;
 use serde::Deserialize;
 
 #[cfg(feature = "xet")]
-use xet_data::XetFileInfo;
+use subxet::data::XetFileInfo;
 #[cfg(feature = "xet")]
-use xet_data::streaming::XetClient;
+use subxet::data::streaming::XetClient;
 #[cfg(feature = "xet")]
-use xet_utils::auth::TokenRefresher;
+use subxet::utils::auth::TokenRefresher;
 
 use super::error::parse_error;
 use super::uri::HfRepo;
@@ -204,12 +204,14 @@ impl XetTokenRefresher {
 #[cfg(feature = "xet")]
 #[async_trait::async_trait]
 impl TokenRefresher for XetTokenRefresher {
-    async fn refresh(&self) -> std::result::Result<(String, u64), xet_utils::errors::AuthError> {
+    async fn refresh(
+        &self,
+    ) -> std::result::Result<(String, u64), subxet::utils::errors::AuthError> {
         let token = self
             .core
             .xet_token(self.token_type)
             .await
-            .map_err(xet_utils::errors::AuthError::token_refresh_failure)?;
+            .map_err(subxet::utils::errors::AuthError::token_refresh_failure)?;
         Ok((token.access_token, token.exp))
     }
 }

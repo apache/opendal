@@ -20,9 +20,9 @@ use http::StatusCode;
 use http::header;
 
 #[cfg(feature = "xet")]
-use cas_types::FileRange;
-#[cfg(feature = "xet")]
 use futures::StreamExt;
+#[cfg(feature = "xet")]
+use subxet::cas_types::FileRange;
 
 use super::core::HfCore;
 #[cfg(feature = "xet")]
@@ -32,9 +32,9 @@ use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 #[cfg(feature = "xet")]
-use xet_data::XetFileInfo;
+use subxet::data::XetFileInfo;
 #[cfg(feature = "xet")]
-use xet_data::streaming::XetReader;
+use subxet::data::streaming::XetReader;
 
 pub enum HfReader {
     Http(HttpBody),

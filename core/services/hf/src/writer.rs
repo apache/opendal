@@ -29,7 +29,7 @@ use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 #[cfg(feature = "xet")]
-use xet_data::streaming::XetWriter;
+use subxet::data::streaming::XetWriter;
 
 /// Writer that handles both regular (small) and XET (large) file uploads.
 pub enum HfWriter {

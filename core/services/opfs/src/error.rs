@@ -20,9 +20,16 @@ use wasm_bindgen::JsValue;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 
+pub(crate) const JS_NOT_FOUND_ERROR: &str = "NotFoundError";
+pub(crate) const JS_TYPE_MISMATCH_ERROR: &str = "TypeMismatchError";
+
 pub(crate) fn parse_js_error(msg: JsValue) -> Error {
-    Error::new(
-        ErrorKind::Unexpected,
-        msg.as_string().unwrap_or_else(String::new),
-    )
+    let err = js_sys::Error::from(msg);
+
+    let kind = match String::from(err.name()).as_str() {
+        JS_NOT_FOUND_ERROR => ErrorKind::NotFound,
+        _ => ErrorKind::Unexpected,
+    };
+
+    Error::new(kind, String::from(&err.message()))
 }

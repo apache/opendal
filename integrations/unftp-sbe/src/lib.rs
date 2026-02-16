@@ -60,9 +60,9 @@
 use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 
-use libunftp::auth::UserDetail;
-use libunftp::storage::{self, Error, StorageBackend};
 use opendal::Operator;
+use unftp_core::auth::UserDetail;
+use unftp_core::storage::{self, Error, StorageBackend};
 
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};

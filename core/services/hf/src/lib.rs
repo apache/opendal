@@ -35,3 +35,26 @@ mod lister;
 
 pub use backend::HfBuilder as Hf;
 pub use config::HfConfig;
+
+// Backward-compatible aliases.
+#[doc(hidden)]
+pub type Huggingface = Hf;
+#[doc(hidden)]
+pub type HuggingfaceConfig = HfConfig;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn type_aliases_are_interchangeable() {
+        let _: Huggingface = Hf::default().repo_id("org/repo");
+        let _: HuggingfaceConfig = HfConfig::default();
+    }
+
+    #[test]
+    fn scheme_constants() {
+        assert_eq!(HF_SCHEME, "hf");
+        assert_eq!(HUGGINGFACE_SCHEME, "huggingface");
+    }
+}

@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Default scheme for huggingface service.
+/// Primary scheme for the Hugging Face service.
+pub const HF_SCHEME: &str = "hf";
+
+/// Alias scheme for the Hugging Face service.
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
-/// Register this service into the given registry.
-pub fn register_huggingface_service(registry: &opendal_core::OperatorRegistry) {
-    registry.register::<Huggingface>(HUGGINGFACE_SCHEME);
+/// Register this service into the given registry under both `hf` and `huggingface` schemes.
+pub fn register_hf_service(registry: &opendal_core::OperatorRegistry) {
+    registry.register::<Hf>(HF_SCHEME);
+    registry.register::<Hf>(HUGGINGFACE_SCHEME);
 }
 
 mod backend;
@@ -29,5 +33,5 @@ mod core;
 mod error;
 mod lister;
 
-pub use backend::HuggingfaceBuilder as Huggingface;
-pub use config::HuggingfaceConfig;
+pub use backend::HfBuilder as Hf;
+pub use config::HfConfig;

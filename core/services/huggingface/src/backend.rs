@@ -22,23 +22,23 @@ use http::Response;
 use http::StatusCode;
 use log::debug;
 
-use super::HUGGINGFACE_SCHEME;
-use super::config::HuggingfaceConfig;
-use super::core::HuggingfaceCore;
-use super::core::HuggingfaceStatus;
+use super::HF_SCHEME;
+use super::config::HfConfig;
+use super::core::HfCore;
+use super::core::HfStatus;
 use super::error::parse_error;
-use super::lister::HuggingfaceLister;
+use super::lister::HfLister;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// [Huggingface](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
+/// [Hugging Face](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api)'s API support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
-pub struct HuggingfaceBuilder {
-    pub(super) config: HuggingfaceConfig,
+pub struct HfBuilder {
+    pub(super) config: HfConfig,
 }
 
-impl HuggingfaceBuilder {
+impl HfBuilder {
     /// Set repo type of this backend. Default is model.
     ///
     /// Available values:
@@ -120,10 +120,10 @@ impl HuggingfaceBuilder {
     }
 }
 
-impl Builder for HuggingfaceBuilder {
-    type Config = HuggingfaceConfig;
+impl Builder for HfBuilder {
+    type Config = HfConfig;
 
-    /// Build a HuggingfaceBackend.
+    /// Build an HfBackend.
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
@@ -136,7 +136,7 @@ impl Builder for HuggingfaceBuilder {
                 format!("unknown repo_type: {repo_type}").as_str(),
             )
             .with_operation("Builder::build")
-            .with_context("service", HUGGINGFACE_SCHEME)),
+            .with_context("service", HF_SCHEME)),
             None => Ok(RepoType::Model),
         }?;
         debug!("backend use repo_type: {:?}", &repo_type);
@@ -145,7 +145,7 @@ impl Builder for HuggingfaceBuilder {
             Some(repo_id) => Ok(repo_id.clone()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "repo_id is empty")
                 .with_operation("Builder::build")
-                .with_context("service", HUGGINGFACE_SCHEME)),
+                .with_context("service", HF_SCHEME)),
         }?;
         debug!("backend use repo_id: {}", &repo_id);
 
@@ -174,19 +174,18 @@ impl Builder for HuggingfaceBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
-        Ok(HuggingfaceBackend {
-            core: Arc::new(HuggingfaceCore {
+        Ok(HfBackend {
+            core: Arc::new(HfCore {
                 info: {
                     let am = AccessorInfo::default();
-                    am.set_scheme(HUGGINGFACE_SCHEME)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            read: true,
-                            list: true,
-                            list_with_recursive: true,
-                            shared: true,
-                            ..Default::default()
-                        });
+                    am.set_scheme(HF_SCHEME).set_native_capability(Capability {
+                        stat: true,
+                        read: true,
+                        list: true,
+                        list_with_recursive: true,
+                        shared: true,
+                        ..Default::default()
+                    });
                     am.into()
                 },
                 repo_type,
@@ -200,16 +199,16 @@ impl Builder for HuggingfaceBuilder {
     }
 }
 
-/// Backend for Huggingface service
+/// Backend for Hugging Face service
 #[derive(Debug, Clone)]
-pub struct HuggingfaceBackend {
-    core: Arc<HuggingfaceCore>,
+pub struct HfBackend {
+    core: Arc<HfCore>,
 }
 
-impl Access for HuggingfaceBackend {
+impl Access for HfBackend {
     type Reader = HttpBody;
     type Writer = ();
-    type Lister = oio::PageLister<HuggingfaceLister>;
+    type Lister = oio::PageLister<HfLister>;
     type Deleter = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -231,7 +230,7 @@ impl Access for HuggingfaceBackend {
                 let mut meta = parse_into_metadata(path, resp.headers())?;
                 let bs = resp.into_body();
 
-                let decoded_response: Vec<HuggingfaceStatus> =
+                let decoded_response: Vec<HfStatus> =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
                 // NOTE: if the file is not found, the server will return 200 with an empty array
@@ -283,13 +282,13 @@ impl Access for HuggingfaceBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = HuggingfaceLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let l = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
 
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 }
 
-/// Repository type of Huggingface. Supports `model`, `dataset`, and `space`.
+/// Repository type of Hugging Face. Supports `model`, `dataset`, and `space`.
 /// [Reference](https://huggingface.co/docs/hub/repositories)
 #[derive(Debug, Clone, Copy)]
 pub enum RepoType {
@@ -304,7 +303,7 @@ mod tests {
 
     #[test]
     fn build_accepts_datasets_alias() {
-        HuggingfaceBuilder::default()
+        HfBuilder::default()
             .repo_id("org/repo")
             .repo_type("datasets")
             .build()
@@ -313,7 +312,7 @@ mod tests {
 
     #[test]
     fn build_accepts_space_repo_type() {
-        HuggingfaceBuilder::default()
+        HfBuilder::default()
             .repo_id("org/space")
             .repo_type("space")
             .build()

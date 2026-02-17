@@ -129,7 +129,7 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     opendal_service_http::register_http_service(registry);
 
     #[cfg(feature = "services-huggingface")]
-    opendal_service_huggingface::register_huggingface_service(registry);
+    opendal_service_huggingface::register_hf_service(registry);
 
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);

@@ -190,7 +190,7 @@ jobs:
             # FIXME how to support HDFS services in other platforms?
             # services-hdfs
             services-http
-            services-huggingface
+            services-hf
             services-ipfs
             services-ipmfs
             services-memcached

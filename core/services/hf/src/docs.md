@@ -36,7 +36,7 @@ Refer to [`HfBuilder`]'s public API docs for more information.
 ```rust,no_run
 use opendal_core::Operator;
 use opendal_core::Result;
-use opendal_service_huggingface::Hf;
+use opendal_service_hf::Hf;
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -128,8 +128,8 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-http")]
     opendal_service_http::register_http_service(registry);
 
-    #[cfg(feature = "services-huggingface")]
-    opendal_service_huggingface::register_hf_service(registry);
+    #[cfg(feature = "services-hf")]
+    opendal_service_hf::register_hf_service(registry);
 
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);
@@ -292,10 +292,10 @@ pub mod services {
     pub use opendal_service_hdfs::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-hf")]
+    pub use opendal_service_hf::*;
     #[cfg(feature = "services-http")]
     pub use opendal_service_http::*;
-    #[cfg(feature = "services-huggingface")]
-    pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-ipmfs")]

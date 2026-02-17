@@ -98,7 +98,7 @@ pub enum PyScheme {
     HdfsNative,
     #[cfg(feature = "services-http")]
     Http,
-    #[cfg(feature = "services-huggingface")]
+    #[cfg(feature = "services-hf")]
     Hf,
     #[cfg(feature = "services-ipfs")]
     Ipfs,
@@ -4884,7 +4884,7 @@ impl_enum_to_str!(
         HdfsNative => "hdfs-native",
         #[cfg(feature = "services-http")]
         Http => "http",
-        #[cfg(feature = "services-huggingface")]
+        #[cfg(feature = "services-hf")]
         Hf => "hf",
         #[cfg(feature = "services-ipfs")]
         Ipfs => "ipfs",

@@ -92,8 +92,8 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
         opendal::services::HDFS_NATIVE_SCHEME,
         #[cfg(feature = "services-http")]
         opendal::services::HTTP_SCHEME,
-        #[cfg(feature = "services-huggingface")]
-        opendal::services::HUGGINGFACE_SCHEME,
+        #[cfg(feature = "services-hf")]
+        opendal::services::HF_SCHEME,
         #[cfg(feature = "services-ipfs")]
         opendal::services::IPFS_SCHEME,
         #[cfg(feature = "services-ipmfs")]

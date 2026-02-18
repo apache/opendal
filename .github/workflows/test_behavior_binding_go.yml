@@ -59,7 +59,7 @@ jobs:
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version-file: bindings/go/go.mod
           cache-dependency-path: |
             bindings/go/go.sum
             bindings/go/tests/behavior_tests/go.sum

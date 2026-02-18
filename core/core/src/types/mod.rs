@@ -43,7 +43,6 @@ mod execute;
 pub use execute::*;
 
 mod operator;
-pub use operator::DEFAULT_OPERATOR_REGISTRY;
 pub use operator::IntoOperatorUri;
 pub use operator::Operator;
 pub use operator::OperatorBuilder;

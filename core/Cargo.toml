@@ -117,6 +117,8 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
+# Register services enabled to the OperatorRegistry so that they can be used by `Operator::from_uri`.
+register-services = ["dep:ctor"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]
@@ -207,7 +209,7 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
-ctor = { workspace = true }
+ctor = { workspace = true , optional = true }
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }

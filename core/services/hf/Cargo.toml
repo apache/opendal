@@ -16,8 +16,8 @@
 # under the License.
 
 [package]
-description = "Apache OpenDAL huggingface service implementation"
-name = "opendal-service-huggingface"
+description = "Apache OpenDAL Hugging Face service implementation"
+name = "opendal-service-hf"
 
 authors = { workspace = true }
 edition = { workspace = true }

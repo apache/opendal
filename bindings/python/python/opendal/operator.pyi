@@ -1172,7 +1172,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Huggingface | typing.Literal["huggingface"],
+        scheme: opendal.services.Scheme.Hf | typing.Literal["hf"],
         /,
         *,
         repo_id: builtins.str = ...,
@@ -1182,7 +1182,7 @@ class AsyncOperator:
         token: builtins.str = ...,
     ) -> typing_extensions.Self:
         r"""
-        Create a new `AsyncOperator` for `huggingface` service.
+        Create a new `AsyncOperator` for `hf` (Hugging Face) service.
 
         Parameters
         ----------
@@ -1207,7 +1207,7 @@ class AsyncOperator:
         Returns
         -------
         AsyncOperator
-            The new `AsyncOperator` for `huggingface` service
+            The new `AsyncOperator` for `hf` (Hugging Face) service
         """
     @typing.overload
     def __new__(
@@ -3412,7 +3412,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Huggingface | typing.Literal["huggingface"],
+        scheme: opendal.services.Scheme.Hf | typing.Literal["hf"],
         /,
         *,
         repo_id: builtins.str = ...,
@@ -3422,7 +3422,7 @@ class Operator:
         token: builtins.str = ...,
     ) -> typing_extensions.Self:
         r"""
-        Create a new `Operator` for `huggingface` service.
+        Create a new `Operator` for `hf` (Hugging Face) service.
 
         Parameters
         ----------
@@ -3447,7 +3447,7 @@ class Operator:
         Returns
         -------
         Operator
-            The new `Operator` for `huggingface` service
+            The new `Operator` for `hf` (Hugging Face) service
         """
     @typing.overload
     def __new__(

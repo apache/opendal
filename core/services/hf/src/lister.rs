@@ -19,20 +19,20 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
-use super::core::HuggingfaceCore;
-use super::core::HuggingfaceStatus;
+use super::core::HfCore;
+use super::core::HfStatus;
 use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct HuggingfaceLister {
-    core: Arc<HuggingfaceCore>,
+pub struct HfLister {
+    core: Arc<HfCore>,
     path: String,
     recursive: bool,
 }
 
-impl HuggingfaceLister {
-    pub fn new(core: Arc<HuggingfaceCore>, path: String, recursive: bool) -> Self {
+impl HfLister {
+    pub fn new(core: Arc<HfCore>, path: String, recursive: bool) -> Self {
         Self {
             core,
             path,
@@ -41,7 +41,7 @@ impl HuggingfaceLister {
     }
 }
 
-impl oio::PageList for HuggingfaceLister {
+impl oio::PageList for HfLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         // Use the next page URL from context if available, otherwise start from beginning
         let response = if ctx.token.is_empty() {
@@ -60,7 +60,7 @@ impl oio::PageList for HuggingfaceLister {
         let next_link = parse_link_header(response.headers());
 
         let bytes = response.into_body();
-        let decoded_response: Vec<HuggingfaceStatus> =
+        let decoded_response: Vec<HfStatus> =
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         // Only mark as done if there's no next page

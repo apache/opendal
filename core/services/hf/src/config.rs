@@ -20,14 +20,14 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::HUGGINGFACE_SCHEME;
-use super::backend::HuggingfaceBuilder;
+use super::HF_SCHEME;
+use super::backend::HfBuilder;
 
-/// Configuration for Huggingface service support.
+/// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct HuggingfaceConfig {
+pub struct HfConfig {
     /// Repo type of this backend. Default is model.
     ///
     /// Available values:
@@ -51,15 +51,15 @@ pub struct HuggingfaceConfig {
     ///
     /// This is optional.
     pub token: Option<String>,
-    /// Endpoint of the Huggingface Hub.
+    /// Endpoint of the Hugging Face Hub.
     ///
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
 }
 
-impl Debug for HuggingfaceConfig {
+impl Debug for HfConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HuggingfaceConfig")
+        f.debug_struct("HfConfig")
             .field("repo_type", &self.repo_type)
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
@@ -68,8 +68,8 @@ impl Debug for HuggingfaceConfig {
     }
 }
 
-impl opendal_core::Configurator for HuggingfaceConfig {
-    type Builder = HuggingfaceBuilder;
+impl opendal_core::Configurator for HfConfig {
+    type Builder = HfBuilder;
 
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
@@ -110,7 +110,7 @@ impl opendal_core::Configurator for HuggingfaceConfig {
                     opendal_core::ErrorKind::ConfigInvalid,
                     "repository owner and name are required in uri path",
                 )
-                .with_context("service", HUGGINGFACE_SCHEME));
+                .with_context("service", HF_SCHEME));
             }
         }
 
@@ -119,14 +119,14 @@ impl opendal_core::Configurator for HuggingfaceConfig {
                 opendal_core::ErrorKind::ConfigInvalid,
                 "repo_id is required via uri path or option",
             )
-            .with_context("service", HUGGINGFACE_SCHEME));
+            .with_context("service", HF_SCHEME));
         }
 
         Self::from_iter(map)
     }
 
     fn into_builder(self) -> Self::Builder {
-        HuggingfaceBuilder { config: self }
+        HfBuilder { config: self }
     }
 }
 
@@ -139,12 +139,12 @@ mod tests {
     #[test]
     fn from_uri_sets_repo_type_id_and_revision() {
         let uri = OperatorUri::new(
-            "huggingface://model/opendal/sample/main/dataset",
+            "hf://model/opendal/sample/main/dataset",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
 
-        let cfg = HuggingfaceConfig::from_uri(&uri).unwrap();
+        let cfg = HfConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.repo_type.as_deref(), Some("model"));
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
         assert_eq!(cfg.revision.as_deref(), Some("main"));
@@ -154,12 +154,12 @@ mod tests {
     #[test]
     fn from_uri_uses_existing_revision_and_sets_root() {
         let uri = OperatorUri::new(
-            "huggingface://dataset/opendal/sample/data/train",
+            "hf://dataset/opendal/sample/data/train",
             vec![("revision".to_string(), "dev".to_string())],
         )
         .unwrap();
 
-        let cfg = HuggingfaceConfig::from_uri(&uri).unwrap();
+        let cfg = HfConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.repo_type.as_deref(), Some("dataset"));
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
         assert_eq!(cfg.revision.as_deref(), Some("dev"));
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn from_uri_allows_options_only() {
         let uri = OperatorUri::new(
-            "huggingface",
+            "hf",
             vec![
                 ("repo_type".to_string(), "model".to_string()),
                 ("repo_id".to_string(), "opendal/sample".to_string()),
@@ -179,7 +179,7 @@ mod tests {
         )
         .unwrap();
 
-        let cfg = HuggingfaceConfig::from_uri(&uri).unwrap();
+        let cfg = HfConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.repo_type.as_deref(), Some("model"));
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
         assert_eq!(cfg.revision.as_deref(), Some("main"));
@@ -188,12 +188,23 @@ mod tests {
 
     #[test]
     fn from_uri_requires_owner_and_repo() {
+        let uri = OperatorUri::new("hf://model/opendal", Vec::<(String, String)>::new()).unwrap();
+
+        assert!(HfConfig::from_uri(&uri).is_err());
+    }
+
+    #[test]
+    fn from_uri_huggingface_alias_works() {
         let uri = OperatorUri::new(
-            "huggingface://model/opendal",
+            "huggingface://model/opendal/sample/main/dataset",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
 
-        assert!(HuggingfaceConfig::from_uri(&uri).is_err());
+        let cfg = HfConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.repo_type.as_deref(), Some("model"));
+        assert_eq!(cfg.repo_id.as_deref(), Some("opendal/sample"));
+        assert_eq!(cfg.revision.as_deref(), Some("main"));
+        assert_eq!(cfg.root.as_deref(), Some("dataset"));
     }
 }

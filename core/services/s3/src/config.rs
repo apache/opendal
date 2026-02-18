@@ -221,6 +221,10 @@ pub struct S3Config {
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     #[serde(alias = "aws_request_payer", alias = "request_payer")]
     pub enable_request_payer: bool,
+
+    /// Default ACL for new objects.
+    /// Note that some s3 services like minio do not support this option.
+    pub default_acl: Option<String>,
 }
 
 impl Debug for S3Config {

@@ -191,18 +191,17 @@ impl Builder for HfBuilder {
 
         let info: Arc<AccessorInfo> = {
             let am = AccessorInfo::default();
-            am.set_scheme(HF_SCHEME)
-                .set_native_capability(Capability {
-                    stat: true,
-                    read: true,
-                    write: token.is_some(),
-                    delete: token.is_some(),
-                    delete_max_size: Some(100),
-                    list: true,
-                    list_with_recursive: true,
-                    shared: true,
-                    ..Default::default()
-                });
+            am.set_scheme(HF_SCHEME).set_native_capability(Capability {
+                stat: true,
+                read: true,
+                write: token.is_some(),
+                delete: token.is_some(),
+                delete_max_size: Some(100),
+                list: true,
+                list_with_recursive: true,
+                shared: true,
+                ..Default::default()
+            });
             am.into()
         };
 

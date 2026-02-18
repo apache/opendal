@@ -15,15 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
-
-use serde::Deserialize;
-use serde::Serialize;
-
-use super::HF_SCHEME;
 use super::backend::HfBuilder;
 use super::uri::HfUri;
 use super::uri::RepoType;
+use serde::Deserialize;
+use serde::Serialize;
+use std::fmt::Debug;
 
 /// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]

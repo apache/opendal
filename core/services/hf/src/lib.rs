@@ -30,12 +30,12 @@ pub fn register_hf_service(registry: &opendal_core::OperatorRegistry) {
 mod backend;
 mod config;
 mod core;
+mod deleter;
 mod error;
 mod lister;
 mod reader;
-mod writer;
 mod uri;
-mod deleter;
+mod writer;
 
 pub use backend::HfBuilder as Hf;
 pub use config::HfConfig;

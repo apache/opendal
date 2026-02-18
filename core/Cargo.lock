@@ -6309,8 +6309,8 @@ dependencies = [
  "opendal-service-gridfs",
  "opendal-service-hdfs",
  "opendal-service-hdfs-native",
+ "opendal-service-hf",
  "opendal-service-http",
- "opendal-service-huggingface",
  "opendal-service-ipfs",
  "opendal-service-ipmfs",
  "opendal-service-koofr",
@@ -7054,18 +7054,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "opendal-service-http"
-version = "0.55.0"
-dependencies = [
- "http 1.4.0",
- "log",
- "opendal-core",
- "serde",
- "tokio",
-]
-
-[[package]]
-name = "opendal-service-huggingface"
+name = "opendal-service-hf"
 version = "0.55.0"
 dependencies = [
  "async-trait",
@@ -7081,6 +7070,17 @@ dependencies = [
  "serde",
  "serde_json",
  "subxet",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-http"
+version = "0.55.0"
+dependencies = [
+ "http 1.4.0",
+ "log",
+ "opendal-core",
+ "serde",
  "tokio",
 ]
 

@@ -252,20 +252,37 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let config_loader = AzureStorageConfig {
-            account_name: self
-                .config
-                .account_name
-                .clone()
-                .or_else(|| azure_account_name_from_endpoint(endpoint.as_str())),
-            account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token,
-            client_id: self.config.client_id.clone(),
-            client_secret: self.config.client_secret.clone(),
-            tenant_id: self.config.tenant_id.clone(),
-            authority_host: self.config.authority_host.clone(),
-            ..Default::default()
-        };
+        #[cfg(target_arch = "wasm32")]
+        let mut config_loader = AzureStorageConfig::default();
+        #[cfg(not(target_arch = "wasm32"))]
+        let mut config_loader = AzureStorageConfig::default().from_env();
+
+        if let Some(v) = self
+            .config
+            .account_name
+            .clone()
+            .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()))
+        {
+            config_loader.account_name = Some(v);
+        }
+        if let Some(v) = self.config.account_key.clone() {
+            config_loader.account_key = Some(v);
+        }
+        if let Some(v) = self.config.sas_token {
+            config_loader.sas_token = Some(v);
+        }
+        if let Some(v) = self.config.client_id.clone() {
+            config_loader.client_id = Some(v);
+        }
+        if let Some(v) = self.config.client_secret.clone() {
+            config_loader.client_secret = Some(v);
+        }
+        if let Some(v) = self.config.tenant_id.clone() {
+            config_loader.tenant_id = Some(v);
+        }
+        if let Some(v) = self.config.authority_host.clone() {
+            config_loader.authority_host = Some(v);
+        }
 
         let cred_loader = AzureStorageLoader::new(config_loader);
         let signer = AzureStorageSigner::new();

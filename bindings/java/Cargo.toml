@@ -27,7 +27,7 @@ repository = "https://github.com/apache/opendal"
 rust-version = "1.85"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 doc = false
 
 [features]

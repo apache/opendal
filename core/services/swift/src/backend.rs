@@ -144,7 +144,16 @@ impl Builder for SwiftBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_empty: true,
@@ -186,8 +195,8 @@ impl Access for SwiftBackend {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path).await?;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(path, &args).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {

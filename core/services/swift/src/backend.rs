@@ -151,6 +151,7 @@ impl Builder for SwiftBuilder {
                             write_with_user_metadata: true,
 
                             delete: true,
+                            delete_max_size: Some(10000),
 
                             list: true,
                             list_with_recursive: true,
@@ -180,7 +181,7 @@ impl Access for SwiftBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
-    type Deleter = oio::OneShotDeleter<SwiftDeleter>;
+    type Deleter = oio::BatchDeleter<SwiftDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -230,7 +231,10 @@ impl Access for SwiftBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(SwiftDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(
+                SwiftDeleter::new(self.core.clone()),
+                self.core.info.full_capability().delete_max_size,
+            ),
         ))
     }
 

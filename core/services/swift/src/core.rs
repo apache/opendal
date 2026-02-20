@@ -121,6 +121,19 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(content_type) = args.content_type() {
+            req = req.header(header::CONTENT_TYPE, content_type);
+        }
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(header::CONTENT_DISPOSITION, content_disposition);
+        }
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(header::CONTENT_ENCODING, content_encoding);
+        }
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(header::CACHE_CONTROL, cache_control);
+        }
+
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (k, v) in user_metadata {

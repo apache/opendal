@@ -17,17 +17,16 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-use http::Response;
-use http::StatusCode;
 use log::debug;
 
 use super::HF_SCHEME;
 use super::config::HfConfig;
 use super::core::HfCore;
-use super::core::HfStatus;
-use super::error::parse_error;
+use super::deleter::HfDeleter;
 use super::lister::HfLister;
+use super::reader::HfReader;
+use super::uri::{HfRepo, RepoType};
+use super::writer::HfWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -46,11 +45,14 @@ impl HfBuilder {
     /// - dataset
     /// - datasets (alias for dataset)
     /// - space
+    /// - bucket
     ///
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
-            self.config.repo_type = Some(repo_type.to_string());
+            if let Ok(rt) = RepoType::parse(repo_type) {
+                self.config.repo_type = rt;
+            }
         }
         self
     }
@@ -123,22 +125,10 @@ impl HfBuilder {
 impl Builder for HfBuilder {
     type Config = HfConfig;
 
-    /// Build an HfBackend.
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
 
-        let repo_type = match self.config.repo_type.as_deref() {
-            Some("model") => Ok(RepoType::Model),
-            Some("dataset") | Some("datasets") => Ok(RepoType::Dataset),
-            Some("space") => Ok(RepoType::Space),
-            Some(repo_type) => Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                format!("unknown repo_type: {repo_type}").as_str(),
-            )
-            .with_operation("Builder::build")
-            .with_context("service", HF_SCHEME)),
-            None => Ok(RepoType::Model),
-        }?;
+        let repo_type = self.config.repo_type;
         debug!("backend use repo_type: {:?}", &repo_type);
 
         let repo_id = match &self.config.repo_id {
@@ -174,27 +164,27 @@ impl Builder for HfBuilder {
         };
         debug!("backend use endpoint: {}", &endpoint);
 
+        let info: Arc<AccessorInfo> = {
+            let am = AccessorInfo::default();
+            am.set_scheme(HF_SCHEME).set_native_capability(Capability {
+                stat: true,
+                read: true,
+                write: token.is_some(),
+                delete: token.is_some(),
+                delete_max_size: Some(100),
+                list: true,
+                list_with_recursive: true,
+                shared: true,
+                ..Default::default()
+            });
+            am.into()
+        };
+
+        let repo = HfRepo::new(repo_type, repo_id, Some(revision.clone()));
+        debug!("backend repo uri: {:?}", repo.uri(&root, ""));
+
         Ok(HfBackend {
-            core: Arc::new(HfCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(HF_SCHEME).set_native_capability(Capability {
-                        stat: true,
-                        read: true,
-                        list: true,
-                        list_with_recursive: true,
-                        shared: true,
-                        ..Default::default()
-                    });
-                    am.into()
-                },
-                repo_type,
-                repo_id,
-                revision,
-                root,
-                token,
-                endpoint,
-            }),
+            core: Arc::new(HfCore::build(info, repo, root, token, endpoint)?),
         })
     }
 }
@@ -202,14 +192,14 @@ impl Builder for HfBuilder {
 /// Backend for Hugging Face service
 #[derive(Debug, Clone)]
 pub struct HfBackend {
-    core: Arc<HfCore>,
+    pub(crate) core: Arc<HfCore>,
 }
 
 impl Access for HfBackend {
-    type Reader = HttpBody;
-    type Writer = ();
+    type Reader = HfReader;
+    type Writer = HfWriter;
     type Lister = oio::PageLister<HfLister>;
-    type Deleter = ();
+    type Deleter = oio::BatchDeleter<HfDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -221,84 +211,116 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        let resp = self.core.hf_path_info(path).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, resp.headers())?;
-                let bs = resp.into_body();
-
-                let decoded_response: Vec<HfStatus> =
-                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
-
-                // NOTE: if the file is not found, the server will return 200 with an empty array
-                if let Some(status) = decoded_response.first() {
-                    if let Some(commit_info) = status.last_commit.as_ref() {
-                        meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
-                    }
-
-                    meta.set_content_length(status.size);
-
-                    // Use LFS OID as ETag if available, otherwise use regular OID
-                    let etag = if let Some(lfs) = &status.lfs {
-                        &lfs.oid
-                    } else {
-                        &status.oid
-                    };
-                    meta.set_etag(etag);
-
-                    match status.type_.as_str() {
-                        "directory" => meta.set_mode(EntryMode::DIR),
-                        "file" => meta.set_mode(EntryMode::FILE),
-                        _ => return Err(Error::new(ErrorKind::Unexpected, "unknown status type")),
-                    };
-                } else {
-                    return Err(Error::new(ErrorKind::NotFound, "path not found"));
-                }
-
-                Ok(RpStat::new(meta))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let info = self.core.path_info(path).await?;
+        Ok(RpStat::new(info.metadata()?))
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.hf_resolve(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        let reader = HfReader::try_new(&self.core, path, args.range()).await?;
+        Ok((RpRead::default(), reader))
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
+        let lister = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
+        Ok((RpList::default(), oio::PageLister::new(lister)))
+    }
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let writer = HfWriter::try_new(self.core.clone(), path.to_string()).await?;
+        Ok((RpWrite::default(), writer))
+    }
+
+    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+        let deleter = HfDeleter::new(self.core.clone());
+        let max_batch_size = self.core.info.full_capability().delete_max_size;
+        Ok((
+            RpDelete::default(),
+            oio::BatchDeleter::new(deleter, max_batch_size),
+        ))
     }
 }
 
-/// Repository type of Hugging Face. Supports `model`, `dataset`, and `space`.
-/// [Reference](https://huggingface.co/docs/hub/repositories)
-#[derive(Debug, Clone, Copy)]
-pub enum RepoType {
-    Model,
-    Dataset,
-    Space,
+#[cfg(test)]
+pub(super) mod test_utils {
+    use super::HfBuilder;
+    use opendal_core::Operator;
+    use opendal_core::layers::HttpClientLayer;
+    use opendal_core::raw::HttpClient;
+
+    /// Create an operator with a fresh HTTP client so parallel tests
+    /// don't share the global static reqwest client (which causes
+    /// "dispatch task is gone" errors when runtimes are dropped).
+    fn finish_operator(op: Operator) -> Operator {
+        let client = HttpClient::with(reqwest::Client::new());
+        op.layer(HttpClientLayer::new(client))
+    }
+
+    pub fn testing_credentials() -> (String, String) {
+        let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+        (repo_id, token)
+    }
+
+    pub fn testing_bucket_credentials() -> (String, String) {
+        let repo_id = std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+        (repo_id, token)
+    }
+
+    /// Operator for a private dataset requiring HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN.
+    pub fn testing_operator() -> Operator {
+        let (repo_id, token) = testing_credentials();
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("dataset")
+                .repo_id(&repo_id)
+                .token(&token),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
+
+    /// Operator for a bucket requiring HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
+    pub fn testing_bucket_operator() -> Operator {
+        let (repo_id, token) = testing_bucket_credentials();
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("bucket")
+                .repo_id(&repo_id)
+                .token(&token),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
+
+    pub fn gpt2_operator() -> Operator {
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("model")
+                .repo_id("openai-community/gpt2"),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
+
+    pub fn mbpp_operator() -> Operator {
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("dataset")
+                .repo_id("google-research-datasets/mbpp"),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::test_utils::mbpp_operator;
     use super::*;
 
     #[test]
@@ -317,5 +339,168 @@ mod tests {
             .repo_type("space")
             .build()
             .expect("builder should accept space repo type");
+    }
+
+    #[test]
+    fn test_both_schemes_are_supported() {
+        use opendal_core::OperatorRegistry;
+
+        let registry = OperatorRegistry::new();
+        super::super::register_hf_service(&registry);
+
+        // Test short scheme "hf"
+        let op = registry
+            .load("hf://user/repo")
+            .expect("short scheme should be registered and work");
+        assert_eq!(op.info().scheme(), "hf");
+
+        // Test long scheme "huggingface"
+        let op = registry
+            .load("huggingface://user/repo")
+            .expect("long scheme should be registered and work");
+        assert_eq!(op.info().scheme(), "hf");
+    }
+
+    /// Parquet magic bytes: "PAR1"
+    const PARQUET_MAGIC: &[u8] = b"PAR1";
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_parquet_http() {
+        let op = mbpp_operator();
+        let path = "full/train-00000-of-00001.parquet";
+
+        let meta = op.stat(path).await.expect("stat should succeed");
+        assert!(meta.content_length() > 0);
+
+        // Read the first 4 bytes to check parquet header magic
+        let header = op
+            .read_with(path)
+            .range(0..4)
+            .await
+            .expect("read header should succeed");
+        assert_eq!(&header.to_vec(), PARQUET_MAGIC);
+
+        // Read the last 4 bytes to check parquet footer magic
+        let size = meta.content_length();
+        let footer = op
+            .read_with(path)
+            .range(size - 4..size)
+            .await
+            .expect("read footer should succeed");
+        assert_eq!(&footer.to_vec(), PARQUET_MAGIC);
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_parquet_xet() {
+        let op = mbpp_operator();
+        let path = "full/train-00000-of-00001.parquet";
+
+        // Full read via XET and verify parquet magic at both ends
+        let data = op.read(path).await.expect("xet read should succeed");
+        let bytes = data.to_vec();
+        assert!(bytes.len() > 8);
+        assert_eq!(&bytes[..4], PARQUET_MAGIC);
+        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
+    }
+
+    /// List files in a known dataset directory.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_list_directory() {
+        let op = mbpp_operator();
+        let entries = op.list("full/").await.expect("list should succeed");
+        assert!(!entries.is_empty(), "directory should contain files");
+        assert!(
+            entries.iter().any(|e| e.path().ends_with(".parquet")),
+            "should contain parquet files"
+        );
+    }
+
+    /// List files recursively from root.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_list_recursive() {
+        let op = mbpp_operator();
+        let entries = op
+            .list_with("/")
+            .recursive(true)
+            .await
+            .expect("recursive list should succeed");
+        assert!(
+            entries.len() > 1,
+            "recursive listing should find multiple files"
+        );
+    }
+
+    /// Stat a known file and verify metadata fields.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_stat_known_file() {
+        let op = mbpp_operator();
+        let meta = op
+            .stat("full/train-00000-of-00001.parquet")
+            .await
+            .expect("stat should succeed");
+        assert!(meta.content_length() > 0);
+        assert!(!meta.etag().unwrap_or_default().is_empty());
+    }
+
+    /// Stat a nonexistent path should return NotFound.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_stat_nonexistent() {
+        let op = mbpp_operator();
+        let err = op
+            .stat("this/path/does/not/exist.txt")
+            .await
+            .expect_err("stat on nonexistent path should fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    /// Read a nonexistent file should return NotFound.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_nonexistent() {
+        let op = mbpp_operator();
+        let err = op
+            .read("this/path/does/not/exist.txt")
+            .await
+            .expect_err("read on nonexistent path should fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    /// Read a middle range of a known file.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_range_middle() {
+        let op = mbpp_operator();
+        let data = op
+            .read_with("full/train-00000-of-00001.parquet")
+            .range(100..200)
+            .await
+            .expect("range read should succeed");
+        assert_eq!(data.to_bytes().len(), 100);
+    }
+
+    /// Read the last N bytes of a file to exercise tail-range handling.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_read_range_tail() {
+        let op = mbpp_operator();
+        let path = "full/train-00000-of-00001.parquet";
+        let meta = op.stat(path).await.expect("stat should succeed");
+        let size = meta.content_length();
+
+        let data = op
+            .read_with(path)
+            .range(size - 100..size)
+            .await
+            .expect("tail range read should succeed");
+        let bytes = data.to_bytes();
+        assert_eq!(bytes.len(), 100);
+        // Parquet files end with "PAR1" magic
+        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 }

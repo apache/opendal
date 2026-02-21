@@ -1,5 +1,4 @@
 This service will visit the [Hugging Face API](https://huggingface.co/docs/huggingface_hub/package_reference/hf_api) to access the Hugging Face File System.
-Currently, we only support the `model` and `dataset` types of repositories, and operations are limited to reading and listing/stating.
 
 Hugging Face doesn't host official HTTP API docs. Detailed HTTP request API information can be found on the [`huggingface_hub` Source Code](https://github.com/huggingface/huggingface_hub).
 
@@ -12,8 +11,8 @@ This service can be used to:
 - [ ] create_dir
 - [x] stat
 - [x] read
-- [ ] write
-- [ ] delete
+- [x] write
+- [x] delete
 - [x] list
 - [ ] copy
 - [ ] rename
@@ -21,11 +20,11 @@ This service can be used to:
 
 ## Configurations
 
-- `repo_type`: The type of the repository.
+- `repo_type`: The type of the repository (model, dataset, or space).
 - `repo_id`: The id of the repository.
 - `revision`: The revision of the repository.
 - `root`: Set the work directory for backend.
-- `token`: The token for accessing the repository.
+- `token`: The token for accessing the repository. Required for write operations.
 
 Refer to [`HfBuilder`]'s public API docs for more information.
 

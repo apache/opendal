@@ -17,13 +17,30 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
-
-use super::core::HfCore;
-use super::core::HfStatus;
-use super::error::parse_error;
+use super::core::{HfCore, PathInfo};
 use opendal_core::raw::*;
 use opendal_core::*;
+
+struct FileTree {
+    files: Vec<PathInfo>,
+    next_cursor: Option<String>,
+}
+
+/// Extract the cursor value from a Link header's "next" URL.
+fn parse_next_cursor(link_str: &str) -> Option<String> {
+    for link in link_str.split(',') {
+        if link.contains("rel=\"next\"") || link.contains("rel='next'") {
+            let (_, rest) = link.split_once('<')?;
+            let (url, _) = rest.split_once('>')?;
+            let query = url.split_once('?')?.1;
+            return query
+                .split('&')
+                .find_map(|p| p.strip_prefix("cursor="))
+                .map(|v| v.to_string());
+        }
+    }
+    None
+}
 
 pub struct HfLister {
     core: Arc<HfCore>,
@@ -39,68 +56,55 @@ impl HfLister {
             recursive,
         }
     }
+
+    async fn file_tree(
+        &self,
+        path: &str,
+        recursive: bool,
+        cursor: Option<&str>,
+    ) -> Result<FileTree> {
+        let uri = self.core.uri(path);
+        let url = uri.file_tree_url(&self.core.endpoint, recursive, cursor);
+
+        let req = self
+            .core
+            .request(http::Method::GET, &url, Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let (parts, files) = self.core.send_parse::<Vec<PathInfo>>(req).await?;
+
+        let next_cursor = parts
+            .headers
+            .get(http::header::LINK)
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_next_cursor);
+
+        Ok(FileTree { files, next_cursor })
+    }
 }
 
 impl oio::PageList for HfLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
-        // Use the next page URL from context if available, otherwise start from beginning
-        let response = if ctx.token.is_empty() {
-            self.core.hf_list(&self.path, self.recursive, None).await?
+        let cursor = if ctx.token.is_empty() {
+            None
         } else {
-            self.core.hf_list_with_url(&ctx.token).await?
+            Some(ctx.token.as_str())
         };
+        let response = self.file_tree(&self.path, self.recursive, cursor).await?;
 
-        let status_code = response.status();
-        if !status_code.is_success() {
-            let error = parse_error(response);
-            return Err(error);
-        }
-
-        // Parse Link header for pagination
-        let next_link = parse_link_header(response.headers());
-
-        let bytes = response.into_body();
-        let decoded_response: Vec<HfStatus> =
-            serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-
-        // Only mark as done if there's no next page
-        if let Some(next_url) = next_link {
-            ctx.token = next_url;
+        if let Some(next_cursor) = response.next_cursor {
+            ctx.token = next_cursor;
         } else {
             ctx.done = true;
         }
 
-        for status in decoded_response {
-            let entry_type = match status.type_.as_str() {
-                "directory" => EntryMode::DIR,
-                "file" => EntryMode::FILE,
-                _ => EntryMode::Unknown,
-            };
-
-            let mut meta = Metadata::new(entry_type);
-
-            if let Some(commit_info) = status.last_commit.as_ref() {
-                meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
-            }
-
-            if entry_type == EntryMode::FILE {
-                meta.set_content_length(status.size);
-
-                // Use LFS OID as ETag if available, otherwise use regular OID
-                let etag = if let Some(lfs) = &status.lfs {
-                    &lfs.oid
-                } else {
-                    &status.oid
-                };
-                meta.set_etag(etag);
-            }
-
-            let path = if entry_type == EntryMode::DIR {
-                format!("{}/", &status.path)
+        for info in response.files {
+            let meta = info.metadata()?;
+            let path = if meta.mode() == EntryMode::DIR {
+                format!("{}/", &info.path)
             } else {
-                status.path.clone()
+                info.path.clone()
             };
-
             ctx.entries.push_back(oio::Entry::new(
                 &build_rel_path(&self.core.root, &path),
                 meta,
@@ -111,101 +115,59 @@ impl oio::PageList for HfLister {
     }
 }
 
-/// Parse the Link header to extract the next page URL.
-/// HuggingFace API returns pagination info in the Link header with rel="next".
-/// Example: <https://huggingface.co/api/models/.../tree?cursor=xxx>; rel="next"
-fn parse_link_header(headers: &http::HeaderMap) -> Option<String> {
-    let link_header = headers.get(http::header::LINK)?;
-    let link_str = link_header.to_str().ok()?;
-
-    // Parse Link header format: <url>; rel="next"
-    for link in link_str.split(',') {
-        if link.contains("rel=\"next\"") || link.contains("rel='next'") {
-            // Extract URL from <url> using split_once for cleaner parsing
-            let (_, rest) = link.split_once('<')?;
-            let (inside, _) = rest.split_once('>')?;
-            return Some(inside.to_string());
-        }
-    }
-
-    None
-}
-
 #[cfg(test)]
 mod tests {
+    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
     use super::*;
-    use http::HeaderMap;
-    use http::HeaderValue;
 
     #[test]
-    fn test_parse_link_header_with_next() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            http::header::LINK,
-            HeaderValue::from_static(
-                r#"<https://huggingface.co/api/models/test/tree/main?cursor=abc123>; rel="next""#,
-            ),
-        );
-
-        let result = parse_link_header(&headers);
-        assert_eq!(
-            result,
-            Some("https://huggingface.co/api/models/test/tree/main?cursor=abc123".to_string())
-        );
+    fn test_parse_next_cursor() {
+        let link =
+            r#"<https://huggingface.co/api/models/org/model/tree/main?cursor=abc123>; rel="next""#;
+        assert_eq!(parse_next_cursor(link), Some("abc123".to_string()));
     }
 
     #[test]
-    fn test_parse_link_header_with_single_quotes() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            http::header::LINK,
-            HeaderValue::from_static(
-                r#"<https://huggingface.co/api/models/test/tree/main?cursor=xyz>; rel='next'"#,
-            ),
-        );
-
-        let result = parse_link_header(&headers);
-        assert_eq!(
-            result,
-            Some("https://huggingface.co/api/models/test/tree/main?cursor=xyz".to_string())
-        );
+    fn test_parse_next_cursor_no_next() {
+        let link =
+            r#"<https://huggingface.co/api/models/org/model/tree/main?cursor=abc123>; rel="prev""#;
+        assert_eq!(parse_next_cursor(link), None);
     }
 
-    #[test]
-    fn test_parse_link_header_without_next() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            http::header::LINK,
-            HeaderValue::from_static(
-                r#"<https://huggingface.co/api/models/test/tree/main>; rel="prev""#,
-            ),
-        );
-
-        let result = parse_link_header(&headers);
-        assert_eq!(result, None);
+    #[tokio::test]
+    async fn test_list_model_root() {
+        let op = gpt2_operator();
+        let entries = op.list("/").await.expect("list should succeed");
+        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
+        assert!(names.contains(&"config.json"));
     }
 
-    #[test]
-    fn test_parse_link_header_multiple_links() {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            http::header::LINK,
-            HeaderValue::from_static(
-                r#"<https://huggingface.co/api/prev>; rel="prev", <https://huggingface.co/api/next?cursor=456>; rel="next""#,
-            ),
-        );
-
-        let result = parse_link_header(&headers);
-        assert_eq!(
-            result,
-            Some("https://huggingface.co/api/next?cursor=456".to_string())
-        );
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_list_dataset_root() {
+        let op = mbpp_operator();
+        let entries = op.list("/").await.expect("list should succeed");
+        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
+        assert!(names.contains(&"full/"));
     }
 
-    #[test]
-    fn test_parse_link_header_no_header() {
-        let headers = HeaderMap::new();
-        let result = parse_link_header(&headers);
-        assert_eq!(result, None);
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_list_dataset_subdirectory() {
+        let op = mbpp_operator();
+        let entries = op.list("full/").await.expect("list should succeed");
+        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
+        assert!(names.iter().any(|n| n.ends_with(".parquet")));
+    }
+
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_list_nonexistent_directory() {
+        let op = gpt2_operator();
+        let err = op
+            .list("nonexistent-dir/")
+            .await
+            .expect_err("list on nonexistent dir should fail");
+        assert_eq!(err.kind(), opendal_core::ErrorKind::NotFound);
     }
 }

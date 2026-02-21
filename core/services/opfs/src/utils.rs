@@ -28,6 +28,7 @@ use super::error::*;
 pub(crate) async fn get_root_directory_handle() -> Result<FileSystemDirectoryHandle> {
     let navigator = window().unwrap().navigator();
     let storage_manager = navigator.storage();
+    // This may fail if not secure (not: HTTPS or localhost)
     JsFuture::from(storage_manager.get_directory())
         .await
         .and_then(JsCast::dyn_into)
@@ -44,9 +45,8 @@ pub(crate) async fn get_directory_handle(
     let opt = FileSystemGetDirectoryOptions::new();
     opt.set_create(create);
 
-    let trimmed = path.trim_matches('/');
+    let dirs = path.trim_matches('/').split('/');
     let mut handle = get_root_directory_handle().await?;
-    let dirs = trimmed.split('/');
     for dir in dirs {
         handle = JsFuture::from(handle.get_directory_handle_with_options(dir, &opt))
             .await
@@ -56,4 +56,3 @@ pub(crate) async fn get_directory_handle(
 
     Ok(handle)
 }
-

@@ -2800,6 +2800,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_test_opfs_wasm32"
+version = "0.55.0"
+dependencies = [
+ "opendal",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
 name = "edge_test_s3_read_on_wasm"
 version = "0.55.0"
 dependencies = [

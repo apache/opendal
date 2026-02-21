@@ -37,7 +37,7 @@ pub(crate) fn parse_js_error(value: JsValue) -> Error {
     // "name specified is not a valid string or contains characters that
     // would interfere with the native file system"
     if let Some(err) = value.dyn_ref::<js_sys::Error>() {
-        return Error::new(ErrorKind::Unexpected, err.message().into());
+        return Error::new(ErrorKind::Unexpected, String::from(err.message()));
     }
 
     Error::new(

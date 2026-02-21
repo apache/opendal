@@ -52,12 +52,6 @@ pub struct HfConfig {
     ///
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
-    /// Enable XET storage protocol for reads.
-    ///
-    /// When true and the `xet` feature is compiled in, reads will
-    /// check for XET-backed files and use the XET protocol for
-    /// downloading. Default is false.
-    pub xet: bool,
     /// Maximum number of retries for commit operations.
     ///
     /// Retries on commit conflicts (HTTP 412) and transient server
@@ -125,7 +119,6 @@ impl opendal_core::Configurator for HfConfig {
                 root: opts.get("root").cloned(),
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
-                xet: opts.get("xet").is_some_and(|v| v == "true"),
                 ..Default::default()
             })
         }

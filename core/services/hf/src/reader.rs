@@ -23,11 +23,12 @@ use futures::StreamExt;
 use subxet::cas_types::FileRange;
 
 use super::core::HfCore;
-use super::core::map_xet_error;
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
+use subxet::cas_client::CasClientError;
 use subxet::data::XetFileInfo;
+use subxet::data::errors::DataProcessingError;
 use subxet::data::streaming::XetReader;
 
 pub enum HfReader {
@@ -99,7 +100,9 @@ impl HfReader {
 
         let reader = client
             .read(file_info.clone(), file_range, None, 256)
-            .map_err(map_xet_error)?;
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to create xet reader").set_source(err)
+            })?;
         Ok(Self::Xet(reader))
     }
 }
@@ -110,7 +113,20 @@ impl oio::Read for HfReader {
             Self::Http(body) => body.read().await,
             Self::Xet(stream) => match stream.next().await {
                 Some(Ok(bytes)) => Ok(Buffer::from(bytes)),
-                Some(Err(e)) => Err(map_xet_error(e)),
+                Some(Err(e)) => {
+                    let kind = match &e {
+                        DataProcessingError::CasClientError(
+                            CasClientError::FileNotFound(_) | CasClientError::XORBNotFound(_),
+                        )
+                        | DataProcessingError::HashNotFound => ErrorKind::NotFound,
+                        DataProcessingError::CasClientError(CasClientError::InvalidRange) => {
+                            ErrorKind::RangeNotSatisfied
+                        }
+                        _ => ErrorKind::Unexpected,
+                    };
+                    let err = Error::new(kind, "xet read error").set_source(e);
+                    Err(err)
+                }
                 None => Ok(Buffer::new()),
             },
         }

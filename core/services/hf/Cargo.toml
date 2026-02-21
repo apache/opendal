@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 async-trait = "0.1"
-backon = "1.6"
 base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
@@ -40,7 +39,9 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 subxet = { git = "https://github.com/kszucs/subxet" }

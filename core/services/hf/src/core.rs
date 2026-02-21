@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -219,7 +217,6 @@ pub struct HfCore {
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
-    pub max_retries: usize,
 
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
@@ -243,7 +240,6 @@ impl HfCore {
         root: String,
         token: Option<String>,
         endpoint: String,
-        max_retries: usize,
         no_redirect_client: HttpClient,
     ) -> Self {
         Self {
@@ -252,7 +248,6 @@ impl HfCore {
             root,
             token,
             endpoint,
-            max_retries,
             no_redirect_client,
         }
     }
@@ -267,21 +262,12 @@ impl HfCore {
         root: String,
         token: Option<String>,
         endpoint: String,
-        max_retries: usize,
     ) -> Result<Self> {
         let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
         let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
         info.update_http_client(|_| standard);
 
-        Ok(Self::new(
-            info,
-            repo,
-            root,
-            token,
-            endpoint,
-            max_retries,
-            no_redirect,
-        ))
+        Ok(Self::new(info, repo, root, token, endpoint, no_redirect))
     }
 
     /// Build an authenticated HTTP request.
@@ -304,30 +290,14 @@ impl HfCore {
         self.repo.uri(&self.root, path)
     }
 
-    /// Send a request with retries, returning the successful response.
-    ///
-    /// Retries on commit conflicts (HTTP 412) and transient server errors
-    /// (HTTP 5xx) up to `self.max_retries` attempts with exponential backoff.
+    /// Send a request and return the successful response or a parsed error.
     pub(super) async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        let backoff = ExponentialBuilder::default()
-            .with_min_delay(std::time::Duration::from_millis(200))
-            .with_max_delay(std::time::Duration::from_millis(6400))
-            .with_max_times(self.max_retries.saturating_sub(1));
-        let client = self.info.http_client();
-
-        let send_once = || async {
-            let resp = client.send(req.clone()).await?;
-            if resp.status().is_success() {
-                Ok(resp)
-            } else {
-                Err(parse_error(resp))
-            }
-        };
-
-        send_once
-            .retry(backoff)
-            .when(|e: &Error| e.kind() == ErrorKind::ConditionNotMatch || e.is_temporary())
-            .await
+        let resp = self.info.http_client().send(req).await?;
+        if resp.status().is_success() {
+            Ok(resp)
+        } else {
+            Err(parse_error(resp))
+        }
     }
 
     /// Send a request, check for success, and deserialize the JSON response.
@@ -402,16 +372,11 @@ impl HfCore {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let mut attempt = 0;
-        let resp = loop {
-            let resp = self.no_redirect_client.send(req.clone()).await?;
+        let resp = self.no_redirect_client.send(req).await?;
 
-            attempt += 1;
-            let retryable = resp.status().is_server_error();
-            if attempt >= self.max_retries || !retryable {
-                break resp;
-            }
-        };
+        if resp.status().is_client_error() || resp.status().is_server_error() {
+            return Err(parse_error(resp));
+        }
 
         let hash = resp
             .headers()
@@ -434,11 +399,6 @@ impl HfCore {
         Ok(Some(XetFileInfo::new(hash.to_string(), size)))
     }
 
-    /// Commit file changes (uploads and/or deletions) to the repository.
-    ///
-    /// Retries on commit conflicts (HTTP 412) and transient server errors
-    /// (HTTP 5xx), matching the behavior of the official HuggingFace Hub
-    /// client.
     /// Determine upload mode by calling the preupload API.
     ///
     /// Returns the upload mode string from the API (e.g., "regular" or "lfs").
@@ -626,7 +586,6 @@ pub(crate) mod test_utils {
             "/".to_string(),
             None,
             endpoint.to_string(),
-            3,
             HttpClient::with(mock_client.clone()),
         );
 

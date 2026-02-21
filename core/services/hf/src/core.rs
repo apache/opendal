@@ -27,11 +27,8 @@ use http::Response;
 use http::header;
 use serde::Deserialize;
 
-#[cfg(feature = "xet")]
 use subxet::data::XetFileInfo;
-#[cfg(feature = "xet")]
 use subxet::data::streaming::XetClient;
-#[cfg(feature = "xet")]
 use subxet::utils::auth::TokenRefresher;
 
 use super::error::parse_error;
@@ -87,7 +84,6 @@ pub(super) struct DeletedFile {
 }
 
 /// Bucket batch operation payload structures
-#[cfg(feature = "xet")]
 #[derive(Debug, serde::Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub(super) enum BucketOperation {
@@ -176,7 +172,6 @@ pub(super) struct LastCommit {
     pub date: String,
 }
 
-#[cfg(feature = "xet")]
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct XetToken {
@@ -185,13 +180,11 @@ pub(super) struct XetToken {
     pub exp: u64,
 }
 
-#[cfg(feature = "xet")]
 pub(super) struct XetTokenRefresher {
     core: HfCore,
     token_type: &'static str,
 }
 
-#[cfg(feature = "xet")]
 impl XetTokenRefresher {
     pub(super) fn new(core: &HfCore, token_type: &'static str) -> Self {
         Self {
@@ -201,7 +194,6 @@ impl XetTokenRefresher {
     }
 }
 
-#[cfg(feature = "xet")]
 #[async_trait::async_trait]
 impl TokenRefresher for XetTokenRefresher {
     async fn refresh(
@@ -229,15 +221,13 @@ pub struct HfCore {
     pub endpoint: String,
     pub max_retries: usize,
 
-    // Whether XET storage protocol is enabled for reads. When true
-    // and the `xet` feature is compiled in, reads will check for
-    // XET-backed files and use the XET protocol for downloading.
-    #[cfg(feature = "xet")]
+    // Whether XET storage protocol is enabled for reads. When true,
+    // reads will check for XET-backed files and use the XET protocol
+    // for downloading.
     pub xet_enabled: bool,
 
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
-    #[cfg(feature = "xet")]
     pub no_redirect_client: HttpClient,
 }
 
@@ -247,7 +237,6 @@ impl Debug for HfCore {
         s.field("repo", &self.repo)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint);
-        #[cfg(feature = "xet")]
         s.field("xet_enabled", &self.xet_enabled);
         s.finish_non_exhaustive()
     }
@@ -261,7 +250,7 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
         max_retries: usize,
-        #[cfg(feature = "xet")] xet_enabled: bool,
+        xet_enabled: bool,
     ) -> Result<Self> {
         // When xet is enabled at runtime, use dedicated reqwest clients instead
         // of the global one. This avoids "dispatch task is gone" errors when
@@ -269,7 +258,6 @@ impl HfCore {
         // no-redirect client shares the same runtime as the standard client.
         // When xet is disabled, preserve whatever HTTP client is already set
         // on `info` (important for mock-based unit tests).
-        #[cfg(feature = "xet")]
         let no_redirect_client = if xet_enabled {
             let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
             let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
@@ -286,9 +274,7 @@ impl HfCore {
             token,
             endpoint,
             max_retries,
-            #[cfg(feature = "xet")]
             xet_enabled,
-            #[cfg(feature = "xet")]
             no_redirect_client,
         })
     }
@@ -372,7 +358,6 @@ impl HfCore {
         Ok(files.remove(0))
     }
 
-    #[cfg(feature = "xet")]
     pub(super) async fn xet_token(&self, token_type: &str) -> Result<XetToken> {
         let url = self.repo.xet_token_url(&self.endpoint, token_type);
         let req = self
@@ -383,7 +368,6 @@ impl HfCore {
         Ok(token)
     }
 
-    #[cfg(feature = "xet")]
     pub(super) async fn xet_client(&self, token_type: &'static str) -> Result<XetClient> {
         let token = self.xet_token(token_type).await?;
         let refresher = Arc::new(XetTokenRefresher::new(self, token_type));
@@ -402,7 +386,6 @@ impl HfCore {
     ///
     /// Uses a dedicated no-redirect HTTP client so we can inspect
     /// headers (e.g. `X-Xet-Hash`) on the 302 response.
-    #[cfg(feature = "xet")]
     pub(super) async fn maybe_xet_file(&self, path: &str) -> Result<Option<XetFileInfo>> {
         let uri = self.uri(path);
         let url = uri.resolve_url(&self.endpoint);
@@ -530,7 +513,6 @@ impl HfCore {
     /// Upload files to a bucket using the batch API.
     ///
     /// Sends operations as JSON lines (one operation per line).
-    #[cfg(feature = "xet")]
     pub(super) async fn bucket_batch(&self, operations: Vec<BucketOperation>) -> Result<()> {
         let _token = self.token.as_deref().ok_or_else(|| {
             Error::new(
@@ -638,7 +620,6 @@ pub(crate) mod test_utils {
             None,
             endpoint.to_string(),
             3,
-            #[cfg(feature = "xet")]
             false,
         )
         .unwrap();
@@ -734,12 +715,10 @@ mod tests {
     }
 }
 
-#[cfg(feature = "xet")]
 pub(super) fn map_xet_error(err: impl std::error::Error + Send + Sync + 'static) -> Error {
     Error::new(ErrorKind::Unexpected, "xet operation failed").set_source(err)
 }
 
-#[cfg(feature = "xet")]
 fn build_reqwest(policy: reqwest::redirect::Policy) -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .redirect(policy)

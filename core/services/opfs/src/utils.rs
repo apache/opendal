@@ -19,9 +19,7 @@ use opendal_core::Result;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemDirectoryHandle;
-use web_sys::FileSystemFileHandle;
 use web_sys::FileSystemGetDirectoryOptions;
-use web_sys::FileSystemGetFileOptions;
 use web_sys::window;
 
 use super::error::*;
@@ -47,13 +45,10 @@ pub(crate) async fn get_directory_handle(
     opt.set_create(create);
 
     let trimmed = path.trim_matches('/');
-    if trimmed.is_empty() {
-        return get_root_directory_handle().await;
-    }
-
     let mut handle = get_root_directory_handle().await?;
-    for segment in trimmed.split('/') {
-        handle = JsFuture::from(handle.get_directory_handle_with_options(segment, &opt))
+    let dirs = trimmed.split('/');
+    for dir in dirs {
+        handle = JsFuture::from(handle.get_directory_handle_with_options(dir, &opt))
             .await
             .and_then(JsCast::dyn_into)
             .map_err(parse_js_error)?;
@@ -62,40 +57,3 @@ pub(crate) async fn get_directory_handle(
     Ok(handle)
 }
 
-/// Split a file path into its parent directory handle and filename.
-///
-/// For example, `"foo/bar/file.txt"` returns the handle for `"foo/bar/"` and `"file.txt"`.
-/// For a root-level file like `"file.txt"`, returns the root handle and `"file.txt"`.
-///
-/// When `create` is true, intermediate directories are created as needed.
-pub(crate) async fn get_parent_dir_and_name<'a>(
-    path: &'a str,
-    create: bool,
-) -> Result<(FileSystemDirectoryHandle, &'a str)> {
-    let trimmed = path.trim_matches('/');
-    match trimmed.rsplit_once('/') {
-        Some((parent, name)) => {
-            let dir = get_directory_handle(parent, create).await?;
-            Ok((dir, name))
-        }
-        None => {
-            let root = get_root_directory_handle().await?;
-            Ok((root, trimmed))
-        }
-    }
-}
-
-/// Get a file handle by its full path.
-///
-/// When `create` is true, intermediate directories and the file itself are created as needed.
-pub(crate) async fn get_file_handle(path: &str, create: bool) -> Result<FileSystemFileHandle> {
-    let (dir, name) = get_parent_dir_and_name(path, create).await?;
-
-    let opt = FileSystemGetFileOptions::new();
-    opt.set_create(create);
-
-    JsFuture::from(dir.get_file_handle_with_options(name, &opt))
-        .await
-        .and_then(JsCast::dyn_into)
-        .map_err(parse_js_error)
-}

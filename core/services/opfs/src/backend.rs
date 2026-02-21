@@ -63,6 +63,7 @@ impl Access for OpfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+        debug_assert!(path != "/", "root path should be handled upstream");
         get_directory_handle(path, true).await?;
         Ok(RpCreateDir::default())
     }

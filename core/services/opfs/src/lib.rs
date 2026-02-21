@@ -25,6 +25,14 @@ pub fn register_opfs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Opfs>(OPFS_SCHEME);
 }
 
+macro_rules! console_debug {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        web_sys::console::log_1(&format!($($arg)*).into())
+      };
+}
+
+
 mod backend;
 mod config;
 mod core;

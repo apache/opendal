@@ -15,19 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-macro_rules! console_log {
-      ($($arg:tt)*) => {
-          web_sys::console::log_1(&format!($($arg)*).into())
-      };
-}
-
 #[cfg(test)]
 mod tests {
-    use console_log;
+    use opendal::ErrorKind;
     use opendal::Operator;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
     use wasm_bindgen_test::wasm_bindgen_test_configure;
+
+    macro_rules! console_log {
+        ($($arg:tt)*) => {
+            web_sys::console::log_1(&format!($($arg)*).into())
+        };
+    }
 
     wasm_bindgen_test_configure!(run_in_browser);
 
@@ -40,5 +40,12 @@ mod tests {
     #[wasm_bindgen_test]
     async fn test_get_directory_handle() {
         let op = new_operator();
+        op.create_dir("/dir/").await.expect("directory");
+        op.create_dir("/dir///").await.expect("directory");
+        op.create_dir("/dir:/").await.expect("directory");
+        op.create_dir("/dir<>/").await.expect("directory");
+        assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+        // this works on Chrome, but fails on macOS
+        // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
     }
 }

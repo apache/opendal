@@ -23,12 +23,16 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 
 pub(crate) fn parse_js_error(value: JsValue) -> Error {
+    console_debug!("parse_js_error: {:?}", value);
     if let Some(exc) = value.dyn_ref::<DomException>() {
         let kind = match exc.name().as_str() {
             "NotFoundError" => ErrorKind::NotFound,
             "TypeMismatchError" => ErrorKind::NotFound,
             "NotAllowedError" => ErrorKind::PermissionDenied,
-            _ => ErrorKind::Unexpected,
+            e => {
+                console_debug!("Got exception {e:?}");
+                ErrorKind::Unexpected
+            }
         };
         return Error::new(kind, exc.message());
     }

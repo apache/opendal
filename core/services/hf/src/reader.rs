@@ -19,26 +19,19 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 
-#[cfg(feature = "xet")]
 use futures::StreamExt;
-#[cfg(feature = "xet")]
 use subxet::cas_types::FileRange;
 
 use super::core::HfCore;
-#[cfg(feature = "xet")]
 use super::core::map_xet_error;
-#[cfg(feature = "xet")]
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-#[cfg(feature = "xet")]
 use subxet::data::XetFileInfo;
-#[cfg(feature = "xet")]
 use subxet::data::streaming::XetReader;
 
 pub enum HfReader {
     Http(HttpBody),
-    #[cfg(feature = "xet")]
     Xet(XetReader),
 }
 
@@ -49,7 +42,6 @@ impl HfReader {
     /// a HEAD request probes for the `X-Xet-Hash` header. Files stored on
     /// XET are downloaded via the CAS protocol; all others fall back to HTTP GET.
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
-        #[cfg(feature = "xet")]
         if core.xet_enabled {
             // Buckets always use XET
             if core.repo.repo_type == RepoType::Bucket {
@@ -97,7 +89,6 @@ impl HfReader {
         }
     }
 
-    #[cfg(feature = "xet")]
     async fn try_new_xet(
         core: &HfCore,
         file_info: &XetFileInfo,
@@ -124,7 +115,6 @@ impl oio::Read for HfReader {
     async fn read(&mut self) -> Result<Buffer> {
         match self {
             Self::Http(body) => body.read().await,
-            #[cfg(feature = "xet")]
             Self::Xet(stream) => match stream.next().await {
                 Some(Ok(bytes)) => Ok(Buffer::from(bytes)),
                 Some(Err(e)) => Err(map_xet_error(e)),
@@ -136,7 +126,6 @@ impl oio::Read for HfReader {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "xet")]
     use super::super::backend::test_utils::mbpp_xet_operator;
     use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
 
@@ -163,7 +152,6 @@ mod tests {
         assert_eq!(&data.to_vec(), PARQUET_MAGIC);
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_parquet() {
@@ -178,7 +166,6 @@ mod tests {
         assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_range() {

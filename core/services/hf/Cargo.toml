@@ -30,35 +30,24 @@ version = { workspace = true }
 [package.metadata.docs.rs]
 all-features = true
 
-[features]
-default = []
-xet = ["dep:reqwest", "dep:subxet", "dep:futures", "dep:async-trait"]
-
 [dependencies]
+async-trait = "0.1"
 backon = "1.6"
 base64 = { workspace = true }
 bytes = { workspace = true }
+futures = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-# XET storage protocol support (optional)
-async-trait = { version = "0.1", optional = true }
-futures = { workspace = true, optional = true }
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
-], optional = true }
-subxet = { git = "https://github.com/kszucs/subxet", optional = true }
+subxet = { git = "https://github.com/kszucs/subxet" }
 
 [dev-dependencies]
-futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", features = [
   "reqwest-rustls-tls",
-] }
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
 ] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

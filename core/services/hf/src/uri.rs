@@ -119,7 +119,6 @@ impl HfRepo {
     }
 
     /// Build the XET token API URL for this repository.
-    #[cfg(feature = "xet")]
     pub fn xet_token_url(&self, endpoint: &str, token_type: &str) -> String {
         match self.repo_type {
             RepoType::Bucket => {
@@ -142,7 +141,6 @@ impl HfRepo {
     }
 
     /// Build the bucket batch API URL for this repository.
-    #[cfg(feature = "xet")]
     pub fn bucket_batch_url(&self, endpoint: &str) -> String {
         format!("{}/api/buckets/{}/batch", endpoint, &self.repo_id)
     }
@@ -582,7 +580,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "xet")]
     fn test_bucket_xet_token_urls() {
         let p = resolve("buckets/user/bucket");
         let read_url = p.repo.xet_token_url("https://huggingface.co", "read");
@@ -598,7 +595,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "xet")]
     fn test_bucket_batch_url() {
         let p = resolve("buckets/user/bucket");
         let url = p.repo.bucket_batch_url("https://huggingface.co");

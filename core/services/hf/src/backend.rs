@@ -123,9 +123,8 @@ impl HfBuilder {
 
     /// Enable XET storage protocol for reads.
     ///
-    /// When the `xet` feature is compiled in, reads will check for
-    /// XET-backed files and use the XET protocol for downloading.
-    /// Default is disabled.
+    /// When enabled, reads will check for XET-backed files and use the
+    /// XET protocol for downloading. Default is disabled.
     pub fn enable_xet(mut self) -> Self {
         self.config.xet = true;
         self
@@ -219,7 +218,6 @@ impl Builder for HfBuilder {
                 token,
                 endpoint,
                 max_retries,
-                #[cfg(feature = "xet")]
                 self.config.xet,
             )?),
         })
@@ -298,7 +296,6 @@ pub(super) mod test_utils {
         (repo_id, token)
     }
 
-    #[cfg(feature = "xet")]
     pub fn testing_bucket_credentials() -> (String, String) {
         let repo_id = std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
         let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
@@ -321,7 +318,6 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
-    #[cfg(feature = "xet")]
     pub fn testing_xet_operator() -> Operator {
         let (repo_id, token) = testing_credentials();
         let op = Operator::new(
@@ -339,7 +335,6 @@ pub(super) mod test_utils {
 
     /// Operator for a bucket requiring HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
     /// Buckets always use XET for writes.
-    #[cfg(feature = "xet")]
     pub fn testing_bucket_operator() -> Operator {
         let (repo_id, token) = testing_bucket_credentials();
         let op = Operator::new(
@@ -377,7 +372,6 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
-    #[cfg(feature = "xet")]
     pub fn mbpp_xet_operator() -> Operator {
         let mut builder = HfBuilder::default()
             .repo_type("dataset")
@@ -394,7 +388,6 @@ pub(super) mod test_utils {
 #[cfg(test)]
 mod tests {
     use super::test_utils::mbpp_operator;
-    #[cfg(feature = "xet")]
     use super::test_utils::mbpp_xet_operator;
     use super::*;
 
@@ -466,7 +459,6 @@ mod tests {
         assert_eq!(&footer.to_vec(), PARQUET_MAGIC);
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_parquet_xet() {

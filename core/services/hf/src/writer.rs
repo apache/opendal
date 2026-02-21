@@ -20,10 +20,11 @@ use std::sync::Mutex;
 
 use base64::Engine;
 
-use super::core::{BucketOperation, CommitFile, HfCore, LfsFile, map_xet_error};
+use super::core::{BucketOperation, CommitFile, HfCore, LfsFile};
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
+use subxet::data::errors::DataProcessingError;
 use subxet::data::streaming::XetWriter;
 
 /// Writer that handles both regular (small) and XET (large) file uploads.
@@ -45,34 +46,33 @@ pub enum HfWriter {
 impl HfWriter {
     /// Create a new writer by determining the upload mode from the API.
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
-        // Buckets always use XET and don't have a preupload endpoint
-        if core.repo.repo_type == RepoType::Bucket {
+        // Buckets always use XET and don't have a preupload endpoint;
+        // other repo types check the preupload API.
+        let use_xet = core.repo.repo_type == RepoType::Bucket
+            || core.determine_upload_mode(&path).await? == "lfs";
+
+        let writer = if use_xet {
             let client = core.xet_client("write").await?;
-            let writer = client.write(None).await.map_err(map_xet_error)?;
-            return Ok(HfWriter::Xet {
+            let writer = client.write(None).await.map_err(|err| {
+                let kind = match &err {
+                    DataProcessingError::AuthError(_) => ErrorKind::PermissionDenied,
+                    _ => ErrorKind::Unexpected,
+                };
+                Error::new(kind, "failed to create xet writer").set_source(err)
+            })?;
+            HfWriter::Xet {
                 core,
                 path,
                 writer: Mutex::new(writer),
-            });
-        }
-
-        let mode_str = core.determine_upload_mode(&path).await?;
-
-        if mode_str == "lfs" {
-            let client = core.xet_client("write").await?;
-            let writer = client.write(None).await.map_err(map_xet_error)?;
-            return Ok(HfWriter::Xet {
+            }
+        } else {
+            HfWriter::Regular {
                 core,
                 path,
-                writer: Mutex::new(writer),
-            });
-        }
-
-        Ok(HfWriter::Regular {
-            core,
-            path,
-            buf: Vec::new(),
-        })
+                buf: Vec::new(),
+            }
+        };
+        Ok(writer)
     }
 
     fn prepare_commit_file(path: &str, body: &[u8]) -> CommitFile {
@@ -97,7 +97,10 @@ impl oio::Write for HfWriter {
                 .unwrap()
                 .write(bs.to_bytes())
                 .await
-                .map_err(map_xet_error),
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to write chunk to xet stream")
+                        .set_source(err)
+                }),
         }
     }
 
@@ -122,12 +125,9 @@ impl oio::Write for HfWriter {
                 Ok(meta)
             }
             HfWriter::Xet { core, path, writer } => {
-                let file_info = writer
-                    .get_mut()
-                    .unwrap()
-                    .close()
-                    .await
-                    .map_err(map_xet_error)?;
+                let file_info = writer.get_mut().unwrap().close().await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to close xet writer").set_source(err)
+                })?;
 
                 let meta = Metadata::default().with_content_length(file_info.file_size());
 

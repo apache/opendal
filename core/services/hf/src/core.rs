@@ -382,7 +382,9 @@ impl HfCore {
             Some(refresher),
             "opendal/1.0".to_string(),
         )
-        .map_err(map_xet_error)
+        .map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to create xet client").set_source(err)
+        })
     }
 
     /// Issue a HEAD request and extract XET file info (hash and size).
@@ -717,10 +719,6 @@ mod tests {
 
         Ok(())
     }
-}
-
-pub(super) fn map_xet_error(err: impl std::error::Error + Send + Sync + 'static) -> Error {
-    Error::new(ErrorKind::Unexpected, "xet operation failed").set_source(err)
 }
 
 fn build_reqwest(policy: reqwest::redirect::Policy) -> Result<reqwest::Client> {

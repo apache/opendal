@@ -157,6 +157,13 @@ impl Builder for SwiftBuilder {
 
                             write: true,
                             write_can_empty: true,
+                            write_can_multi: true,
+                            write_multi_min_size: Some(5 * 1024 * 1024),
+                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
                             write_with_content_type: true,
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
@@ -194,7 +201,7 @@ pub struct SwiftBackend {
 
 impl Access for SwiftBackend {
     type Reader = HttpBody;
-    type Writer = oio::OneShotWriter<SwiftWriter>;
+    type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
 
@@ -236,9 +243,9 @@ impl Access for SwiftBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let concurrent = args.concurrent();
         let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
-
-        let w = oio::OneShotWriter::new(writer);
+        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
 
         Ok((RpWrite::default(), w))
     }

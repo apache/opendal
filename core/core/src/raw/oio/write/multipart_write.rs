@@ -118,6 +118,8 @@ pub struct MultipartPart {
     pub etag: String,
     /// The checksum of the part.
     pub checksum: Option<String>,
+    /// The size of the part in bytes.
+    pub size: Option<u64>,
 }
 
 struct WriteInput<W: MultipartWrite> {
@@ -391,6 +393,7 @@ mod tests {
                 part_number,
                 etag: "etag".to_string(),
                 checksum: None,
+                size: None,
             })
         }
 

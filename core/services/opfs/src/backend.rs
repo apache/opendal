@@ -15,10 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
 use std::sync::Arc;
-
-use web_sys::FileSystemGetDirectoryOptions;
 
 use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
@@ -66,10 +63,7 @@ impl Access for OpfsBackend {
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        let opt = FileSystemGetDirectoryOptions::new();
-        opt.set_create(true);
-        get_directory_handle(path, &opt).await?;
-
+        get_directory_handle(path, true).await?;
         Ok(RpCreateDir::default())
     }
 }

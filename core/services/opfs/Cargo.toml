@@ -37,7 +37,7 @@ serde = { workspace = true, features = ["derive"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
-  "Window",
+  "DomException",
   "File",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
@@ -46,4 +46,5 @@ web-sys = { version = "0.3.77", features = [
   "FileSystemWritableFileStream",
   "Navigator",
   "StorageManager",
+  "Window",
 ] }

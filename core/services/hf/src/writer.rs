@@ -16,19 +16,14 @@
 // under the License.
 
 use std::sync::Arc;
-#[cfg(feature = "xet")]
 use std::sync::Mutex;
 
 use base64::Engine;
 
-#[cfg(feature = "xet")]
-use super::core::{BucketOperation, LfsFile, map_xet_error};
-use super::core::{CommitFile, HfCore};
-#[cfg(feature = "xet")]
+use super::core::{BucketOperation, CommitFile, HfCore, LfsFile, map_xet_error};
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-#[cfg(feature = "xet")]
 use subxet::data::streaming::XetWriter;
 
 /// Writer that handles both regular (small) and XET (large) file uploads.
@@ -40,7 +35,6 @@ pub enum HfWriter {
         buf: Vec<Buffer>,
     },
     /// XET writer for large files using streaming protocol.
-    #[cfg(feature = "xet")]
     Xet {
         core: Arc<HfCore>,
         path: String,
@@ -52,7 +46,6 @@ impl HfWriter {
     /// Create a new writer by determining the upload mode from the API.
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
         // Buckets always use XET and don't have a preupload endpoint
-        #[cfg(feature = "xet")]
         if core.repo.repo_type == RepoType::Bucket {
             if !core.xet_enabled {
                 return Err(Error::new(
@@ -72,7 +65,6 @@ impl HfWriter {
         let mode_str = core.determine_upload_mode(&path).await?;
 
         if mode_str == "lfs" {
-            #[cfg(feature = "xet")]
             if core.xet_enabled {
                 let client = core.xet_client("write").await?;
                 let writer = client.write(None).await.map_err(map_xet_error)?;
@@ -84,7 +76,7 @@ impl HfWriter {
             }
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "file requires LFS; enable the xet feature for large file support",
+                "file requires LFS; call enable_xet() on the builder for large file support",
             ));
         }
 
@@ -112,7 +104,6 @@ impl oio::Write for HfWriter {
                 buf.push(bs);
                 Ok(())
             }
-            #[cfg(feature = "xet")]
             HfWriter::Xet { writer, .. } => writer
                 .get_mut()
                 .unwrap()
@@ -142,7 +133,6 @@ impl oio::Write for HfWriter {
                 }
                 Ok(meta)
             }
-            #[cfg(feature = "xet")]
             HfWriter::Xet { core, path, writer } => {
                 let file_info = writer
                     .get_mut()
@@ -191,7 +181,6 @@ impl oio::Write for HfWriter {
             HfWriter::Regular { buf, .. } => {
                 buf.clear();
             }
-            #[cfg(feature = "xet")]
             HfWriter::Xet { writer, .. } => {
                 let _ = writer.get_mut().unwrap().abort().await;
             }
@@ -203,7 +192,6 @@ impl oio::Write for HfWriter {
 #[cfg(test)]
 mod tests {
     use super::super::backend::test_utils::testing_operator;
-    #[cfg(feature = "xet")]
     use super::super::backend::test_utils::{testing_bucket_operator, testing_xet_operator};
     use super::*;
     use base64::Engine;
@@ -256,7 +244,6 @@ mod tests {
             .expect("write with content type should succeed");
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore]
     async fn test_write_xet() {
@@ -404,7 +391,6 @@ mod tests {
 
     // --- Bucket tests (require HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN) ---
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore]
     async fn test_bucket_write() {
@@ -422,7 +408,6 @@ mod tests {
         let _ = op.delete(path).await;
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore]
     async fn test_bucket_write_roundtrip() {
@@ -443,7 +428,6 @@ mod tests {
         let _ = op.delete(path).await;
     }
 
-    #[cfg(feature = "xet")]
     #[tokio::test]
     #[ignore]
     async fn test_bucket_overwrite() {

@@ -221,11 +221,6 @@ pub struct HfCore {
     pub endpoint: String,
     pub max_retries: usize,
 
-    // Whether XET storage protocol is enabled for reads. When true,
-    // reads will check for XET-backed files and use the XET protocol
-    // for downloading.
-    pub xet_enabled: bool,
-
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
     pub no_redirect_client: HttpClient,
@@ -233,12 +228,11 @@ pub struct HfCore {
 
 impl Debug for HfCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut s = f.debug_struct("HfCore");
-        s.field("repo", &self.repo)
+        f.debug_struct("HfCore")
+            .field("repo", &self.repo)
             .field("root", &self.root)
-            .field("endpoint", &self.endpoint);
-        s.field("xet_enabled", &self.xet_enabled);
-        s.finish_non_exhaustive()
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
     }
 }
 
@@ -250,33 +244,44 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
         max_retries: usize,
-        xet_enabled: bool,
-    ) -> Result<Self> {
-        // When xet is enabled at runtime, use dedicated reqwest clients instead
-        // of the global one. This avoids "dispatch task is gone" errors when
-        // multiple tokio runtimes exist (e.g. in tests) and ensures the
-        // no-redirect client shares the same runtime as the standard client.
-        // When xet is disabled, preserve whatever HTTP client is already set
-        // on `info` (important for mock-based unit tests).
-        let no_redirect_client = if xet_enabled {
-            let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
-            let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
-            info.update_http_client(|_| standard);
-            no_redirect
-        } else {
-            info.http_client()
-        };
-
-        Ok(Self {
+        no_redirect_client: HttpClient,
+    ) -> Self {
+        Self {
             info,
             repo,
             root,
             token,
             endpoint,
             max_retries,
-            xet_enabled,
             no_redirect_client,
-        })
+        }
+    }
+
+    /// Build HfCore with dedicated reqwest HTTP clients.
+    ///
+    /// Uses separate clients for standard and no-redirect requests to
+    /// avoid "dispatch task is gone" errors with multiple tokio runtimes.
+    pub fn build(
+        info: Arc<AccessorInfo>,
+        repo: HfRepo,
+        root: String,
+        token: Option<String>,
+        endpoint: String,
+        max_retries: usize,
+    ) -> Result<Self> {
+        let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
+        let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
+        info.update_http_client(|_| standard);
+
+        Ok(Self::new(
+            info,
+            repo,
+            root,
+            token,
+            endpoint,
+            max_retries,
+            no_redirect,
+        ))
     }
 
     /// Build an authenticated HTTP request.
@@ -620,9 +625,8 @@ pub(crate) mod test_utils {
             None,
             endpoint.to_string(),
             3,
-            false,
-        )
-        .unwrap();
+            HttpClient::with(mock_client.clone()),
+        );
 
         (core, mock_client)
     }

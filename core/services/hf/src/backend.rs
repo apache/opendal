@@ -121,21 +121,6 @@ impl HfBuilder {
         self
     }
 
-    /// Enable XET storage protocol for reads.
-    ///
-    /// When enabled, reads will check for XET-backed files and use the
-    /// XET protocol for downloading. Default is disabled.
-    pub fn enable_xet(mut self) -> Self {
-        self.config.xet = true;
-        self
-    }
-
-    /// Disable XET storage protocol for reads.
-    pub fn disable_xet(mut self) -> Self {
-        self.config.xet = false;
-        self
-    }
-
     /// Set the maximum number of retries for commit operations.
     ///
     /// Retries on commit conflicts (HTTP 412) and transient server
@@ -211,14 +196,13 @@ impl Builder for HfBuilder {
         debug!("backend max_retries: {}", max_retries);
 
         Ok(HfBackend {
-            core: Arc::new(HfCore::new(
+            core: Arc::new(HfCore::build(
                 info,
                 repo,
                 root,
                 token,
                 endpoint,
                 max_retries,
-                self.config.xet,
             )?),
         })
     }
@@ -318,23 +302,7 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
-    pub fn testing_xet_operator() -> Operator {
-        let (repo_id, token) = testing_credentials();
-        let op = Operator::new(
-            HfBuilder::default()
-                .repo_type("dataset")
-                .repo_id(&repo_id)
-                .token(&token)
-                .enable_xet()
-                .max_retries(10),
-        )
-        .unwrap()
-        .finish();
-        finish_operator(op)
-    }
-
     /// Operator for a bucket requiring HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
-    /// Buckets always use XET for writes.
     pub fn testing_bucket_operator() -> Operator {
         let (repo_id, token) = testing_bucket_credentials();
         let op = Operator::new(
@@ -342,7 +310,6 @@ pub(super) mod test_utils {
                 .repo_type("bucket")
                 .repo_id(&repo_id)
                 .token(&token)
-                .enable_xet()
                 .max_retries(10),
         )
         .unwrap()
@@ -371,24 +338,11 @@ pub(super) mod test_utils {
         .finish();
         finish_operator(op)
     }
-
-    pub fn mbpp_xet_operator() -> Operator {
-        let mut builder = HfBuilder::default()
-            .repo_type("dataset")
-            .repo_id("google-research-datasets/mbpp")
-            .enable_xet();
-        if let Ok(token) = std::env::var("HF_OPENDAL_TOKEN") {
-            builder = builder.token(&token);
-        }
-        let op = Operator::new(builder).unwrap().finish();
-        finish_operator(op)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::test_utils::mbpp_operator;
-    use super::test_utils::mbpp_xet_operator;
     use super::*;
 
     #[test]
@@ -462,7 +416,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_parquet_xet() {
-        let op = mbpp_xet_operator();
+        let op = mbpp_operator();
         let path = "full/train-00000-of-00001.parquet";
 
         // Full read via XET and verify parquet magic at both ends

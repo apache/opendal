@@ -38,26 +38,19 @@ pub enum HfReader {
 impl HfReader {
     /// Create a reader, automatically choosing between XET and HTTP.
     ///
-    /// Buckets always use XET. For other repo types, when XET is enabled
-    /// a HEAD request probes for the `X-Xet-Hash` header. Files stored on
-    /// XET are downloaded via the CAS protocol; all others fall back to HTTP GET.
+    /// Buckets always use XET. For other repo types, a HEAD request
+    /// probes for the `X-Xet-Hash` header. Files stored on XET are
+    /// downloaded via the CAS protocol; all others fall back to HTTP GET.
     pub async fn try_new(core: &HfCore, path: &str, range: BytesRange) -> Result<Self> {
-        if core.xet_enabled {
-            // Buckets always use XET
-            if core.repo.repo_type == RepoType::Bucket {
-                if let Some(xet_file) = core.maybe_xet_file(path).await? {
-                    return Self::try_new_xet(core, &xet_file, range).await;
-                }
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "bucket file is missing XET metadata",
-                ));
-            }
+        if let Some(xet_file) = core.maybe_xet_file(path).await? {
+            return Self::try_new_xet(core, &xet_file, range).await;
+        }
 
-            // For other repos, probe for XET
-            if let Some(xet_file) = core.maybe_xet_file(path).await? {
-                return Self::try_new_xet(core, &xet_file, range).await;
-            }
+        if core.repo.repo_type == RepoType::Bucket {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "bucket file is missing XET metadata",
+            ));
         }
 
         Self::try_new_http(core, path, range).await
@@ -126,7 +119,6 @@ impl oio::Read for HfReader {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::mbpp_xet_operator;
     use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
 
     /// Parquet magic bytes: "PAR1"
@@ -155,7 +147,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_parquet() {
-        let op = mbpp_xet_operator();
+        let op = mbpp_operator();
         let data = op
             .read("full/train-00000-of-00001.parquet")
             .await
@@ -169,7 +161,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_range() {
-        let op = mbpp_xet_operator();
+        let op = mbpp_operator();
         let data = op
             .read_with("full/train-00000-of-00001.parquet")
             .range(0..4)

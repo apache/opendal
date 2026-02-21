@@ -47,12 +47,6 @@ impl HfWriter {
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
         // Buckets always use XET and don't have a preupload endpoint
         if core.repo.repo_type == RepoType::Bucket {
-            if !core.xet_enabled {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "buckets require XET to be enabled",
-                ));
-            }
             let client = core.xet_client("write").await?;
             let writer = client.write(None).await.map_err(map_xet_error)?;
             return Ok(HfWriter::Xet {
@@ -65,19 +59,13 @@ impl HfWriter {
         let mode_str = core.determine_upload_mode(&path).await?;
 
         if mode_str == "lfs" {
-            if core.xet_enabled {
-                let client = core.xet_client("write").await?;
-                let writer = client.write(None).await.map_err(map_xet_error)?;
-                return Ok(HfWriter::Xet {
-                    core,
-                    path,
-                    writer: Mutex::new(writer),
-                });
-            }
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "file requires LFS; call enable_xet() on the builder for large file support",
-            ));
+            let client = core.xet_client("write").await?;
+            let writer = client.write(None).await.map_err(map_xet_error)?;
+            return Ok(HfWriter::Xet {
+                core,
+                path,
+                writer: Mutex::new(writer),
+            });
         }
 
         Ok(HfWriter::Regular {
@@ -191,8 +179,8 @@ impl oio::Write for HfWriter {
 
 #[cfg(test)]
 mod tests {
+    use super::super::backend::test_utils::testing_bucket_operator;
     use super::super::backend::test_utils::testing_operator;
-    use super::super::backend::test_utils::{testing_bucket_operator, testing_xet_operator};
     use super::*;
     use base64::Engine;
 
@@ -247,7 +235,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_write_xet() {
-        let op = testing_xet_operator();
+        let op = testing_operator();
         op.write("test-xet.bin", b"Binary data for XET test".as_slice())
             .await
             .expect("xet write should succeed");

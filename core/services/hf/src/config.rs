@@ -52,11 +52,6 @@ pub struct HfConfig {
     ///
     /// Default is "https://huggingface.co".
     pub endpoint: Option<String>,
-    /// Maximum number of retries for commit operations.
-    ///
-    /// Retries on commit conflicts (HTTP 412) and transient server
-    /// errors (HTTP 5xx). Default is 3.
-    pub max_retries: Option<usize>,
 }
 
 impl Debug for HfConfig {

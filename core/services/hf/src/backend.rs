@@ -120,15 +120,6 @@ impl HfBuilder {
         }
         self
     }
-
-    /// Set the maximum number of retries for commit operations.
-    ///
-    /// Retries on commit conflicts (HTTP 412) and transient server
-    /// errors (HTTP 5xx). Default is 3.
-    pub fn max_retries(mut self, max_retries: usize) -> Self {
-        self.config.max_retries = Some(max_retries);
-        self
-    }
 }
 
 impl Builder for HfBuilder {
@@ -192,18 +183,8 @@ impl Builder for HfBuilder {
         let repo = HfRepo::new(repo_type, repo_id, Some(revision.clone()));
         debug!("backend repo uri: {:?}", repo.uri(&root, ""));
 
-        let max_retries = self.config.max_retries.unwrap_or(3);
-        debug!("backend max_retries: {}", max_retries);
-
         Ok(HfBackend {
-            core: Arc::new(HfCore::build(
-                info,
-                repo,
-                root,
-                token,
-                endpoint,
-                max_retries,
-            )?),
+            core: Arc::new(HfCore::build(info, repo, root, token, endpoint)?),
         })
     }
 }
@@ -287,15 +268,13 @@ pub(super) mod test_utils {
     }
 
     /// Operator for a private dataset requiring HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN.
-    /// Uses higher max_retries to tolerate concurrent commit conflicts (412).
     pub fn testing_operator() -> Operator {
         let (repo_id, token) = testing_credentials();
         let op = Operator::new(
             HfBuilder::default()
                 .repo_type("dataset")
                 .repo_id(&repo_id)
-                .token(&token)
-                .max_retries(10),
+                .token(&token),
         )
         .unwrap()
         .finish();
@@ -309,8 +288,7 @@ pub(super) mod test_utils {
             HfBuilder::default()
                 .repo_type("bucket")
                 .repo_id(&repo_id)
-                .token(&token)
-                .max_retries(10),
+                .token(&token),
         )
         .unwrap()
         .finish();

@@ -53,14 +53,13 @@
 
     <properties>
         <!-- This value is for Reproducible Builds. It will be updated by Maven Release Plugin during releases. -->
-        <project.build.outputTimestamp>10</project.build.outputTimestamp>
+        <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
 
         <!-- customized properties -->
         <cargo-build.profile>dev</cargo-build.profile>
-        <cargo-build.features>default</cargo-build.features>
         <cargo-build.enableZigbuild>false</cargo-build.enableZigbuild>
         <cargo-build.target/> <!-- override cargo build target; e.g., use musl instead -->
         <jni.classifier>${os.detected.classifier}</jni.classifier>
@@ -216,8 +215,6 @@
                                 <argument>${cargo-build.target}</argument>
                                 <argument>--profile</argument>
                                 <argument>${cargo-build.profile}</argument>
-                                <argument>--features</argument>
-                                <argument>${cargo-build.features}</argument>
                                 <argument>--enable-zigbuild</argument>
                                 <argument>${cargo-build.enableZigbuild}</argument>
                             </arguments>

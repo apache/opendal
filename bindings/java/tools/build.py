@@ -54,7 +54,6 @@ if __name__ == "__main__":
     parser.add_argument("--classifier", type=str, required=True)
     parser.add_argument("--target", type=str, default="")
     parser.add_argument("--profile", type=str, default="dev")
-    parser.add_argument("--features", type=str, default="default")
     parser.add_argument("--enable-zigbuild", type=str, default="false")
     args = parser.parse_args()
 
@@ -77,9 +76,6 @@ if __name__ == "__main__":
         "--color=always",
         f"--profile={args.profile}",
     ]
-
-    if args.features:
-        cmd += ["--features", args.features]
 
     if enable_zigbuild:
         # Pin glibc to 2.17 if zigbuild has been enabled.

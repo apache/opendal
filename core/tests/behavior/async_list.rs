@@ -79,10 +79,9 @@ pub async fn test_list_dir(op: Operator) -> Result<()> {
     let mut obs = op.lister(&format!("{parent}/")).await?;
     let mut found = false;
     while let Some(de) = obs.try_next().await? {
-        let meta = op.stat(de.path()).await?;
         if de.path() == path {
+            let meta = de.metadata();
             assert_eq!(meta.mode(), EntryMode::FILE);
-
             assert_eq!(meta.content_length(), size as u64);
 
             found = true

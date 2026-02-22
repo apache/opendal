@@ -93,13 +93,13 @@ jobs:
 
       - name: Build and test
         working-directory: bindings/java
-        run: mvn javadoc:javadoc
+        run: ./mvnw javadoc:javadoc
 
       - name: Upload docs
         uses: actions/upload-artifact@v6
         with:
           name: java-docs
-          path: ./bindings/java/target/reports/apidocs
+          path: ./bindings/java/target/site/apidocs
 
   build-nodejs-doc:
     runs-on: ubuntu-latest

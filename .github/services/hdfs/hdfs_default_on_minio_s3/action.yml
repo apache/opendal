@@ -25,7 +25,7 @@ runs:
       uses: actions/setup-java@v4
       with:
         distribution: zulu
-        java-version: 25
+        java-version: 11
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3

@@ -65,7 +65,7 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Build OpenDAL doc
@@ -88,7 +88,7 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Build and test

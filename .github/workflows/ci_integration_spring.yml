@@ -46,7 +46,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           java-version: 25
-          distribution: temurin
+          distribution: zulu
 
       - name: package and test
         working-directory: integrations/spring

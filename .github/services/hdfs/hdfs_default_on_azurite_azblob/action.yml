@@ -24,7 +24,7 @@ runs:
     - name: Setup java env
       uses: actions/setup-java@v4
       with:
-        distribution: temurin
+        distribution: zulu
         java-version: 25
     - name: Setup azurite azblob service
       shell: bash

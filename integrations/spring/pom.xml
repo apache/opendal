@@ -35,17 +35,17 @@
     </modules>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- dependency -->
-        <opendal.version>0.47.0</opendal.version>
-        <spring-boot.version>3.3.2</spring-boot.version>
+        <opendal.version>0.48.2</opendal.version>
+        <spring-boot.version>4.0.3</spring-boot.version>
 
         <!-- plugin -->
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
-        <spotless-maven-plugin.version>2.43.0</spotless-maven-plugin.version>
+        <spotless-maven-plugin.version>3.2.0</spotless-maven-plugin.version>
     </properties>
 
     <dependencyManagement>

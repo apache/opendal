@@ -48,7 +48,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Cargo doc
@@ -70,7 +70,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Cargo clippy
@@ -126,7 +126,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Setup Rust toolchain
@@ -157,7 +157,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Setup Rust toolchain
@@ -266,7 +266,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Setup Rust toolchain
@@ -311,7 +311,7 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: 25
 
       - name: Setup Rust toolchain

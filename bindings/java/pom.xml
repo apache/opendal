@@ -67,7 +67,7 @@
         <!-- library dependencies -->
         <assertj.version>3.27.7</assertj.version>
         <commons-io.version>2.21.0</commons-io.version>
-        <dotenv.version>3.2.0</dotenv.version>
+        <dotenv.version>2.3.2</dotenv.version>
         <httpclient.version>5.6</httpclient.version>
         <junit.version>5.10.0</junit.version>
         <lombok.version>1.18.42</lombok.version>

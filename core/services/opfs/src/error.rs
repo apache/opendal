@@ -29,8 +29,9 @@ pub(crate) fn parse_js_error(value: JsValue) -> Error {
             "NotFoundError" => ErrorKind::NotFound,
             "TypeMismatchError" => ErrorKind::NotFound,
             "NotAllowedError" => ErrorKind::PermissionDenied,
+            "QuotaExceededError" => ErrorKind::Unexpected,
             e => {
-                console_debug!("Got exception {e:?}");
+                console_debug!("Got unhandled DOM exception {e:?}");
                 ErrorKind::Unexpected
             }
         };

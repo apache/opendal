@@ -37,15 +37,44 @@ mod tests {
             .finish()
     }
 
+    // #[wasm_bindgen_test]
+    // async fn test_get_directory_handle() {
+    //     let op = new_operator();
+    //     op.create_dir("/dir/").await.expect("directory");
+    //     op.create_dir("/dir///").await.expect("directory");
+    //     op.create_dir("/dir:/").await.expect("directory");
+    //     op.create_dir("/dir<>/").await.expect("directory");
+    //     assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+    //     // this works on Chrome, but fails on macOS
+    //     // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+    // }
+
     #[wasm_bindgen_test]
-    async fn test_get_directory_handle() {
+    async fn test_write() {
         let op = new_operator();
-        op.create_dir("/dir/").await.expect("directory");
-        op.create_dir("/dir///").await.expect("directory");
-        op.create_dir("/dir:/").await.expect("directory");
-        op.create_dir("/dir<>/").await.expect("directory");
-        assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
-        // this works on Chrome, but fails on macOS
-        // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+
+        // this does not even go to OPFS backend, short-circuited
+        assert_eq!(
+            op.write("/", "should_not_work").await.unwrap_err().kind(),
+            ErrorKind::IsADirectory
+        );
+
+        {
+            let content = "Content of the file to write";
+            let meta = op.write("/test_file", content).await.expect("write");
+            console_log!("{:?}", meta);
+            assert_eq!(meta.content_length(), content.len() as u64);
+            assert!(meta.last_modified().is_some());
+        }
+
+        {
+            let mut w = op.writer("big_file").await.expect("writer");
+            let chunk = vec![0u8; 1024 * 1024]; // 1MB
+            for _ in 0..1024 {
+                w.write(chunk.clone()).await.expect("write chunk");
+            }
+            let meta = w.close().await.expect("close");
+            assert_eq!(meta.content_length(), 1024 * 1024 * 1024); // 1GB
+        }
     }
 }

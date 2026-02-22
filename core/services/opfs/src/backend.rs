@@ -17,9 +17,15 @@
 
 use std::sync::Arc;
 
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::FileSystemWritableFileStream;
+
 use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
+use super::error::*;
 use super::utils::*;
+use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -44,7 +50,7 @@ pub struct OpfsBackend {}
 impl Access for OpfsBackend {
     type Reader = ();
 
-    type Writer = ();
+    type Writer = OpfsWriter;
 
     type Lister = ();
 
@@ -57,6 +63,11 @@ impl Access for OpfsBackend {
         info.set_root("/");
         info.set_native_capability(Capability {
             create_dir: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_multi: true,
+
             ..Default::default()
         });
         Arc::new(info)
@@ -66,5 +77,16 @@ impl Access for OpfsBackend {
         debug_assert!(path != "/", "root path should be handled upstream");
         get_directory_handle(path, true).await?;
         Ok(RpCreateDir::default())
+    }
+
+    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+        let handle = get_file_handle(path, true).await?;
+
+        let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
+
+        Ok((RpWrite::default(), OpfsWriter::new(stream)))
     }
 }

@@ -38,6 +38,7 @@ mod config;
 mod core;
 mod error;
 mod utils;
+mod writer;
 
 pub use backend::OpfsBuilder as Opfs;
 pub use config::OpfsConfig;

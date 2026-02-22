@@ -230,7 +230,7 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     opendal_service_redis::register_redis_service(registry);
 }
 
-#[cfg(feature = "register-services")]
+#[cfg(feature = "auto-register-services")]
 #[ctor::ctor]
 fn register_default_operator_registry() {
     init_default_registry();

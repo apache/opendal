@@ -81,9 +81,11 @@ unused_async = "warn"
 all-features = true
 
 [features]
+# Register services enabled to the OperatorRegistry so that they can be used by `Operator::from_uri`.
+auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
-  "register-services",
+  "auto-register-services",
   "reqwest-rustls-tls",
   "executors-tokio",
   "layers-concurrent-limit",
@@ -118,8 +120,6 @@ layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
-# Register services enabled to the OperatorRegistry so that they can be used by `Operator::from_uri`.
-register-services = ["dep:ctor"]
 reqwest-rustls-tls = ["opendal-core/reqwest-rustls-tls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
 services-alluxio = ["dep:opendal-service-alluxio"]

@@ -77,7 +77,14 @@ jobs:
           - 25
     steps:
       - uses: actions/checkout@v6
-      - name: Set up JDK 8
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+          need-protoc: true
+          need-rocksdb: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up JDK ${{ matrix.java-version }}
         uses: actions/setup-java@v5
         with:
           distribution: 'zulu'

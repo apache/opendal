@@ -37,17 +37,17 @@ mod tests {
             .finish()
     }
 
-    // #[wasm_bindgen_test]
-    // async fn test_get_directory_handle() {
-    //     let op = new_operator();
-    //     op.create_dir("/dir/").await.expect("directory");
-    //     op.create_dir("/dir///").await.expect("directory");
-    //     op.create_dir("/dir:/").await.expect("directory");
-    //     op.create_dir("/dir<>/").await.expect("directory");
-    //     assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
-    //     // this works on Chrome, but fails on macOS
-    //     // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
-    // }
+    #[wasm_bindgen_test]
+    async fn test_get_directory_handle() {
+        let op = new_operator();
+        op.create_dir("/dir/").await.expect("directory");
+        op.create_dir("/dir///").await.expect("directory");
+        op.create_dir("/dir:/").await.expect("directory");
+        op.create_dir("/dir<>/").await.expect("directory");
+        assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+        // this works on Chrome, but fails on macOS
+        // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+    }
 
     #[wasm_bindgen_test]
     async fn test_write() {

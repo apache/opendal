@@ -175,7 +175,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             hint.binding_go = True
             hint.all_service = True
 
-        # cpp affected  
+        # cpp affected
         if p.startswith("bindings/cpp/"):
             hint.binding_cpp = True
             hint.all_service = True
@@ -267,9 +267,15 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
-    # Remove hdfs cases for java and go.
+    # Remove invalid cases for java.
     if language == "java":
-        cases = [v for v in cases if v["service"] != "hdfs"]
+        cases = [v for v in cases if v["service"] not in [
+            "compfs",
+            "hdfs",
+            "hdfs_native",
+            "monoiofs",
+            "rocksdb",
+        ]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases

@@ -56,8 +56,8 @@ jobs:
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
-          java-version: '25'
+          distribution: temurin
+          java-version: 25
           cache: 'maven'
       - name: Build and check
         working-directory: bindings/java
@@ -94,7 +94,7 @@ jobs:
       - name: Set up JDK ${{ matrix.java-version }}
         uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
+          distribution: temurin
           java-version: ${{ matrix.java-version }}
           cache: 'maven'
       - name: Build and test

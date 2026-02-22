@@ -25,7 +25,7 @@ runs:
       uses: actions/setup-java@v4
       with:
         distribution: temurin
-        java-version: "11"
+        java-version: 25
     - name: Setup azurite azblob service
       shell: bash
       working-directory: fixtures/azblob

@@ -66,7 +66,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: 25
 
       - name: Build OpenDAL doc
         working-directory: core
@@ -89,7 +89,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: 25
 
       - name: Build and test
         working-directory: bindings/java
@@ -99,7 +99,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: java-docs
-          path: ./bindings/java/target/site/apidocs
+          path: ./bindings/java/target/reports/apidocs
 
   build-nodejs-doc:
     runs-on: ubuntu-latest

@@ -49,7 +49,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Cargo doc
         working-directory: core
@@ -71,7 +71,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Cargo clippy
         working-directory: core
@@ -127,7 +127,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -158,7 +158,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -267,7 +267,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -312,7 +312,7 @@ jobs:
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "11"
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

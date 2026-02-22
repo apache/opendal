@@ -116,12 +116,6 @@ impl<A: Access> CompleteLister<A> {
         Self { inner, acc, info }
     }
 
-    fn should_complete_file_content_length(entry: &oio::Entry) -> bool {
-        entry.mode().is_file()
-            && !entry.metadata().is_deleted()
-            && !entry.metadata().has_content_length()
-    }
-
     async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
         let path = entry.path().to_string();
         let version = entry.metadata().version().map(str::to_owned);
@@ -155,7 +149,10 @@ impl<A: Access> oio::List for CompleteLister<A> {
                 return Ok(None);
             };
 
-            if !Self::should_complete_file_content_length(&entry) {
+            if !entry.mode().is_file()
+                || entry.metadata().is_deleted()
+                || entry.metadata().has_content_length()
+            {
                 return Ok(Some(entry));
             }
 

@@ -26,7 +26,7 @@ use opendal_core::*;
 pub struct EtcdLister {
     root: String,
     path: String,
-    iter: IntoIter<(String, u64)>,
+    iter: IntoIter<String>,
 }
 
 impl EtcdLister {
@@ -35,7 +35,11 @@ impl EtcdLister {
 
         // Get all keys with the specified prefix
         let mut client = core.conn().await?;
-        let get_options = Some(etcd_client::GetOptions::new().with_prefix());
+        let get_options = Some(
+            etcd_client::GetOptions::new()
+                .with_prefix()
+                .with_keys_only(),
+        );
         let resp = client
             .get(abs_path.as_str(), get_options)
             .await
@@ -48,8 +52,7 @@ impl EtcdLister {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
-            let value_len = kv.value().len() as u64;
-            keys.push((key, value_len));
+            keys.push(key);
         }
 
         Ok(Self {
@@ -62,15 +65,11 @@ impl EtcdLister {
 
 impl oio::List for EtcdLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
-        for (key, value_len) in self.iter.by_ref() {
+        for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
                 let path = build_rel_path(&self.root, &key);
-                let mut metadata = Metadata::new(EntryMode::from_path(&key));
-                if metadata.mode().is_file() {
-                    metadata.set_content_length(value_len);
-                }
 
-                let entry = Entry::new(&path, metadata);
+                let entry = Entry::new(&path, Metadata::new(EntryMode::from_path(&key)));
                 return Ok(Some(entry));
             }
         }

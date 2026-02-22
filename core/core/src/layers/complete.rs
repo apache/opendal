@@ -151,12 +151,17 @@ impl<A: Access> CompleteLister<A> {
 
 impl<A: Access> oio::List for CompleteLister<A> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let Some(entry) = self.inner.next().await? else {
-            return Ok(None);
-        };
+        loop {
+            let Some(entry) = self.inner.next().await? else {
+                return Ok(None);
+            };
 
-        let entry = self.ensure_file_content_length(entry).await?;
-        Ok(Some(entry))
+            match self.ensure_file_content_length(entry).await {
+                Ok(entry) => return Ok(Some(entry)),
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err),
+            }
+        }
     }
 }
 

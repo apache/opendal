@@ -116,14 +116,13 @@ impl<A: Access> CompleteLister<A> {
         Self { inner, acc, info }
     }
 
-    async fn ensure_file_content_length(&self, mut entry: oio::Entry) -> Result<oio::Entry> {
-        if !entry.mode().is_file()
-            || entry.metadata().is_deleted()
-            || entry.metadata().has_content_length()
-        {
-            return Ok(entry);
-        }
+    fn should_complete_file_content_length(entry: &oio::Entry) -> bool {
+        entry.mode().is_file()
+            && !entry.metadata().is_deleted()
+            && !entry.metadata().has_content_length()
+    }
 
+    async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
         let path = entry.path().to_string();
         let version = entry.metadata().version().map(str::to_owned);
         let mut op = OpStat::new();
@@ -145,19 +144,23 @@ impl<A: Access> CompleteLister<A> {
         entry
             .metadata_mut()
             .set_content_length(stat_metadata.content_length());
-        Ok(entry)
+        Ok(())
     }
 }
 
 impl<A: Access> oio::List for CompleteLister<A> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            let Some(entry) = self.inner.next().await? else {
+            let Some(mut entry) = self.inner.next().await? else {
                 return Ok(None);
             };
 
-            match self.ensure_file_content_length(entry).await {
-                Ok(entry) => return Ok(Some(entry)),
+            if !Self::should_complete_file_content_length(&entry) {
+                return Ok(Some(entry));
+            }
+
+            match self.ensure_file_content_length(&mut entry).await {
+                Ok(()) => return Ok(Some(entry)),
                 Err(err) if err.kind() == ErrorKind::NotFound => continue,
                 Err(err) => return Err(err),
             }

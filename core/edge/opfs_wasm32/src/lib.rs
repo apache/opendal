@@ -58,23 +58,65 @@ mod tests {
             op.write("/", "should_not_work").await.unwrap_err().kind(),
             ErrorKind::IsADirectory
         );
+    }
 
-        {
-            let content = "Content of the file to write";
-            let meta = op.write("/test_file", content).await.expect("write");
-            console_log!("{:?}", meta);
-            assert_eq!(meta.content_length(), content.len() as u64);
-            assert!(meta.last_modified().is_some());
-        }
+    #[wasm_bindgen_test]
+    async fn test_write_simple() {
+        let op = new_operator();
+        let content = "Content of the file to write";
+        let meta = op.write("/test_file", content).await.expect("write");
+        console_log!("{:?}", meta);
+        assert_eq!(meta.content_length(), content.len() as u64);
 
-        {
-            let mut w = op.writer("big_file").await.expect("writer");
-            let chunk = vec![0u8; 1024 * 1024]; // 1MB
-            for _ in 0..1024 {
-                w.write(chunk.clone()).await.expect("write chunk");
+        // This is None - we have to use stat
+        assert!(meta.last_modified().is_none());
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_write_write_twice_same_file() {
+        let op = new_operator();
+        let content = "Content of the file to write";
+        let meta = op.write("/test_file", content).await.expect("write");
+        let meta = op.write("/test_file", content).await.expect("write");
+        assert_eq!(meta.content_length(), content.len() as u64);
+        assert!(meta.last_modified().is_none());
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_write_like_append_three_times() {
+        let op = new_operator();
+        let content = "Content of the file to write";
+        let mut w = op.writer("/test_file_writte_twice").await.expect("writer");
+        w.write(content).await.expect("write");
+        w.write(content).await.expect("write");
+        w.write(content).await.expect("write");
+        let meta = w.close().await.expect("close");
+        assert_eq!(meta.content_length(), (content.len() as u64) * 3);
+        assert!(meta.last_modified().is_none());
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_write_large_file_quota() {
+        // you can simulate a lower disk space in Chrome
+        let op = new_operator();
+        let mut w = op.writer("big_file").await.expect("writer");
+        let chunk = vec![0u8; 1024 * 1024]; // 1MB
+        for _ in 0..1024 {
+            let res = w.write(chunk.clone()).await;
+            match res {
+                Ok(()) => (),
+                Err(e) => {
+                    // OPFS filled up (you can simulate this in Chrome by setting a lower limit)
+                    // parse_js_error: JsValue(TypeError: Cannot close a ERRORED writable stream
+                    // TypeError: Cannot close a ERRORED writable stream
+                    console_log!("got {e:?}");
+                    console_log!("message = {}", e.message());
+                    assert_eq!(e.kind(), ErrorKind::Unexpected);
+                    return;
+                }
             }
-            let meta = w.close().await.expect("close");
-            assert_eq!(meta.content_length(), 1024 * 1024 * 1024); // 1GB
         }
+        let meta = w.close().await.expect("close");
+        assert_eq!(meta.content_length(), 1024 * 1024 * 1024); // 1GB
     }
 }

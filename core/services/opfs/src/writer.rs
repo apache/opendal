@@ -64,6 +64,7 @@ impl oio::Write for OpfsWriter {
             .await
             .map_err(parse_js_error)?;
 
+        // We cannot set LastModified here - stream does not have such metadata
         let mut meta = Metadata::new(EntryMode::FILE);
         meta.set_content_length(self.bytes_written);
         Ok(meta)

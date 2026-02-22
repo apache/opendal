@@ -45,7 +45,7 @@
         <spring-boot.version>4.0.3</spring-boot.version>
 
         <!-- plugin -->
-        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <spotless-maven-plugin.version>3.2.0</spotless-maven-plugin.version>
     </properties>

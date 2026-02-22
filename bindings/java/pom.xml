@@ -76,12 +76,12 @@
 
         <!-- plugins dependencies -->
         <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
-        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
         <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <palantir-java-format.version>2.81.0</palantir-java-format.version>
         <spotless.version>3.2.0</spotless.version>
-        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-javadoc-plugin.version>3.6.3</maven-javadoc-plugin.version>
     </properties>
 
     <dependencyManagement>
@@ -296,9 +296,6 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>${maven-javadoc-plugin.version}</version>
                 <configuration>
-                    <encoding>UTF-8</encoding>
-                    <docencoding>UTF-8</docencoding>
-                    <charset>UTF-8</charset>
                     <bottom>
                         Copyright © 2022-2026, The Apache Software Foundation. Apache OpenDAL, OpenDAL, and Apache
                         are either registered trademarks or trademarks of the Apache Software Foundation.

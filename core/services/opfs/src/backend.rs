@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::File;
 use web_sys::FileSystemWritableFileStream;
 
 use super::OPFS_SCHEME;
@@ -77,6 +78,8 @@ impl Access for OpfsBackend {
         info.set_name("opfs");
         info.set_root(&self.root);
         info.set_native_capability(Capability {
+            stat: true,
+
             create_dir: true,
 
             write: true,
@@ -88,15 +91,43 @@ impl Access for OpfsBackend {
         Arc::new(info)
     }
 
+    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+        let p = build_abs_path(&self.root, path);
+
+        if p.ends_with('/') {
+            get_directory_handle(&p, false).await?;
+            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+        }
+
+        // File: get metadata via getFile().
+        let handle = get_file_handle(&p, false).await?;
+        let file: File = JsFuture::from(handle.get_file())
+            .await
+            .and_then(JsCast::dyn_into)
+            .map_err(parse_js_error)?;
+
+        let mut meta = Metadata::new(EntryMode::FILE);
+        meta.set_content_length(file.size() as u64);
+        if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
+            meta.set_last_modified(t);
+        }
+
+        Ok(RpStat::new(meta))
+    }
+
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
         debug_assert!(path != "/", "root path should be handled upstream");
-        get_directory_handle(path, true).await?;
+        let p = build_abs_path(&self.root, path);
+        get_directory_handle(&p, true).await?;
+
         Ok(RpCreateDir::default())
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let handle = get_file_handle(path, true).await?;
-
+        let p = build_abs_path(&self.root, path);
+        let handle = get_file_handle(&p, true).await?;
+        console_debug!("write: handle = {:?}", handle);
+        console_debug!("write: path   = {:?}", p);
         let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
             .await
             .and_then(JsCast::dyn_into)

@@ -35,17 +35,32 @@ pub struct OpfsBuilder {
     pub(super) config: OpfsConfig,
 }
 
+impl OpfsBuilder {
+    /// Set root directory for this backend.
+    pub fn root(mut self, root: &str) -> Self {
+        self.config.root = if root.is_empty() {
+            None
+        } else {
+            Some(root.to_string())
+        };
+        self
+    }
+}
+
 impl Builder for OpfsBuilder {
     type Config = OpfsConfig;
 
     fn build(self) -> Result<impl Access> {
-        Ok(OpfsBackend {})
+        let root = normalize_root(&self.config.root.unwrap_or_default());
+        Ok(OpfsBackend { root })
     }
 }
 
 /// OPFS Service backend
-#[derive(Default, Debug, Clone)]
-pub struct OpfsBackend {}
+#[derive(Debug, Clone)]
+pub struct OpfsBackend {
+    root: String,
+}
 
 impl Access for OpfsBackend {
     type Reader = ();
@@ -60,7 +75,7 @@ impl Access for OpfsBackend {
         let info = AccessorInfo::default();
         info.set_scheme(OPFS_SCHEME);
         info.set_name("opfs");
-        info.set_root("/");
+        info.set_root(&self.root);
         info.set_native_capability(Capability {
             create_dir: true,
 

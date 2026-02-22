@@ -19,6 +19,7 @@
 mod tests {
     use opendal::ErrorKind;
     use opendal::Operator;
+    use opendal::services::Opfs;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
     use wasm_bindgen_test::wasm_bindgen_test_configure;
@@ -38,15 +39,29 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn test_get_directory_handle() {
+    async fn test_create_directory_handle() {
         let op = new_operator();
         op.create_dir("/dir/").await.expect("directory");
         op.create_dir("/dir///").await.expect("directory");
         op.create_dir("/dir:/").await.expect("directory");
         op.create_dir("/dir<>/").await.expect("directory");
-        assert_eq!(op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+        assert_eq!(
+            op.create_dir("/a/b/../x/y/z/").await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
         // this works on Chrome, but fails on macOS
         // assert_eq!(op.create_dir("/dir\0/").await.unwrap_err().kind(), ErrorKind::Unexpected);
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_create_directory_handle_with_root() {
+        // let op = Operator::new(Opfs::default()).expect("REASON")..finish();
+        let op = Operator::new(Opfs::default().root("/myapp"))
+            .expect("config")
+            .finish();
+        op.write("somefile", "content")
+            .await
+            .expect("write under root");
     }
 
     #[wasm_bindgen_test]

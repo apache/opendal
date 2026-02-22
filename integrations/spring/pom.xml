@@ -35,15 +35,16 @@
     </modules>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- dependency -->
+        <lombok.version>1.18.42</lombok.version>
         <opendal.version>0.48.2</opendal.version>
         <spring-boot.version>4.0.3</spring-boot.version>
 
         <!-- plugin -->
+        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <os-maven-plugin.version>1.7.1</os-maven-plugin.version>
         <spotless-maven-plugin.version>3.2.0</spotless-maven-plugin.version>
     </properties>
@@ -57,6 +58,11 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -64,7 +70,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.apache.opendal</groupId>
@@ -106,6 +112,20 @@
                             <spacesPerTab>4</spacesPerTab>
                         </indent>
                     </java>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>

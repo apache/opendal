@@ -78,6 +78,7 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
         opendal::services::REDIS_SCHEME,
         opendal::services::S3_SCHEME,
         opendal::services::SEAFILE_SCHEME,
+        #[cfg(unix)]
         opendal::services::SFTP_SCHEME,
         opendal::services::SLED_SCHEME,
         opendal::services::SQLITE_SCHEME,

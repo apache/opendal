@@ -92,22 +92,32 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn test_write_simple() {
-        let op = new_operator();
-        let content = "Content of the file to write";
+    async fn test_write_read_simple() {
         let path = "/test_file";
-        let meta = op.write(path, content).await.expect("write");
-        console_log!("{:?}", meta);
-        assert_eq!(meta.content_length(), content.len() as u64);
+        let content = "Content of the file to write";
+        {
+            let op = new_operator();
+            let meta = op.write(path, content).await.expect("write");
+            console_log!("{:?}", meta);
+            assert_eq!(meta.content_length(), content.len() as u64);
 
-        // This is None - we have to use stat
-        assert!(meta.last_modified().is_none());
+            // This is None - we have to use stat
+            assert!(meta.last_modified().is_none());
 
-        let stat = op.stat(path).await.expect("stat");
-        console_log!("stat = {:?}", stat);
-        assert_eq!(stat.mode(), EntryMode::FILE);
-        assert_eq!(stat.content_length(), content.len() as u64);
-        assert!(stat.last_modified().is_some());
+            let stat = op.stat(path).await.expect("stat");
+            console_log!("stat = {:?}", stat);
+            assert_eq!(stat.mode(), EntryMode::FILE);
+            assert_eq!(stat.content_length(), content.len() as u64);
+            assert!(stat.last_modified().is_some());
+        }
+
+        {
+            // read back and compare
+            let op = new_operator();
+            let buffer = op.read(path).await.expect("read");
+            console_log!("read = {:?}", buffer);
+            assert_eq!(buffer.to_bytes(), content.as_bytes());
+        }
     }
 
     #[wasm_bindgen_test]
@@ -164,6 +174,23 @@ mod tests {
         let meta = w.close().await.expect("close");
         assert_eq!(meta.content_length(), expected_file_size);
         let stat = op.stat(path).await.expect("stat");
-        assert_eq!(stat.content_length(), expected_file_size)
+        assert_eq!(stat.content_length(), expected_file_size);
+
+        {
+            // read and compare
+            let op = new_operator();
+            let buffer = op.read(path).await.expect("read");
+            assert_eq!(buffer.to_bytes().len(), expected_file_size as usize);
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_write_and_read_with_range() {
+        let op = new_operator();
+        let path = "numbers.txt";
+        let content = "0123456789";
+        let meta = op.write(path, content).await.expect("write");
+        let buffer = op.read_with(path).range(3..5).await.expect("read");
+        assert_eq!(buffer.to_bytes(), "34".as_bytes());
     }
 }

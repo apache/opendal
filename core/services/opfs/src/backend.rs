@@ -25,6 +25,7 @@ use web_sys::FileSystemWritableFileStream;
 use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
 use super::error::*;
+use super::reader::OpfsReader;
 use super::utils::*;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
@@ -64,7 +65,7 @@ pub struct OpfsBackend {
 }
 
 impl Access for OpfsBackend {
-    type Reader = ();
+    type Reader = OpfsReader;
 
     type Writer = OpfsWriter;
 
@@ -79,6 +80,8 @@ impl Access for OpfsBackend {
         info.set_root(&self.root);
         info.set_native_capability(Capability {
             stat: true,
+
+            read: true,
 
             create_dir: true,
 
@@ -113,6 +116,13 @@ impl Access for OpfsBackend {
         }
 
         Ok(RpStat::new(meta))
+    }
+
+    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+        let p = build_abs_path(&self.root, path);
+        let handle = get_file_handle(&p, false).await?;
+
+        Ok((RpRead::new(), OpfsReader::new(handle, args.range())))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

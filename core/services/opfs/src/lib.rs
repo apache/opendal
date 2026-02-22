@@ -36,6 +36,7 @@ mod backend;
 mod config;
 mod core;
 mod error;
+mod reader;
 mod utils;
 mod writer;
 

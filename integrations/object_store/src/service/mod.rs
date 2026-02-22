@@ -166,7 +166,7 @@ mod tests {
         let builder = ObjectStoreBuilder::new(store);
 
         let backend = builder.build().expect("build should succeed");
-        assert!(backend.info().scheme() == OBJECT_STORE_SCHEME);
+        assert_eq!(backend.info().scheme(), OBJECT_STORE_SCHEME);
     }
 
     #[tokio::test]

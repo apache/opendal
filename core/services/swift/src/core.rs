@@ -73,6 +73,43 @@ impl SwiftCore {
         self.info.http_client().send(req).await
     }
 
+    /// Bulk delete multiple objects in a single request.
+    ///
+    /// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
+    pub async fn swift_bulk_delete(
+        &self,
+        paths: &[(String, OpDelete)],
+    ) -> Result<Response<Buffer>> {
+        // The bulk-delete endpoint is on the account URL (the endpoint itself).
+        let url = format!("{}?bulk-delete", &self.endpoint);
+
+        let mut req = Request::post(&url);
+
+        req = req.header("X-Auth-Token", &self.token);
+        req = req.header(header::CONTENT_TYPE, "text/plain");
+        req = req.header(header::ACCEPT, "application/json");
+
+        // Body is newline-separated list of URL-encoded paths:
+        // /{container}/{object_path}
+        let body_str: String = paths
+            .iter()
+            .map(|(path, _)| {
+                let abs = build_abs_path(&self.root, path);
+                format!("{}/{}", &self.container, percent_encode_path(&abs))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        req = req.header(header::CONTENT_LENGTH, body_str.len());
+
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::from(bytes::Bytes::from(body_str)))
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
     pub async fn swift_list(
         &self,
         path: &str,
@@ -293,6 +330,30 @@ pub enum ListOpResponse {
     },
 }
 
+/// Response from Swift bulk-delete API.
+///
+/// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(dead_code)]
+pub struct BulkDeleteResponse {
+    /// Number of objects successfully deleted.
+    #[serde(rename = "Number Deleted")]
+    pub number_deleted: i64,
+    /// Number of objects not found (treated as success).
+    #[serde(rename = "Number Not Found")]
+    pub number_not_found: i64,
+    /// Response status string, e.g. "200 OK".
+    #[serde(rename = "Response Status")]
+    pub response_status: String,
+    /// Per-object errors as [path, status_string] pairs.
+    #[serde(rename = "Errors", default)]
+    pub errors: Vec<Vec<String>>,
+    /// Response body (usually empty on success).
+    #[serde(rename = "Response Body")]
+    pub response_body: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,6 +408,54 @@ mod tests {
                 subdir: "animals/".to_string()
             }
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bulk_delete_response_test() -> Result<()> {
+        let resp = bytes::Bytes::from(
+            r#"{
+                "Number Deleted": 2,
+                "Number Not Found": 1,
+                "Response Status": "200 OK",
+                "Errors": [],
+                "Response Body": ""
+            }"#,
+        );
+
+        let result: BulkDeleteResponse =
+            serde_json::from_slice(&resp).map_err(new_json_deserialize_error)?;
+
+        assert_eq!(result.number_deleted, 2);
+        assert_eq!(result.number_not_found, 1);
+        assert_eq!(result.response_status, "200 OK");
+        assert!(result.errors.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bulk_delete_response_with_errors_test() -> Result<()> {
+        let resp = bytes::Bytes::from(
+            r#"{
+                "Number Deleted": 1,
+                "Number Not Found": 0,
+                "Response Status": "400 Bad Request",
+                "Errors": [
+                    ["/container/path/to/file", "403 Forbidden"]
+                ],
+                "Response Body": ""
+            }"#,
+        );
+
+        let result: BulkDeleteResponse =
+            serde_json::from_slice(&resp).map_err(new_json_deserialize_error)?;
+
+        assert_eq!(result.number_deleted, 1);
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0][0], "/container/path/to/file");
+        assert_eq!(result.errors[0][1], "403 Forbidden");
 
         Ok(())
     }

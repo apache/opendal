@@ -6850,7 +6850,10 @@ dependencies = [
  "log",
  "opendal-core",
  "quick-xml",
- "reqsign",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
+ "reqsign-huaweicloud-obs",
  "serde",
  "tokio",
 ]
@@ -7056,13 +7059,18 @@ dependencies = [
 name = "opendal-service-swift"
 version = "0.55.0"
 dependencies = [
+ "base64 0.22.1",
  "bytes",
+ "hmac",
  "http 1.4.0",
  "log",
  "opendal-core",
+ "percent-encoding",
  "quick-xml",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2",
  "tokio",
  "uuid",
 ]
@@ -8651,7 +8659,6 @@ dependencies = [
  "http 1.4.0",
  "jsonwebtoken",
  "log",
- "once_cell",
  "percent-encoding",
  "rand 0.8.5",
  "reqwest",
@@ -8725,9 +8732,9 @@ dependencies = [
 
 [[package]]
 name = "reqsign-file-read-tokio"
-version = "2.0.1"
+version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "669ea66036266a9ac371d2e63cc7d345e69994da0168b4e6f3487fe21e126f76"
+checksum = "702f12a867bf8e507de907fa0f4d75b96469ace7edd33fcc1fc8a8ef58f3c8d2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -8750,6 +8757,20 @@ dependencies = [
  "reqsign-core",
  "reqwest",
  "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "reqsign-huaweicloud-obs"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ef663039ba605fb73ca2837215ed082fc264fd815395c72fa93b31c46a32081"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.4.0",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
 ]
 
 [[package]]

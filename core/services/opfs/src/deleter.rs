@@ -45,9 +45,7 @@ impl oio::OneShotDelete for OpfsDeleter {
         opt.set_recursive(args.recursive());
 
         match JsFuture::from(dir.remove_entry_with_options(name, &opt)).await {
-            Ok(_) => {
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(e) => {
                 let err = parse_js_error(e);
                 // Deleting a non-existent entry is not an error.

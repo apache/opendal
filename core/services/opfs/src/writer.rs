@@ -43,7 +43,6 @@ impl OpfsWriter {
 
 impl oio::Write for OpfsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        console_debug!("write!!!!!!!!!!!!!!!!!!!!!");
         let bytes = bs.to_bytes();
         let params = WriteParams::new(WriteCommandType::Write);
         params.set_size(Some(bytes.len() as f64));
@@ -62,7 +61,6 @@ impl oio::Write for OpfsWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        console_debug!("close!!!!!!!!!!!!!!!!!!!!!");
         JsFuture::from(self.stream.close())
             .await
             .map_err(parse_js_error)?;
@@ -74,7 +72,6 @@ impl oio::Write for OpfsWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        console_debug!("abort!!!!!!!!!!!!!!!!!!!!!");
         JsFuture::from(self.stream.abort())
             .await
             .map_err(parse_js_error)?;

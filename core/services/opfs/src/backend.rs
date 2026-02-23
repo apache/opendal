@@ -129,8 +129,6 @@ impl Access for OpfsBackend {
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         let p = build_abs_path(&self.core.root, path);
         let handle = get_file_handle(&p, true).await?;
-        console_debug!("write: handle = {:?}", handle);
-        console_debug!("write: path   = {:?}", p);
         let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
             .await
             .and_then(JsCast::dyn_into)

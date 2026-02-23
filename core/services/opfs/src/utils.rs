@@ -28,7 +28,6 @@ use super::error::*;
 
 /// Get the OPFS root directory handle.
 pub(crate) async fn get_root_directory_handle() -> Result<FileSystemDirectoryHandle> {
-    console_debug!("get_root_directory_handle");
     let navigator = window().unwrap().navigator();
     let storage_manager = navigator.storage();
     // This may fail if not secure (not: HTTPS or localhost)
@@ -45,7 +44,6 @@ pub(crate) async fn get_directory_handle(
     path: &str,
     create: bool,
 ) -> Result<FileSystemDirectoryHandle> {
-    console_debug!("get_directory_handle path={path:?} create={create:?}");
     let opt = FileSystemGetDirectoryOptions::new();
     opt.set_create(create);
 

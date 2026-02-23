@@ -38,7 +38,6 @@ impl OpfsDeleter {
 
 impl oio::OneShotDelete for OpfsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        console_debug!("delete!");
         let p = build_abs_path(&self.core.root, &path);
         let (dir, name) = get_parent_dir_and_name(&p, false).await?;
 
@@ -47,7 +46,6 @@ impl oio::OneShotDelete for OpfsDeleter {
 
         match JsFuture::from(dir.remove_entry_with_options(name, &opt)).await {
             Ok(_) => {
-                console_debug!("delete ok!");
                 Ok(())
             }
             Err(e) => {

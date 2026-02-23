@@ -2803,6 +2803,7 @@ dependencies = [
 name = "edge_test_opfs_wasm32"
 version = "0.55.0"
 dependencies = [
+ "futures",
  "opendal",
  "wasm-bindgen",
  "wasm-bindgen-futures",

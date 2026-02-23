@@ -17,13 +17,14 @@
 
 #[cfg(test)]
 mod tests {
+    use futures::TryStreamExt;
     use opendal::EntryMode;
     use opendal::ErrorKind;
     use opendal::Operator;
     use opendal::services::Opfs;
     use opendal::services::OpfsConfig;
     use wasm_bindgen_test::wasm_bindgen_test;
-    use wasm_bindgen_test::wasm_bindgen_test_configure;
+    use wasm_bindgen_test::wasm_bindgen_test_configure; // Required for Next()
 
     macro_rules! console_log {
         ($($arg:tt)*) => {
@@ -128,6 +129,11 @@ mod tests {
         let meta = op.write("/test_file", content).await.expect("write");
         assert_eq!(meta.content_length(), content.len() as u64);
         assert!(meta.last_modified().is_none());
+
+        let mut entries = op.lister("").await.expect("list");
+        while let Some(entry) = entries.try_next().await.expect("next") {
+            console_log!("entry: {} {:?}", entry.path(), entry.metadata().mode());
+        }
     }
 
     #[wasm_bindgen_test]

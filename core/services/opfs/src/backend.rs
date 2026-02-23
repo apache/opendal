@@ -25,6 +25,7 @@ use web_sys::FileSystemWritableFileStream;
 use super::OPFS_SCHEME;
 use super::config::OpfsConfig;
 use super::error::*;
+use super::lister::OpfsLister;
 use super::reader::OpfsReader;
 use super::utils::*;
 use super::writer::OpfsWriter;
@@ -69,7 +70,7 @@ impl Access for OpfsBackend {
 
     type Writer = OpfsWriter;
 
-    type Lister = ();
+    type Lister = OpfsLister;
 
     type Deleter = ();
 
@@ -82,6 +83,8 @@ impl Access for OpfsBackend {
             stat: true,
 
             read: true,
+
+            list: true,
 
             create_dir: true,
 
@@ -123,6 +126,13 @@ impl Access for OpfsBackend {
         let handle = get_file_handle(&p, false).await?;
 
         Ok((RpRead::new(), OpfsReader::new(handle, args.range())))
+    }
+
+    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
+        let p = build_abs_path(&self.root, path);
+        let dir = get_directory_handle(&p, false).await?;
+
+        Ok((RpList::default(), OpfsLister::new(dir, path.to_string())))
     }
 
     async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {

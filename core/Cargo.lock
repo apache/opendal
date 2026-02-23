@@ -7043,13 +7043,18 @@ dependencies = [
 name = "opendal-service-swift"
 version = "0.55.0"
 dependencies = [
+ "base64 0.22.1",
  "bytes",
+ "hmac",
  "http 1.4.0",
  "log",
  "opendal-core",
+ "percent-encoding",
  "quick-xml",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2",
  "tokio",
  "uuid",
 ]

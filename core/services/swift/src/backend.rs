@@ -152,6 +152,8 @@ impl Builder for SwiftBuilder {
 
                             delete: true,
 
+                            copy: true,
+
                             list: true,
                             list_with_recursive: true,
 

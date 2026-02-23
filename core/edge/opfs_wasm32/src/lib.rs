@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![cfg(target_arch = "wasm32")]
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;

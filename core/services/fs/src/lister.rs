@@ -68,14 +68,22 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
         );
 
         let ft = de.file_type().await.map_err(new_std_io_error)?;
-        let entry = if ft.is_dir() {
+        let (path, mode) = if ft.is_dir() {
             // Make sure we are returning the correct path.
-            oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
+            (&format!("{rel_path}/"), EntryMode::DIR)
         } else if ft.is_file() {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
+            (&rel_path, EntryMode::FILE)
         } else {
-            oio::Entry::new(&rel_path, Metadata::new(EntryMode::Unknown))
+            (&rel_path, EntryMode::Unknown)
         };
-        Ok(Some(entry))
+
+        let de_metadata = de.metadata().await.map_err(new_std_io_error)?;
+        let metadata = Metadata::new(mode)
+            .with_content_length(de_metadata.len())
+            .with_last_modified(Timestamp::try_from(
+                de_metadata.modified().map_err(new_std_io_error)?,
+            )?);
+
+        Ok(Some(oio::Entry::new(path, metadata)))
     }
 }

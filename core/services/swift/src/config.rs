@@ -29,13 +29,37 @@ use super::backend::SwiftBuilder;
 #[non_exhaustive]
 pub struct SwiftConfig {
     /// The endpoint for Swift.
+    ///
+    /// When using Keystone v3 authentication, this can be omitted and will be
+    /// discovered from the service catalog.
     pub endpoint: Option<String>,
     /// The container for Swift.
     pub container: Option<String>,
     /// The root for Swift.
     pub root: Option<String>,
     /// The token for Swift.
+    ///
+    /// When using Keystone v3 authentication, this is not needed — a token
+    /// will be acquired and refreshed automatically.
     pub token: Option<String>,
+    /// The Keystone v3 authentication URL.
+    ///
+    /// e.g. `https://keystone.example.com/v3`
+    pub auth_url: Option<String>,
+    /// The username for Keystone v3 authentication.
+    pub username: Option<String>,
+    /// The password for Keystone v3 authentication.
+    pub password: Option<String>,
+    /// The user domain name for Keystone v3 authentication.
+    ///
+    /// Defaults to "Default" if not specified.
+    pub user_domain_name: Option<String>,
+    /// The project (tenant) name for Keystone v3 authentication.
+    pub project_name: Option<String>,
+    /// The project domain name for Keystone v3 authentication.
+    ///
+    /// Defaults to "Default" if not specified.
+    pub project_domain_name: Option<String>,
 }
 
 impl Debug for SwiftConfig {
@@ -57,10 +81,10 @@ impl opendal_core::Configurator for SwiftConfig {
         if let Some(authority) = uri.authority() {
             map.entry("endpoint".to_string())
                 .or_insert_with(|| format!("https://{authority}"));
-        } else if !map.contains_key("endpoint") {
+        } else if !map.contains_key("endpoint") && !map.contains_key("auth_url") {
             return Err(opendal_core::Error::new(
                 opendal_core::ErrorKind::ConfigInvalid,
-                "endpoint is required",
+                "endpoint or auth_url is required",
             )
             .with_context("service", SWIFT_SCHEME));
         }

@@ -34,6 +34,7 @@ all-features = true
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+mea = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 serde = { workspace = true, features = ["derive"] }

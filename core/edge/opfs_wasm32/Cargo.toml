@@ -28,13 +28,13 @@ version.workspace = true
 crate-type = ["cdylib"]
 
 [dependencies]
+futures = { workspace = true, features = ["std", "async-await"] }
 opendal = { path = "../..", default-features = false, features = [
   "services-opfs",
 ] }
 wasm-bindgen = "0.2.89"
 wasm-bindgen-futures = "0.4.39"
 web-sys = { version = "0.3.77", features = ["console"] }
-futures = { workspace = true, features = ["std", "async-await"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.41"

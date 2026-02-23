@@ -1,13 +1,6 @@
 {
-  // "rust-analyzer.cargo.allTargets": true,
-  // "rust-analyzer.cargo.features": "all",
-  "rust-analyzer.cargo.target": "wasm32-unknown-unknown", //////////////// DO NOT MERGE
-  "rust-analyzer.cargo.allTargets": false, ///////// DO NOT MERGE
-  // "rust-analyzer.cargo.features": "all",
-  // "rust-analyzer.cargo.features": ["opfs"],
-  "rust-analyzer.cargo.features": [
-    "services-opfs"
-  ],
+  "rust-analyzer.cargo.allTargets": true,
+  "rust-analyzer.cargo.features": "all",
   "rust-analyzer.procMacro.ignored": {
     "napi-derive": [
       "napi"

@@ -149,6 +149,9 @@ ci: Update GitHub Actions workflow
 refactor(core): Simplify error handling
 ```
 
+## Pull Request Requirements
+- Always follow OpenDAL's pull request template when creating a PR.
+
 ## Testing Approach
 - Unit tests in `src/tests/`
 - Behavior tests validate service implementations

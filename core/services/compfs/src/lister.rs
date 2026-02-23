@@ -58,10 +58,14 @@ fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio
     let path = entry.path();
     let rel_path = normalize(&path, root);
 
-    let file_type = entry.file_type()?;
+    let de_metadata = entry.metadata()?;
+    let file_type = de_metadata.file_type();
 
     let entry = if file_type.is_file() {
-        oio::Entry::new(&rel_path, Metadata::new(EntryMode::FILE))
+        oio::Entry::new(
+            &rel_path,
+            Metadata::new(EntryMode::FILE).with_content_length(de_metadata.len()),
+        )
     } else if file_type.is_dir() {
         oio::Entry::new(&format!("{rel_path}/"), Metadata::new(EntryMode::DIR))
     } else {

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use send_wrapper::SendWrapper;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemFileHandle;
@@ -24,20 +25,15 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct OpfsReader {
-    handle: FileSystemFileHandle,
+    handle: SendWrapper<FileSystemFileHandle>,
     range: BytesRange,
     done: bool,
 }
 
-/// Safety: wasm32 is single-threaded, `Send` and `Sync` are meaningless.
-unsafe impl Send for OpfsReader {}
-/// Safety: wasm32 is single-threaded, `Send` and `Sync` are meaningless.
-unsafe impl Sync for OpfsReader {}
-
 impl OpfsReader {
     pub fn new(handle: FileSystemFileHandle, range: BytesRange) -> Self {
         Self {
-            handle,
+            handle: SendWrapper::new(handle),
             range,
             done: false,
         }

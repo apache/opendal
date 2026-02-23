@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use send_wrapper::SendWrapper;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemWritableFileStream;
 
@@ -24,19 +25,14 @@ use opendal_core::*;
 use super::error::*;
 
 pub struct OpfsWriter {
-    stream: FileSystemWritableFileStream,
+    stream: SendWrapper<FileSystemWritableFileStream>,
     bytes_written: u64,
 }
-
-/// Safety: wasm32 is single-threaded, `Send` and `Sync` are meaningless.
-unsafe impl Send for OpfsWriter {}
-/// Safety: wasm32 is single-threaded, `Send` and `Sync` are meaningless.
-unsafe impl Sync for OpfsWriter {}
 
 impl OpfsWriter {
     pub fn new(stream: FileSystemWritableFileStream) -> Self {
         Self {
-            stream,
+            stream: SendWrapper::new(stream),
             bytes_written: 0,
         }
     }

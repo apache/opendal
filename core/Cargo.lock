@@ -6874,6 +6874,7 @@ version = "0.55.0"
 dependencies = [
  "js-sys",
  "opendal-core",
+ "send_wrapper",
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -35,6 +35,7 @@ js-sys = "0.3.77"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 wasm-bindgen = "0.2.100"
+send_wrapper = "0.6"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
   "Blob",

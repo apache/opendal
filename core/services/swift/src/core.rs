@@ -26,6 +26,7 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use serde::Deserialize;
+use serde::Serialize;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -313,6 +314,153 @@ impl SwiftCore {
 
         self.info.http_client().send(req).await
     }
+
+    /// Build the segment path for an SLO part.
+    ///
+    /// Segments are stored as: `.segments/{object_path}/{upload_id}/{part_number:08}`
+    pub fn slo_segment_path(&self, path: &str, upload_id: &str, part_number: usize) -> String {
+        let abs = build_abs_path(&self.root, path);
+        format!(
+            ".segments/{}{}/{:08}",
+            abs.trim_end_matches('/'),
+            upload_id,
+            part_number
+        )
+    }
+
+    /// Upload a segment for an SLO multipart upload.
+    ///
+    /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
+    pub async fn swift_put_segment(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<Response<Buffer>> {
+        let segment = self.slo_segment_path(path, upload_id, part_number);
+        let url = format!(
+            "{}/{}/{}",
+            &self.endpoint,
+            &self.container,
+            percent_encode_path(&segment)
+        );
+
+        let mut req = Request::put(&url);
+        req = req.header("X-Auth-Token", &self.token);
+        req = req.header(header::CONTENT_LENGTH, size);
+
+        let req = req
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// Finalize an SLO by uploading the manifest.
+    ///
+    /// PUT {container}/{path}?multipart-manifest=put with a JSON body listing
+    /// each segment's path, etag, and size.
+    ///
+    /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
+    pub async fn swift_put_slo_manifest(
+        &self,
+        path: &str,
+        manifest: &[SloManifestEntry],
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let abs = build_abs_path(&self.root, path);
+        let url = format!(
+            "{}/{}/{}?multipart-manifest=put",
+            &self.endpoint,
+            &self.container,
+            percent_encode_path(&abs)
+        );
+
+        let body = serde_json::to_vec(manifest).map_err(new_json_serialize_error)?;
+
+        let mut req = Request::put(&url);
+        req = req.header("X-Auth-Token", &self.token);
+        req = req.header(header::CONTENT_LENGTH, body.len());
+        req = req.header(header::CONTENT_TYPE, "application/json");
+
+        // Forward user metadata to the manifest object.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (k, v) in user_metadata {
+                req = req.header(format!("X-Object-Meta-{k}"), v);
+            }
+        }
+
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::from(bytes::Bytes::from(body)))
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// Delete an SLO manifest and all its segments.
+    ///
+    /// DELETE {container}/{path}?multipart-manifest=delete removes the manifest
+    /// and all referenced segments in one call.
+    ///
+    /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
+    pub async fn swift_delete_slo(&self, path: &str, upload_id: &str) -> Result<()> {
+        // List segments under the upload_id prefix and delete them individually.
+        // We can't use multipart-manifest=delete because we haven't created
+        // the manifest yet (abort happens before complete).
+        let abs = build_abs_path(&self.root, path);
+        let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
+
+        // List all segments with this prefix.
+        let url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container))
+            .push("prefix", &percent_encode_path(&prefix))
+            .push("format", "json")
+            .finish();
+
+        let mut req = Request::get(&url);
+        req = req.header("X-Auth-Token", &self.token);
+
+        let req = req
+            .extension(Operation::List)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let resp = self.info.http_client().send(req).await?;
+        if !resp.status().is_success() {
+            return Ok(());
+        }
+
+        let bs = resp.into_body().to_bytes();
+        let segments: Vec<ListOpResponse> = serde_json::from_slice(&bs).unwrap_or_default();
+
+        // Delete each segment.
+        for seg in segments {
+            if let ListOpResponse::FileInfo { name, .. } = seg {
+                let seg_url = format!(
+                    "{}/{}/{}",
+                    &self.endpoint,
+                    &self.container,
+                    percent_encode_path(&name)
+                );
+
+                let mut req = Request::delete(&seg_url);
+                req = req.header("X-Auth-Token", &self.token);
+
+                let req = req
+                    .extension(Operation::Delete)
+                    .body(Buffer::new())
+                    .map_err(new_request_build_error)?;
+
+                // Best effort — ignore individual segment delete failures.
+                let _ = self.info.http_client().send(req).await;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Deserialize)]
@@ -352,6 +500,19 @@ pub struct BulkDeleteResponse {
     /// Response body (usually empty on success).
     #[serde(rename = "Response Body")]
     pub response_body: Option<String>,
+}
+
+/// Entry in an SLO manifest JSON array.
+///
+/// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
+#[derive(Debug, Serialize)]
+pub struct SloManifestEntry {
+    /// Path to the segment: `/{container}/{segment_name}`
+    pub path: String,
+    /// MD5 etag of the segment (without quotes).
+    pub etag: String,
+    /// Size of the segment in bytes.
+    pub size_bytes: u64,
 }
 
 #[cfg(test)]

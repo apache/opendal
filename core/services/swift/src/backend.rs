@@ -95,6 +95,30 @@ impl SwiftBuilder {
         }
         self
     }
+
+    /// Set the TempURL key for generating presigned URLs.
+    ///
+    /// This should match the `X-Account-Meta-Temp-URL-Key` or
+    /// `X-Container-Meta-Temp-URL-Key` value configured on the Swift
+    /// account or container.
+    pub fn temp_url_key(mut self, key: &str) -> Self {
+        if !key.is_empty() {
+            self.config.temp_url_key = Some(key.to_string());
+        }
+        self
+    }
+
+    /// Set the hash algorithm for TempURL signing.
+    ///
+    /// Supported values: `sha1`, `sha256`, `sha512`. Defaults to `sha256`.
+    /// The cluster must have the chosen algorithm in its
+    /// `tempurl.allowed_digests` (check `GET /info`).
+    pub fn temp_url_hash_algorithm(mut self, algo: &str) -> Self {
+        if !algo.is_empty() {
+            self.config.temp_url_hash_algorithm = Some(algo.to_string());
+        }
+        self
+    }
 }
 
 impl Builder for SwiftBuilder {
@@ -135,6 +159,12 @@ impl Builder for SwiftBuilder {
         };
 
         let token = self.config.token.unwrap_or_default();
+        let temp_url_key = self.config.temp_url_key.unwrap_or_default();
+        let has_temp_url_key = !temp_url_key.is_empty();
+        let temp_url_hash_algorithm = match &self.config.temp_url_hash_algorithm {
+            Some(algo) => TempUrlHashAlgorithm::from_str_opt(algo)?,
+            None => TempUrlHashAlgorithm::Sha256,
+        };
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
@@ -178,6 +208,11 @@ impl Builder for SwiftBuilder {
                             list: true,
                             list_with_recursive: true,
 
+                            presign: has_temp_url_key,
+                            presign_stat: has_temp_url_key,
+                            presign_read: has_temp_url_key,
+                            presign_write: has_temp_url_key,
+
                             shared: true,
 
                             ..Default::default()
@@ -188,6 +223,8 @@ impl Builder for SwiftBuilder {
                 endpoint,
                 container,
                 token,
+                temp_url_key,
+                temp_url_hash_algorithm,
             }),
         })
     }
@@ -269,6 +306,33 @@ impl Access for SwiftBackend {
         );
 
         Ok((RpList::default(), oio::PageLister::new(l)))
+    }
+
+    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+        let (expire, op) = args.into_parts();
+
+        let method = match &op {
+            PresignOperation::Stat(_) => http::Method::HEAD,
+            PresignOperation::Read(_) => http::Method::GET,
+            PresignOperation::Write(_) => http::Method::PUT,
+            _ => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "presign operation is not supported",
+                ));
+            }
+        };
+
+        let url = self.core.swift_temp_url(&method, path, expire)?;
+        let uri: http::Uri = url.parse().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "failed to parse presigned URL").set_source(e)
+        })?;
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            method,
+            uri,
+            http::HeaderMap::new(),
+        )))
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {

@@ -21,6 +21,10 @@ use std::sync::Arc;
 use http::Request;
 use http::Response;
 use http::header;
+use http::header::IF_MATCH;
+use http::header::IF_MODIFIED_SINCE;
+use http::header::IF_NONE_MATCH;
+use http::header::IF_UNMODIFIED_SINCE;
 use serde::Deserialize;
 
 use opendal_core::raw::*;
@@ -64,6 +68,43 @@ impl SwiftCore {
         let req = req
             .extension(Operation::Delete)
             .body(body)
+            .map_err(new_request_build_error)?;
+
+        self.info.http_client().send(req).await
+    }
+
+    /// Bulk delete multiple objects in a single request.
+    ///
+    /// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
+    pub async fn swift_bulk_delete(
+        &self,
+        paths: &[(String, OpDelete)],
+    ) -> Result<Response<Buffer>> {
+        // The bulk-delete endpoint is on the account URL (the endpoint itself).
+        let url = format!("{}?bulk-delete", &self.endpoint);
+
+        let mut req = Request::post(&url);
+
+        req = req.header("X-Auth-Token", &self.token);
+        req = req.header(header::CONTENT_TYPE, "text/plain");
+        req = req.header(header::ACCEPT, "application/json");
+
+        // Body is newline-separated list of URL-encoded paths:
+        // /{container}/{object_path}
+        let body_str: String = paths
+            .iter()
+            .map(|(path, _)| {
+                let abs = build_abs_path(&self.root, path);
+                format!("{}/{}", &self.container, percent_encode_path(&abs))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        req = req.header(header::CONTENT_LENGTH, body_str.len());
+
+        let req = req
+            .extension(Operation::Delete)
+            .body(Buffer::from(bytes::Bytes::from(body_str)))
             .map_err(new_request_build_error)?;
 
         self.info.http_client().send(req).await
@@ -121,6 +162,19 @@ impl SwiftCore {
 
         let mut req = Request::put(&url);
 
+        if let Some(content_type) = args.content_type() {
+            req = req.header(header::CONTENT_TYPE, content_type);
+        }
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(header::CONTENT_DISPOSITION, content_disposition);
+        }
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(header::CONTENT_ENCODING, content_encoding);
+        }
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(header::CACHE_CONTROL, cache_control);
+        }
+
         // Set user metadata headers.
         if let Some(user_metadata) = args.user_metadata() {
             for (k, v) in user_metadata {
@@ -143,7 +197,7 @@ impl SwiftCore {
         &self,
         path: &str,
         range: BytesRange,
-        _arg: &OpRead,
+        args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -162,6 +216,19 @@ impl SwiftCore {
 
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
         let req = req
@@ -212,7 +279,7 @@ impl SwiftCore {
         self.info.http_client().send(req).await
     }
 
-    pub async fn swift_get_metadata(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn swift_get_metadata(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -225,6 +292,19 @@ impl SwiftCore {
         let mut req = Request::head(&url);
 
         req = req.header("X-Auth-Token", &self.token);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+        if let Some(if_modified_since) = args.if_modified_since() {
+            req = req.header(IF_MODIFIED_SINCE, if_modified_since.format_http_date());
+        }
+        if let Some(if_unmodified_since) = args.if_unmodified_since() {
+            req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
+        }
 
         let req = req
             .extension(Operation::Stat)
@@ -248,6 +328,30 @@ pub enum ListOpResponse {
         last_modified: String,
         content_type: Option<String>,
     },
+}
+
+/// Response from Swift bulk-delete API.
+///
+/// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+#[allow(dead_code)]
+pub struct BulkDeleteResponse {
+    /// Number of objects successfully deleted.
+    #[serde(rename = "Number Deleted")]
+    pub number_deleted: i64,
+    /// Number of objects not found (treated as success).
+    #[serde(rename = "Number Not Found")]
+    pub number_not_found: i64,
+    /// Response status string, e.g. "200 OK".
+    #[serde(rename = "Response Status")]
+    pub response_status: String,
+    /// Per-object errors as [path, status_string] pairs.
+    #[serde(rename = "Errors", default)]
+    pub errors: Vec<Vec<String>>,
+    /// Response body (usually empty on success).
+    #[serde(rename = "Response Body")]
+    pub response_body: Option<String>,
 }
 
 #[cfg(test)]
@@ -304,6 +408,54 @@ mod tests {
                 subdir: "animals/".to_string()
             }
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bulk_delete_response_test() -> Result<()> {
+        let resp = bytes::Bytes::from(
+            r#"{
+                "Number Deleted": 2,
+                "Number Not Found": 1,
+                "Response Status": "200 OK",
+                "Errors": [],
+                "Response Body": ""
+            }"#,
+        );
+
+        let result: BulkDeleteResponse =
+            serde_json::from_slice(&resp).map_err(new_json_deserialize_error)?;
+
+        assert_eq!(result.number_deleted, 2);
+        assert_eq!(result.number_not_found, 1);
+        assert_eq!(result.response_status, "200 OK");
+        assert!(result.errors.is_empty());
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bulk_delete_response_with_errors_test() -> Result<()> {
+        let resp = bytes::Bytes::from(
+            r#"{
+                "Number Deleted": 1,
+                "Number Not Found": 0,
+                "Response Status": "400 Bad Request",
+                "Errors": [
+                    ["/container/path/to/file", "403 Forbidden"]
+                ],
+                "Response Body": ""
+            }"#,
+        );
+
+        let result: BulkDeleteResponse =
+            serde_json::from_slice(&resp).map_err(new_json_deserialize_error)?;
+
+        assert_eq!(result.number_deleted, 1);
+        assert_eq!(result.errors.len(), 1);
+        assert_eq!(result.errors[0][0], "/container/path/to/file");
+        assert_eq!(result.errors[0][1], "403 Forbidden");
 
         Ok(())
     }

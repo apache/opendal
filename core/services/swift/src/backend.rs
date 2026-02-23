@@ -144,13 +144,29 @@ impl Builder for SwiftBuilder {
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
+                            stat_with_if_match: true,
+                            stat_with_if_none_match: true,
+                            stat_with_if_modified_since: true,
+                            stat_with_if_unmodified_since: true,
+
                             read: true,
+                            read_with_if_match: true,
+                            read_with_if_none_match: true,
+                            read_with_if_modified_since: true,
+                            read_with_if_unmodified_since: true,
 
                             write: true,
                             write_can_empty: true,
+                            write_with_content_type: true,
+                            write_with_content_disposition: true,
+                            write_with_content_encoding: true,
+                            write_with_cache_control: true,
                             write_with_user_metadata: true,
 
                             delete: true,
+                            delete_max_size: Some(10000),
+
+                            copy: true,
 
                             list: true,
                             list_with_recursive: true,
@@ -180,14 +196,14 @@ impl Access for SwiftBackend {
     type Reader = HttpBody;
     type Writer = oio::OneShotWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
-    type Deleter = oio::OneShotDeleter<SwiftDeleter>;
+    type Deleter = oio::BatchDeleter<SwiftDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path).await?;
+    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(path, &args).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
@@ -230,7 +246,10 @@ impl Access for SwiftBackend {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(SwiftDeleter::new(self.core.clone())),
+            oio::BatchDeleter::new(
+                SwiftDeleter::new(self.core.clone()),
+                self.core.info.full_capability().delete_max_size,
+            ),
         ))
     }
 

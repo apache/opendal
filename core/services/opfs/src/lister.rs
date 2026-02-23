@@ -43,13 +43,9 @@ impl OpfsLister {
 
 impl oio::List for OpfsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        let result = JsFuture::from(
-            self.iter
-                .next()
-                .map_err(parse_js_error)?,
-        )
-        .await
-        .map_err(parse_js_error)?;
+        let result = JsFuture::from(self.iter.next().map_err(parse_js_error)?)
+            .await
+            .map_err(parse_js_error)?;
 
         let done = js_sys::Reflect::get(&result, &"done".into())
             .unwrap_or(JsValue::TRUE)
@@ -59,8 +55,7 @@ impl oio::List for OpfsLister {
             return Ok(None);
         }
 
-        let value = js_sys::Reflect::get(&result, &"value".into())
-            .map_err(parse_js_error)?;
+        let value = js_sys::Reflect::get(&result, &"value".into()).map_err(parse_js_error)?;
         let pair: js_sys::Array = value.unchecked_into();
         let name = pair.get(0).as_string().unwrap_or_default();
         let handle = pair.get(1);

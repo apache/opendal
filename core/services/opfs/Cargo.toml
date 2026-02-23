@@ -48,6 +48,8 @@ web-sys = { version = "0.3.77", features = [
   "FileSystemGetFileOptions",
   "FileSystemWritableFileStream",
   "Navigator",
+  "WriteCommandType",
+  "WriteParams",
   "StorageManager",
   "Window",
 ] }

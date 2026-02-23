@@ -16,8 +16,11 @@
 // under the License.
 
 use send_wrapper::SendWrapper;
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::FileSystemWritableFileStream;
+use web_sys::WriteCommandType;
+use web_sys::WriteParams;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -42,9 +45,13 @@ impl oio::Write for OpfsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         console_debug!("write!!!!!!!!!!!!!!!!!!!!!");
         let bytes = bs.to_bytes();
+        let params = WriteParams::new(WriteCommandType::Write);
+        params.set_size(Some(bytes.len() as f64));
+        let data: JsValue = js_sys::Uint8Array::from(bytes.as_ref()).into();
+        params.set_data(&data);
         JsFuture::from(
             self.stream
-                .write_with_u8_array(&bytes)
+                .write_with_write_params(&params.into())
                 .map_err(parse_js_error)?,
         )
         .await

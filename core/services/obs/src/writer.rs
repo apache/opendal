@@ -136,6 +136,7 @@ impl oio::MultipartWrite for ObsWriter {
                     part_number,
                     etag,
                     checksum: None,
+                    size: None,
                 })
             }
             _ => Err(parse_error(resp)),

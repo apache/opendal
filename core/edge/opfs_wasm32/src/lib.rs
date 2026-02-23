@@ -152,6 +152,7 @@ mod tests {
             let buffer = op.read(path).await.expect("read");
             console_log!("read = {:?}", buffer);
             assert_eq!(buffer.to_bytes(), content.as_bytes());
+            op.delete(path).await.expect("delete");
         }
     }
 
@@ -159,10 +160,12 @@ mod tests {
     async fn test_write_write_twice_same_file() {
         let op = new_operator();
         let content = "Content of the file to write";
-        let meta = op.write("/test_file", content).await.expect("write");
-        let meta = op.write("/test_file", content).await.expect("write");
+        let path = "/test_file";
+        let meta = op.write(path, content).await.expect("write");
+        let meta = op.write(path, content).await.expect("write");
         assert_eq!(meta.content_length(), content.len() as u64);
         assert!(meta.last_modified().is_none());
+        op.delete(path).await.expect("delete");
     }
 
     #[wasm_bindgen_test]
@@ -179,7 +182,8 @@ mod tests {
         assert_eq!(meta.content_length(), expected_file_size);
         assert!(meta.last_modified().is_none());
         let stat = op.stat(path).await.expect("stat");
-        assert_eq!(stat.content_length(), expected_file_size)
+        assert_eq!(stat.content_length(), expected_file_size);
+        op.delete(path).await.expect("delete");
     }
 
     #[wasm_bindgen_test]
@@ -217,6 +221,7 @@ mod tests {
             let buffer = op.read(path).await.expect("read");
             assert_eq!(buffer.to_bytes().len(), expected_file_size as usize);
         }
+        op.delete(path).await.expect("delete");
     }
 
     #[wasm_bindgen_test]
@@ -227,5 +232,6 @@ mod tests {
         let meta = op.write(path, content).await.expect("write");
         let buffer = op.read_with(path).range(3..5).await.expect("read");
         assert_eq!(buffer.to_bytes(), "34".as_bytes());
+        op.delete(path).await.expect("delete");
     }
 }

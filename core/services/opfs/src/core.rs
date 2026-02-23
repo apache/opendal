@@ -14,3 +14,46 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+
+use std::sync::Arc;
+
+use super::OPFS_SCHEME;
+use opendal_core::raw::*;
+use opendal_core::*;
+
+#[derive(Debug, Clone)]
+pub struct OpfsCore {
+    pub root: String,
+    pub info: Arc<AccessorInfo>,
+}
+
+impl OpfsCore {
+    pub fn new(root: String) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(OPFS_SCHEME);
+        info.set_name("opfs");
+        info.set_root(&root);
+        info.set_native_capability(Capability {
+            stat: true,
+
+            read: true,
+
+            list: true,
+
+            create_dir: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_multi: true,
+
+            delete: true,
+
+            ..Default::default()
+        });
+
+        Self {
+            root,
+            info: Arc::new(info),
+        }
+    }
+}

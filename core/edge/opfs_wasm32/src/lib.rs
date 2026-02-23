@@ -56,29 +56,63 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
-    async fn test_create_directory_handle_with_root() {
-        // let op = Operator::new(Opfs::default()).expect("REASON")..finish();
-        let op_rooted = Operator::new(Opfs::default().root("/myapp/subdir1/subdir2/"))
-            .expect("config")
-            .finish();
-        op_rooted
-            .write("subdir3/somefile", "content")
-            .await
-            .expect("write under root");
+    async fn test_create_directory_handle_with_root_and_list() {
+        {
+            // create files and dirs
+            let op_rooted = Operator::new(Opfs::default().root("/myapp/subdir1/subdir2/"))
+                .expect("config")
+                .finish();
+            op_rooted
+                .write("subdir3/somefile", "content")
+                .await
+                .expect("write under root");
 
-        let stat_rooted = op_rooted.stat("subdir3/somefile").await.expect("stat");
+            let stat_rooted = op_rooted.stat("subdir3/somefile").await.expect("stat");
 
-        let op = new_operator();
-        let stat = op
-            .stat("/myapp/subdir1/subdir2/subdir3/somefile")
-            .await
-            .expect("stat");
-        assert_eq!(stat_rooted, stat_rooted);
-        let stat = op
-            .stat("myapp/subdir1/subdir2/subdir3/somefile")
-            .await
-            .expect("stat");
-        assert_eq!(stat_rooted, stat_rooted);
+            let op = new_operator();
+            let stat = op
+                .stat("/myapp/subdir1/subdir2/subdir3/somefile")
+                .await
+                .expect("stat");
+            assert_eq!(stat_rooted, stat_rooted);
+            let stat = op
+                .stat("myapp/subdir1/subdir2/subdir3/somefile")
+                .await
+                .expect("stat");
+            assert_eq!(stat_rooted, stat_rooted);
+        }
+
+        {
+            // simple list
+            let op = new_operator();
+            let mut entries = op.lister("").await.expect("list");
+            while let Some(entry) = entries.try_next().await.expect("next") {
+                console_log!("entry: {} {:?}", entry.path(), entry.metadata().mode());
+            }
+        }
+
+        // list test added here so we are sure there are dirs and files to list
+        {
+            // simple list
+            let op = new_operator();
+            let mut entries = op.lister("myapp/").await.expect("list");
+            while let Some(entry) = entries.try_next().await.expect("next") {
+                console_log!("entry: {} {:?}", entry.path(), entry.metadata().mode());
+            }
+        }
+
+        {
+            // recursive list
+            let op = new_operator();
+            let mut entries = op
+                .lister_with("")
+                .recursive(true)
+                .await
+                .expect("recursive list");
+            while let Some(entry) = entries.try_next().await.expect("next") {
+                console_log!("rec entry: {} {:?}", entry.path(), entry.metadata().mode());
+            }
+        }
     }
 
     #[wasm_bindgen_test]
@@ -129,11 +163,6 @@ mod tests {
         let meta = op.write("/test_file", content).await.expect("write");
         assert_eq!(meta.content_length(), content.len() as u64);
         assert!(meta.last_modified().is_none());
-
-        let mut entries = op.lister("").await.expect("list");
-        while let Some(entry) = entries.try_next().await.expect("next") {
-            console_log!("entry: {} {:?}", entry.path(), entry.metadata().mode());
-        }
     }
 
     #[wasm_bindgen_test]

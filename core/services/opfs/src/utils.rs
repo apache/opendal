@@ -49,9 +49,12 @@ pub(crate) async fn get_directory_handle(
     let opt = FileSystemGetDirectoryOptions::new();
     opt.set_create(create);
 
-    let dirs = path.trim_matches('/').split('/');
+    let trimmed = path.trim_matches('/');
     let mut handle = get_root_directory_handle().await?;
-    for dir in dirs {
+    if trimmed.is_empty() {
+        return Ok(handle);
+    }
+    for dir in trimmed.split('/') {
         handle = JsFuture::from(handle.get_directory_handle_with_options(dir, &opt))
             .await
             .and_then(JsCast::dyn_into)

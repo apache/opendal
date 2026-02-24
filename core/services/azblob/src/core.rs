@@ -599,6 +599,7 @@ impl AzblobCore {
         next_marker: &str,
         delimiter: &str,
         limit: Option<usize>,
+        include_deleted: bool,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.container))
@@ -616,6 +617,10 @@ impl AzblobCore {
         }
         if !next_marker.is_empty() {
             url = url.push("marker", next_marker);
+        }
+
+        if include_deleted {
+            url = url.push("include", "deleted");
         }
 
         let mut req = Request::get(url.finish())
@@ -685,6 +690,8 @@ pub struct BlobPrefix {
 pub struct Blob {
     pub properties: Properties,
     pub name: String,
+    #[serde(rename = "Deleted")]
+    pub deleted: Option<bool>,
 }
 
 #[derive(Default, Debug, Deserialize)]

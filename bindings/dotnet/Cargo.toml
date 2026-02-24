@@ -34,8 +34,16 @@ doc = false
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
+  "reqwest-rustls-tls",
+  "executors-tokio",
 
-  # These are default features before v0.46. TODO: change to optional features
+  # enabled layers
+  "layers-concurrent-limit",
+  "layers-logging",
+  "layers-retry",
+  "layers-timeout",
+
+  # enabled services
   "services-azblob",
   "services-azdls",
   "services-cos",
@@ -50,6 +58,45 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-s3",
   "services-webdav",
   "services-webhdfs",
+  "services-aliyun-drive",
+  "services-cacache",
+  "services-dashmap",
+  "services-dropbox",
+  "services-etcd",
+  # FIXME this requires a preinstalled fdb library
+  # "services-foundationdb",
+  # FIXME requires openssl.
+  # "services-ftp",
+  "services-gdrive",
+  # FIXME how to support HDFS services in bindings?
+  # "services-hdfs",
+  # "services-hdfs-native",
+  "services-hf",
+  "services-ipfs",
+  "services-memcached",
+  "services-mini-moka",
+  "services-moka",
+  "services-onedrive",
+  "services-persy",
+  "services-postgresql",
+  "services-koofr",
+  "services-mysql",
+  "services-redb",
+  "services-redis",
+  # FIXME: rocksdb will lead to "cannot allocate memory in static TLS block" while linking.
+  # "services-rocksdb",
+  "services-sled",
+  "services-tikv",
+  "services-vercel-artifacts",
+  "services-mongodb",
+  "services-gridfs",
+  "services-sqlite",
   "services-azfile",
+  "services-swift",
+  "services-alluxio",
+  "services-b2",
+  "services-seafile",
+  "services-upyun",
+  "services-yandex-disk",
 ] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full"] }

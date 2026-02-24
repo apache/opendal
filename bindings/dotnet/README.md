@@ -10,7 +10,7 @@ This binding is currently under development. Please check back later.
 
 To compile OpenDAL .NET binding from source code, you need:
 
-- [.NET](https://dotnet.microsoft.com/en-us/download/dotnet) version 7.0
+- [.NET](https://dotnet.microsoft.com/en-us/download/dotnet) version 10.0
 
 ```bash
 cargo build

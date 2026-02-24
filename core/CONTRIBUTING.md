@@ -4,13 +4,14 @@
 
 - `cargo check` to analyze the current package and report errors.
 - `cargo build` to compile the current package.
-- `cargo clippy` to catch common mistakes and improve code.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` to catch common mistakes and improve code.
 - `cargo test --features tests` to run unit tests.
 - `cargo test` to run unit tests include doc tests.
 - `cargo bench` to run benchmark tests.
 
 Useful tips:
 
+- Run linter for specific services: `cargo clippy --all-targets --features=services-s3 -- -D warnings`
 - Check/Build/Test/Clippy all code: `cargo <cmd> --tests --benches --examples`
 - Test specific function: `cargo test tests::it::services::fs`
 

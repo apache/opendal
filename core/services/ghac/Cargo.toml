@@ -38,7 +38,8 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 opendal-service-azblob = { path = "../azblob", version = "0.55.0", default-features = false }
 prost = { version = "0.13", default-features = false }
-reqsign = { workspace = true }
+reqsign-azure-storage = { version = "2.0.2", default-features = false }
+reqsign-core = { version = "2.0.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

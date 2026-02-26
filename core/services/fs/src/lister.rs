@@ -48,42 +48,69 @@ unsafe impl<P> Sync for FsLister<P> {}
 
 impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        // since list should return path itself, we return it first
-        if let Some(path) = self.current_path.take() {
-            let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
-            return Ok(Some(e));
+        loop {
+            // since list should return path itself, we return it first
+            if let Some(path) = self.current_path.take() {
+                let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+                return Ok(Some(e));
+            }
+
+            let de = match self.rd.next_entry().await {
+                Ok(Some(de)) => de,
+                Ok(None) => return Ok(None),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Directory can be removed during listing; stop gracefully.
+                    return Ok(None);
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            };
+
+            let entry_path = de.path();
+            let rel_path = normalize_path(
+                &entry_path
+                    .strip_prefix(&self.root)
+                    .expect("cannot fail because the prefix is iterated")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
+
+            let ft = match de.file_type().await {
+                Ok(ft) => ft,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Entry can be deleted between readdir and stat calls.
+                    continue;
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            };
+            let (path, mode) = if ft.is_dir() {
+                // Make sure we are returning the correct path.
+                (&format!("{rel_path}/"), EntryMode::DIR)
+            } else if ft.is_file() {
+                (&rel_path, EntryMode::FILE)
+            } else {
+                (&rel_path, EntryMode::Unknown)
+            };
+
+            let de_metadata = match de.metadata().await {
+                Ok(de_metadata) => de_metadata,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    // Entry can be deleted between readdir and metadata calls.
+                    continue;
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            };
+            let last_modified = match de_metadata.modified() {
+                Ok(v) => v,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    continue;
+                }
+                Err(e) => return Err(new_std_io_error(e)),
+            };
+            let metadata = Metadata::new(mode)
+                .with_content_length(de_metadata.len())
+                .with_last_modified(Timestamp::try_from(last_modified)?);
+
+            return Ok(Some(oio::Entry::new(path, metadata)));
         }
-
-        let Some(de) = self.rd.next_entry().await.map_err(new_std_io_error)? else {
-            return Ok(None);
-        };
-
-        let entry_path = de.path();
-        let rel_path = normalize_path(
-            &entry_path
-                .strip_prefix(&self.root)
-                .expect("cannot fail because the prefix is iterated")
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
-
-        let ft = de.file_type().await.map_err(new_std_io_error)?;
-        let (path, mode) = if ft.is_dir() {
-            // Make sure we are returning the correct path.
-            (&format!("{rel_path}/"), EntryMode::DIR)
-        } else if ft.is_file() {
-            (&rel_path, EntryMode::FILE)
-        } else {
-            (&rel_path, EntryMode::Unknown)
-        };
-
-        let de_metadata = de.metadata().await.map_err(new_std_io_error)?;
-        let metadata = Metadata::new(mode)
-            .with_content_length(de_metadata.len())
-            .with_last_modified(Timestamp::try_from(
-                de_metadata.modified().map_err(new_std_io_error)?,
-            )?);
-
-        Ok(Some(oio::Entry::new(path, metadata)))
     }
 }

@@ -1,0 +1,25 @@
+<map id="/home/runner/work/opendal/opendal/bindings/cpp/include/opendal.hpp" name="/home/runner/work/opendal/opendal/bindings/cpp/include/opendal.hpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="233,5,447,60"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,108,72,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="249,63,86,109,85,104,247,58"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="96,108,176,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="279,63,177,105,175,100,277,58"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="200,108,277,133"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="311,62,264,101,261,97,307,58"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="268,181,343,207"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="337,61,313,168,308,167,332,60"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="367,181,425,207"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="352,59,390,168,385,169,347,61"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="571,108,695,133"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="430,58,582,102,581,107,429,63"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="719,108,782,133"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="448,51,706,105,705,110,447,56"/>
+<area shape="rect" id="Node000009" href="$data__structure_8hpp.html" title=" " alt="" coords="403,108,547,133"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="383,58,447,98,444,103,380,62"/>
+<area shape="poly" id="edge11_Node000009_Node000005" title=" " alt="" coords="448,136,347,178,345,173,446,131"/>
+<area shape="poly" id="edge12_Node000009_Node000006" title=" " alt="" coords="464,135,421,174,417,170,460,131"/>
+<area shape="rect" id="Node000010" title=" " alt="" coords="449,181,516,207"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="479,133,483,168,477,168,473,134"/>
+<area shape="rect" id="Node000011" title=" " alt="" coords="540,181,607,207"/>
+<area shape="poly" id="edge10_Node000009_Node000011" title=" " alt="" coords="492,131,548,171,545,175,489,136"/>
+</map>

@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["opendal_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html\" title=\"trait core::hash::Hash\">Hash</a> for <a class=\"enum\" href=\"opendal_core/enum.ErrorKind.html\" title=\"enum opendal_core::ErrorKind\">ErrorKind</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html\" title=\"trait core::hash::Hash\">Hash</a> for <a class=\"enum\" href=\"opendal_core/raw/enum.Operation.html\" title=\"enum opendal_core::raw::Operation\">Operation</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html\" title=\"trait core::hash::Hash\">Hash</a> for <a class=\"struct\" href=\"opendal_core/raw/struct.AccessorInfo.html\" title=\"struct opendal_core::raw::AccessorInfo\">AccessorInfo</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html\" title=\"trait core::hash::Hash\">Hash</a> for <a class=\"struct\" href=\"opendal_core/raw/struct.OpDelete.html\" title=\"struct opendal_core::raw::OpDelete\">OpDelete</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/hash/trait.Hash.html\" title=\"trait core::hash::Hash\">Hash</a> for <a class=\"struct\" href=\"opendal_core/raw/struct.Timestamp.html\" title=\"struct opendal_core::raw::Timestamp\">Timestamp</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1358]}

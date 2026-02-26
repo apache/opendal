@@ -75,6 +75,8 @@ pub mod constants {
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
     pub const X_AMZ_OBJECT_SIZE: &str = "x-amz-object-size";
 
+    pub const X_AMZ_ACL: &str = "x-amz-acl";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -97,6 +99,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
+    pub default_acl: Option<String>,
 
     pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
@@ -329,6 +332,11 @@ impl S3Core {
             for (key, value) in user_metadata {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
+        }
+
+        // Set ACL header.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
         }
         req
     }

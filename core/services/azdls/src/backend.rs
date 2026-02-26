@@ -21,9 +21,16 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use reqsign::AzureStorageConfig;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::DefaultCredentialProvider;
+use reqsign_azure_storage::RequestSigner;
+use reqsign_azure_storage::StaticCredentialProvider;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::Signer;
+use reqsign_core::StaticEnv;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
@@ -37,11 +44,12 @@ use super::writer::AzdlsWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{
-    AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
+    AzureStorageConfig as AzureConnectionConfig, AzureStorageService,
+    azure_account_name_from_endpoint, azure_config_from_connection_string,
 };
 
-impl From<AzureStorageConfig> for AzdlsConfig {
-    fn from(config: AzureStorageConfig) -> Self {
+impl From<AzureConnectionConfig> for AzdlsConfig {
+    fn from(config: AzureConnectionConfig) -> Self {
         AzdlsConfig {
             endpoint: config.endpoint,
             account_name: config.account_name,
@@ -252,23 +260,62 @@ impl Builder for AzdlsBuilder {
         }?;
         debug!("backend use endpoint {}", &endpoint);
 
-        let config_loader = AzureStorageConfig {
-            account_name: self
-                .config
-                .account_name
-                .clone()
-                .or_else(|| azure_account_name_from_endpoint(endpoint.as_str())),
-            account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token,
-            client_id: self.config.client_id.clone(),
-            client_secret: self.config.client_secret.clone(),
-            tenant_id: self.config.tenant_id.clone(),
-            authority_host: self.config.authority_host.clone(),
-            ..Default::default()
-        };
+        let account_name = self
+            .config
+            .account_name
+            .clone()
+            .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
-        let cred_loader = AzureStorageLoader::new(config_loader);
-        let signer = AzureStorageSigner::new();
+        let mut envs = std::collections::HashMap::new();
+
+        if let Some(v) = &account_name {
+            envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), v.clone());
+            envs.insert("AZURE_STORAGE_ACCOUNT_NAME".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.account_key {
+            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
+            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.sas_token {
+            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.client_id {
+            envs.insert("AZURE_CLIENT_ID".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.client_secret {
+            envs.insert("AZURE_CLIENT_SECRET".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.tenant_id {
+            envs.insert("AZURE_TENANT_ID".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.authority_host {
+            envs.insert("AZURE_AUTHORITY_HOST".to_string(), v.clone());
+        }
+
+        let os_env = OsEnv;
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(StaticEnv {
+                home_dir: os_env.home_dir(),
+                envs,
+            });
+
+        let mut credential = DefaultCredentialProvider::new();
+
+        if let (Some(account_name), Some(account_key)) =
+            (account_name.as_deref(), self.config.account_key.as_deref())
+        {
+            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
+                account_name,
+                account_key,
+            ));
+        }
+        if let Some(sas_token) = self.config.sas_token.as_deref() {
+            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        let signer = Signer::new(ctx, credential, RequestSigner::new());
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 info: {
@@ -307,7 +354,6 @@ impl Builder for AzdlsBuilder {
                 root,
                 endpoint,
                 enable_hns: self.config.enable_hns,
-                loader: cred_loader,
                 signer,
             }),
         })

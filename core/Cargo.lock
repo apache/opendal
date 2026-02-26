@@ -6383,7 +6383,10 @@ dependencies = [
  "opendal-service-azure-common",
  "pretty_assertions",
  "quick-xml",
- "reqsign",
+ "reqsign-azure-storage",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
  "serde",
  "serde_json",
  "sha2",
@@ -6401,7 +6404,10 @@ dependencies = [
  "opendal-core",
  "opendal-service-azure-common",
  "quick-xml",
- "reqsign",
+ "reqsign-azure-storage",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
  "serde",
  "serde_json",
  "tokio",
@@ -6417,7 +6423,10 @@ dependencies = [
  "opendal-core",
  "opendal-service-azure-common",
  "quick-xml",
- "reqsign",
+ "reqsign-azure-storage",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
  "serde",
  "tokio",
 ]
@@ -6428,7 +6437,6 @@ version = "0.55.0"
 dependencies = [
  "http 1.4.0",
  "opendal-core",
- "reqsign",
 ]
 
 [[package]]
@@ -6636,7 +6644,8 @@ dependencies = [
  "opendal-core",
  "opendal-service-azblob",
  "prost 0.13.5",
- "reqsign",
+ "reqsign-azure-storage",
+ "reqsign-core",
  "serde",
  "serde_json",
  "sha2",
@@ -8705,6 +8714,29 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "sha1",
+]
+
+[[package]]
+name = "reqsign-azure-storage"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "153687178cff1ba9fe13d5f43c7364a3b0cf70751b9ef44ae03d4385c7558085"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bytes",
+ "form_urlencoded",
+ "http 1.4.0",
+ "jsonwebtoken",
+ "log",
+ "pem",
+ "percent-encoding",
+ "reqsign-core",
+ "rsa",
+ "serde",
+ "serde_json",
  "sha1",
 ]
 

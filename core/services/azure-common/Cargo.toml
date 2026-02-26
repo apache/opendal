@@ -33,4 +33,3 @@ all-features = true
 [dependencies]
 http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
-reqsign = { workspace = true }

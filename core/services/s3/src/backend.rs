@@ -922,12 +922,16 @@ impl Builder for S3Builder {
                             },
 
                             delete: true,
+                            delete_with_if_match: true,
                             delete_max_size: Some(delete_max_size),
                             delete_with_version: config.enable_versioning,
 
                             copy: true,
+                            copy_with_if_not_exists: true,
+                            copy_with_if_match: true,
 
                             list: true,
+                            rename: false,
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
@@ -1072,8 +1076,8 @@ impl Access for S3Backend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.s3_copy_object(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.s3_copy_object(from, to, args).await?;
 
         let status = resp.status();
 

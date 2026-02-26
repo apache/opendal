@@ -45,6 +45,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copy_with_if_not_exists_to_existing_file
         ))
     }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_match {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_if_match_success,
+            test_copy_with_if_match_failure
+        ))
+    }
 }
 
 /// Copy a file with ascii name and test contents.
@@ -311,5 +319,70 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
 
     op.delete(&source_path).await.expect("delete must succeed");
     op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_match should succeed when ETag matches.
+pub async fn test_copy_with_if_match_success(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    // Get the ETag of the source file
+    let source_meta = op.stat(&source_path).await?;
+    let etag = source_meta.etag().expect("source should have etag");
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    // Copy with matching ETag should succeed
+    op.copy_with(&source_path, &target_path)
+        .if_match(etag)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        format!("{:x}", Sha256::digest(target_content)),
+        format!("{:x}", Sha256::digest(&source_content)),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_match should fail when ETag doesn't match.
+pub async fn test_copy_with_if_match_failure(op: Operator) -> Result<()> {
+    if !op.info().full_capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+
+    // Copy with non-matching ETag should fail
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_match("invalid-etag")
+        .await
+        .expect_err("copy must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    // Verify target file was not created
+    assert!(!op.exists(&target_path).await?);
+
+    op.delete(&source_path).await.expect("delete must succeed");
     Ok(())
 }

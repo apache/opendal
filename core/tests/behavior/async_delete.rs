@@ -48,6 +48,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
                 tests.extend(async_trials!(op, test_remove_all_with_prefix_exists));
             }
         }
+        if cap.delete_with_if_match {
+            tests.extend(async_trials!(
+                op,
+                test_delete_with_if_match_success,
+                test_delete_with_if_match_failure
+            ));
+        }
     }
 }
 
@@ -378,6 +385,56 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
     }
+
+    Ok(())
+}
+
+/// Delete with if_match should succeed when ETag matches.
+pub async fn test_delete_with_if_match_success(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_if_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    // Get the ETag of the file
+    let meta = op.stat(&path).await.expect("stat must succeed");
+    let etag = meta.etag().expect("file should have etag");
+
+    // Delete with matching ETag should succeed
+    op.delete_with(&path).if_match(etag).await?;
+
+    // Verify file is deleted
+    assert!(!op.exists(&path).await?);
+
+    Ok(())
+}
+
+/// Delete with if_match should fail when ETag doesn't match.
+pub async fn test_delete_with_if_match_failure(op: Operator) -> Result<()> {
+    if !op.info().full_capability().delete_with_if_match {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path, content).await.expect("write must succeed");
+
+    // Delete with non-matching ETag should fail
+    let err = op
+        .delete_with(&path)
+        .if_match("invalid-etag")
+        .await
+        .expect_err("delete must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    // Verify file still exists
+    assert!(op.exists(&path).await?);
+
+    // Clean up
+    op.delete(&path).await.expect("delete must succeed");
 
     Ok(())
 }

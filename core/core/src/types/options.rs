@@ -21,10 +21,17 @@ use crate::raw::{BytesRange, Timestamp};
 use std::collections::HashMap;
 
 /// Options for delete operations.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct DeleteOptions {
     /// The version of the file to delete.
     pub version: Option<String>,
+    /// Set `if_match` for this operation.
+    ///
+    /// This option can be used to check if the file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    pub if_match: Option<String>,
     /// Whether to delete the target recursively.
     ///
     /// - If `false`, behaves like the traditional single-object delete.
@@ -532,4 +539,12 @@ pub struct CopyOptions {
     /// This operation provides a way to ensure copy operations only create new resources
     /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
     pub if_not_exists: bool,
+
+    /// Set `if_match` for this operation.
+    ///
+    /// This option can be used to check if the source file's `ETag` matches the given `ETag`.
+    ///
+    /// If file exists and it's etag doesn't match, an error with kind [`ErrorKind::ConditionNotMatch`]
+    /// will be returned.
+    pub if_match: Option<String>,
 }

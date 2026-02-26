@@ -65,6 +65,9 @@ pub struct GcsBuilder {
     pub(super) credential_provider_chain: Option<ProvideCredentialChain<Credential>>,
 }
 
+// TODO(remove): drop this adapter once reqsign-google provides a built-in
+// static access token provider.
+// Tracking issue: https://github.com/apache/opendal-reqsign/issues/694
 #[derive(Clone, Debug)]
 struct StaticTokenCredentialProvider {
     token: String,
@@ -93,6 +96,9 @@ impl ProvideCredential for StaticTokenCredentialProvider {
     }
 }
 
+// TODO(remove): drop this adapter once reqsign-google provides a built-in
+// file-path credential provider for explicit credential_path usage.
+// Tracking issue: https://github.com/apache/opendal-reqsign/issues/696
 #[derive(Clone, Debug)]
 struct PathCredentialProvider {
     path: String,
@@ -134,6 +140,9 @@ struct VmMetadataTokenResponse {
     expires_in: u64,
 }
 
+// TODO(remove): drop this adapter once reqsign-google supports selecting
+// service account for VM metadata credential loading.
+// Tracking issue: https://github.com/apache/opendal-reqsign/issues/695
 #[derive(Clone, Debug)]
 struct ServiceAccountVmMetadataCredentialProvider {
     service_account: String,

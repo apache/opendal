@@ -6483,7 +6483,10 @@ dependencies = [
  "log",
  "opendal-core",
  "quick-xml",
- "reqsign",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-http-send-reqwest",
+ "reqsign-tencent-cos",
  "reqwest",
  "serde",
  "tokio",
@@ -8790,6 +8793,22 @@ dependencies = [
  "log",
  "percent-encoding",
  "reqsign-core",
+]
+
+[[package]]
+name = "reqsign-tencent-cos"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3698e12fecf5976b9b6591c855afc0b3633c14526b935a61c885e573c2c9abd4"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "http 1.4.0",
+ "log",
+ "percent-encoding",
+ "reqsign-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

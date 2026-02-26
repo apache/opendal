@@ -31,13 +31,19 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
+base64 = { workspace = true }
 bytes = { workspace = true }
+hmac = "0.12.1"
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha1 = "0.10.6"
+sha2 = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

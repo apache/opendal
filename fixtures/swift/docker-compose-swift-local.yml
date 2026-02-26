@@ -15,34 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ruff: noqa: D104
-from __future__ import annotations
+# Locally-built Swift SAIO for native arm64/aarch64 support.
+#
+# The upstream openstackswift/saio:py3 image is amd64-only.
+# This compose file builds from the Dockerfile which supports
+# both amd64 and arm64 natively.
+#
+# Usage:
+#   docker compose -f docker-compose-swift-local.yml up -d --build --wait
+#   podman compose -f docker-compose-swift-local.yml up -d --build --wait
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    __version__: str
-    from opendal import capability, exceptions, file, layers, services, types
-else:
-    from opendal._opendal import (
-        __version__,  # noqa: F401
-        capability,
-        exceptions,
-        file,
-        layers,
-        services,
-        types,
-    )
-
-from opendal.operator import AsyncOperator, Operator  # pyright:ignore
-
-__all__ = [
-    "capability",
-    "exceptions",
-    "file",
-    "layers",
-    "services",
-    "types",
-    "AsyncOperator",
-    "Operator",
-]
+services:
+  swift:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: opendal-swift-saio:local
+    ports:
+      - 8080:8080
+    healthcheck:
+      test: ["CMD", "curl", "-i", "-H", "X-Storage-User: test:tester", "-H", "X-Storage-Pass: testing", "http://localhost:8080/"]
+      interval: 3s
+      timeout: 20s
+      retries: 10

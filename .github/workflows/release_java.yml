@@ -55,7 +55,7 @@ jobs:
       - name: Set up JDK 8
         uses: actions/setup-java@v5
         with:
-          distribution: "zulu"
+          distribution: zulu
           java-version: "8"
           cache: "maven"
           server-id: apache.releases.https
@@ -84,7 +84,6 @@ jobs:
             -DskipTests=true \
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
-            -Dcargo-build.features=services-all \
             -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
             -DaltStagingDirectory=local-staging \
             -DskipRemoteStaging=true \
@@ -113,7 +112,7 @@ jobs:
       - name: Set up JDK 8
         uses: actions/setup-java@v5
         with:
-          distribution: "zulu"
+          distribution: zulu
           java-version: "8"
           cache: "maven"
           server-id: apache.releases.https

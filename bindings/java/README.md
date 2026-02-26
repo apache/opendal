@@ -155,16 +155,6 @@ You can run service behavior tests of enabled with the following command:
 ./mvnw test -Dtest="behavior.*Test"
 ```
 
-Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
-
-```shell
-export OPENDAL_TEST=redis
-export OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
-export OPENDAL_REDIS_ROOT=/
-export OPENDAL_REDIS_DB=0
-./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
-```
-
 ## Used by
 
 Check out the [users](./users.md) list for more details on who is using OpenDAL.

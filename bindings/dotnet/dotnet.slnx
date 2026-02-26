@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DotOpenDAL.Tests/DotOpenDAL.Tests.csproj" />
+  <Project Path="DotOpenDAL/DotOpenDAL.csproj" />
+</Solution>

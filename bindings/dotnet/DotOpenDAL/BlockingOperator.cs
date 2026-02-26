@@ -22,7 +22,7 @@ using System.Runtime.InteropServices;
 
 namespace DotOpenDAL;
 
-public class BlockingOperator
+public partial class BlockingOperator
 {
     public IntPtr Op { get; }
 
@@ -41,24 +41,12 @@ public class BlockingOperator
         return blocking_operator_read(Op, path);
     }
 
-    [DllImport(
-        "opendal_dotnet",
-        EntryPoint = "blocking_operator_construct",
-        CallingConvention = CallingConvention.Cdecl,
-        CharSet = CharSet.Auto)]
-    private static extern IntPtr blocking_operator_construct(string scheme);
+    [LibraryImport("opendal_dotnet", EntryPoint = "blocking_operator_construct", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial IntPtr blocking_operator_construct(string scheme);
 
-    [DllImport(
-        "opendal_dotnet",
-        EntryPoint = "blocking_operator_write",
-        CallingConvention = CallingConvention.Cdecl,
-        CharSet = CharSet.Auto)]
-    private static extern void blocking_operator_write(IntPtr op, string path, string content);
+    [LibraryImport("opendal_dotnet", EntryPoint = "blocking_operator_write", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial void blocking_operator_write(IntPtr op, string path, string content);
 
-    [DllImport(
-        "opendal_dotnet",
-        EntryPoint = "blocking_operator_read",
-        CallingConvention = CallingConvention.Cdecl,
-        CharSet = CharSet.Auto)]
-    private static extern string blocking_operator_read(IntPtr op, string path);
+    [LibraryImport("opendal_dotnet", EntryPoint = "blocking_operator_read", StringMarshalling = StringMarshalling.Utf8)]
+    private static partial string blocking_operator_read(IntPtr op, string path);
 }

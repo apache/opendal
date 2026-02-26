@@ -24,8 +24,8 @@ runs:
     - name: Setup java env
       uses: actions/setup-java@v4
       with:
-        distribution: temurin
-        java-version: "11"
+        distribution: zulu
+        java-version: 11
     - name: Load secrets
       uses: 1password/load-secrets-action@13f58eec611f8e5db52ec16247f58c508398f3e6 # v3
       with:

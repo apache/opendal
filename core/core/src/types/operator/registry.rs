@@ -15,42 +15,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-
 use crate::types::builder::{Builder, Configurator};
 use crate::types::{IntoOperatorUri, OperatorUri};
 use crate::{Error, ErrorKind, Operator, Result};
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
 
 /// Factory signature used to construct [`Operator`] from a URI and extra options.
 pub type OperatorFactory = fn(&OperatorUri) -> Result<Operator>;
 
-/// Default registry used by [`Operator::from_uri`].
-///
-/// `memory` is always registered here since it's used pervasively in unit tests
-/// and as a zero-dependency backend.
-///
-/// Other optional service registrations are handled by the facade crate `opendal`.
-pub static DEFAULT_OPERATOR_REGISTRY: LazyLock<OperatorRegistry> = LazyLock::new(|| {
-    let registry = OperatorRegistry::new();
-
-    crate::services::register_memory_service(&registry);
-
-    registry
-});
-
 /// Global registry that maps schemes to [`OperatorFactory`] functions.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct OperatorRegistry {
     factories: Mutex<HashMap<String, OperatorFactory>>,
 }
 
 impl OperatorRegistry {
-    /// Create a new, empty registry.
-    pub fn new() -> Self {
-        Self {
-            factories: Mutex::new(HashMap::new()),
-        }
+    /// Get the global registry.
+    pub fn get() -> &'static Self {
+        /// The global registry used by [`Operator::from_uri`].
+        ///
+        /// `memory` is always registered here since it's used pervasively in unit tests
+        /// and as a zero-dependency backend.
+        ///
+        /// Other optional service registrations are handled by the facade crate `opendal`.
+        static OPERATOR_REGISTRY: LazyLock<OperatorRegistry> = LazyLock::new(|| {
+            let factories = Mutex::new(HashMap::default());
+            let registry = OperatorRegistry { factories };
+            crate::services::register_memory_service(&registry);
+            registry
+        });
+
+        &OPERATOR_REGISTRY
     }
 
     /// Register a builder for the given scheme.

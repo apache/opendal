@@ -65,8 +65,8 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build OpenDAL doc
         working-directory: core
@@ -88,12 +88,12 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build and test
         working-directory: bindings/java
-        run: mvn javadoc:javadoc
+        run: ./mvnw javadoc:javadoc
 
       - name: Upload docs
         uses: actions/upload-artifact@v6

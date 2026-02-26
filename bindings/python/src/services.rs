@@ -98,8 +98,8 @@ pub enum PyScheme {
     HdfsNative,
     #[cfg(feature = "services-http")]
     Http,
-    #[cfg(feature = "services-huggingface")]
-    Huggingface,
+    #[cfg(feature = "services-hf")]
+    Hf,
     #[cfg(feature = "services-ipfs")]
     Ipfs,
     #[cfg(feature = "services-ipmfs")]
@@ -1019,7 +1019,7 @@ submit! {
         class Operator:
             @overload
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
+                scheme: typing.Union[opendal.services.Scheme.Hf, typing.Literal["hf"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -1030,7 +1030,7 @@ submit! {
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
-                Create a new `Operator` for `huggingface` service.
+                Create a new `Operator` for `hf` (Hugging Face) service.
 
                 Parameters
                 ----------
@@ -1058,7 +1058,7 @@ submit! {
                 Returns
                 -------
                 Operator
-                    The new `Operator` for `huggingface` service
+                    The new `Operator` for `hf` (Hugging Face) service
                 """
         "#
     }
@@ -3353,7 +3353,7 @@ submit! {
         class AsyncOperator:
             @overload
             def __new__(cls,
-                scheme: typing.Union[opendal.services.Scheme.Huggingface, typing.Literal["huggingface"]],
+                scheme: typing.Union[opendal.services.Scheme.Hf, typing.Literal["hf"]],
                 /,
                 *,
                 endpoint: builtins.str = ...,
@@ -3364,7 +3364,7 @@ submit! {
                 token: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
-                Create a new `AsyncOperator` for `huggingface` service.
+                Create a new `AsyncOperator` for `hf` (Hugging Face) service.
 
                 Parameters
                 ----------
@@ -3392,7 +3392,7 @@ submit! {
                 Returns
                 -------
                 AsyncOperator
-                    The new `AsyncOperator` for `huggingface` service
+                    The new `AsyncOperator` for `hf` (Hugging Face) service
                 """
         "#
     }
@@ -4884,8 +4884,8 @@ impl_enum_to_str!(
         HdfsNative => "hdfs-native",
         #[cfg(feature = "services-http")]
         Http => "http",
-        #[cfg(feature = "services-huggingface")]
-        Huggingface => "huggingface",
+        #[cfg(feature = "services-hf")]
+        Hf => "hf",
         #[cfg(feature = "services-ipfs")]
         Ipfs => "ipfs",
         #[cfg(feature = "services-ipmfs")]

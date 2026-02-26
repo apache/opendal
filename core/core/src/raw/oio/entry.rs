@@ -86,4 +86,14 @@ impl Entry {
     pub(crate) fn into_entry(self) -> crate::Entry {
         crate::Entry::new(self.path, self.meta)
     }
+
+    /// Get metadata of entry.
+    pub(crate) fn metadata(&self) -> &Metadata {
+        &self.meta
+    }
+
+    /// Get mutable metadata of entry.
+    pub(crate) fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.meta
+    }
 }

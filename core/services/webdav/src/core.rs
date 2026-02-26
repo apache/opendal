@@ -93,6 +93,8 @@ pub struct WebdavCore {
     pub user_metadata_prefix: String,
     /// XML namespace URI for user metadata properties.
     pub user_metadata_uri: String,
+    /// Skip automatic parent directory creation before writes.
+    pub disable_create_dir: bool,
 }
 
 impl Debug for WebdavCore {
@@ -102,6 +104,7 @@ impl Debug for WebdavCore {
             .field("root", &self.root)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
+            .field("disable_create_dir", &self.disable_create_dir)
             .finish_non_exhaustive()
     }
 }

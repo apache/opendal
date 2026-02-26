@@ -119,6 +119,7 @@ impl oio::MultipartWrite for GcsWriter {
             part_number,
             etag,
             checksum: None,
+            size: None,
         })
     }
 

@@ -33,7 +33,7 @@ fn percent_encode_revision(revision: &str) -> String {
     utf8_percent_encode(revision, NON_ALPHANUMERIC).to_string()
 }
 
-pub struct HuggingfaceCore {
+pub struct HfCore {
     pub info: Arc<AccessorInfo>,
 
     pub repo_type: RepoType,
@@ -44,9 +44,9 @@ pub struct HuggingfaceCore {
     pub endpoint: String,
 }
 
-impl Debug for HuggingfaceCore {
+impl Debug for HfCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HuggingfaceCore")
+        f.debug_struct("HfCore")
             .field("repo_type", &self.repo_type)
             .field("repo_id", &self.repo_id)
             .field("revision", &self.revision)
@@ -56,7 +56,7 @@ impl Debug for HuggingfaceCore {
     }
 }
 
-impl HuggingfaceCore {
+impl HfCore {
     pub async fn hf_path_info(&self, path: &str) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_end_matches('/')
@@ -226,21 +226,21 @@ impl HuggingfaceCore {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingfaceStatus {
+pub(super) struct HfStatus {
     #[serde(rename = "type")]
     pub type_: String,
     pub oid: String,
     pub size: u64,
-    pub lfs: Option<HuggingfaceLfs>,
+    pub lfs: Option<HfLfs>,
     pub path: String,
-    pub last_commit: Option<HuggingfaceLastCommit>,
-    pub security: Option<HuggingfaceSecurity>,
+    pub last_commit: Option<HfLastCommit>,
+    pub security: Option<HfSecurity>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingfaceLfs {
+pub(super) struct HfLfs {
     pub oid: String,
     pub size: u64,
     pub pointer_size: u64,
@@ -249,7 +249,7 @@ pub(super) struct HuggingfaceLfs {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingfaceLastCommit {
+pub(super) struct HfLastCommit {
     pub id: String,
     pub title: String,
     pub date: String,
@@ -258,17 +258,17 @@ pub(super) struct HuggingfaceLastCommit {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingfaceSecurity {
+pub(super) struct HfSecurity {
     pub blob_id: String,
     pub safe: bool,
-    pub av_scan: Option<HuggingfaceAvScan>,
-    pub pickle_import_scan: Option<HuggingfacePickleImportScan>,
+    pub av_scan: Option<HfAvScan>,
+    pub pickle_import_scan: Option<HfPickleImportScan>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct HuggingfaceAvScan {
+pub(super) struct HfAvScan {
     pub virus_found: bool,
     pub virus_names: Option<Vec<String>>,
 }
@@ -276,14 +276,14 @@ pub(super) struct HuggingfaceAvScan {
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-pub(super) struct HuggingfacePickleImportScan {
+pub(super) struct HfPickleImportScan {
     pub highest_safety_level: String,
-    pub imports: Vec<HuggingfaceImport>,
+    pub imports: Vec<HfImport>,
 }
 
 #[derive(Deserialize, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
-pub(super) struct HuggingfaceImport {
+pub(super) struct HfImport {
     pub module: String,
     pub name: String,
     pub safety: String,
@@ -335,22 +335,22 @@ mod tests {
         }
     }
 
-    /// Utility function to create HuggingfaceCore with mocked HTTP client
+    /// Utility function to create HfCore with mocked HTTP client
     fn create_test_core(
         repo_type: RepoType,
         repo_id: &str,
         revision: &str,
         endpoint: &str,
-    ) -> (HuggingfaceCore, MockHttpClient) {
+    ) -> (HfCore, MockHttpClient) {
         let mock_client = MockHttpClient::new();
         let http_client = HttpClient::with(mock_client.clone());
 
         let info = AccessorInfo::default();
-        info.set_scheme("huggingface")
+        info.set_scheme("hf")
             .set_native_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
-        let core = HuggingfaceCore {
+        let core = HfCore {
             info: Arc::new(info),
             repo_type,
             repo_id: repo_id.to_string(),
@@ -639,16 +639,16 @@ mod tests {
             "#,
         );
 
-        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&resp)
-            .map_err(new_json_deserialize_error)?;
+        let decoded_response =
+            serde_json::from_slice::<Vec<HfStatus>>(&resp).map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.len(), 2);
 
-        let file_entry = HuggingfaceStatus {
+        let file_entry = HfStatus {
             type_: "file".to_string(),
             oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
             size: 69512435,
-            lfs: Some(HuggingfaceLfs {
+            lfs: Some(HfLfs {
                 oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
                 size: 69512435,
                 pointer_size: 133,
@@ -660,7 +660,7 @@ mod tests {
 
         assert_eq!(decoded_response[0], file_entry);
 
-        let dir_entry = HuggingfaceStatus {
+        let dir_entry = HfStatus {
             type_: "directory".to_string(),
             oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
             size: 69512435,
@@ -718,52 +718,52 @@ mod tests {
             "#,
         );
 
-        let decoded_response = serde_json::from_slice::<Vec<HuggingfaceStatus>>(&resp)
-            .map_err(new_json_deserialize_error)?;
+        let decoded_response =
+            serde_json::from_slice::<Vec<HfStatus>>(&resp).map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.len(), 1);
 
-        let file_info = HuggingfaceStatus {
+        let file_info = HfStatus {
             type_: "file".to_string(),
             oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
             size: 69512435,
-            lfs: Some(HuggingfaceLfs {
+            lfs: Some(HfLfs {
                 oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
                 size: 69512435,
                 pointer_size: 133,
             }),
             path: "maelstrom/lib/maelstrom.jar".to_string(),
-            last_commit: Some(HuggingfaceLastCommit {
+            last_commit: Some(HfLastCommit {
                 id: "bc1ef030bf3743290d5e190695ab94582e51ae2f".to_string(),
                 title: "Upload 141 files".to_string(),
                 date: "2023-11-17T23:50:28.000Z".to_string(),
             }),
-            security: Some(HuggingfaceSecurity {
+            security: Some(HfSecurity {
                 blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
                 safe: true,
-                av_scan: Some(HuggingfaceAvScan {
+                av_scan: Some(HfAvScan {
                     virus_found: false,
                     virus_names: None,
                 }),
-                pickle_import_scan: Some(HuggingfacePickleImportScan {
+                pickle_import_scan: Some(HfPickleImportScan {
                     highest_safety_level: "innocuous".to_string(),
                     imports: vec![
-                        HuggingfaceImport {
+                        HfImport {
                             module: "torch".to_string(),
                             name: "FloatStorage".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingfaceImport {
+                        HfImport {
                             module: "collections".to_string(),
                             name: "OrderedDict".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingfaceImport {
+                        HfImport {
                             module: "torch".to_string(),
                             name: "LongStorage".to_string(),
                             safety: "innocuous".to_string(),
                         },
-                        HuggingfaceImport {
+                        HfImport {
                             module: "torch._utils".to_string(),
                             name: "_rebuild_tensor_v2".to_string(),
                             safety: "innocuous".to_string(),

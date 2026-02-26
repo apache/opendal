@@ -27,9 +27,7 @@ pub use opendal_core::*;
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
-static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
-
-/// Initialize [`DEFAULT_OPERATOR_REGISTRY`] with enabled services.
+/// Initialize the global [`OperatorRegistry`] with enabled services.
 ///
 /// This function is safe to call multiple times and will only perform
 /// initialization once.
@@ -41,13 +39,11 @@ static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
 /// should call this function explicitly before using `Operator::from_uri` or
 /// `Operator::via_iter`.
 pub fn init_default_registry() {
-    DEFAULT_REGISTRY_INIT.call_once(|| {
-        let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
-        init_default_registry_inner(registry);
-    });
+    static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
+    DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));
 }
 
-fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
+fn init_default_registry_inner(registry: &OperatorRegistry) {
     opendal_core::services::register_memory_service(registry);
 
     #[cfg(feature = "services-aliyun-drive")]
@@ -128,8 +124,8 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-http")]
     opendal_service_http::register_http_service(registry);
 
-    #[cfg(feature = "services-huggingface")]
-    opendal_service_huggingface::register_huggingface_service(registry);
+    #[cfg(feature = "services-hf")]
+    opendal_service_hf::register_hf_service(registry);
 
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);
@@ -234,6 +230,7 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     opendal_service_redis::register_redis_service(registry);
 }
 
+#[cfg(feature = "auto-register-services")]
 #[ctor::ctor]
 fn register_default_operator_registry() {
     init_default_registry();
@@ -292,10 +289,10 @@ pub mod services {
     pub use opendal_service_hdfs::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-hf")]
+    pub use opendal_service_hf::*;
     #[cfg(feature = "services-http")]
     pub use opendal_service_http::*;
-    #[cfg(feature = "services-huggingface")]
-    pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-ipmfs")]

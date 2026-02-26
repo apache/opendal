@@ -24,15 +24,14 @@ use serde::Deserialize;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// HuggingfaceError is the error returned by Huggingface File System.
 #[derive(Default, Deserialize)]
-struct HuggingfaceError {
+struct HfError {
     error: String,
 }
 
-impl Debug for HuggingfaceError {
+impl Debug for HfError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HuggingfaceError")
+        f.debug_struct("HfError")
             .field("message", &self.error.replace('\n', " "))
             .finish()
     }
@@ -53,7 +52,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match serde_json::from_slice::<HuggingfaceError>(&bs) {
+    let message = match serde_json::from_slice::<HfError>(&bs) {
         Ok(hf_error) => format!("{:?}", hf_error.error),
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
@@ -80,7 +79,7 @@ mod test {
                 "error": "Invalid username or password."
             }
             "#;
-        let decoded_response = serde_json::from_slice::<HuggingfaceError>(resp.as_bytes())
+        let decoded_response = serde_json::from_slice::<HfError>(resp.as_bytes())
             .map_err(new_json_deserialize_error)?;
 
         assert_eq!(decoded_response.error, "Invalid username or password.");

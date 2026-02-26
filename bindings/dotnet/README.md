@@ -18,6 +18,17 @@ dotnet build
 dotnet test
 ```
 
+## Usage
+
+```csharp
+using DotOpenDAL;
+
+var op = new Operator("memory");
+var fs = new Operator("fs", new Dictionary<string, string>
+{
+	["root"] = "/tmp/opendal",
+});
+```
 
 ## License and Trademarks
 

@@ -19,10 +19,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
 use std::sync::Arc;
-use std::sync::LazyLock;
 
-use backon::ExponentialBuilder;
-use backon::Retryable;
 use bytes::Buf;
 use bytes::Bytes;
 use constants::*;
@@ -38,11 +35,9 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign::GoogleCredential;
-use reqsign::GoogleCredentialLoader;
-use reqsign::GoogleSigner;
-use reqsign::GoogleToken;
-use reqsign::GoogleTokenLoader;
+use reqsign_core::ErrorKind as ReqsignErrorKind;
+use reqsign_core::Signer;
+use reqsign_google::Credential;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -62,11 +57,7 @@ pub struct GcsCore {
     pub bucket: String,
     pub root: String,
 
-    pub signer: GoogleSigner,
-    pub token_loader: GoogleTokenLoader,
-    pub token: Option<String>,
-    pub scope: String,
-    pub credential_loader: GoogleCredentialLoader,
+    pub signer: Signer<Credential>,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -84,92 +75,57 @@ impl Debug for GcsCore {
     }
 }
 
-static BACKOFF: LazyLock<ExponentialBuilder> =
-    LazyLock::new(|| ExponentialBuilder::default().with_jitter());
-
 impl GcsCore {
-    async fn load_token(&self) -> Result<Option<GoogleToken>> {
-        if let Some(token) = &self.token {
-            return Ok(Some(GoogleToken::new(token, usize::MAX, &self.scope)));
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
+
+        let signed = match self.signer.sign(&mut parts, None).await {
+            Ok(()) => true,
+            Err(err)
+                if self.allow_anonymous && err.kind() == ReqsignErrorKind::CredentialInvalid =>
+            {
+                false
+            }
+            Err(err) => return Err(new_request_sign_error(err.into())),
+        };
+
+        if signed {
+            // Always remove host header, let users' client to set it based on
+            // HTTP version.
+            //
+            // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+            // google server could send RST_STREAM of PROTOCOL_ERROR if our
+            // request contains host header.
+            parts.headers.remove(HOST);
         }
 
-        let cred = { || self.token_loader.load() }
-            .retry(*BACKOFF)
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            return Ok(Some(cred));
-        }
-
-        if self.allow_anonymous {
-            return Ok(None);
-        }
-
-        Err(Error::new(
-            ErrorKind::ConfigInvalid,
-            "no valid credential found",
-        ))
+        Ok(Request::from_parts(parts, body))
     }
 
-    fn load_credential(&self) -> Result<Option<GoogleCredential>> {
-        let cred = self
-            .credential_loader
-            .load()
-            .map_err(new_request_credential_error)?;
+    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
-        if let Some(cred) = cred {
-            return Ok(Some(cred));
+        let signed = match self.signer.sign(&mut parts, Some(duration)).await {
+            Ok(()) => true,
+            Err(err)
+                if self.allow_anonymous && err.kind() == ReqsignErrorKind::CredentialInvalid =>
+            {
+                false
+            }
+            Err(err) => return Err(new_request_sign_error(err.into())),
+        };
+
+        if signed {
+            // Always remove host header, let users' client to set it based on
+            // HTTP version.
+            //
+            // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+            // google server could send RST_STREAM of PROTOCOL_ERROR if our
+            // request contains host header.
+            parts.headers.remove(HOST);
         }
 
-        if self.allow_anonymous {
-            return Ok(None);
-        }
-
-        Err(Error::new(
-            ErrorKind::ConfigInvalid,
-            "no valid credential found",
-        ))
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        if let Some(cred) = self.load_token().await? {
-            self.signer
-                .sign(req, &cred)
-                .map_err(new_request_sign_error)?;
-        } else {
-            return Ok(());
-        }
-
-        // Always remove host header, let users' client to set it based on HTTP
-        // version.
-        //
-        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
-        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
-        // contains host header.
-        req.headers_mut().remove(HOST);
-
-        Ok(())
-    }
-
-    pub fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        if let Some(cred) = self.load_credential()? {
-            self.signer
-                .sign_query(req, duration, &cred)
-                .map_err(new_request_sign_error)?;
-        } else {
-            return Ok(());
-        }
-
-        // Always remove host header, let users' client to set it based on HTTP
-        // version.
-        //
-        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
-        // google server could send RST_STREAM of PROTOCOL_ERROR if our request
-        // contains host header.
-        req.headers_mut().remove(HOST);
-
-        Ok(())
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -249,9 +205,9 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let mut req = self.gcs_get_object_request(path, range, args)?;
+        let req = self.gcs_get_object_request(path, range, args)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }
 
@@ -441,17 +397,17 @@ impl GcsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.gcs_head_object_request(path, args)?;
+        let req = self.gcs_head_object_request(path, args)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
 
     pub async fn gcs_delete_object(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.gcs_delete_object_request(path)?;
+        let req = self.gcs_delete_object_request(path)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -484,9 +440,9 @@ impl GcsCore {
         }
 
         let req = Request::post(uri).extension(Operation::Delete);
-        let mut req = multipart.apply(req)?;
+        let req = multipart.apply(req)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -503,13 +459,13 @@ impl GcsCore {
             percent_encode_path(&dest)
         );
 
-        let mut req = Request::post(req_uri)
+        let req = Request::post(req_uri)
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Copy)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -549,12 +505,12 @@ impl GcsCore {
             url = url.push("pageToken", &percent_encode_path(page_token));
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -602,11 +558,11 @@ impl GcsCore {
             }
         }
 
-        let mut req = builder
+        let req = builder
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -635,9 +591,9 @@ impl GcsCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req.body(body).map_err(new_request_build_error)?;
+        let req = req.body(body).map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -668,11 +624,11 @@ impl GcsCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -691,11 +647,11 @@ impl GcsCore {
             percent_encode_path(upload_id)
         );
 
-        let mut req = Request::delete(&url)
+        let req = Request::delete(&url)
             .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 

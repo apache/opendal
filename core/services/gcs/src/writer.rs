@@ -48,14 +48,14 @@ impl GcsWriter {
 impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
-        let mut req = self.core.gcs_insert_object_request(
+        let req = self.core.gcs_insert_object_request(
             &percent_encode_path(&self.path),
             Some(size),
             &self.op,
             body,
         )?;
 
-        self.core.sign(&mut req).await?;
+        let req = self.core.sign(req).await?;
 
         let resp = self.core.send(req).await?;
 

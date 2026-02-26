@@ -2995,9 +2995,9 @@ dependencies = [
 
 [[package]]
 name = "fastmetrics"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06ad55eb18b0326516b75e7ff961ad85033154e82265e7819f77acf38a500acb"
+checksum = "690d70a0753d057db438a7deb0dc67f0e50a28b3204812abd94c6e9e6a027cce"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -6596,14 +6596,17 @@ dependencies = [
 name = "opendal-service-gcs"
 version = "0.55.0"
 dependencies = [
- "backon",
+ "async-trait",
  "bytes",
  "http 1.4.0",
  "log",
  "opendal-core",
  "percent-encoding",
  "quick-xml",
- "reqsign",
+ "reqsign-core",
+ "reqsign-file-read-tokio",
+ "reqsign-google",
+ "reqsign-http-send-reqwest",
  "reqwest",
  "serde",
  "serde_json",
@@ -8641,34 +8644,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "reqsign"
-version = "0.16.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43451dbf3590a7590684c25fb8d12ecdcc90ed3ac123433e500447c7d77ed701"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "chrono",
- "form_urlencoded",
- "getrandom 0.2.16",
- "hex",
- "hmac",
- "home",
- "http 1.4.0",
- "jsonwebtoken",
- "log",
- "percent-encoding",
- "rand 0.8.5",
- "reqwest",
- "rsa",
- "serde",
- "serde_json",
- "sha1",
- "sha2",
-]
-
-[[package]]
 name = "reqsign-aliyun-oss"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8762,6 +8737,26 @@ dependencies = [
  "async-trait",
  "reqsign-core",
  "tokio",
+]
+
+[[package]]
+name = "reqsign-google"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acee8b90b1c8bb30a9abb9a9778c7862d94459a9391396e1c2a370d6b9c1e3d5"
+dependencies = [
+ "async-trait",
+ "form_urlencoded",
+ "http 1.4.0",
+ "jsonwebtoken",
+ "log",
+ "percent-encoding",
+ "rand 0.8.5",
+ "reqsign-core",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

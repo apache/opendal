@@ -241,6 +241,36 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo build --target wasm32-unknown-unknown --no-default-features --features="${FEATURES[*]}" --locked
 
+  # Build under WASI to ensure WASI compatibility (uses std::time instead of web_time)
+  build_under_wasi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        working-directory: core
+        run: |
+          FEATURES=(
+            layers-capability-check
+            layers-chaos
+            layers-concurrent-limit
+            layers-immutable-index
+            layers-logging
+            layers-metrics
+            layers-mime-guess
+            layers-retry
+            layers-throttle
+            layers-timeout
+            services-dashmap
+            services-mini-moka
+          )
+          rustup toolchain install nightly
+          rustup target add wasm32-wasip2 --toolchain nightly
+          cargo +nightly build --lib --target wasm32-wasip2 --no-default-features --features="${FEATURES[*]}" --locked
+
   unit:
     runs-on: ubuntu-latest
     steps:

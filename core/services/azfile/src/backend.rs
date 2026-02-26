@@ -21,9 +21,16 @@ use std::sync::Arc;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use reqsign::AzureStorageConfig;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::DefaultCredentialProvider;
+use reqsign_azure_storage::RequestSigner;
+use reqsign_azure_storage::StaticCredentialProvider;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::Signer;
+use reqsign_core::StaticEnv;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
@@ -37,11 +44,12 @@ use super::writer::AzfileWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 use opendal_service_azure_common::{
-    AzureStorageService, azure_account_name_from_endpoint, azure_config_from_connection_string,
+    AzureStorageConfig as AzureConnectionConfig, AzureStorageService,
+    azure_account_name_from_endpoint, azure_config_from_connection_string,
 };
 
-impl From<AzureStorageConfig> for AzfileConfig {
-    fn from(config: AzureStorageConfig) -> Self {
+impl From<AzureConnectionConfig> for AzfileConfig {
+    fn from(config: AzureConnectionConfig) -> Self {
         AzfileConfig {
             account_name: config.account_name,
             account_key: config.account_key,
@@ -185,15 +193,42 @@ impl Builder for AzfileBuilder {
             ),
         }?;
 
-        let config_loader = AzureStorageConfig {
-            account_name: Some(account_name),
-            account_key: self.config.account_key.clone(),
-            sas_token: self.config.sas_token.clone(),
-            ..Default::default()
-        };
+        let mut envs = std::collections::HashMap::new();
+        envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), account_name.clone());
+        envs.insert(
+            "AZURE_STORAGE_ACCOUNT_NAME".to_string(),
+            account_name.clone(),
+        );
 
-        let cred_loader = AzureStorageLoader::new(config_loader);
-        let signer = AzureStorageSigner::new();
+        if let Some(v) = &self.config.account_key {
+            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
+            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
+        }
+        if let Some(v) = &self.config.sas_token {
+            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
+        }
+
+        let os_env = OsEnv;
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(StaticEnv {
+                home_dir: os_env.home_dir(),
+                envs,
+            });
+
+        let mut credential = DefaultCredentialProvider::new();
+        if let Some(account_key) = self.config.account_key.as_deref() {
+            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
+                &account_name,
+                account_key,
+            ));
+        }
+        if let Some(sas_token) = self.config.sas_token.as_deref() {
+            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        let signer = Signer::new(ctx, credential, RequestSigner::new());
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
                 info: {
@@ -223,7 +258,6 @@ impl Builder for AzfileBuilder {
                 },
                 root,
                 endpoint,
-                loader: cred_loader,
                 signer,
                 share_name: self.config.share_name.clone(),
             }),

@@ -94,6 +94,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-foundationdb")]
     opendal_service_foundationdb::register_foundationdb_service(registry);
 
+    #[cfg(feature = "services-foyer")]
+    opendal_service_foyer::register_foyer_service(registry);
+
     #[cfg(feature = "services-fs")]
     opendal_service_fs::register_fs_service(registry);
 
@@ -271,6 +274,8 @@ pub mod services {
     pub use opendal_service_etcd::*;
     #[cfg(feature = "services-foundationdb")]
     pub use opendal_service_foundationdb::*;
+    #[cfg(feature = "services-foyer")]
+    pub use opendal_service_foyer::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]

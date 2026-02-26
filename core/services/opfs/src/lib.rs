@@ -28,6 +28,7 @@ pub fn register_opfs_service(registry: &opendal_core::OperatorRegistry) {
 mod backend;
 mod config;
 mod core;
+mod delete;
 mod error;
 mod utils;
 

@@ -36,10 +36,10 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign = { workspace = true, features = [
-  "services-tencent",
-  "reqwest_request",
-] }
+reqsign-core = { version = "2.0.1", default-features = false }
+reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
+reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
+reqsign-tencent-cos = { version = "2.0.2", default-features = false }
 reqwest = { version = "0.12.24", default-features = false, features = [
   "stream",
 ] }

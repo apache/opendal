@@ -28,9 +28,8 @@ use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::RANGE;
-use reqsign::AzureStorageCredential;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::Credential;
+use reqsign_core::Signer;
 
 use super::error::parse_error;
 use opendal_core::raw::*;
@@ -49,8 +48,7 @@ pub struct AzfileCore {
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
-    pub loader: AzureStorageLoader,
-    pub signer: AzureStorageSigner,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for AzfileCore {
@@ -64,32 +62,22 @@ impl Debug for AzfileCore {
 }
 
 impl AzfileCore {
-    async fn load_credential(&self) -> Result<AzureStorageCredential> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
-        if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
-        }
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
         // Insert x-ms-version header for normal requests.
-        req.headers_mut().insert(
+        parts.headers.insert(
             HeaderName::from_static(X_MS_VERSION),
             // consistent with azdls and azblob
             HeaderValue::from_static("2022-11-02"),
         );
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -115,8 +103,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Read);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }
 
@@ -164,8 +152,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -200,8 +188,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req.body(body).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -218,8 +206,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Stat);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -237,8 +225,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Stat);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -289,8 +277,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Rename);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -312,8 +300,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::CreateDir);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -333,8 +321,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Delete);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -354,8 +342,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::Delete);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -393,8 +381,8 @@ impl AzfileCore {
 
         let req = req.extension(Operation::List);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 

@@ -49,6 +49,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             }
         }
     }
+
+    if cap.undelete && cap.stat && cap.delete && cap.write {
+        tests.extend(async_trials!(op, test_undelete_file));
+    }
 }
 
 /// Delete existing file should succeed.
@@ -378,6 +382,48 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         assert!(stat.is_err());
         assert_eq!(stat.unwrap_err().kind(), ErrorKind::NotFound);
     }
+
+    Ok(())
+}
+
+/// Undelete a soft-deleted file should succeed.
+pub async fn test_undelete_file(op: Operator) -> Result<()> {
+    if !op.info().full_capability().undelete {
+        return Ok(());
+    }
+
+    let (path, content, _) = TEST_FIXTURE.new_file(op.clone());
+
+    // Create a file
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // Verify file exists
+    assert!(op.exists(&path).await?, "file should exist after creation");
+
+    // Delete the file
+    op.delete(&path).await?;
+
+    // Verify file is deleted
+    assert!(
+        !op.exists(&path).await?,
+        "file should not exist after deletion"
+    );
+
+    // Undelete the file
+    op.undelete(&path).await?;
+
+    // Verify file is restored
+    assert!(op.exists(&path).await?, "file should exist after undelete");
+
+    // Verify content is intact
+    let restored_content = op.read(&path).await?;
+    assert_eq!(
+        restored_content.to_vec(),
+        content,
+        "restored file should have the same content"
+    );
 
     Ok(())
 }

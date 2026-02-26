@@ -164,6 +164,14 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
 
     fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend;
 
+    fn undelete(
+        &self,
+        path: &str,
+        args: OpUndelete,
+    ) -> impl Future<Output = Result<RpUndelete>> + MaybeSend {
+        self.inner().undelete(path, args)
+    }
+
     fn list(
         &self,
         path: &str,
@@ -215,6 +223,10 @@ impl<L: LayeredAccess> Access for L {
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         LayeredAccess::delete(self).await
+    }
+
+    async fn undelete(&self, path: &str, args: OpUndelete) -> Result<RpUndelete> {
+        LayeredAccess::undelete(self, path, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

@@ -18,14 +18,28 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::time::Duration;
 
+use bytes::Bytes;
 use http::Response;
 use http::StatusCode;
 use log::debug;
-use reqsign::GoogleCredentialLoader;
-use reqsign::GoogleSigner;
-use reqsign::GoogleTokenLoad;
-use reqsign::GoogleTokenLoader;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredential;
+use reqsign_core::ProvideCredentialChain;
+use reqsign_core::Signer;
+use reqsign_core::StaticEnv;
+use reqsign_core::time::Timestamp;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_google::Credential;
+use reqsign_google::DefaultCredentialProvider;
+use reqsign_google::RequestSigner;
+use reqsign_google::StaticCredentialProvider;
+use reqsign_google::Token;
+use reqsign_http_send_reqwest::ReqwestHttpSend;
+use serde::Deserialize;
 
 use super::GCS_SCHEME;
 use super::config::GcsConfig;
@@ -48,7 +62,135 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 #[derive(Default)]
 pub struct GcsBuilder {
     pub(super) config: GcsConfig,
-    pub(super) customized_token_loader: Option<Box<dyn GoogleTokenLoad>>,
+    pub(super) credential_provider_chain: Option<ProvideCredentialChain<Credential>>,
+}
+
+#[derive(Clone, Debug)]
+struct StaticTokenCredentialProvider {
+    token: String,
+}
+
+impl StaticTokenCredentialProvider {
+    fn new(token: impl Into<String>) -> Self {
+        Self {
+            token: token.into(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ProvideCredential for StaticTokenCredentialProvider {
+    type Credential = Credential;
+
+    async fn provide_credential(
+        &self,
+        _: &Context,
+    ) -> reqsign_core::Result<Option<Self::Credential>> {
+        Ok(Some(Credential::with_token(Token {
+            access_token: self.token.clone(),
+            expires_at: None,
+        })))
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PathCredentialProvider {
+    path: String,
+    scope: String,
+}
+
+impl PathCredentialProvider {
+    fn new(path: impl Into<String>, scope: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            scope: scope.into(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ProvideCredential for PathCredentialProvider {
+    type Credential = Credential;
+
+    async fn provide_credential(
+        &self,
+        ctx: &Context,
+    ) -> reqsign_core::Result<Option<Self::Credential>> {
+        let content = String::from_utf8(ctx.file_read(&self.path).await?).map_err(|err| {
+            reqsign_core::Error::unexpected("credential file content is invalid utf-8")
+                .with_source(err)
+        })?;
+
+        StaticCredentialProvider::new(content)
+            .with_scope(&self.scope)
+            .provide_credential(ctx)
+            .await
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct VmMetadataTokenResponse {
+    access_token: String,
+    expires_in: u64,
+}
+
+#[derive(Clone, Debug)]
+struct ServiceAccountVmMetadataCredentialProvider {
+    service_account: String,
+    scope: String,
+}
+
+impl ServiceAccountVmMetadataCredentialProvider {
+    fn new(service_account: impl Into<String>, scope: impl Into<String>) -> Self {
+        Self {
+            service_account: service_account.into(),
+            scope: scope.into(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ProvideCredential for ServiceAccountVmMetadataCredentialProvider {
+    type Credential = Credential;
+
+    async fn provide_credential(
+        &self,
+        ctx: &Context,
+    ) -> reqsign_core::Result<Option<Self::Credential>> {
+        let metadata_host = ctx
+            .env_var("GCE_METADATA_HOST")
+            .unwrap_or_else(|| "metadata.google.internal".to_string());
+
+        let url = format!(
+            "http://{metadata_host}/computeMetadata/v1/instance/service-accounts/{}/token?scopes={}",
+            self.service_account, self.scope
+        );
+
+        let req = http::Request::builder()
+            .method(http::Method::GET)
+            .uri(&url)
+            .header("Metadata-Flavor", "Google")
+            .body(Bytes::new())
+            .map_err(|err| {
+                reqsign_core::Error::unexpected("failed to build vm metadata request")
+                    .with_source(err)
+            })?;
+
+        let resp = ctx.http_send(req).await?;
+        if resp.status() != StatusCode::OK {
+            return Ok(None);
+        }
+
+        let resp: VmMetadataTokenResponse = serde_json::from_slice(resp.body()).map_err(|err| {
+            reqsign_core::Error::unexpected("failed to parse vm metadata token response")
+                .with_source(err)
+        })?;
+
+        Ok(Some(Credential::with_token(Token {
+            access_token: resp.access_token,
+            expires_at: Some(Timestamp::now() + Duration::from_secs(resp.expires_in)),
+        })))
+    }
 }
 
 impl Debug for GcsBuilder {
@@ -141,9 +283,23 @@ impl GcsBuilder {
         self
     }
 
-    /// Specify the customized token loader used by this service.
-    pub fn customized_token_loader(mut self, token_load: Box<dyn GoogleTokenLoad>) -> Self {
-        self.customized_token_loader = Some(token_load);
+    /// Specify a customized credential provider used by this service.
+    ///
+    /// This provider will be pushed to the front of credential chain.
+    pub fn credential_provider(
+        mut self,
+        provider: impl ProvideCredential<Credential = Credential> + 'static,
+    ) -> Self {
+        let chain = self.credential_provider_chain.unwrap_or_default();
+        self.credential_provider_chain = Some(chain.push_front(provider));
+        self
+    }
+
+    /// Specify a customized credential provider chain used by this service.
+    ///
+    /// This chain will be pushed to the front of default chain.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_provider_chain = Some(chain);
         self
     }
 
@@ -233,47 +389,77 @@ impl Builder for GcsBuilder {
             .unwrap_or_else(|| DEFAULT_GCS_ENDPOINT.to_string());
         debug!("backend use endpoint: {endpoint}");
 
-        let mut cred_loader = GoogleCredentialLoader::default();
-        if let Some(cred) = &self.config.credential {
-            cred_loader = cred_loader.with_content(cred);
-        }
-        if let Some(cred) = &self.config.credential_path {
-            cred_loader = cred_loader.with_path(cred);
-        }
+        let scope = self
+            .config
+            .scope
+            .clone()
+            .unwrap_or_else(|| DEFAULT_GCS_SCOPE.to_string());
+
+        let os_env = OsEnv;
+        let mut envs = os_env.vars();
+        envs.insert("GOOGLE_SCOPE".to_string(), scope.clone());
+
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_env(StaticEnv {
+                home_dir: os_env.home_dir(),
+                envs,
+            });
+
+        let mut default_credential = DefaultCredentialProvider::builder();
         #[cfg(target_arch = "wasm32")]
         {
-            cred_loader = cred_loader.with_disable_env();
-            cred_loader = cred_loader.with_disable_well_known_location();
+            default_credential = default_credential
+                .disable_env(true)
+                .disable_well_known(true);
         }
 
         if self.config.disable_config_load {
-            cred_loader = cred_loader
-                .with_disable_env()
-                .with_disable_well_known_location();
+            default_credential = default_credential
+                .disable_env(true)
+                .disable_well_known(true);
         }
 
-        let scope = if let Some(scope) = &self.config.scope {
-            scope
-        } else {
-            DEFAULT_GCS_SCOPE
-        };
-
-        let mut token_loader = GoogleTokenLoader::new(scope, GLOBAL_REQWEST_CLIENT.clone());
-        if let Some(account) = &self.config.service_account {
-            token_loader = token_loader.with_service_account(account);
-        }
-        if let Ok(Some(cred)) = cred_loader.load() {
-            token_loader = token_loader.with_credentials(cred)
-        }
-        if let Some(loader) = self.customized_token_loader {
-            token_loader = token_loader.with_customized_token_loader(loader)
+        if self.config.disable_vm_metadata || self.config.service_account.is_some() {
+            default_credential = default_credential.disable_vm_metadata(true);
         }
 
-        if self.config.disable_vm_metadata {
-            token_loader = token_loader.with_disable_vm_metadata(true);
+        let mut credential_chain = ProvideCredentialChain::new().push(default_credential.build());
+
+        if !self.config.disable_vm_metadata {
+            if let Some(service_account) = self.config.service_account.as_deref() {
+                credential_chain = credential_chain.push(
+                    ServiceAccountVmMetadataCredentialProvider::new(service_account, &scope),
+                );
+            }
         }
 
-        let signer = GoogleSigner::new("storage");
+        if let Some(path) = self.config.credential_path.as_deref() {
+            credential_chain =
+                credential_chain.push_front(PathCredentialProvider::new(path, scope.clone()));
+        }
+
+        if let Some(content) = self.config.credential.as_deref() {
+            if let Ok(provider) = StaticCredentialProvider::from_base64(content) {
+                credential_chain = credential_chain.push_front(provider.with_scope(&scope));
+            }
+        }
+
+        if let Some(token) = self.config.token.as_deref() {
+            credential_chain =
+                credential_chain.push_front(StaticTokenCredentialProvider::new(token));
+        }
+
+        if let Some(customized_credential_chain) = self.credential_provider_chain {
+            credential_chain = credential_chain.push_front(customized_credential_chain);
+        }
+
+        let signer = Signer::new(
+            ctx,
+            credential_chain,
+            RequestSigner::new("storage").with_scope(&scope),
+        );
 
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
@@ -339,10 +525,6 @@ impl Builder for GcsBuilder {
                 bucket: bucket.to_string(),
                 root,
                 signer,
-                token_loader,
-                token: self.config.token,
-                scope: scope.to_string(),
-                credential_loader: cred_loader,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 allow_anonymous: self.config.allow_anonymous,
@@ -457,8 +639,8 @@ impl Access for GcsBackend {
                 "operation is not supported",
             )),
         };
-        let mut req = req?;
-        self.core.sign_query(&mut req, args.expire())?;
+        let req = req?;
+        let req = self.core.sign_query(req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

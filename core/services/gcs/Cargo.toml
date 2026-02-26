@@ -31,17 +31,17 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-backon = "1.6"
+async-trait = "0.1"
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2.3"
 quick-xml = { workspace = true, features = ["serialize"] }
-reqsign = { workspace = true, features = [
-  "reqwest_request",
-  "services-google",
-] }
+reqsign-core = { version = "2.0.1", default-features = false }
+reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
+reqsign-google = { version = "2.0.2", default-features = false }
+reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
 reqwest = { version = "0.12.24", default-features = false, features = [
   "json",
   "stream",

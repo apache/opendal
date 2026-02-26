@@ -104,7 +104,7 @@ impl opendal_core::Configurator for GcsConfig {
     fn into_builder(self) -> Self::Builder {
         GcsBuilder {
             config: self,
-            customized_token_loader: None,
+            credential_provider_chain: None,
         }
     }
 }

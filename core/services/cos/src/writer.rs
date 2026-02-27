@@ -69,11 +69,11 @@ impl CosWriter {
 
 impl oio::MultipartWrite for CosWriter {
     async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
+        let req = self
             .core
             .cos_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        self.core.sign(&mut req).await?;
+        let req = self.core.sign(req).await?;
 
         let resp = self.core.send(req).await?;
 
@@ -219,11 +219,11 @@ impl oio::AppendWrite for CosWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let mut req = self
+        let req = self
             .core
             .cos_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        self.core.sign(&mut req).await?;
+        let req = self.core.sign(req).await?;
 
         let resp = self.core.send(req).await?;
 

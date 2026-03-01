@@ -313,7 +313,7 @@ libtest-mimic = "0.8"
 log = { workspace = true }
 logforth = { workspace = true }
 rand = { workspace = true }
-reqwest = "0.12.24"
+reqwest = "0.13.2"
 sha2 = { workspace = true }
 size = "0.5"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }

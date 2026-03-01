@@ -25,6 +25,7 @@ use super::MYSQL_SCHEME;
 use super::config::MysqlConfig;
 use super::core::*;
 use super::deleter::MysqlDeleter;
+use super::lister::MysqlLister;
 use super::writer::MysqlWriter;
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
@@ -164,6 +165,8 @@ impl MysqlBackend {
         info.set_root("/");
         info.set_native_capability(Capability {
             read: true,
+            list: true,
+            list_with_recursive: true,
             stat: true,
             write: true,
             write_can_empty: true,
@@ -189,7 +192,7 @@ impl MysqlBackend {
 impl Access for MysqlBackend {
     type Reader = Buffer;
     type Writer = MysqlWriter;
-    type Lister = ();
+    type Lister = oio::HierarchyLister<MysqlLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -231,5 +234,12 @@ impl Access for MysqlBackend {
             RpDelete::default(),
             oio::OneShotDeleter::new(MysqlDeleter::new(self.core.clone(), self.root.clone())),
         ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister =
+            MysqlLister::new(self.core.clone(), self.root.clone(), path.to_string()).await?;
+        let lister = oio::HierarchyLister::new(lister, path, args.recursive());
+        Ok((RpList::default(), lister))
     }
 }

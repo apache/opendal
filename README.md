@@ -144,7 +144,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 | Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
 | Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                  |
 | Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                  |
-| Git Based Storage Services     | [huggingface]                                                                                                             |
+| Git Based Storage Services     | [git] [huggingface]                                                                                                       |
 
 [sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
 [webdav]: https://datatracker.ietf.org/doc/html/rfc4918
@@ -205,6 +205,7 @@ OpenDAL's development is guided by its vision of **One Layer, All Storage** and 
 [moka]: https://github.com/moka-rs/moka
 [vercel-artifacts]: https://vercel.com/docs/concepts/monorepos/remote-caching
 
+[git]: https://git-scm.com/
 [huggingface]: https://huggingface.co/
 
 ## Examples

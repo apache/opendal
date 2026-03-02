@@ -52,7 +52,7 @@ pub static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqw
 /// HttpFetcher is a type erased [`HttpFetch`].
 pub type HttpFetcher = Arc<dyn HttpFetchDyn>;
 
-/// A HTTP client instance for OpenDAL's services.
+/// An HTTP client instance for OpenDAL's services.
 ///
 /// # Notes
 ///
@@ -132,9 +132,9 @@ impl HttpClient {
 impl reqsign_core::HttpSend for HttpClient {
     fn http_send<'life0, 'async_trait>(
         &'life0 self,
-        req: http::Request<Bytes>,
-    ) -> std::pin::Pin<
-        Box<dyn Future<Output = reqsign_core::Result<http::Response<Bytes>>> + Send + 'async_trait>,
+        req: Request<Bytes>,
+    ) -> Pin<
+        Box<dyn Future<Output = reqsign_core::Result<Response<Bytes>>> + Send + 'async_trait>,
     >
     where
         'life0: 'async_trait,
@@ -150,7 +150,7 @@ impl reqsign_core::HttpSend for HttpClient {
             })?;
 
             let (parts, body) = resp.into_parts();
-            Ok(http::Response::from_parts(parts, body.to_bytes()))
+            Ok(Response::from_parts(parts, body.to_bytes()))
         })
     }
 }
@@ -158,9 +158,9 @@ impl reqsign_core::HttpSend for HttpClient {
 impl reqsign_core::HttpSend for AccessorInfoHttpSend {
     fn http_send<'life0, 'async_trait>(
         &'life0 self,
-        req: http::Request<Bytes>,
-    ) -> std::pin::Pin<
-        Box<dyn Future<Output = reqsign_core::Result<http::Response<Bytes>>> + Send + 'async_trait>,
+        req: Request<Bytes>,
+    ) -> Pin<
+        Box<dyn Future<Output = reqsign_core::Result<Response<Bytes>>> + Send + 'async_trait>,
     >
     where
         'life0: 'async_trait,

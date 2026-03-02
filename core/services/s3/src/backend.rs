@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -42,8 +41,7 @@ use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
-use reqwest::Url;
+use url::Url;
 
 use crate::S3_SCHEME;
 use crate::config::S3Config;
@@ -58,8 +56,6 @@ use crate::writer::S3Writer;
 use crate::writer::S3Writers;
 use opendal_core::raw::*;
 use opendal_core::*;
-
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
@@ -499,7 +495,7 @@ impl S3Builder {
         endpoint = endpoint.replace(&format!("//{bucket}."), "//");
 
         // Omit default ports if specified.
-        if let Ok(url) = Url::from_str(&endpoint) {
+        if let Ok(url) = Url::parse(&endpoint) {
             // Remove the trailing `/` of root path.
             endpoint = url.to_string().trim_end_matches('/').to_string();
         }
@@ -800,10 +796,12 @@ impl Builder for S3Builder {
         let endpoint = Self::build_endpoint(&config, &region);
         debug!("backend use endpoint: {endpoint}");
 
+        let info = Arc::new(AccessorInfo::default());
+
         // Create the context for reqsign-core
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(OsEnv);
 
         let mut provider = {
@@ -870,8 +868,7 @@ impl Builder for S3Builder {
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(S3_SCHEME)
+                    info.set_scheme(S3_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -944,7 +941,7 @@ impl Builder for S3Builder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket: bucket.to_string(),
                 endpoint,

@@ -38,7 +38,6 @@ opendal-core = { path = "../../core", version = "0.55.0", default-features = fal
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-core = "2.0.2"
 reqsign-file-read-tokio = "2.0.2"
-reqsign-http-send-reqwest = "2.0.1"
 reqsign-huaweicloud-obs = "2.0.2"
 serde = { workspace = true, features = ["derive"] }
 

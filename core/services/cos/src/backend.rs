@@ -27,7 +27,6 @@ use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqsign_tencent_cos::DefaultCredentialProvider;
 use reqsign_tencent_cos::RequestSigner;
 use reqsign_tencent_cos::StaticCredentialProvider;
@@ -43,9 +42,6 @@ use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
 use opendal_core::raw::*;
-use std::sync::LazyLock;
-
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 use opendal_core::*;
 
 /// Tencent-Cloud COS services support.
@@ -181,11 +177,13 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
+        let info = Arc::new(AccessorInfo::default());
+
         let os_env = OsEnv;
         let envs = os_env.vars();
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(os_env);
 
         let mut credential = if self.config.disable_config_load {
@@ -222,8 +220,7 @@ impl Builder for CosBuilder {
         Ok(CosBackend {
             core: Arc::new(CosCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(COS_SCHEME)
+                    info.set_scheme(COS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -282,7 +279,7 @@ impl Builder for CosBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket: bucket.clone(),
                 root,

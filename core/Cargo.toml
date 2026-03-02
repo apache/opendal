@@ -182,6 +182,7 @@ services-sqlite = ["dep:opendal-service-sqlite"]
 services-surrealdb = ["dep:opendal-service-surrealdb"]
 services-swift = ["dep:opendal-service-swift"]
 services-tikv = ["dep:opendal-service-tikv"]
+services-tos = ["dep:opendal-service-tos"]
 services-upyun = ["dep:opendal-service-upyun"]
 services-vercel-artifacts = ["dep:opendal-service-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
@@ -289,6 +290,7 @@ opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optiona
 opendal-service-surrealdb = { path = "services/surrealdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-swift = { path = "services/swift", version = "0.55.0", optional = true, default-features = false }
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
+opendal-service-tos = { path = "services/tos", version = "0.55.0", optional = true, default-features = false }
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-artifacts = { path = "services/vercel-artifacts", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }

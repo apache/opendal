@@ -221,6 +221,56 @@ pub struct S3Config {
     /// Indicates whether the client agrees to pay for the requests made to the S3 bucket.
     #[serde(alias = "aws_request_payer", alias = "request_payer")]
     pub enable_request_payer: bool,
+
+    /// Container credentials relative URI for ECS Task IAM roles.
+    ///
+    /// Used in ECS environments where the base metadata endpoint is known.
+    /// The relative URI is appended to the default ECS endpoint (169.254.170.2).
+    ///
+    /// Example: "/v2/credentials/my-role-name"
+    #[serde(alias = "aws_container_credentials_relative_uri")]
+    pub container_credentials_relative_uri: Option<String>,
+
+    /// Container credentials full endpoint for EKS Pod Identity, Fargate, or custom setups.
+    ///
+    /// Complete URL for fetching credentials. Used in:
+    /// - EKS Pod Identity environments
+    /// - AWS Fargate environments
+    /// - Custom container credential endpoints
+    ///
+    /// Example: "http://169.254.170.2/v2/credentials/my-role"
+    #[serde(
+        alias = "container_credentials_full_uri",
+        alias = "aws_container_credentials_full_uri"
+    )]
+    pub container_credentials_endpoint: Option<String>,
+
+    /// Authorization token for container credentials requests.
+    ///
+    /// Token used for authenticating with the container credentials endpoint.
+    /// This is an alternative to `container_authorization_token_file`.
+    #[serde(alias = "aws_container_authorization_token")]
+    pub container_authorization_token: Option<String>,
+
+    /// Path to file containing authorization token for container credentials.
+    ///
+    /// File should contain the authorization token for authenticating with the
+    /// container credentials endpoint. Required for EKS Pod Identity.
+    ///
+    /// This is an alternative to `container_authorization_token`.
+    #[serde(alias = "aws_container_authorization_token_file")]
+    pub container_authorization_token_file: Option<String>,
+
+    /// Override for the container metadata URI base endpoint.
+    ///
+    /// Used to override the default http://169.254.170.2 endpoint.
+    /// Typically used for testing or custom container credential setups.
+    #[serde(
+        alias = "aws_container_metadata_uri_override",
+        alias = "aws_metadata_endpoint",
+        alias = "metadata_endpoint"
+    )]
+    pub container_metadata_uri_override: Option<String>,
 }
 
 impl Debug for S3Config {
@@ -380,6 +430,76 @@ mod tests {
         assert_eq!(
             cfg.endpoint.as_deref(),
             Some("https://custom-s3-endpoint.com")
+        );
+    }
+
+    #[test]
+    fn test_s3_config_container_credentials() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "container_credentials_relative_uri": "/v2/credentials/my-role",
+            "container_credentials_full_uri": "http://169.254.170.2/v2/credentials/my-role",
+            "container_authorization_token": "test-token",
+            "container_authorization_token_file": "/path/to/token",
+            "container_metadata_uri_override": "http://custom-endpoint"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(
+            config.container_credentials_relative_uri,
+            Some("/v2/credentials/my-role".to_string())
+        );
+        assert_eq!(
+            config.container_credentials_endpoint,
+            Some("http://169.254.170.2/v2/credentials/my-role".to_string())
+        );
+        assert_eq!(
+            config.container_authorization_token,
+            Some("test-token".to_string())
+        );
+        assert_eq!(
+            config.container_authorization_token_file,
+            Some("/path/to/token".to_string())
+        );
+        assert_eq!(
+            config.container_metadata_uri_override,
+            Some("http://custom-endpoint".to_string())
+        );
+    }
+
+    #[test]
+    fn test_s3_config_container_credentials_aws_aliases() {
+        let json = r#"{
+            "bucket": "test-bucket",
+            "aws_container_credentials_relative_uri": "/v2/credentials/my-role",
+            "aws_container_credentials_full_uri": "http://169.254.170.2/v2/credentials/my-role",
+            "aws_container_authorization_token": "test-token",
+            "aws_container_authorization_token_file": "/path/to/token",
+            "aws_container_metadata_uri_override": "http://custom-endpoint"
+        }"#;
+
+        let config: S3Config = serde_json::from_str(json).unwrap();
+        assert_eq!(config.bucket, "test-bucket");
+        assert_eq!(
+            config.container_credentials_relative_uri,
+            Some("/v2/credentials/my-role".to_string())
+        );
+        assert_eq!(
+            config.container_credentials_endpoint,
+            Some("http://169.254.170.2/v2/credentials/my-role".to_string())
+        );
+        assert_eq!(
+            config.container_authorization_token,
+            Some("test-token".to_string())
+        );
+        assert_eq!(
+            config.container_authorization_token_file,
+            Some("/path/to/token".to_string())
+        );
+        assert_eq!(
+            config.container_metadata_uri_override,
+            Some("http://custom-endpoint".to_string())
         );
     }
 }

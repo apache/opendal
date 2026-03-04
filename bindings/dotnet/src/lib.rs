@@ -15,8 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Rust FFI layer backing the OpenDAL .NET binding.
+//!
+//! This crate exposes `extern "C"` APIs consumed by C# via P/Invoke and keeps
+//! interop memory ownership explicit through dedicated release functions.
+
+mod byte_buffer;
+mod capability;
+mod entry;
 mod error;
+mod executor;
+mod metadata;
+mod operator;
+mod operator_info;
+mod options;
+mod presign;
 mod result;
 mod utils;
-mod operator;
-mod byte_buffer;
+mod validators;

@@ -26,6 +26,7 @@ public class OpenDALException : Exception
 {
     /// <summary>
     /// Gets the OpenDAL error code associated with this exception.
+    /// Unknown native code values are normalized to <see cref="ErrorCode.Unexpected"/>.
     /// </summary>
     public ErrorCode Code { get; }
 
@@ -33,7 +34,10 @@ public class OpenDALException : Exception
     /// Initializes a new exception from a native OpenDAL error payload.
     /// </summary>
     /// <param name="error">Error payload returned by the native binding.</param>
-    public OpenDALException(OpenDALError error) : base(error.GetErrorMessage())
+    /// <remarks>
+    /// Native message text is decoded from UTF-8 and used as the exception message.
+    /// </remarks>
+    public OpenDALException(OpenDALError error) : base(Utilities.ReadUtf8(error.Message))
     {
         if (!TryParse(error.Code, out var parsed))
         {
@@ -45,7 +49,7 @@ public class OpenDALException : Exception
 
     private static bool TryParse(int value, out ErrorCode result)
     {
-        if ((uint)value <= 11)
+        if ((uint)value <= (uint)ErrorCode.RangeNotSatisfied)
         {
             result = (ErrorCode)value;
             return true;

@@ -22,18 +22,15 @@ namespace DotOpenDAL;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
-/// <summary>
-/// Marker interface for async operation state tracked by the callback registry.
-/// </summary>
-public interface IAsyncState;
-
 internal static class AsyncStateRegistry
 {
     private static long nextAsyncStateId;
-    private static readonly ConcurrentDictionary<long, IAsyncState> AsyncStates = new();
+    private static readonly ConcurrentDictionary<long, object> AsyncStates = new();
 
-    public static long Register(IAsyncState state)
+    public static long Register<T>(out AsyncState<T> state)
     {
+        state = new AsyncState<T>();
+
         while (true)
         {
             var id = Interlocked.Increment(ref nextAsyncStateId);
@@ -54,11 +51,10 @@ internal static class AsyncStateRegistry
         AsyncStates.TryRemove(context, out _);
     }
 
-    public static bool TryTake<TState>(IntPtr context, [NotNullWhen(true)] out TState? state) where TState : class
+    public static bool TryTake<TState>(long context, [NotNullWhen(true)] out TState? state) where TState : class
     {
         state = null;
-        var key = context.ToInt64();
-        if (!AsyncStates.TryRemove(key, out var value))
+        if (!AsyncStates.TryRemove(context, out var value))
         {
             return false;
         }
@@ -68,34 +64,23 @@ internal static class AsyncStateRegistry
     }
 }
 
-/// <summary>
-/// State object for a pending asynchronous write operation.
-/// </summary>
-public sealed class WriteAsyncState : IAsyncState
+public sealed class AsyncState<T>
 {
-    /// <summary>
-    /// Completion source that resolves when the native write callback arrives.
-    /// </summary>
-    public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    /// <summary>
-    /// Registration used to detach cancellation callbacks when the operation completes.
-    /// </summary>
-    public CancellationTokenRegistration CancellationRegistration { get; set; }
-}
+    public CancellationTokenRegistration CancellationRegistration { get; private set; }
 
-/// <summary>
-/// State object for a pending asynchronous read operation.
-/// </summary>
-public sealed class ReadAsyncState : IAsyncState
-{
-    /// <summary>
-    /// Completion source that resolves with bytes when the native read callback arrives.
-    /// </summary>
-    public TaskCompletionSource<byte[]> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public void BindCancellation(CancellationToken cancellationToken)
+    {
+        if (!cancellationToken.CanBeCanceled)
+        {
+            return;
+        }
 
-    /// <summary>
-    /// Registration used to detach cancellation callbacks when the operation completes.
-    /// </summary>
-    public CancellationTokenRegistration CancellationRegistration { get; set; }
+        CancellationRegistration = cancellationToken.Register(static value =>
+        {
+            var current = (AsyncState<T>)value!;
+            current.Completion.TrySetCanceled();
+        }, this);
+    }
 }

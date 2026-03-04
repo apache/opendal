@@ -16,6 +16,44 @@
 // under the License.
 
 use opendal::ErrorKind;
+use std::os::raw::c_char;
+
+use crate::utils::into_string_ptr;
+
+#[repr(C)]
+/// Error payload returned by exported FFI functions.
+pub struct OpenDALError {
+    /// `1` when an error is present, otherwise `0`.
+    pub has_error: u8,
+    /// Numeric error code mapped from `ErrorCode`.
+    pub code: i32,
+    /// Heap-allocated UTF-8 message created by Rust.
+    ///
+    /// The message is released by the corresponding FFI result release API.
+    pub message: *mut c_char,
+}
+
+impl OpenDALError {
+    pub fn ok() -> Self {
+        OpenDALError {
+            has_error: 0,
+            code: 0,
+            message: std::ptr::null_mut(),
+        }
+    }
+
+    pub fn from_error(code: ErrorCode, message: impl Into<String>) -> Self {
+        OpenDALError {
+            has_error: 1,
+            code: code as i32,
+            message: into_string_ptr(message),
+        }
+    }
+
+    pub fn from_opendal_error(error: opendal::Error) -> OpenDALError {
+        OpenDALError::from_error(ErrorCode::from_error_kind(error.kind()), error.to_string())
+    }
+}
 
 #[repr(i32)]
 #[derive(Clone, Copy)]

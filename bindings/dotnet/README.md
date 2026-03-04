@@ -28,7 +28,30 @@ var fs = new Operator("fs", new Dictionary<string, string>
 {
 	["root"] = "/tmp/opendal",
 });
+
+using var executor = new Executor(2);
+op.Write("path", System.Text.Encoding.UTF8.GetBytes("hello"), executor);
+var content = await op.ReadAsync("path", executor);
 ```
+
+## Recommended Usage
+
+- Prefer `using` for both `Operator` and `Executor` to release native handles deterministically.
+- Keep `Executor` alive for the entire lifetime of operations that use it.
+- Do not dispose `Executor` before pending async operations complete.
+
+```csharp
+using DotOpenDAL;
+using System.Text;
+
+using var executor = new Executor(2);
+using var op = new Operator("memory");
+
+await op.WriteAsync("demo", Encoding.UTF8.GetBytes("hello"), executor);
+var data = await op.ReadAsync("demo", executor);
+```
+
+If you don't pass an `Executor`, OpenDAL uses the default executor.
 
 ## License and Trademarks
 

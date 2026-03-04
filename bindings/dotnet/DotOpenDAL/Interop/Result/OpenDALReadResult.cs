@@ -18,43 +18,15 @@
  */
 
 using System.Runtime.InteropServices;
+using DotOpenDAL.Interop.Result.Abstractions;
 
-namespace DotOpenDAL;
-
-[StructLayout(LayoutKind.Sequential)]
-/// <summary>
-/// Result wrapper for operations that only return success or error.
-/// </summary>
-public struct OpenDALResult
-{
-    /// <summary>
-    /// Error details for the operation.
-    /// </summary>
-    public OpenDALError Error;
-}
-
-[StructLayout(LayoutKind.Sequential)]
-/// <summary>
-/// Result wrapper for operations that return a native pointer payload.
-/// </summary>
-internal struct OpenDALIntPtrResult
-{
-    /// <summary>
-    /// Native pointer payload on success.
-    /// </summary>
-    public IntPtr Ptr;
-
-    /// <summary>
-    /// Error details for the operation.
-    /// </summary>
-    public OpenDALError Error;
-}
+namespace DotOpenDAL.Interop.Result;
 
 [StructLayout(LayoutKind.Sequential)]
 /// <summary>
 /// Result wrapper for operations that return a byte buffer payload.
 /// </summary>
-internal struct OpenDALByteBufferResult
+internal struct OpenDALReadResult : INativeValueResult<byte[]>
 {
     /// <summary>
     /// Byte buffer payload on success.
@@ -65,4 +37,19 @@ internal struct OpenDALByteBufferResult
     /// Error details for the operation.
     /// </summary>
     public OpenDALError Error;
+
+    public readonly void Release()
+    {
+        NativeMethods.opendal_read_result_release(this);
+    }
+
+    public readonly OpenDALError GetError()
+    {
+        return Error;
+    }
+
+    public readonly byte[] ToValue()
+    {
+        return Buffer.ToManagedBytes();
+    }
 }

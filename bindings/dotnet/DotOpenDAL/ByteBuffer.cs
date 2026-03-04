@@ -43,20 +43,18 @@ public struct ByteBuffer
     public nuint Capacity;
 
     /// <summary>
-    /// Releases the unmanaged buffer allocated by the Rust binding.
+    /// Copies the unmanaged bytes into a managed array.
     /// </summary>
-    public readonly void Release()
+    public readonly unsafe byte[] ToManagedBytes()
     {
-        if (Data == IntPtr.Zero)
+        if (Data == IntPtr.Zero || Len == 0)
         {
-            return;
+            return Array.Empty<byte>();
         }
 
-        if (Capacity == 0 || Capacity < Len)
-        {
-            return;
-        }
-
-        NativeMethods.buffer_free(Data, Len, Capacity);
+        var size = checked((int)Len);
+        var managed = GC.AllocateUninitializedArray<byte>(size);
+        new ReadOnlySpan<byte>((void*)Data, size).CopyTo(managed);
+        return managed;
     }
 }

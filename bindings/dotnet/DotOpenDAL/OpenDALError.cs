@@ -49,48 +49,6 @@ public struct OpenDALError
 }
 
 /// <summary>
-/// Extension helpers for working with <see cref="OpenDALError"/>.
-/// </summary>
-public static class OpenDALErrorExtension
-{
-    /// <summary>
-    /// Releases the unmanaged message pointer if present.
-    /// </summary>
-    /// <param name="error">The error whose message pointer should be released.</param>
-    public static void Release(this OpenDALError error)
-    {
-        if (error.Message == IntPtr.Zero)
-        {
-            return;
-        }
-
-        NativeMethods.message_free(error.Message);
-    }
-
-    /// <summary>
-    /// Reads the unmanaged UTF-8 message and releases its native memory.
-    /// </summary>
-    /// <param name="error">The error payload that contains the native message pointer.</param>
-    /// <returns>The decoded error message, or an empty string when unavailable.</returns>
-    public static string GetErrorMessage(this OpenDALError error)
-    {
-        try
-        {
-            if (error.Message == IntPtr.Zero)
-            {
-                return string.Empty;
-            }
-
-            return Marshal.PtrToStringUTF8(error.Message) ?? string.Empty;
-        }
-        finally
-        {
-            NativeMethods.message_free(error.Message);
-        }
-    }
-}
-
-/// <summary>
 /// Represents all error kinds that may be returned by OpenDAL.
 /// <para>
 /// For details about each error code, see:

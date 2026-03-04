@@ -17,6 +17,8 @@
  * under the License.
  */
 
+using DotOpenDAL.ServiceConfig;
+
 namespace DotOpenDAL.Tests;
 
 public class ConstructorTest
@@ -81,6 +83,19 @@ public class ConstructorTest
         };
 
         using var op = new Operator("memory", options);
+
+        Assert.NotEqual(IntPtr.Zero, op.Op);
+    }
+
+    [Fact]
+    public void Constructor_ServiceConfigProvided_ConstructsOperator()
+    {
+        var config = new MemoryServiceConfig
+        {
+            Root = "/tmp",
+        };
+
+        using var op = new Operator(config);
 
         Assert.NotEqual(IntPtr.Zero, op.Op);
     }

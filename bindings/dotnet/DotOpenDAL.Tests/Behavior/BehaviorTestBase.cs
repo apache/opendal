@@ -19,12 +19,17 @@
 
 using System.Collections;
 using System.Security.Cryptography;
+using System.Threading;
 
 namespace DotOpenDAL.Tests;
 
 public abstract class BehaviorTestBase : IDisposable
 {
+    private static readonly HashSet<string> LockSensitiveServices = ["persy", "redb", "sled"];
+    private static readonly SemaphoreSlim LockSensitiveServiceGate = new(1, 1);
+
     private readonly Operator? op;
+    private readonly bool holdsLock;
 
     protected string? Scheme { get; }
 
@@ -39,6 +44,12 @@ public abstract class BehaviorTestBase : IDisposable
         var scheme = Scheme.ToLowerInvariant().Replace('_', '-');
         var options = BuildConfigFromEnvironment(Scheme);
 
+        if (IsLockSensitiveService(scheme))
+        {
+            LockSensitiveServiceGate.Wait();
+            holdsLock = true;
+        }
+
         // Align with other bindings: isolate behavior tests with random roots by default.
         if (!IsRandomRootDisabled())
         {
@@ -48,7 +59,19 @@ public abstract class BehaviorTestBase : IDisposable
             options["root"] = BuildRandomRoot(baseRoot);
         }
 
-        op = new Operator(scheme, options);
+        try
+        {
+            op = new Operator(scheme, options);
+        }
+        catch
+        {
+            if (holdsLock)
+            {
+                LockSensitiveServiceGate.Release();
+            }
+
+            throw;
+        }
     }
 
     protected bool IsEnabled => op is not null;
@@ -82,6 +105,16 @@ public abstract class BehaviorTestBase : IDisposable
     public virtual void Dispose()
     {
         op?.Dispose();
+
+        if (holdsLock)
+        {
+            LockSensitiveServiceGate.Release();
+        }
+    }
+
+    private static bool IsLockSensitiveService(string scheme)
+    {
+        return LockSensitiveServices.Contains(scheme);
     }
 
     private static Dictionary<string, string> BuildConfigFromEnvironment(string service)

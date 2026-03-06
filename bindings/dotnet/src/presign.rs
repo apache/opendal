@@ -42,9 +42,10 @@ pub fn into_presigned_request_ptr(
         let value = value
             .to_str()
             .map_err(|err| {
-                OpenDALError::from_opendal_error(
-                    opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()),
-                )
+                OpenDALError::from_opendal_error(opendal::Error::new(
+                    opendal::ErrorKind::Unexpected,
+                    err.to_string(),
+                ))
             })?
             .to_string();
 

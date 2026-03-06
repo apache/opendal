@@ -86,7 +86,6 @@ pub struct OpendalPresignedRequestResult {
     pub error: OpenDALError,
 }
 
-
 macro_rules! define_result {
     ($result_ty:ident) => {
         impl $result_ty {

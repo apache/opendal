@@ -530,7 +530,10 @@ fn operator_delete_async_inner(
 
     let op = op.clone();
     executor.spawn(async move {
-        let result = op.delete(&path).await.map_err(OpenDALError::from_opendal_error);
+        let result = op
+            .delete(&path)
+            .await
+            .map_err(OpenDALError::from_opendal_error);
 
         callback(
             context,
@@ -975,8 +978,7 @@ pub extern "C" fn operator_presign_write_async(
     callback: Option<PresignCallback>,
     context: i64,
 ) -> OpendalResult {
-    match operator_presign_write_async_inner(op, executor, path, expire_nanos, callback, context)
-    {
+    match operator_presign_write_async_inner(op, executor, path, expire_nanos, callback, context) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
@@ -1090,8 +1092,7 @@ pub extern "C" fn operator_presign_delete_async(
     callback: Option<PresignCallback>,
     context: i64,
 ) -> OpendalResult {
-    match operator_presign_delete_async_inner(op, executor, path, expire_nanos, callback, context)
-    {
+    match operator_presign_delete_async_inner(op, executor, path, expire_nanos, callback, context) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
@@ -1168,8 +1169,8 @@ fn operator_input_stream_create_inner(
 
     let _guard = executor.enter();
 
-    let blocking_op = opendal::blocking::Operator::new(op.clone())
-        .map_err(OpenDALError::from_opendal_error)?;
+    let blocking_op =
+        opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
     let reader = blocking_op
         .reader_options(&path, opendal::options::ReaderOptions::default())
         .map_err(OpenDALError::from_opendal_error)?;
@@ -1200,7 +1201,9 @@ fn operator_input_stream_read_next_inner(
     stream: *mut opendal::blocking::StdBytesIterator,
 ) -> Result<ByteBuffer, OpenDALError> {
     if stream.is_null() {
-        return Err(crate::utils::config_invalid_error("input stream pointer is null"));
+        return Err(crate::utils::config_invalid_error(
+            "input stream pointer is null",
+        ));
     }
 
     let stream = unsafe { &mut *stream };
@@ -1209,9 +1212,10 @@ fn operator_input_stream_read_next_inner(
         .next()
         .transpose()
         .map_err(|err| {
-            OpenDALError::from_opendal_error(
-                opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()),
-            )
+            OpenDALError::from_opendal_error(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                err.to_string(),
+            ))
         })?
         .map(|v| ByteBuffer::from_vec(v.to_vec()))
         .unwrap_or_else(ByteBuffer::empty);
@@ -1224,7 +1228,9 @@ fn operator_input_stream_read_next_inner(
 /// - `stream` must be null or a pointer returned by `operator_input_stream_create`.
 /// - Must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn operator_input_stream_free(stream: *mut opendal::blocking::StdBytesIterator) {
+pub unsafe extern "C" fn operator_input_stream_free(
+    stream: *mut opendal::blocking::StdBytesIterator,
+) {
     if stream.is_null() {
         return;
     }
@@ -1271,8 +1277,8 @@ fn operator_output_stream_create_inner(
 
     let _guard = executor.enter();
 
-    let blocking_op = opendal::blocking::Operator::new(op.clone())
-        .map_err(OpenDALError::from_opendal_error)?;
+    let blocking_op =
+        opendal::blocking::Operator::new(op.clone()).map_err(OpenDALError::from_opendal_error)?;
     let stream = blocking_op
         .writer_options(&path, options)
         .map_err(OpenDALError::from_opendal_error)?;
@@ -1327,14 +1333,18 @@ fn operator_output_stream_write_inner(
 ///
 /// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_output_stream_flush(stream: *mut opendal::blocking::Writer) -> OpendalResult {
+pub extern "C" fn operator_output_stream_flush(
+    stream: *mut opendal::blocking::Writer,
+) -> OpendalResult {
     match operator_output_stream_flush_inner(stream) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_output_stream_flush_inner(stream: *mut opendal::blocking::Writer) -> Result<(), OpenDALError> {
+fn operator_output_stream_flush_inner(
+    stream: *mut opendal::blocking::Writer,
+) -> Result<(), OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "output stream pointer is null",
@@ -1349,14 +1359,18 @@ fn operator_output_stream_flush_inner(stream: *mut opendal::blocking::Writer) ->
 ///
 /// - `stream` must be a valid pointer returned by `operator_output_stream_create`.
 #[unsafe(no_mangle)]
-pub extern "C" fn operator_output_stream_close(stream: *mut opendal::blocking::Writer) -> OpendalResult {
+pub extern "C" fn operator_output_stream_close(
+    stream: *mut opendal::blocking::Writer,
+) -> OpendalResult {
     match operator_output_stream_close_inner(stream) {
         Ok(()) => OpendalResult::ok(),
         Err(error) => OpendalResult::from_error(error),
     }
 }
 
-fn operator_output_stream_close_inner(stream: *mut opendal::blocking::Writer) -> Result<(), OpenDALError> {
+fn operator_output_stream_close_inner(
+    stream: *mut opendal::blocking::Writer,
+) -> Result<(), OpenDALError> {
     if stream.is_null() {
         return Err(crate::utils::config_invalid_error(
             "output stream pointer is null",

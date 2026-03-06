@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp"]
+LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
@@ -90,6 +90,8 @@ class Hint:
     binding_c: bool = field(default=False, init=False)
     # Is binding cpp affected?
     binding_cpp: bool = field(default=False, init=False)
+    # Is binding dotnet affected?
+    binding_dotnet: bool = field(default=False, init=False)
     # Is integration object_store affected ?
     integration_object_store: bool = field(default=False, init=False)
 
@@ -153,12 +155,8 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             and not p.startswith("core/core/src/docs/")
         ):
             hint.core = True
-            hint.binding_java = True
-            hint.binding_python = True
-            hint.binding_nodejs = True
-            hint.binding_go = True
-            hint.binding_c = True
-            hint.binding_cpp = True
+            for language in LANGUAGE_BINDING:
+                setattr(hint, f"binding_{language}", True)
             for integration in INTEGRATIONS:
                 setattr(hint, f"integration_{integration}", True)
             hint.all_service = True

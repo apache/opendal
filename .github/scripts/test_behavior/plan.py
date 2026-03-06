@@ -275,6 +275,14 @@ def generate_language_binding_cases(
             "rocksdb",
         ]]
 
+    # Remove invalid cases for dotnet.
+    if language == "dotnet":
+        cases = [v for v in cases if v["service"] not in [
+            "hdfs",
+            "hdfs_native",
+            "rocksdb",
+        ]]
+
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 

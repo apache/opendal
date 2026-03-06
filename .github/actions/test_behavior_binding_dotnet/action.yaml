@@ -43,7 +43,13 @@ runs:
             working-directory: bindings/dotnet
             run: |
               cargo build
-              dotnet test --filter "FullyQualifiedName~Behavior" -f net10.0
+              # Some services export RUST_TEST_THREADS=1 from fixture setup (for lock-sensitive backends).
+              # Align dotnet test worker count with that signal instead of hard-coding service names.
+              if [ "${RUST_TEST_THREADS:-}" = "1" ]; then
+                dotnet test --filter "FullyQualifiedName~Behavior" -f net10.0 -- RunConfiguration.MaxCpuCount=1
+              else
+                dotnet test --filter "FullyQualifiedName~Behavior" -f net10.0
+              fi
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

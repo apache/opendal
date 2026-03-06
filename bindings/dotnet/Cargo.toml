@@ -60,6 +60,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webhdfs",
   "services-aliyun-drive",
   "services-cacache",
+  "services-compfs",
   "services-dashmap",
   "services-dropbox",
   "services-etcd",
@@ -100,3 +101,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-yandex-disk",
 ] }
 tokio = { version = "1.49.0", features = ["full"] }
+
+[target.'cfg(unix)'.dependencies]
+# Some backends are unix-only in current dependency stack, so only enable them on unix targets.
+opendal = { version = ">=0", path = "../../core", features = ["services-monoiofs", "services-sftp"] }

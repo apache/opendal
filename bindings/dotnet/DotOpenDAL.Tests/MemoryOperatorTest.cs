@@ -24,6 +24,8 @@ namespace DotOpenDAL.Tests;
 
 public class MemoryOperatorTest
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     [Fact]
     public void Info_MemoryConfig_ReturnsSchemeRootAndName()
     {
@@ -70,7 +72,7 @@ public class MemoryOperatorTest
             await Task.Yield();
         });
 
-        var dispose = Task.Run(op.Dispose);
+        var dispose = Task.Run(op.Dispose, CT);
         await Task.WhenAll(workers.Append(dispose));
     }
 
@@ -142,8 +144,8 @@ public class MemoryOperatorTest
         var content = "abcdef";
         var bytes = System.Text.Encoding.UTF8.GetBytes(content);
 
-        await op.WriteAsync("test-async", bytes);
-        var resultBytes = await op.ReadAsync("test-async");
+        await op.WriteAsync("test-async", bytes, CT);
+        var resultBytes = await op.ReadAsync("test-async", CT);
         var result = System.Text.Encoding.UTF8.GetString(resultBytes);
 
         Assert.Equal(content, result);
@@ -155,8 +157,8 @@ public class MemoryOperatorTest
         using var op = new Operator("memory");
         byte[] content = [0x00, 0x01, 0x02, 0x7F, 0x80, 0xFE, 0xFF];
 
-        await op.WriteAsync("test-async-bytes", content);
-        var result = await op.ReadAsync("test-async-bytes");
+        await op.WriteAsync("test-async-bytes", content, CT);
+        var result = await op.ReadAsync("test-async-bytes", CT);
 
         Assert.Equal(content, result);
     }
@@ -167,8 +169,8 @@ public class MemoryOperatorTest
         using var op = new Operator("memory");
         var content = Array.Empty<byte>();
 
-        await op.WriteAsync("test-async-empty-bytes", content);
-        var result = await op.ReadAsync("test-async-empty-bytes");
+        await op.WriteAsync("test-async-empty-bytes", content, CT);
+        var result = await op.ReadAsync("test-async-empty-bytes", CT);
 
         Assert.Empty(result);
     }
@@ -178,7 +180,7 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
 
-        var ex = await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("path-not-exists-async"));
+        var ex = await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("path-not-exists-async", CT));
 
         Assert.Equal(ErrorCode.NotFound, ex.Code);
         Assert.Contains("path-not-exists-async", ex.Message);
@@ -204,7 +206,7 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
         var seed = System.Text.Encoding.UTF8.GetBytes("seed-content");
-        await op.WriteAsync("seed", seed);
+        await op.WriteAsync("seed", seed, CT);
 
         using (var writeCts = new CancellationTokenSource())
         {
@@ -234,7 +236,7 @@ public class MemoryOperatorTest
             }
         }
 
-        var stableRead = await op.ReadAsync("seed");
+        var stableRead = await op.ReadAsync("seed", CT);
         Assert.Equal("seed-content", System.Text.Encoding.UTF8.GetString(stableRead));
     }
 
@@ -243,7 +245,7 @@ public class MemoryOperatorTest
     {
         var op = new Operator("memory");
         byte[] content = [1, 2, 3, 4, 5, 6, 7, 8];
-        await op.WriteAsync("seed-async", content);
+        await op.WriteAsync("seed-async", content, CT);
 
         var workers = Enumerable.Range(0, 64).Select(async i =>
         {
@@ -251,8 +253,8 @@ public class MemoryOperatorTest
 
             try
             {
-                await op.WriteAsync(path, content);
-                _ = await op.ReadAsync(path);
+                await op.WriteAsync(path, content, CT);
+                _ = await op.ReadAsync(path, CT);
             }
             catch (ObjectDisposedException)
             {
@@ -262,7 +264,7 @@ public class MemoryOperatorTest
             }
         });
 
-        var dispose = Task.Run(op.Dispose);
+        var dispose = Task.Run(op.Dispose, CT);
         await Task.WhenAll(workers.Append(dispose));
     }
 
@@ -273,13 +275,13 @@ public class MemoryOperatorTest
 
         for (var i = 0; i < 32; i++)
         {
-            var ex = await Assert.ThrowsAsync<OpenDALException>(() => op.ReadAsync($"missing-{i}"));
+            var ex = await Assert.ThrowsAsync<OpenDALException>(() => op.ReadAsync($"missing-{i}", CT));
             Assert.Equal(ErrorCode.NotFound, ex.Code);
         }
 
         var content = System.Text.Encoding.UTF8.GetBytes("healthy");
-        await op.WriteAsync("healthy", content);
-        var read = await op.ReadAsync("healthy");
+        await op.WriteAsync("healthy", content, CT);
+        var read = await op.ReadAsync("healthy", CT);
         Assert.Equal("healthy", System.Text.Encoding.UTF8.GetString(read));
     }
 
@@ -304,13 +306,13 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
         var content = System.Text.Encoding.UTF8.GetBytes("abcdef");
-        await op.WriteAsync("read-range-async", content);
+        await op.WriteAsync("read-range-async", content, CT);
 
         var result = await op.ReadAsync("read-range-async", new ReadOptions
         {
             Offset = 1,
             Length = 4,
-        });
+        }, CT);
 
         Assert.Equal("bcde", System.Text.Encoding.UTF8.GetString(result));
     }
@@ -343,13 +345,13 @@ public class MemoryOperatorTest
             return;
         }
 
-        await op.WriteAsync("append-async", System.Text.Encoding.UTF8.GetBytes("x"));
+        await op.WriteAsync("append-async", System.Text.Encoding.UTF8.GetBytes("x"), CT);
         await op.WriteAsync("append-async", System.Text.Encoding.UTF8.GetBytes("y"), new WriteOptions
         {
             Append = true,
-        });
+        }, CT);
 
-        var result = System.Text.Encoding.UTF8.GetString(await op.ReadAsync("append-async"));
+        var result = System.Text.Encoding.UTF8.GetString(await op.ReadAsync("append-async", CT));
         Assert.Equal("xy", result);
     }
 
@@ -391,9 +393,9 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
         var payload = System.Text.Encoding.UTF8.GetBytes("metadata-async");
-        await op.WriteAsync("stat-async", payload);
+        await op.WriteAsync("stat-async", payload, CT);
 
-        var metadata = await op.StatAsync("stat-async");
+        var metadata = await op.StatAsync("stat-async", null, CT);
 
         Assert.True(metadata.IsFile);
         Assert.Equal((ulong)payload.Length, metadata.ContentLength);
@@ -473,13 +475,13 @@ public class MemoryOperatorTest
             return;
         }
 
-        await op.WriteAsync("list-options-async/alpha.txt", System.Text.Encoding.UTF8.GetBytes("a"));
-        await op.WriteAsync("list-options-async/nested/beta.txt", System.Text.Encoding.UTF8.GetBytes("b"));
+        await op.WriteAsync("list-options-async/alpha.txt", System.Text.Encoding.UTF8.GetBytes("a"), CT);
+        await op.WriteAsync("list-options-async/nested/beta.txt", System.Text.Encoding.UTF8.GetBytes("b"), CT);
 
         var entries = await op.ListAsync("list-options-async/", new ListOptions
         {
             Recursive = true,
-        });
+        }, CT);
 
         Assert.Contains(entries, entry => entry.Path == "list-options-async/alpha.txt");
         Assert.Contains(entries, entry => entry.Path == "list-options-async/nested/beta.txt");
@@ -541,37 +543,37 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
 
-        await op.CreateDirAsync("async-dir/");
-        var dirMeta = await op.StatAsync("async-dir/");
+        await op.CreateDirAsync("async-dir/", CT);
+        var dirMeta = await op.StatAsync("async-dir/", null, CT);
         Assert.True(dirMeta.IsDir);
 
-        await op.WriteAsync("async-dir/source.txt", System.Text.Encoding.UTF8.GetBytes("payload"));
+        await op.WriteAsync("async-dir/source.txt", System.Text.Encoding.UTF8.GetBytes("payload"), CT);
 
         if (op.Info.FullCapability.Copy)
         {
-            await op.CopyAsync("async-dir/source.txt", "async-dir/copied.txt");
-            var copied = await op.ReadAsync("async-dir/copied.txt");
+            await op.CopyAsync("async-dir/source.txt", "async-dir/copied.txt", CT);
+            var copied = await op.ReadAsync("async-dir/copied.txt", CT);
             Assert.Equal("payload", System.Text.Encoding.UTF8.GetString(copied));
         }
 
         if (op.Info.FullCapability.Rename)
         {
             var renameSource = op.Info.FullCapability.Copy ? "async-dir/copied.txt" : "async-dir/source.txt";
-            await op.RenameAsync(renameSource, "async-dir/renamed.txt");
-            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync(renameSource));
-            var renamed = await op.ReadAsync("async-dir/renamed.txt");
+            await op.RenameAsync(renameSource, "async-dir/renamed.txt", CT);
+            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync(renameSource, CT));
+            var renamed = await op.ReadAsync("async-dir/renamed.txt", CT);
             Assert.Equal("payload", System.Text.Encoding.UTF8.GetString(renamed));
-            await op.DeleteAsync("async-dir/renamed.txt");
-            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("async-dir/renamed.txt"));
+            await op.DeleteAsync("async-dir/renamed.txt", CT);
+            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("async-dir/renamed.txt", CT));
         }
         else
         {
-            await op.DeleteAsync("async-dir/source.txt");
-            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("async-dir/source.txt"));
+            await op.DeleteAsync("async-dir/source.txt", CT);
+            await Assert.ThrowsAsync<OpenDALException>(async () => await op.ReadAsync("async-dir/source.txt", CT));
         }
 
-        await op.RemoveAllAsync("async-dir/");
-        var entries = await op.ListAsync("async-dir/", new ListOptions { Recursive = true });
+        await op.RemoveAllAsync("async-dir/", CT);
+        var entries = await op.ListAsync("async-dir/", new ListOptions { Recursive = true }, CT);
         Assert.Empty(entries);
     }
 
@@ -591,9 +593,9 @@ public class MemoryOperatorTest
     {
         using var op = new Operator("memory");
 
-        await op.DeleteAsync("not-exists-delete-async");
-        await op.WriteAsync("delete-idempotent-async", System.Text.Encoding.UTF8.GetBytes("ok"));
-        var result = await op.ReadAsync("delete-idempotent-async");
+        await op.DeleteAsync("not-exists-delete-async", CT);
+        await op.WriteAsync("delete-idempotent-async", System.Text.Encoding.UTF8.GetBytes("ok"), CT);
+        var result = await op.ReadAsync("delete-idempotent-async", CT);
         Assert.Equal("ok", System.Text.Encoding.UTF8.GetString(result));
     }
 
@@ -645,13 +647,13 @@ public class MemoryOperatorTest
 
         using (var output = op.OpenWriteStream("stream-async.txt"))
         {
-            await output.WriteAsync(content, 0, content.Length);
-            await output.FlushAsync();
+            await output.WriteAsync(content, 0, content.Length, CT);
+            await output.FlushAsync(CT);
         }
 
         using var input = op.OpenReadStream("stream-async.txt");
         var buffer = new byte[content.Length];
-        var read = await input.ReadAsync(buffer, 0, buffer.Length);
+        var read = await input.ReadAsync(buffer, 0, buffer.Length, CT);
 
         Assert.Equal(content.Length, read);
         Assert.Equal(content, buffer);
@@ -665,19 +667,19 @@ public class MemoryOperatorTest
         var expiration = TimeSpan.FromMinutes(5);
 
         await AssertPresign(
-            () => op.PresignReadAsync("presign-read", expiration),
+            () => op.PresignReadAsync("presign-read", expiration, CT),
             capability.PresignRead
         );
         await AssertPresign(
-            () => op.PresignWriteAsync("presign-write", expiration),
+            () => op.PresignWriteAsync("presign-write", expiration, CT),
             capability.PresignWrite
         );
         await AssertPresign(
-            () => op.PresignStatAsync("presign-stat", expiration),
+            () => op.PresignStatAsync("presign-stat", expiration, CT),
             capability.PresignStat
         );
         await AssertPresign(
-            () => op.PresignDeleteAsync("presign-delete", expiration),
+            () => op.PresignDeleteAsync("presign-delete", expiration, CT),
             capability.PresignDelete
         );
 

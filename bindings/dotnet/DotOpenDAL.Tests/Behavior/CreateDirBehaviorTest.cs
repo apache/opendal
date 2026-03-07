@@ -19,8 +19,14 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class CreateDirBehaviorTest : BehaviorTestBase
 {
+    public CreateDirBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void CreateDirBehavior_CreatesDirectoryEntry()
     {

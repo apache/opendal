@@ -19,8 +19,16 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class PresignBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
+    public PresignBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public async Task PresignBehavior_ReadWriteStatDelete_AreGeneratedWhenSupported()
     {
@@ -34,28 +42,28 @@ public sealed class PresignBehaviorTest : BehaviorTestBase
 
         if (Capability.PresignRead)
         {
-            var req = await Op.PresignReadAsync(path, expire);
+            var req = await Op.PresignReadAsync(path, expire, CT);
             Assert.False(string.IsNullOrWhiteSpace(req.Method));
             Assert.False(string.IsNullOrWhiteSpace(req.Uri));
         }
 
         if (Capability.PresignWrite)
         {
-            var req = await Op.PresignWriteAsync(path, expire);
+            var req = await Op.PresignWriteAsync(path, expire, CT);
             Assert.False(string.IsNullOrWhiteSpace(req.Method));
             Assert.False(string.IsNullOrWhiteSpace(req.Uri));
         }
 
         if (Capability.PresignStat)
         {
-            var req = await Op.PresignStatAsync(path, expire);
+            var req = await Op.PresignStatAsync(path, expire, CT);
             Assert.False(string.IsNullOrWhiteSpace(req.Method));
             Assert.False(string.IsNullOrWhiteSpace(req.Uri));
         }
 
         if (Capability.PresignDelete)
         {
-            var req = await Op.PresignDeleteAsync(path, expire);
+            var req = await Op.PresignDeleteAsync(path, expire, CT);
             Assert.False(string.IsNullOrWhiteSpace(req.Method));
             Assert.False(string.IsNullOrWhiteSpace(req.Uri));
         }

@@ -21,8 +21,14 @@ using DotOpenDAL.Options;
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class ListBehaviorTest : BehaviorTestBase
 {
+    public ListBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void ListBehavior_ListsEntriesUnderPrefix()
     {

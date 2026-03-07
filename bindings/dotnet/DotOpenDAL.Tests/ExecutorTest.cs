@@ -21,6 +21,8 @@ namespace DotOpenDAL.Tests;
 
 public class ExecutorTest
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     [Fact]
     public void CreateExecutor_InvalidCores_ThrowsArgumentOutOfRangeException()
     {
@@ -47,8 +49,8 @@ public class ExecutorTest
         using var op = new Operator("memory");
         var content = System.Text.Encoding.UTF8.GetBytes("executor-async-content");
 
-        await op.WriteAsync("executor-async", content, executor);
-        var read = await op.ReadAsync("executor-async", executor);
+        await op.WriteAsync("executor-async", content, executor, CT);
+        var read = await op.ReadAsync("executor-async", executor, CT);
 
         Assert.Equal(content, read);
     }
@@ -63,8 +65,8 @@ public class ExecutorTest
 
         Assert.Throws<ObjectDisposedException>(() => op.Write("disposed-executor", content, executor));
         Assert.Throws<ObjectDisposedException>(() => op.Read("disposed-executor", executor));
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => op.WriteAsync("disposed-executor", content, executor));
-        await Assert.ThrowsAsync<ObjectDisposedException>(() => op.ReadAsync("disposed-executor", executor));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => op.WriteAsync("disposed-executor", content, executor, CT));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => op.ReadAsync("disposed-executor", executor, CT));
     }
 
     [Fact]
@@ -95,8 +97,8 @@ public class ExecutorTest
             var path = $"executor-processor-async-{i}";
             var content = System.Text.Encoding.UTF8.GetBytes($"executor-content-{i}");
 
-            await op.WriteAsync(path, content, executor);
-            var read = await op.ReadAsync(path, executor);
+            await op.WriteAsync(path, content, executor, CT);
+            var read = await op.ReadAsync(path, executor, CT);
 
             Assert.Equal(content, read);
         });

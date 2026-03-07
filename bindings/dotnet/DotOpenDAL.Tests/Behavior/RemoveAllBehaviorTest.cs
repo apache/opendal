@@ -19,8 +19,14 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class RemoveAllBehaviorTest : BehaviorTestBase
 {
+    public RemoveAllBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void RemoveAllBehavior_RemovesRecursiveTree()
     {

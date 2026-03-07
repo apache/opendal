@@ -21,8 +21,16 @@ using DotOpenDAL.Options;
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class ReadBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
+    public ReadBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public async Task ReadBehavior_ReadsWrittenDataAsync()
     {
@@ -34,8 +42,8 @@ public sealed class ReadBehaviorTest : BehaviorTestBase
         var path = NewPath("read-async");
         var content = RandomBytes(2048);
 
-        await Op.WriteAsync(path, content);
-        var actual = await Op.ReadAsync(path);
+        await Op.WriteAsync(path, content, CT);
+        var actual = await Op.ReadAsync(path, CT);
 
         Assert.Equal(content, actual);
     }

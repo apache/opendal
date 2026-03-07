@@ -19,8 +19,14 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class StatBehaviorTest : BehaviorTestBase
 {
+    public StatBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void StatBehavior_ReturnsFileMetadata()
     {

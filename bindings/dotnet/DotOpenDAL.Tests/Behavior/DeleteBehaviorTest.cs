@@ -19,8 +19,14 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class DeleteBehaviorTest : BehaviorTestBase
 {
+    public DeleteBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void DeleteBehavior_RemovesObject()
     {

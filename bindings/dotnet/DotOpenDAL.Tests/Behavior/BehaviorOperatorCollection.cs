@@ -19,29 +19,7 @@
 
 namespace DotOpenDAL.Tests;
 
-[Collection("BehaviorOperator")]
-public sealed class CopyBehaviorTest : BehaviorTestBase
+[CollectionDefinition("BehaviorOperator", DisableParallelization = false)]
+public sealed class BehaviorOperatorCollection : ICollectionFixture<BehaviorOperatorFixture>
 {
-    public CopyBehaviorTest(BehaviorOperatorFixture fixture)
-        : base(fixture)
-    {
-    }
-
-    [Fact]
-    public void CopyBehavior_CreatesTargetWithSameContent()
-    {
-        if (!Supports(c => c.Copy && c.Read && c.Write))
-        {
-            return;
-        }
-
-        var sourcePath = NewPath("copy-source");
-        var targetPath = NewPath("copy-target");
-        var content = RandomBytes(256);
-
-        Op.Write(sourcePath, content);
-        Op.Copy(sourcePath, targetPath);
-
-        Assert.Equal(content, Op.Read(targetPath));
-    }
 }

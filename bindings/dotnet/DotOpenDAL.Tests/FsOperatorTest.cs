@@ -21,6 +21,8 @@ namespace DotOpenDAL.Tests;
 
 public class FsOperatorTest
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     [Fact]
     public void ReadWrite_RootOptionProvided_RoundTripsSuccessfully()
     {
@@ -72,8 +74,8 @@ public class FsOperatorTest
             var content = "hello-from-fs-async";
             var bytes = System.Text.Encoding.UTF8.GetBytes(content);
 
-            await op.WriteAsync(path, bytes);
-            var result = await op.ReadAsync(path);
+            await op.WriteAsync(path, bytes, CT);
+            var result = await op.ReadAsync(path, CT);
 
             Assert.Equal(content, System.Text.Encoding.UTF8.GetString(result));
             Assert.True(File.Exists(Path.Combine(root, "nested", "test-fs-async.txt")));
@@ -103,7 +105,7 @@ public class FsOperatorTest
             using var op = new Operator("fs", options);
             var seedPath = "nested/seed.txt";
             var seedBytes = System.Text.Encoding.UTF8.GetBytes("seed-content");
-            await op.WriteAsync(seedPath, seedBytes);
+            await op.WriteAsync(seedPath, seedBytes, CT);
 
             using (var writeCts = new CancellationTokenSource())
             {
@@ -133,7 +135,7 @@ public class FsOperatorTest
                 }
             }
 
-            var stableRead = await op.ReadAsync(seedPath);
+            var stableRead = await op.ReadAsync(seedPath, CT);
             Assert.Equal("seed-content", System.Text.Encoding.UTF8.GetString(stableRead));
         }
         finally

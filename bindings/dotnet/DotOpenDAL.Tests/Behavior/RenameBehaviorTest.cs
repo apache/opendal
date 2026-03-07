@@ -19,8 +19,14 @@
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class RenameBehaviorTest : BehaviorTestBase
 {
+    public RenameBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void RenameBehavior_MovesContentToTargetPath()
     {

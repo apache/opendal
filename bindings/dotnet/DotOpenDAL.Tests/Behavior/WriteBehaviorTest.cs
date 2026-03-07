@@ -21,8 +21,14 @@ using DotOpenDAL.Options;
 
 namespace DotOpenDAL.Tests;
 
+[Collection("BehaviorOperator")]
 public sealed class WriteBehaviorTest : BehaviorTestBase
 {
+    public WriteBehaviorTest(BehaviorOperatorFixture fixture)
+        : base(fixture)
+    {
+    }
+
     [Fact]
     public void WriteBehavior_BasicRoundtrip()
     {
@@ -57,7 +63,7 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
         var ex = Assert.Throws<OpenDALException>(() =>
             Op.Write(path, second, new WriteOptions { IfNotExists = true }));
 
-        Assert.Contains(ex.Code, [ErrorCode.ConditionNotMatch, ErrorCode.AlreadyExists]);
+        Assert.Contains(ex.Code, new[] { ErrorCode.ConditionNotMatch, ErrorCode.AlreadyExists });
         Assert.Equal(first, Op.Read(path));
     }
 }

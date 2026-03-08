@@ -116,7 +116,7 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
         }
 
         var path = NewPath("write-append");
-        Op.Write(path, System.Text.Encoding.UTF8.GetBytes("a"));
+        Op.Write(path, System.Text.Encoding.UTF8.GetBytes("a"), new WriteOptions { Append = true });
         Op.Write(path, System.Text.Encoding.UTF8.GetBytes("b"), new WriteOptions { Append = true });
 
         Assert.Equal("ab", System.Text.Encoding.UTF8.GetString(Op.Read(path)));
@@ -131,7 +131,7 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
         }
 
         var path = NewPath("write-append-async");
-        await Op.WriteAsync(path, System.Text.Encoding.UTF8.GetBytes("a"), CT);
+        await Op.WriteAsync(path, System.Text.Encoding.UTF8.GetBytes("a"), new WriteOptions { Append = true }, CT);
         await Op.WriteAsync(path, System.Text.Encoding.UTF8.GetBytes("b"), new WriteOptions { Append = true }, CT);
 
         Assert.Equal("ab", System.Text.Encoding.UTF8.GetString(await Op.ReadAsync(path, CT)));

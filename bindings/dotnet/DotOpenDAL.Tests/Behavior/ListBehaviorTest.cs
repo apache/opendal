@@ -84,13 +84,19 @@ public sealed class ListBehaviorTest : BehaviorTestBase
         }
 
         var dir = NewPath("list-limit") + "/";
+        var files = new List<string>();
         for (var i = 0; i < 6; i++)
         {
-            await Op.WriteAsync($"{dir}file-{i}.txt", RandomBytes(8), CT);
+            var path = $"{dir}file-{i}.txt";
+            files.Add(path);
+            await Op.WriteAsync(path, RandomBytes(8), CT);
         }
 
         var entries = await Op.ListAsync(dir, new ListOptions { Recursive = true, Limit = 3 }, CT);
-        Assert.True(entries.Count <= 3);
+        foreach (var file in files)
+        {
+            Assert.Contains(entries, e => e.Path == file);
+        }
     }
 
     [Fact]
@@ -102,12 +108,18 @@ public sealed class ListBehaviorTest : BehaviorTestBase
         }
 
         var dir = NewPath("list-limit-sync") + "/";
+        var files = new List<string>();
         for (var i = 0; i < 6; i++)
         {
-            Op.Write($"{dir}file-{i}.txt", RandomBytes(8));
+            var path = $"{dir}file-{i}.txt";
+            files.Add(path);
+            Op.Write(path, RandomBytes(8));
         }
 
         var entries = Op.List(dir, new ListOptions { Recursive = true, Limit = 3 });
-        Assert.True(entries.Count <= 3);
+        foreach (var file in files)
+        {
+            Assert.Contains(entries, e => e.Path == file);
+        }
     }
 }

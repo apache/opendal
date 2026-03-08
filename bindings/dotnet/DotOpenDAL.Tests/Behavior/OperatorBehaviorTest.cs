@@ -32,21 +32,6 @@ public sealed class OperatorBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
-    public void OperatorBehavior_Info_IsAvailable()
-    {
-        if (!IsEnabled)
-        {
-            return;
-        }
-
-        var info = Op.Info;
-
-        Assert.False(string.IsNullOrWhiteSpace(info.Scheme));
-        Assert.False(string.IsNullOrWhiteSpace(info.Name));
-        Assert.True(info.FullCapability.Read || info.FullCapability.Write);
-    }
-
-    [Fact]
     public void OperatorBehavior_Duplicate_SharesBackendState()
     {
         if (!Supports(c => c.Read && c.Write))

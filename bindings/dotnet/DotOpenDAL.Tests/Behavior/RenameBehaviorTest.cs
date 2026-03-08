@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class RenameBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public RenameBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -44,6 +46,26 @@ public sealed class RenameBehaviorTest : BehaviorTestBase
 
         Assert.Equal(content, Op.Read(targetPath));
         var ex = Assert.Throws<OpenDALException>(() => Op.Read(sourcePath));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task RenameBehavior_MovesContentToTargetPathAsync()
+    {
+        if (!Supports(c => c.Rename && c.Read && c.Write))
+        {
+            return;
+        }
+
+        var sourcePath = NewPath("rename-source-async");
+        var targetPath = NewPath("rename-target-async");
+        var content = RandomBytes(111);
+
+        await Op.WriteAsync(sourcePath, content, CT);
+        await Op.RenameAsync(sourcePath, targetPath, CT);
+
+        Assert.Equal(content, await Op.ReadAsync(targetPath, CT));
+        var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.ReadAsync(sourcePath, CT));
         Assert.True(IsMissingError(ex));
     }
 }

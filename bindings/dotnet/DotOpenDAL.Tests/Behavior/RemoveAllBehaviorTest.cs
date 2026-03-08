@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class RemoveAllBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public RemoveAllBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -42,6 +44,24 @@ public sealed class RemoveAllBehaviorTest : BehaviorTestBase
         Op.RemoveAll(dir);
 
         var entries = Op.List(dir);
+        Assert.Empty(entries);
+    }
+
+    [Fact]
+    public async Task RemoveAllBehavior_RemovesRecursiveTreeAsync()
+    {
+        if (!Supports(c => c.DeleteWithRecursive && c.Write && c.List))
+        {
+            return;
+        }
+
+        var dir = NewPath("remove-all-async") + "/";
+
+        await Op.WriteAsync($"{dir}a.txt", RandomBytes(16), CT);
+        await Op.WriteAsync($"{dir}nested/b.txt", RandomBytes(16), CT);
+        await Op.RemoveAllAsync(dir, CT);
+
+        var entries = await Op.ListAsync(dir, new DotOpenDAL.Options.ListOptions(), CT);
         Assert.Empty(entries);
     }
 }

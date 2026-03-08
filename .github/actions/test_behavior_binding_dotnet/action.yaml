@@ -43,7 +43,7 @@ runs:
             working-directory: bindings/dotnet
             run: |
               cargo build
-              dotnet test --filter "FullyQualifiedName~Behavior" -f net10.0 --logger "console;verbosity=normal"
+              dotnet test -f net10.0
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

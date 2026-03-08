@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class DeleteBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public DeleteBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -45,6 +47,23 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public async Task DeleteBehavior_RemovesObjectAsync()
+    {
+        if (!Supports(c => c.Delete && c.Read && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-async");
+
+        await Op.WriteAsync(path, RandomBytes(12), CT);
+        await Op.DeleteAsync(path, CT);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.ReadAsync(path, CT));
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
     public void DeleteBehavior_DeletingMissingPath_IsAllowed()
     {
         if (!Supports(c => c.Delete))
@@ -53,5 +72,16 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
         }
 
         Op.Delete(NewPath("delete-missing"));
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_DeletingMissingPath_IsAllowedAsync()
+    {
+        if (!Supports(c => c.Delete))
+        {
+            return;
+        }
+
+        await Op.DeleteAsync(NewPath("delete-missing-async"), CT);
     }
 }

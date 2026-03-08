@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class StatBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public StatBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -46,6 +48,24 @@ public sealed class StatBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public async Task StatBehavior_ReturnsFileMetadataAsync()
+    {
+        if (!Supports(c => c.Stat && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("stat-file-async");
+        var content = RandomBytes(333);
+
+        await Op.WriteAsync(path, content, CT);
+        var meta = await Op.StatAsync(path, null, CT);
+
+        Assert.True(meta.IsFile);
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
     public void StatBehavior_MissingPath_ReturnsNotFound()
     {
         if (!Supports(c => c.Stat))
@@ -56,5 +76,35 @@ public sealed class StatBehaviorTest : BehaviorTestBase
         var ex = Assert.Throws<OpenDALException>(() => Op.Stat(NewPath("stat-missing")));
 
         Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public async Task StatBehavior_MissingPath_ReturnsNotFoundAsync()
+    {
+        if (!Supports(c => c.Stat))
+        {
+            return;
+        }
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(() => Op.StatAsync(NewPath("stat-missing-async"), null, CT));
+
+        Assert.True(IsMissingError(ex));
+    }
+
+    [Fact]
+    public void StatBehavior_IfModifiedSince_ReturnsConditionNotMatchWhenUnsupportedByTime()
+    {
+        if (!Supports(c => c.Stat && c.Write && c.StatWithIfModifiedSince))
+        {
+            return;
+        }
+
+        var path = NewPath("stat-if-modified-since");
+        Op.Write(path, RandomBytes(10));
+
+        var ex = Assert.Throws<OpenDALException>(() =>
+            Op.Stat(path, new DotOpenDAL.Options.StatOptions { IfModifiedSince = DateTimeOffset.UtcNow.AddDays(1) }));
+
+        Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
     }
 }

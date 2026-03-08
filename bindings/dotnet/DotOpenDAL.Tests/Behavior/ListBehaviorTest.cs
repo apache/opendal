@@ -24,6 +24,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class ListBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public ListBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -49,5 +51,63 @@ public sealed class ListBehaviorTest : BehaviorTestBase
 
         Assert.Contains(entries, e => e.Path.EndsWith("a.txt", StringComparison.Ordinal));
         Assert.Contains(entries, e => e.Path.EndsWith("nested/b.txt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ListBehavior_ListsEntriesUnderPrefixAsync()
+    {
+        if (!Supports(c => c.List && c.Write && c.CreateDir))
+        {
+            return;
+        }
+
+        var dir = NewPath("list-async") + "/";
+        var a = $"{dir}a.txt";
+        var b = $"{dir}nested/b.txt";
+
+        await Op.CreateDirAsync(dir, CT);
+        await Op.WriteAsync(a, RandomBytes(10), CT);
+        await Op.WriteAsync(b, RandomBytes(20), CT);
+
+        var entries = await Op.ListAsync(dir, new ListOptions { Recursive = true }, CT);
+
+        Assert.Contains(entries, e => e.Path.EndsWith("a.txt", StringComparison.Ordinal));
+        Assert.Contains(entries, e => e.Path.EndsWith("nested/b.txt", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ListBehavior_WithLimit_ReturnsAtMostRequestedSizeAsync()
+    {
+        if (!Supports(c => c.List && c.ListWithLimit && c.Write))
+        {
+            return;
+        }
+
+        var dir = NewPath("list-limit") + "/";
+        for (var i = 0; i < 6; i++)
+        {
+            await Op.WriteAsync($"{dir}file-{i}.txt", RandomBytes(8), CT);
+        }
+
+        var entries = await Op.ListAsync(dir, new ListOptions { Recursive = true, Limit = 3 }, CT);
+        Assert.True(entries.Count <= 3);
+    }
+
+    [Fact]
+    public void ListBehavior_WithLimit_ReturnsAtMostRequestedSize()
+    {
+        if (!Supports(c => c.List && c.ListWithLimit && c.Write))
+        {
+            return;
+        }
+
+        var dir = NewPath("list-limit-sync") + "/";
+        for (var i = 0; i < 6; i++)
+        {
+            Op.Write($"{dir}file-{i}.txt", RandomBytes(8));
+        }
+
+        var entries = Op.List(dir, new ListOptions { Recursive = true, Limit = 3 });
+        Assert.True(entries.Count <= 3);
     }
 }

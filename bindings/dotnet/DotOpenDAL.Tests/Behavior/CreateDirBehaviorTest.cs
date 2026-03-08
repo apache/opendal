@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class CreateDirBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public CreateDirBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -39,6 +41,22 @@ public sealed class CreateDirBehaviorTest : BehaviorTestBase
 
         Op.CreateDir(dirPath);
         var meta = Op.Stat(dirPath);
+
+        Assert.True(meta.IsDir);
+    }
+
+    [Fact]
+    public async Task CreateDirBehavior_CreatesDirectoryEntryAsync()
+    {
+        if (!Supports(c => c.CreateDir && c.Stat))
+        {
+            return;
+        }
+
+        var dirPath = NewPath("mkdir-async") + "/";
+
+        await Op.CreateDirAsync(dirPath, CT);
+        var meta = await Op.StatAsync(dirPath, null, CT);
 
         Assert.True(meta.IsDir);
     }

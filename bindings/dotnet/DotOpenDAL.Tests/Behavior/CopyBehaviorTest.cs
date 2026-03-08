@@ -22,6 +22,8 @@ namespace DotOpenDAL.Tests;
 [Collection("BehaviorOperator")]
 public sealed class CopyBehaviorTest : BehaviorTestBase
 {
+    private static CancellationToken CT => TestContext.Current.CancellationToken;
+
     public CopyBehaviorTest(BehaviorOperatorFixture fixture)
         : base(fixture)
     {
@@ -43,5 +45,23 @@ public sealed class CopyBehaviorTest : BehaviorTestBase
         Op.Copy(sourcePath, targetPath);
 
         Assert.Equal(content, Op.Read(targetPath));
+    }
+
+    [Fact]
+    public async Task CopyBehavior_CreatesTargetWithSameContentAsync()
+    {
+        if (!Supports(c => c.Copy && c.Read && c.Write))
+        {
+            return;
+        }
+
+        var sourcePath = NewPath("copy-source-async");
+        var targetPath = NewPath("copy-target-async");
+        var content = RandomBytes(256);
+
+        await Op.WriteAsync(sourcePath, content, CT);
+        await Op.CopyAsync(sourcePath, targetPath, CT);
+
+        Assert.Equal(content, await Op.ReadAsync(targetPath, CT));
     }
 }

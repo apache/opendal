@@ -5968,6 +5968,7 @@ dependencies = [
  "opendal-service-surrealdb",
  "opendal-service-swift",
  "opendal-service-tikv",
+ "opendal-service-tos",
  "opendal-service-upyun",
  "opendal-service-vercel-artifacts",
  "opendal-service-vercel-blob",
@@ -7086,6 +7087,15 @@ dependencies = [
  "serde",
  "tikv-client",
  "tokio",
+]
+
+[[package]]
+name = "opendal-service-tos"
+version = "0.55.0"
+dependencies = [
+ "opendal-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

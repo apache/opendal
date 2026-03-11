@@ -205,6 +205,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-tikv")]
     opendal_service_tikv::register_tikv_service(registry);
 
+    #[cfg(feature = "services-tos")]
+    opendal_service_tos::register_tos_service(registry);
+
     #[cfg(feature = "services-upyun")]
     opendal_service_upyun::register_upyun_service(registry);
 

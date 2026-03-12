@@ -126,4 +126,12 @@ mod tests {
 
         assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
     }
+
+    #[test]
+    fn from_uri_with_https_scheme() {
+        // "https" is an alias for "http" to support standard https:// URIs
+        let uri = OperatorUri::new("https://example.com", Vec::<(String, String)>::new()).unwrap();
+        let cfg = HttpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("https://example.com"));
+    }
 }

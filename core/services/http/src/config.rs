@@ -75,8 +75,17 @@ impl opendal_core::Configurator for HttpConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal_core::Operator;
     use opendal_core::Configurator;
     use opendal_core::OperatorUri;
+
+    fn register_http() {
+        let once = std::sync::Once::new();
+        once.call_once(|| {
+            let registry = opendal_core::OperatorRegistry::get();
+            crate::register_http_service(registry);
+        });
+    }
 
     #[test]
     fn from_uri_sets_endpoint_and_root() {
@@ -125,6 +134,20 @@ mod tests {
         let cfg = HttpConfig::from_uri(&uri).unwrap();
 
         assert_eq!(cfg.endpoint.as_deref(), Some("http://example.com"));
+    }
+
+    #[test]
+    fn operator_from_uri_http() {
+        register_http();
+        let op = Operator::from_uri("http://example.com").unwrap();
+        assert_eq!(op.info().scheme(), "http");
+    }
+
+    #[test]
+    fn operator_from_uri_https() {
+        register_http();
+        let op = Operator::from_uri("https://example.com").unwrap();
+        assert_eq!(op.info().scheme(), "http");
     }
 
     #[test]

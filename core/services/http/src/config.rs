@@ -75,8 +75,8 @@ impl opendal_core::Configurator for HttpConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Operator;
     use opendal_core::Configurator;
+    use opendal_core::Operator;
     use opendal_core::OperatorUri;
 
     fn register_http() {

@@ -26,6 +26,7 @@ use opendal_core::*;
 
 use super::UPYUN_SCHEME;
 use super::config::UpyunConfig;
+use super::core::constants::X_UPYUN_META_PREFIX;
 use super::core::*;
 use super::deleter::UpyunDeleter;
 use super::error::parse_error;
@@ -154,6 +155,7 @@ impl Builder for UpyunBuilder {
                             write_can_multi: true,
                             write_with_cache_control: true,
                             write_with_content_type: true,
+                            write_with_user_metadata: true,
 
                             // https://help.upyun.com/knowledge-base/rest_api/#e5b9b6e8a18ce5bc8fe696ade782b9e7bbade4bca0
                             write_multi_min_size: Some(1024 * 1024),
@@ -215,7 +217,17 @@ impl Access for UpyunBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => parse_info(resp.headers()).map(RpStat::new),
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_info(headers)?;
+
+                let user_meta = parse_prefixed_headers(headers, X_UPYUN_META_PREFIX);
+                if !user_meta.is_empty() {
+                    meta = meta.with_user_metadata(user_meta);
+                }
+
+                Ok(RpStat::new(meta))
+            }
             _ => Err(parse_error(resp)),
         }
     }

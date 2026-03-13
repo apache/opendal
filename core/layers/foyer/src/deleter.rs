@@ -29,14 +29,17 @@ pub struct Deleter<A: Access> {
     pub(crate) deleter: A::Deleter,
     pub(crate) keys: Vec<FoyerKey>,
     pub(crate) inner: Arc<Inner<A>>,
+    skip_cache: bool,
 }
 
 impl<A: Access> Deleter<A> {
     pub(crate) fn new(deleter: A::Deleter, inner: Arc<Inner<A>>) -> Self {
+        let skip_cache = inner.chunk_size.is_some();
         Self {
             deleter,
             keys: vec![],
             inner,
+            skip_cache,
         }
     }
 }
@@ -44,16 +47,20 @@ impl<A: Access> Deleter<A> {
 impl<A: Access> oio::Delete for Deleter<A> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.deleter.delete(path, args.clone()).await?;
-        self.keys.push(FoyerKey {
-            path: path.to_string(),
-            version: args.version().map(|v| v.to_string()),
-        });
+        if !self.skip_cache {
+            self.keys.push(FoyerKey::Full {
+                path: path.to_string(),
+                version: args.version().map(|v| v.to_string()),
+            });
+        }
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        for key in &self.keys {
-            self.inner.cache.remove(key);
+        if !self.skip_cache {
+            for key in &self.keys {
+                self.inner.cache.remove(key);
+            }
         }
         self.deleter.close().await
     }

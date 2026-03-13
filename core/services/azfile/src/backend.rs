@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
@@ -209,9 +208,11 @@ impl Builder for AzfileBuilder {
         }
 
         let os_env = OsEnv;
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -232,8 +233,7 @@ impl Builder for AzfileBuilder {
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZFILE_SCHEME)
+                    info.set_scheme(AZFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
                             stat: true,
@@ -254,7 +254,7 @@ impl Builder for AzfileBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 root,
                 endpoint,

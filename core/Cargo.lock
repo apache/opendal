@@ -6030,6 +6030,7 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "rand 0.8.5",
+ "reqsign-core",
  "reqwest",
  "serde",
  "serde_json",
@@ -6375,7 +6376,6 @@ dependencies = [
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "serde",
  "serde_json",
  "sha2",
@@ -6396,7 +6396,6 @@ dependencies = [
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "serde",
  "serde_json",
  "tokio",
@@ -6415,7 +6414,6 @@ dependencies = [
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "serde",
  "tokio",
 ]
@@ -6486,9 +6484,7 @@ dependencies = [
  "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "reqsign-tencent-cos",
- "reqwest",
  "serde",
  "tokio",
 ]
@@ -6607,8 +6603,6 @@ dependencies = [
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-google",
- "reqsign-http-send-reqwest",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",
@@ -6856,7 +6850,6 @@ dependencies = [
  "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "reqsign-huaweicloud-obs",
  "serde",
  "tokio",
@@ -6901,7 +6894,6 @@ dependencies = [
  "reqsign-aliyun-oss",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
  "serde",
  "tokio",
 ]
@@ -6989,11 +6981,10 @@ dependencies = [
  "reqsign-aws-v4",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "reqsign-http-send-reqwest",
- "reqwest",
  "serde",
  "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -8767,23 +8758,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
-]
-
-[[package]]
-name = "reqsign-http-send-reqwest"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46186bce769674f9200ad01af6f2ca42de3e819ddc002fff1edae135bfb6cd9c"
-dependencies = [
- "anyhow",
- "async-trait",
- "bytes",
- "futures-channel",
- "http 1.4.0",
- "http-body-util",
- "reqsign-core",
- "reqwest",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

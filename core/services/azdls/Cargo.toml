@@ -40,7 +40,6 @@ quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-azure-storage = { version = "2.0.2", default-features = false }
 reqsign-core = { version = "2.0.1", default-features = false }
 reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
-reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

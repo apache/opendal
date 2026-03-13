@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
@@ -293,9 +292,11 @@ impl Builder for AzdlsBuilder {
         }
 
         let os_env = OsEnv;
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -319,8 +320,7 @@ impl Builder for AzdlsBuilder {
         Ok(AzdlsBackend {
             core: Arc::new(AzdlsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZDLS_SCHEME)
+                    info.set_scheme(AZDLS_SCHEME)
                         .set_root(&root)
                         .set_name(filesystem)
                         .set_native_capability(Capability {
@@ -348,7 +348,7 @@ impl Builder for AzdlsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 filesystem: self.config.filesystem.clone(),
                 root,

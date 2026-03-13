@@ -32,7 +32,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -369,9 +368,11 @@ impl Builder for AzblobBuilder {
             }
         };
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -401,8 +402,7 @@ impl Builder for AzblobBuilder {
         Ok(AzblobBackend {
             core: Arc::new(AzblobCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(AZBLOB_SCHEME)
+                    info.set_scheme(AZBLOB_SCHEME)
                         .set_root(&root)
                         .set_name(container)
                         .set_native_capability(Capability {
@@ -447,7 +447,7 @@ impl Builder for AzblobBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 root,
                 endpoint,

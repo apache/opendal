@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -38,7 +37,6 @@ use reqsign_google::DefaultCredentialProvider;
 use reqsign_google::RequestSigner;
 use reqsign_google::StaticCredentialProvider;
 use reqsign_google::Token;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 use serde::Deserialize;
 
 use super::GCS_SCHEME;
@@ -51,8 +49,6 @@ use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
-
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
@@ -408,9 +404,11 @@ impl Builder for GcsBuilder {
         let mut envs = os_env.vars();
         envs.insert("GOOGLE_SCOPE".to_string(), scope.clone());
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -473,8 +471,7 @@ impl Builder for GcsBuilder {
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(GCS_SCHEME)
+                    info.set_scheme(GCS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -528,7 +525,7 @@ impl Builder for GcsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 endpoint,
                 bucket: bucket.to_string(),

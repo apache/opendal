@@ -92,3 +92,5 @@ jobs:
         run: |
           cargo build
           dotnet test -f ${{ matrix.dotnet-version == '8.0.x' && 'net8.0' || 'net10.0' }}
+        env:
+          OPENDAL_TEST: memory

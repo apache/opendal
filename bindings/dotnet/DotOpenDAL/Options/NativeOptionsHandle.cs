@@ -17,18 +17,32 @@
  * under the License.
  */
 
-namespace DotOpenDAL.Tests;
+using System.Runtime.InteropServices;
 
-public class BlockingOperatorTest
+namespace DotOpenDAL.Options;
+
+public sealed class NativeOptionsHandle : SafeHandle
 {
-    [Fact]
-    public void TestReadWrite()
+    private readonly Action<IntPtr> release;
+
+    public NativeOptionsHandle(IntPtr ptr, Action<IntPtr> release)
+        : base(IntPtr.Zero, true)
     {
-        var op = new BlockingOperator();
-        var content = "123456";
-        Assert.NotEqual(op.Op, IntPtr.Zero);
-        op.Write("test", content);
-        var result = op.Read("test");
-        Assert.Equal(content, result);
+        this.release = release;
+        SetHandle(ptr);
+    }
+
+    public override bool IsInvalid => handle == IntPtr.Zero;
+
+    protected override bool ReleaseHandle()
+    {
+        if (IsInvalid)
+        {
+            return true;
+        }
+
+        release(handle);
+        handle = IntPtr.Zero;
+        return true;
     }
 }

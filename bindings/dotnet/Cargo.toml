@@ -60,6 +60,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webhdfs",
   "services-aliyun-drive",
   "services-cacache",
+  "services-compfs",
   "services-dashmap",
   "services-dropbox",
   "services-etcd",
@@ -100,3 +101,13 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-yandex-disk",
 ] }
 tokio = { version = "1.49.0", features = ["full"] }
+
+# This is not optimal. See also the Cargo issue:
+# https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954
+[target.'cfg(unix)'.dependencies.opendal]
+features = [
+  # Depend on unix-only dependency stacks in current implementations.
+  "services-monoiofs",
+  "services-sftp",
+]
+path = "../../core"

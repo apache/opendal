@@ -22,10 +22,11 @@ use base64::Engine;
 
 use super::core::{BucketOperation, CommitFile, HfCore, LfsFile};
 use super::uri::RepoType;
-use data::FileUploadSession;
-use data::SingleFileCleaner;
 use opendal_core::raw::*;
 use opendal_core::*;
+use xet_data::processing::FileUploadSession;
+use xet_data::processing::Sha256Policy;
+use xet_data::processing::SingleFileCleaner;
 
 /// Writer that handles both regular (small) and XET (large) file uploads.
 pub enum HfWriter {
@@ -55,7 +56,7 @@ impl HfWriter {
         let writer = if use_xet {
             let upload_session = core.xet_upload_session().await?;
             let cleaner = upload_session
-                .start_clean(None, 0, None, ulid::Ulid::new())
+                .start_clean(None, 0, Sha256Policy::Compute, ulid::Ulid::new())
                 .await;
             HfWriter::Xet {
                 core,
@@ -133,11 +134,9 @@ impl oio::Write for HfWriter {
                 upload_session,
                 cleaner,
             } => {
-                let cleaner = cleaner
-                    .get_mut()
-                    .unwrap()
-                    .take()
-                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "xet writer already closed"))?;
+                let cleaner = cleaner.get_mut().unwrap().take().ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "xet writer already closed")
+                })?;
 
                 let (file_info, _metrics) = cleaner.finish().await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
@@ -148,8 +147,11 @@ impl oio::Write for HfWriter {
                 if core.repo.repo_type == RepoType::Bucket {
                     let xet_hash = file_info.hash().to_string();
                     upload_session.clone().finalize().await.map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "failed to finalize xet upload session")
-                            .set_source(err)
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to finalize xet upload session",
+                        )
+                        .set_source(err)
                     })?;
                     let operation = BucketOperation::AddFile {
                         path: path.clone(),

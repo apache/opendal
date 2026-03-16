@@ -27,10 +27,10 @@ use http::Response;
 use http::header;
 use serde::Deserialize;
 
-use data::FileDownloadSession;
-use data::FileUploadSession;
-use data::XetFileInfo;
-use utils::auth::TokenRefresher;
+use xet_client::cas_client::auth::TokenRefresher;
+use xet_data::processing::FileDownloadSession;
+use xet_data::processing::FileUploadSession;
+use xet_data::processing::XetFileInfo;
 
 use super::error::parse_error;
 use super::uri::HfRepo;
@@ -199,12 +199,12 @@ impl XetTokenRefresher {
 impl TokenRefresher for XetTokenRefresher {
     async fn refresh(
         &self,
-    ) -> std::result::Result<(String, u64), utils::errors::AuthError> {
+    ) -> std::result::Result<(String, u64), xet_client::cas_client::auth::AuthError> {
         let token = self
             .core
             .xet_token(self.token_type)
             .await
-            .map_err(utils::errors::AuthError::token_refresh_failure)?;
+            .map_err(xet_client::cas_client::auth::AuthError::token_refresh_failure)?;
         Ok((token.access_token, token.exp))
     }
 }
@@ -356,7 +356,7 @@ impl HfCore {
             .get_or_try_init(|| async {
                 let cas_url = self.xet_token("write").await?.cas_url;
                 let refresher = Arc::new(XetTokenRefresher::new(self, "write"));
-                let config = data::data_client::default_config(
+                let config = xet_data::processing::data_client::default_config(
                     cas_url,
                     None,
                     None,
@@ -367,10 +367,12 @@ impl HfCore {
                     Error::new(ErrorKind::Unexpected, "failed to create upload config")
                         .set_source(err)
                 })?;
-                FileUploadSession::new(Arc::new(config), None).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to create upload session")
-                        .set_source(err)
-                })
+                FileUploadSession::new(Arc::new(config), None)
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "failed to create upload session")
+                            .set_source(err)
+                    })
             })
             .await
             .map(Arc::clone)
@@ -381,7 +383,7 @@ impl HfCore {
             .get_or_try_init(|| async {
                 let cas_url = self.xet_token("read").await?.cas_url;
                 let refresher = Arc::new(XetTokenRefresher::new(self, "read"));
-                let config = data::data_client::default_config(
+                let config = xet_data::processing::data_client::default_config(
                     cas_url,
                     None,
                     None,
@@ -392,10 +394,12 @@ impl HfCore {
                     Error::new(ErrorKind::Unexpected, "failed to create download config")
                         .set_source(err)
                 })?;
-                FileDownloadSession::new(Arc::new(config), None).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to create download session")
-                        .set_source(err)
-                })
+                FileDownloadSession::new(Arc::new(config), None)
+                    .await
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "failed to create download session")
+                            .set_source(err)
+                    })
             })
             .await
             .map(Arc::clone)

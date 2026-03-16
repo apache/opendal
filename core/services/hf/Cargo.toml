@@ -44,12 +44,10 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-cas_client = { path = "/Users/kszucs/Workspace/xet-core/cas_client" }
-data = { path = "/Users/kszucs/Workspace/xet-core/data" }
-file_reconstruction = { path = "/Users/kszucs/Workspace/xet-core/file_reconstruction" }
 tokio = { workspace = true, features = ["sync"] }
 ulid = "1.2"
-utils = { path = "/Users/kszucs/Workspace/xet-core/utils" }
+xet-client = { path = "/Users/kszucs/Workspace/xet-core/xet_client" }
+xet-data = { path = "/Users/kszucs/Workspace/xet-core/xet_data" }
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", features = [

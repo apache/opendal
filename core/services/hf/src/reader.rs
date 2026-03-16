@@ -15,25 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use cas_client::CasClientError;
 use http::Response;
 use http::StatusCode;
 use http::header;
 
-use futures::StreamExt;
-use subxet::cas_types::FileRange;
+use data::DownloadStream;
+use data::XetFileInfo;
+use file_reconstruction::FileReconstructionError;
 
 use super::core::HfCore;
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-use subxet::cas_client::CasClientError;
-use subxet::data::XetFileInfo;
-use subxet::data::errors::DataProcessingError;
-use subxet::data::streaming::XetReader;
 
 pub enum HfReader {
     Http(HttpBody),
-    Xet(XetReader),
+    Xet(DownloadStream),
 }
 
 impl HfReader {
@@ -88,23 +86,38 @@ impl HfReader {
         file_info: &XetFileInfo,
         range: BytesRange,
     ) -> Result<Self> {
-        let client = core.xet_client("read").await?;
+        let session = core.xet_download_session().await?;
 
-        let file_range = if !range.is_full() {
+        let source_range = if range.is_full() {
+            None
+        } else {
             let offset = range.offset();
             let size = range.size().unwrap_or(file_info.file_size() - offset);
-            Some(FileRange::new(offset, offset + size))
-        } else {
-            None
+            Some(offset..(offset + size))
         };
 
-        let reader = client
-            .read(file_info.clone(), file_range, None, 256)
+        let stream = session
+            .download_stream(file_info, source_range, ulid::Ulid::new())
             .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create xet reader").set_source(err)
+                Error::new(ErrorKind::Unexpected, "failed to create xet download stream")
+                    .set_source(err)
             })?;
-        Ok(Self::Xet(reader))
+        Ok(Self::Xet(stream))
     }
+}
+
+fn map_reconstruction_error(e: FileReconstructionError) -> Error {
+    let kind = match &e {
+        FileReconstructionError::CasClientError(arc) => match arc.as_ref() {
+            CasClientError::FileNotFound(_) | CasClientError::XORBNotFound(_) => {
+                ErrorKind::NotFound
+            }
+            CasClientError::InvalidRange => ErrorKind::RangeNotSatisfied,
+            _ => ErrorKind::Unexpected,
+        },
+        _ => ErrorKind::Unexpected,
+    };
+    Error::new(kind, "xet read error").set_source(e)
 }
 
 impl oio::Read for HfReader {
@@ -112,22 +125,9 @@ impl oio::Read for HfReader {
         match self {
             Self::Http(body) => body.read().await,
             Self::Xet(stream) => match stream.next().await {
-                Some(Ok(bytes)) => Ok(Buffer::from(bytes)),
-                Some(Err(e)) => {
-                    let kind = match &e {
-                        DataProcessingError::CasClientError(
-                            CasClientError::FileNotFound(_) | CasClientError::XORBNotFound(_),
-                        )
-                        | DataProcessingError::HashNotFound => ErrorKind::NotFound,
-                        DataProcessingError::CasClientError(CasClientError::InvalidRange) => {
-                            ErrorKind::RangeNotSatisfied
-                        }
-                        _ => ErrorKind::Unexpected,
-                    };
-                    let err = Error::new(kind, "xet read error").set_source(e);
-                    Err(err)
-                }
-                None => Ok(Buffer::new()),
+                Ok(Some(bytes)) => Ok(Buffer::from(bytes)),
+                Ok(None) => Ok(Buffer::new()),
+                Err(e) => Err(map_reconstruction_error(e)),
             },
         }
     }

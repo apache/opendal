@@ -15,14 +15,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use cas_client::CasClientError;
 use http::Response;
 use http::StatusCode;
 use http::header;
 
-use data::DownloadStream;
-use data::XetFileInfo;
-use file_reconstruction::FileReconstructionError;
+use xet_client::cas_client::CasClientError;
+use xet_data::file_reconstruction::FileReconstructionError;
+use xet_data::processing::DownloadStream;
+use xet_data::processing::XetFileInfo;
 
 use super::core::HfCore;
 use super::uri::RepoType;
@@ -99,8 +99,11 @@ impl HfReader {
         let stream = session
             .download_stream(file_info, source_range, ulid::Ulid::new())
             .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create xet download stream")
-                    .set_source(err)
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to create xet download stream",
+                )
+                .set_source(err)
             })?;
         Ok(Self::Xet(stream))
     }

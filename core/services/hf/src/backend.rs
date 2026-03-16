@@ -345,8 +345,8 @@ mod tests {
     fn test_both_schemes_are_supported() {
         use opendal_core::OperatorRegistry;
 
-        let registry = OperatorRegistry::new();
-        super::super::register_hf_service(&registry);
+        let registry = OperatorRegistry::get();
+        super::super::register_hf_service(registry);
 
         // Test short scheme "hf"
         let op = registry

@@ -13397,6 +13397,7 @@ dependencies = [
 [[package]]
 name = "xet-client"
 version = "1.4.0"
+source = "git+https://github.com/kszucs/xet-core.git?rev=f7ab4df#f7ab4df4752c89ed3849a2f2588eb684cd06f58b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13443,6 +13444,7 @@ dependencies = [
 [[package]]
 name = "xet-core-structures"
 version = "1.4.0"
+source = "git+https://github.com/kszucs/xet-core.git?rev=f7ab4df#f7ab4df4752c89ed3849a2f2588eb684cd06f58b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13482,6 +13484,7 @@ dependencies = [
 [[package]]
 name = "xet-data"
 version = "1.4.0"
+source = "git+https://github.com/kszucs/xet-core.git?rev=f7ab4df#f7ab4df4752c89ed3849a2f2588eb684cd06f58b"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13515,6 +13518,7 @@ dependencies = [
 [[package]]
 name = "xet-runtime"
 version = "1.4.0"
+source = "git+https://github.com/kszucs/xet-core.git?rev=f7ab4df#f7ab4df4752c89ed3849a2f2588eb684cd06f58b"
 dependencies = [
  "async-trait",
  "bytes",

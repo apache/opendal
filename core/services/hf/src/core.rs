@@ -359,7 +359,6 @@ impl HfCore {
                 let config = xet_data::processing::data_client::default_config(
                     cas_url,
                     None,
-                    None,
                     Some(refresher as Arc<dyn TokenRefresher>),
                     None,
                 )
@@ -367,7 +366,7 @@ impl HfCore {
                     Error::new(ErrorKind::Unexpected, "failed to create upload config")
                         .set_source(err)
                 })?;
-                FileUploadSession::new(Arc::new(config), None)
+                FileUploadSession::new(Arc::new(config))
                     .await
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "failed to create upload session")
@@ -386,7 +385,6 @@ impl HfCore {
                 let config = xet_data::processing::data_client::default_config(
                     cas_url,
                     None,
-                    None,
                     Some(refresher as Arc<dyn TokenRefresher>),
                     None,
                 )
@@ -394,7 +392,7 @@ impl HfCore {
                     Error::new(ErrorKind::Unexpected, "failed to create download config")
                         .set_source(err)
                 })?;
-                FileDownloadSession::new(Arc::new(config), None)
+                FileDownloadSession::new(Arc::new(config))
                     .await
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "failed to create download session")

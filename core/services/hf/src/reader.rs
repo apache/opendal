@@ -19,7 +19,7 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 
-use xet_client::cas_client::CasClientError;
+use xet_client::ClientError;
 use xet_data::file_reconstruction::FileReconstructionError;
 use xet_data::processing::DownloadStream;
 use xet_data::processing::XetFileInfo;
@@ -88,16 +88,9 @@ impl HfReader {
     ) -> Result<Self> {
         let session = core.xet_download_session().await?;
 
-        let source_range = if range.is_full() {
-            None
-        } else {
-            let offset = range.offset();
-            let size = range.size().unwrap_or(file_info.file_size() - offset);
-            Some(offset..(offset + size))
-        };
-
-        let stream = session
-            .download_stream(file_info, source_range, ulid::Ulid::new())
+        let (_id, stream) = session
+            .download_stream_range(file_info, range.to_range())
+            .await
             .map_err(|err| {
                 Error::new(
                     ErrorKind::Unexpected,
@@ -111,11 +104,9 @@ impl HfReader {
 
 fn map_reconstruction_error(e: FileReconstructionError) -> Error {
     let kind = match &e {
-        FileReconstructionError::CasClientError(arc) => match arc.as_ref() {
-            CasClientError::FileNotFound(_) | CasClientError::XORBNotFound(_) => {
-                ErrorKind::NotFound
-            }
-            CasClientError::InvalidRange => ErrorKind::RangeNotSatisfied,
+        FileReconstructionError::ClientError(arc) => match arc.as_ref() {
+            ClientError::FileNotFound(_) | ClientError::XORBNotFound(_) => ErrorKind::NotFound,
+            ClientError::InvalidRange => ErrorKind::RangeNotSatisfied,
             _ => ErrorKind::Unexpected,
         },
         _ => ErrorKind::Unexpected,

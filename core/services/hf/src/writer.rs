@@ -40,7 +40,7 @@ pub enum HfWriter {
     Xet {
         core: Arc<HfCore>,
         path: String,
-        upload_session: Arc<FileUploadSession>,
+        session: Arc<FileUploadSession>,
         cleaner: Mutex<Option<SingleFileCleaner>>,
     },
 }
@@ -54,14 +54,16 @@ impl HfWriter {
             || core.determine_upload_mode(&path).await? == "lfs";
 
         let writer = if use_xet {
-            let upload_session = core.xet_upload_session().await?;
-            let cleaner = upload_session
-                .start_clean(None, 0, Sha256Policy::Compute, ulid::Ulid::new())
-                .await;
+            let session = core.xet_upload_session().await?;
+            let (_id, cleaner) = session
+                .start_clean(None, None, Sha256Policy::Compute)
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to start xet upload").set_source(err)
+                })?;
             HfWriter::Xet {
                 core,
                 path,
-                upload_session,
+                session,
                 cleaner: Mutex::new(Some(cleaner)),
             }
         } else {
@@ -92,18 +94,13 @@ impl oio::Write for HfWriter {
                 Ok(())
             }
             HfWriter::Xet { cleaner, .. } => {
-                let bs = bs.to_bytes();
-                cleaner
-                    .get_mut()
-                    .unwrap()
-                    .as_mut()
-                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "xet writer aborted"))?
-                    .add_data(&bs)
-                    .await
-                    .map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "failed to write chunk to xet stream")
-                            .set_source(err)
-                    })
+                // get_mut() required here: lock() would hold a MutexGuard across .await
+                let cleaner = cleaner.get_mut().expect("mutex poisoned")
+                    .as_mut().expect("cleaner missing");
+                cleaner.add_data(&bs.to_bytes()).await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to write xet chunk")
+                        .set_source(err)
+                })
             }
         }
     }
@@ -131,10 +128,14 @@ impl oio::Write for HfWriter {
             HfWriter::Xet {
                 core,
                 path,
-                upload_session,
+                session,
                 cleaner,
             } => {
-                let cleaner = cleaner.get_mut().unwrap().take().ok_or_else(|| {
+                let cleaner = cleaner
+                    .get_mut()
+                    .expect("mutex poisoned")
+                    .take()
+                    .ok_or_else(|| {
                     Error::new(ErrorKind::Unexpected, "xet writer already closed")
                 })?;
 
@@ -142,11 +143,14 @@ impl oio::Write for HfWriter {
                     Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
                 })?;
 
-                let meta = Metadata::default().with_content_length(file_info.file_size());
+                let content_length = file_info
+                    .file_size()
+                    .expect("file_size must be set after finish()");
+                let meta = Metadata::default().with_content_length(content_length);
 
                 if core.repo.repo_type == RepoType::Bucket {
                     let xet_hash = file_info.hash().to_string();
-                    upload_session.clone().finalize().await.map_err(|err| {
+                    session.clone().finalize().await.map_err(|err| {
                         Error::new(
                             ErrorKind::Unexpected,
                             "failed to finalize xet upload session",
@@ -160,28 +164,21 @@ impl oio::Write for HfWriter {
                     core.bucket_batch(vec![operation]).await?;
                     Ok(meta)
                 } else {
-                    let (_dedup_metrics, file_infos) = upload_session
-                        .clone()
-                        .finalize_with_file_info()
-                        .await
-                        .map_err(|err| {
-                            Error::new(
-                                ErrorKind::Unexpected,
-                                "failed to finalize xet upload session",
-                            )
-                            .set_source(err)
-                        })?;
-                    let sha256 = file_infos
-                        .into_iter()
-                        .find_map(|fi| fi.metadata_ext.map(|ext| ext.sha256.hex()))
-                        .ok_or_else(|| {
-                            Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
-                        })?;
+                    let sha256 = file_info.sha256().ok_or_else(|| {
+                        Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
+                    })?;
+                    session.clone().finalize().await.map_err(|err| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to finalize xet upload session",
+                        )
+                        .set_source(err)
+                    })?;
                     let lfs_file = LfsFile {
                         path: path.clone(),
-                        oid: sha256,
+                        oid: sha256.to_string(),
                         algo: "sha256".to_string(),
-                        size: file_info.file_size(),
+                        size: content_length,
                     };
                     let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
 
@@ -201,7 +198,7 @@ impl oio::Write for HfWriter {
                 buf.clear();
             }
             HfWriter::Xet { cleaner, .. } => {
-                let _ = cleaner.get_mut().unwrap().take();
+                cleaner.get_mut().expect("mutex poisoned").take();
             }
         }
         Ok(())

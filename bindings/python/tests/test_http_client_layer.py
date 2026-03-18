@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import opendal
 import pytest
 
+import opendal
 from opendal.layers import HttpClientLayer
 
 

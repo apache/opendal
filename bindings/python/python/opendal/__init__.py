@@ -23,8 +23,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     __version__: str
     from opendal import capability, exceptions, file, layers, services, types
+    from opendal._opendal import HttpClient
 else:
     from opendal._opendal import (
+        HttpClient,  # noqa: F401
         __version__,  # noqa: F401
         capability,
         exceptions,
@@ -44,5 +46,6 @@ __all__ = [
     "services",
     "types",
     "AsyncOperator",
+    "HttpClient",
     "Operator",
 ]

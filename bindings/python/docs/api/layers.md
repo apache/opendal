@@ -2,6 +2,14 @@
 
 This page documents all layers in OpenDAL.
 
+## HttpClient
+
+::: opendal.HttpClient
+    options:
+      heading: "opendal.HttpClient"
+      heading_level: 2
+      show_source: false
+
 ## Layer
 ::: opendal.layers.Layer
     options:
@@ -28,5 +36,12 @@ This page documents all layers in OpenDAL.
 ::: opendal.layers.MimeGuessLayer
     options:
       heading: "opendal.layers.MimeGuessLayer"
+      heading_level: 2
+      show_source: false
+
+## HttpClientLayer   
+::: opendal.layers.HttpClientLayer
+    options:
+      heading: "opendal.layers.HttpClientLayer"
       heading_level: 2
       show_source: false

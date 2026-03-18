@@ -23,6 +23,7 @@ use futures::FutureExt;
 use futures::future::BoxFuture;
 use opendal::Reader;
 use parquet::arrow::async_reader::AsyncFileReader;
+use parquet::arrow::arrow_reader::ArrowReaderOptions;
 use parquet::errors::{ParquetError, Result as ParquetResult};
 use parquet::file::FOOTER_SIZE;
 use parquet::file::metadata::ParquetMetaData;
@@ -120,11 +121,11 @@ impl AsyncReader {
 }
 
 impl AsyncFileReader for AsyncReader {
-    fn get_bytes(&mut self, range: Range<usize>) -> BoxFuture<'_, ParquetResult<bytes::Bytes>> {
+    fn get_bytes(&mut self, range: Range<u64>) -> BoxFuture<'_, ParquetResult<bytes::Bytes>> {
         async move {
             Ok(self
                 .inner
-                .read(range.start as u64..range.end as u64)
+                .read(range)
                 .await
                 .map_err(|err| ParquetError::External(Box::new(err)))?
                 .to_bytes())
@@ -134,17 +135,12 @@ impl AsyncFileReader for AsyncReader {
 
     fn get_byte_ranges(
         &mut self,
-        ranges: Vec<Range<usize>>,
+        ranges: Vec<Range<u64>>,
     ) -> BoxFuture<'_, ParquetResult<Vec<bytes::Bytes>>> {
         async move {
             Ok(self
                 .inner
-                .fetch(
-                    ranges
-                        .into_iter()
-                        .map(|range| range.start as u64..range.end as u64)
-                        .collect(),
-                )
+                .fetch(ranges)
                 .await
                 .map_err(|err| ParquetError::External(Box::new(err)))?
                 .into_iter()
@@ -154,12 +150,16 @@ impl AsyncFileReader for AsyncReader {
         .boxed()
     }
 
-    fn get_metadata(&mut self) -> BoxFuture<'_, ParquetResult<std::sync::Arc<ParquetMetaData>>> {
+    fn get_metadata<'a>(
+        &'a mut self,
+        _options: Option<&'a ArrowReaderOptions>,
+    ) -> BoxFuture<'a, ParquetResult<std::sync::Arc<ParquetMetaData>>> {
+        let content_length = self.content_length;
+        let prefetch_footer_size = self.prefetch_footer_size;
         async move {
             let reader =
-                ParquetMetaDataReader::new().with_prefetch_hint(Some(self.prefetch_footer_size));
-            let size = self.content_length as usize;
-            let meta = reader.load_and_finish(self, size).await?;
+                ParquetMetaDataReader::new().with_prefetch_hint(Some(prefetch_footer_size));
+            let meta = reader.load_and_finish(self, content_length).await?;
 
             Ok(Arc::new(meta))
         }
@@ -179,8 +179,8 @@ mod tests {
     use arrow::array::{ArrayRef, Int64Array, RecordBatch};
     use parquet::{
         arrow::{AsyncArrowWriter, ParquetRecordBatchStreamBuilder},
+        file::metadata::KeyValue,
         file::properties::WriterProperties,
-        format::KeyValue,
     };
 
     #[tokio::test]

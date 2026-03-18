@@ -40,6 +40,7 @@ pub trait PythonLayer: Send + Sync {
 /// >>> op = opendal.Operator("s3", bucket="my-bucket").layer(layer)
 #[gen_stub_pyclass]
 #[pyclass(module = "opendal")]
+#[derive(Clone)]
 pub struct HttpClient {
     client: ocore::raw::HttpClient,
 }

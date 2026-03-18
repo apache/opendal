@@ -30,10 +30,3 @@ This page documents all layers in OpenDAL.
       heading: "opendal.layers.MimeGuessLayer"
       heading_level: 2
       show_source: false
-
-## HttpClientLayer   
-::: opendal.layers.HttpClientLayer
-    options:
-      heading: "opendal.layers.HttpClientLayer"
-      heading_level: 2
-      show_source: false

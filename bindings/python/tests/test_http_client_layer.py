@@ -56,12 +56,12 @@ def test_http_client_layer_with_operator():
     # Create a custom HTTP client that accepts invalid certificates
     client = opendal.HttpClient(danger_accept_invalid_certs=True)
     layer = HttpClientLayer(client)
-    
+
     # Create an operator and apply the layer
     # Using memory service for testing since it doesn't require external setup
     op = opendal.Operator("memory")
     op = op.layer(layer)
-    
+
     # Verify the operator still works
     assert op is not None
     # Basic functionality test
@@ -75,11 +75,11 @@ async def test_http_client_layer_with_async_operator():
     # Create a custom HTTP client with timeout
     client = opendal.HttpClient(timeout=30.0)
     layer = HttpClientLayer(client)
-    
+
     # Create an async operator and apply the layer
     op = opendal.AsyncOperator("memory")
     op = op.layer(layer)
-    
+
     # Verify the operator still works
     assert op is not None
     # Basic functionality test

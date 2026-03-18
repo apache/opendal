@@ -2,14 +2,6 @@
 
 This page documents all layers in OpenDAL.
 
-## HttpClient
-
-::: opendal.HttpClient
-    options:
-      heading: "opendal.HttpClient"
-      heading_level: 2
-      show_source: false
-
 ## Layer
 ::: opendal.layers.Layer
     options:

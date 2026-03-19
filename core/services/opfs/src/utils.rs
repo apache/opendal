@@ -18,11 +18,7 @@
 use opendal_core::Result;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::FileSystemDirectoryHandle;
-use web_sys::FileSystemFileHandle;
-use web_sys::FileSystemGetDirectoryOptions;
-use web_sys::FileSystemGetFileOptions;
-use web_sys::window;
+use web_sys::{FileSystemDirectoryHandle, window};
 
 use super::error::*;
 
@@ -30,40 +26,6 @@ pub(crate) async fn get_root_directory_handle() -> Result<FileSystemDirectoryHan
     let navigator = window().unwrap().navigator();
     let storage_manager = navigator.storage();
     JsFuture::from(storage_manager.get_directory())
-        .await
-        .and_then(JsCast::dyn_into)
-        .map_err(parse_js_error)
-}
-
-pub(crate) async fn get_directory_handle(
-    dir: &str,
-    dir_opt: &FileSystemGetDirectoryOptions,
-) -> Result<FileSystemDirectoryHandle> {
-    let dirs: Vec<&str> = dir.trim_matches('/').split('/').collect();
-
-    let mut handle = get_root_directory_handle().await?;
-    for dir in dirs {
-        handle = JsFuture::from(handle.get_directory_handle_with_options(dir, dir_opt))
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
-    }
-
-    Ok(handle)
-}
-
-pub(crate) async fn get_handle_by_filename(filename: &str) -> Result<FileSystemFileHandle> {
-    let navigator = window().unwrap().navigator();
-    let storage_manager = navigator.storage();
-    let root: FileSystemDirectoryHandle = JsFuture::from(storage_manager.get_directory())
-        .await
-        .and_then(JsCast::dyn_into)
-        .map_err(parse_js_error)?;
-
-    let opt = FileSystemGetFileOptions::new();
-    opt.set_create(true);
-
-    JsFuture::from(root.get_file_handle_with_options(filename, &opt))
         .await
         .and_then(JsCast::dyn_into)
         .map_err(parse_js_error)

@@ -817,6 +817,11 @@ impl S3Core {
             }
         }
 
+        // also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 

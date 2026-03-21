@@ -33,7 +33,6 @@ use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 
 use super::OSS_SCHEME;
 use super::config::OssConfig;
@@ -474,9 +473,11 @@ impl Builder for OssBuilder {
             assume_role = assume_role.with_role_session_name(role_session_name.clone());
         }
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -506,8 +507,7 @@ impl Builder for OssBuilder {
         Ok(OssBackend {
             core: Arc::new(OssCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(OSS_SCHEME)
+                    info.set_scheme(OSS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -571,7 +571,7 @@ impl Builder for OssBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 root,
                 bucket: bucket.to_owned(),

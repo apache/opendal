@@ -30,7 +30,6 @@ use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
 use reqsign_huaweicloud_obs::EnvCredentialProvider;
 use reqsign_huaweicloud_obs::RequestSigner;
 use reqsign_huaweicloud_obs::StaticCredentialProvider;
@@ -175,9 +174,11 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(OsEnv);
 
         let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
@@ -201,8 +202,7 @@ impl Builder for ObsBuilder {
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(OBS_SCHEME)
+                    info.set_scheme(OBS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -251,7 +251,7 @@ impl Builder for ObsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket,
                 root,

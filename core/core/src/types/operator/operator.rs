@@ -1422,6 +1422,34 @@ impl Operator {
         self.delete_with(path).recursive(true).await
     }
 
+    /// Restore a soft-deleted object.
+    ///
+    /// # Notes
+    ///
+    /// - This operation requires soft delete to be enabled on the storage backend.
+    /// - Restoring a non-existent or permanently deleted object will return an error.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use anyhow::Result;
+    /// # use opendal_core::Operator;
+    /// #
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// // Delete a file (with soft delete enabled, it's not permanently deleted)
+    /// op.delete("path/to/file").await?;
+    ///
+    /// // Restore the soft-deleted file
+    /// op.undelete("path/to/file").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn undelete(&self, path: &str) -> Result<()> {
+        let path = normalize_path(path);
+        self.inner().undelete(&path, OpUndelete::new()).await?;
+        Ok(())
+    }
+
     /// List entries whose paths start with the given prefix `path`.
     ///
     /// # Semantics

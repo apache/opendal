@@ -26,17 +26,15 @@
     {2 Basic Usage}
 
     {[
-      (* Create an operator for local filesystem *)
-      let op =
-        Operator.new_operator "fs" [ ("root", "/tmp") ] |> Result.get_ok
-      in
+    (* Create an operator for local filesystem *)
+    let op = Operator.new_operator "fs" [ ("root", "/tmp") ] |> Result.get_ok in
 
-      (* Write data to a file *)
-      let _ = Operator.write op "hello.txt" (Bytes.of_string "Hello, World!") in
+    (* Write data to a file *)
+    let _ = Operator.write op "hello.txt" (Bytes.of_string "Hello, World!") in
 
-      (* Read data back *)
-      let content = Operator.read op "hello.txt" |> Result.get_ok in
-      print_endline (String.of_bytes content)
+    (* Read data back *)
+    let content = Operator.read op "hello.txt" |> Result.get_ok in
+    print_endline (String.of_bytes content)
     ]} *)
 
 (** {2 Core Operations} *)

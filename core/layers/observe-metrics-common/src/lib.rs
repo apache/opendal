@@ -503,7 +503,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                     .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
-            Ok(resp) if resp.status().is_client_error() && resp.status().is_server_error() => {
+            Ok(resp) if resp.status().is_client_error() || resp.status().is_server_error() => {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
                 self.interceptor.observe(

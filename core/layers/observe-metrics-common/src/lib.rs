@@ -534,6 +534,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                         labels: labels.clone(),
                         size: 0,
                         start: Instant::now(),
+                        completed: false,
                     })
                 });
 
@@ -543,13 +544,14 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
     }
 }
 
-struct MetricsStream<S, I> {
+struct MetricsStream<S, I: MetricsIntercept> {
     inner: S,
     interceptor: I,
 
     labels: MetricLabels,
     size: u64,
     start: Instant,
+    completed: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -567,6 +569,8 @@ where
             }
             Some(Err(err)) => Poll::Ready(Some(Err(err))),
             None => {
+                self.completed = true;
+
                 let resp_size = self.size;
                 let resp_duration = self.start.elapsed();
 
@@ -590,6 +594,32 @@ where
                 Poll::Ready(None)
             }
         }
+    }
+}
+
+impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
+    fn drop(&mut self) {
+        if self.completed {
+            return;
+        }
+
+        let resp_size = self.size;
+        let resp_duration = self.start.elapsed();
+
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseBytes(resp_size),
+        );
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseBytesRate(resp_size as f64 / resp_duration.as_secs_f64()),
+        );
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseDurationSeconds(resp_duration),
+        );
+        self.interceptor
+            .observe(self.labels.clone(), MetricValue::HttpExecuting(-1));
     }
 }
 

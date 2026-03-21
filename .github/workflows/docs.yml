@@ -248,7 +248,7 @@ jobs:
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
           sudo apt-get update
-          sudo apt-get install -y happy
+          sudo apt-get install -y alex happy
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set

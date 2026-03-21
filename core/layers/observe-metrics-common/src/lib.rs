@@ -503,7 +503,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                     .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
-            Ok(resp) if resp.status().is_client_error() && resp.status().is_server_error() => {
+            Ok(resp) if resp.status().is_client_error() || resp.status().is_server_error() => {
                 self.interceptor
                     .observe(labels.clone(), MetricValue::HttpExecuting(-1));
                 self.interceptor.observe(
@@ -543,7 +543,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
     }
 }
 
-struct MetricsStream<S, I> {
+struct MetricsStream<S, I: MetricsIntercept> {
     inner: S,
     interceptor: I,
 
@@ -566,30 +566,30 @@ where
                 Poll::Ready(Some(Ok(bs)))
             }
             Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            None => {
-                let resp_size = self.size;
-                let resp_duration = self.start.elapsed();
-
-                self.interceptor.observe(
-                    self.labels.clone(),
-                    MetricValue::HttpResponseBytes(resp_size),
-                );
-                self.interceptor.observe(
-                    self.labels.clone(),
-                    MetricValue::HttpResponseBytesRate(
-                        resp_size as f64 / resp_duration.as_secs_f64(),
-                    ),
-                );
-                self.interceptor.observe(
-                    self.labels.clone(),
-                    MetricValue::HttpResponseDurationSeconds(resp_duration),
-                );
-                self.interceptor
-                    .observe(self.labels.clone(), MetricValue::HttpExecuting(-1));
-
-                Poll::Ready(None)
-            }
+            None => Poll::Ready(None),
         }
+    }
+}
+
+impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
+    fn drop(&mut self) {
+        let resp_size = self.size;
+        let resp_duration = self.start.elapsed();
+
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseBytes(resp_size),
+        );
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseBytesRate(resp_size as f64 / resp_duration.as_secs_f64()),
+        );
+        self.interceptor.observe(
+            self.labels.clone(),
+            MetricValue::HttpResponseDurationSeconds(resp_duration),
+        );
+        self.interceptor
+            .observe(self.labels.clone(), MetricValue::HttpExecuting(-1));
     }
 }
 

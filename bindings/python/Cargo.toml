@@ -210,6 +210,9 @@ opendal = { version = ">=0", path = "../../core", features = [
 pyo3 = { version = "0.27.2", features = ["generate-import-lib", "jiff-02"] }
 pyo3-async-runtimes = { version = "0.27.0", features = ["tokio-runtime"] }
 pyo3-stub-gen = { version = "0.17" }
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+] }
 tokio = "1"
 
 [profile.release]

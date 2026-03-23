@@ -672,6 +672,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
+                self.interceptor
+                    .observe(labels.clone(), MetricValue::OperationExecuting(-1));
             })?;
 
         Ok((
@@ -693,6 +695,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 labels.clone().with_error(err.kind()),
                 MetricValue::OperationErrorsTotal,
             );
+            self.interceptor
+                .observe(labels.clone(), MetricValue::OperationExecuting(-1));
         })?;
 
         Ok((
@@ -804,6 +808,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 labels.clone().with_error(err.kind()),
                 MetricValue::OperationErrorsTotal,
             );
+            self.interceptor
+                .observe(labels.clone(), MetricValue::OperationExecuting(-1));
         })?;
 
         Ok((
@@ -825,6 +831,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                 labels.clone().with_error(err.kind()),
                 MetricValue::OperationErrorsTotal,
             );
+            self.interceptor
+                .observe(labels.clone(), MetricValue::OperationExecuting(-1));
         })?;
 
         Ok((

@@ -61,7 +61,7 @@ jobs:
             classifier: windows-x86_64
             artifact: opendal_dotnet.dll
           - os: macos-latest
-            classifier: osx-x86_64
+            classifier: osx-aarch_64
             artifact: libopendal_dotnet.dylib
 
     steps:
@@ -115,11 +115,11 @@ jobs:
         run: |
           mkdir -p DotOpenDAL/runtimes/win-x64/native
           mkdir -p DotOpenDAL/runtimes/linux-x64/native
-          mkdir -p DotOpenDAL/runtimes/osx-x64/native
+          mkdir -p DotOpenDAL/runtimes/osx-arm64/native
 
           cp target/release-assets/opendal_dotnet.dll DotOpenDAL/runtimes/win-x64/native/
           cp target/release-assets/libopendal_dotnet.so DotOpenDAL/runtimes/linux-x64/native/
-          cp target/release-assets/libopendal_dotnet.dylib DotOpenDAL/runtimes/osx-x64/native/
+          cp target/release-assets/libopendal_dotnet.dylib DotOpenDAL/runtimes/osx-arm64/native/
 
       - name: Pack DotOpenDAL
         run: dotnet pack DotOpenDAL/DotOpenDAL.csproj -c Release -o artifacts/package

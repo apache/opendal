@@ -24,9 +24,9 @@
         <None Include="runtimes\linux-x64\native\libopendal_dotnet.so"
             Pack="true"
             PackagePath="runtimes/linux-x64/native/" />
-        <None Include="runtimes\osx-x64\native\libopendal_dotnet.dylib"
+        <None Include="runtimes\osx-arm64\native\libopendal_dotnet.dylib"
             Pack="true"
-            PackagePath="runtimes/osx-x64/native/" />
+            PackagePath="runtimes/osx-arm64/native/" />
     </ItemGroup>
 
     <!-- Resolve Rust build output path -->

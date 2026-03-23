@@ -281,3 +281,18 @@ impl From<StatOptions> for ocore::options::StatOptions {
         }
     }
 }
+
+#[pyclass(module = "opendal")]
+#[derive(Default, Debug)]
+pub struct DeleteOptions {
+    pub version: Option<String>,
+}
+
+impl From<DeleteOptions> for ocore::options::DeleteOptions {
+    fn from(opts: DeleteOptions) -> Self {
+        Self {
+            version: opts.version,
+            ..Default::default()
+        }
+    }
+}

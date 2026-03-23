@@ -1451,26 +1451,72 @@ impl AsyncOperator {
     ///     The path of the object to stat.
     /// expire_second : int
     ///     The number of seconds until the presigned URL expires.
+    /// version : str, optional
+    ///     The version of the file.
+    /// if_match : str, optional
+    ///     The ETag to match.
+    /// if_none_match : str, optional
+    ///     The ETag to not match.
+    /// if_modified_since : datetime, optional
+    ///     Only return if modified since this time.
+    /// if_unmodified_since : datetime, optional
+    ///     Only return if unmodified since this time.
+    /// content_type : str, optional
+    ///     Override the content type in the presigned response.
+    /// cache_control : str, optional
+    ///     Override the cache control in the presigned response.
+    /// content_disposition : str, optional
+    ///     Override the content disposition in the presigned response.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
+    #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
         imports=("collections.abc", "opendal.types")
     ))]
+    #[pyo3(signature = (path, expire_second, *,
+        version=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
     pub fn presign_stat<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         expire_second: u64,
+        version: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let opts = StatOptions {
+            version,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+        };
         future_into_py(py, async move {
             let res = this
-                .presign_stat(&path, Duration::from_secs(expire_second))
+                .presign_stat_options(&path, Duration::from_secs(expire_second), opts.into())
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -1487,26 +1533,73 @@ impl AsyncOperator {
     ///     The path of the object to read.
     /// expire_second : int
     ///     The number of seconds until the presigned URL expires.
+    /// version : str, optional
+    ///     The version of the file.
+    /// if_match : str, optional
+    ///     The ETag to match.
+    /// if_none_match : str, optional
+    ///     The ETag to not match.
+    /// if_modified_since : datetime, optional
+    ///     Only return if modified since this time.
+    /// if_unmodified_since : datetime, optional
+    ///     Only return if unmodified since this time.
+    /// content_type : str, optional
+    ///     Override the content type in the presigned response.
+    /// cache_control : str, optional
+    ///     Override the cache control in the presigned response.
+    /// content_disposition : str, optional
+    ///     Override the content disposition in the presigned response.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
+    #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
         imports=("collections.abc", "opendal.types")
     ))]
+    #[pyo3(signature = (path, expire_second, *,
+        version=None,
+        if_match=None,
+        if_none_match=None,
+        if_modified_since=None,
+        if_unmodified_since=None,
+        content_type=None,
+        cache_control=None,
+        content_disposition=None))]
     pub fn presign_read<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         expire_second: u64,
+        version: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_modified_since: Option<jiff::Timestamp>,
+        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        if_unmodified_since: Option<jiff::Timestamp>,
+        content_type: Option<String>,
+        cache_control: Option<String>,
+        content_disposition: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let opts = ReadOptions {
+            version,
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            content_type,
+            cache_control,
+            content_disposition,
+            ..Default::default()
+        };
         future_into_py(py, async move {
             let res = this
-                .presign_read(&path, Duration::from_secs(expire_second))
+                .presign_read_options(&path, Duration::from_secs(expire_second), opts.into())
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -1523,26 +1616,71 @@ impl AsyncOperator {
     ///     The path of the object to write to.
     /// expire_second : int
     ///     The number of seconds until the presigned URL expires.
+    /// content_type : str, optional
+    ///     The content type header to set on the file.
+    /// content_disposition : str, optional
+    ///     The content disposition header to set on the file.
+    /// content_encoding : str, optional
+    ///     The content encoding header to set on the file.
+    /// cache_control : str, optional
+    ///     The cache control header to set on the file.
+    /// if_match : str, optional
+    ///     The ETag to match when writing the file.
+    /// if_none_match : str, optional
+    ///     The ETag to not match when writing the file.
+    /// if_not_exists : bool, optional
+    ///     Whether to fail if the file already exists.
+    /// user_metadata : dict, optional
+    ///     The user metadata to set on the file.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns a presigned request object.
+    #[allow(clippy::too_many_arguments)]
     #[gen_stub(override_return_type(
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
         imports=("collections.abc", "opendal.types")
     ))]
+    #[pyo3(signature = (path, expire_second, *,
+        content_type=None,
+        content_disposition=None,
+        content_encoding=None,
+        cache_control=None,
+        if_match=None,
+        if_none_match=None,
+        if_not_exists=None,
+        user_metadata=None))]
     pub fn presign_write<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         expire_second: u64,
+        content_type: Option<String>,
+        content_disposition: Option<String>,
+        content_encoding: Option<String>,
+        cache_control: Option<String>,
+        if_match: Option<String>,
+        if_none_match: Option<String>,
+        if_not_exists: Option<bool>,
+        user_metadata: Option<HashMap<String, String>>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let opts = WriteOptions {
+            content_type,
+            content_disposition,
+            content_encoding,
+            cache_control,
+            if_match,
+            if_none_match,
+            if_not_exists,
+            user_metadata,
+            ..Default::default()
+        };
         future_into_py(py, async move {
             let res = this
-                .presign_write(&path, Duration::from_secs(expire_second))
+                .presign_write_options(&path, Duration::from_secs(expire_second), opts.into())
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;
@@ -1559,6 +1697,8 @@ impl AsyncOperator {
     ///     The path of the object to delete.
     /// expire_second : int
     ///     The number of seconds until the presigned URL expires.
+    /// version : str, optional
+    ///     The version of the file to delete.
     ///
     /// Returns
     /// -------
@@ -1568,17 +1708,20 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[opendal.types.PresignedRequest]",
         imports=("collections.abc", "opendal.types")
     ))]
+    #[pyo3(signature = (path, expire_second, *, version=None))]
     pub fn presign_delete<'p>(
         &'p self,
         py: Python<'p>,
         path: PathBuf,
         expire_second: u64,
+        version: Option<String>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
+        let opts = DeleteOptions { version };
         future_into_py(py, async move {
             let res = this
-                .presign_delete(&path, Duration::from_secs(expire_second))
+                .presign_delete_options(&path, Duration::from_secs(expire_second), opts.into())
                 .await
                 .map_err(format_pyerr)
                 .map(PresignedRequest)?;

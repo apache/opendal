@@ -1111,7 +1111,7 @@ pub struct CompleteMultipartUploadResult {
     pub request_id: String,
 }
 
-/// Output of a successful `CopyObject` operation.
+/// Partial output of a successful `CopyObject` operation.
 ///
 /// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
 #[derive(Debug, Default, Deserialize)]

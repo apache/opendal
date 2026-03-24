@@ -1082,7 +1082,29 @@ impl Access for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => {
+                // S3 CopyObject may return an error embedded in a 200 OK response body
+                // when the error occurs during the copy (e.g., throttling, internal error).
+                // We must parse the body to detect this.
+                //
+                // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
+                // ref: https://repost.aws/knowledge-center/s3-resolve-200-internalerror
+                let body = resp.into_body().to_bytes();
+
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(body.as_ref()).map_err(new_xml_deserialize_error)?;
+
+                // On success, ETag is always present. If it's empty, the body was not a
+                // valid <CopyObjectResult> — it's an error response embedded in 200 OK.
+                if result.etag.is_empty() {
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&body))
+                            .set_temporary(),
+                    );
+                }
+
+                Ok(RpCopy::default())
+            }
             _ => Err(parse_error(resp)),
         }
     }

@@ -17,10 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::sync::LazyLock;
-use std::time::Duration;
 
-use bytes::Bytes;
 use http::Response;
 use http::StatusCode;
 use log::debug;
@@ -31,15 +28,14 @@ use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
-use reqsign_core::time::Timestamp;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_google::Credential;
 use reqsign_google::DefaultCredentialProvider;
+use reqsign_google::FileCredentialProvider;
 use reqsign_google::RequestSigner;
 use reqsign_google::StaticCredentialProvider;
-use reqsign_google::Token;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
-use serde::Deserialize;
+use reqsign_google::TokenCredentialProvider;
+use reqsign_google::VmMetadataCredentialProvider;
 
 use super::GCS_SCHEME;
 use super::config::GcsConfig;
@@ -52,8 +48,6 @@ use super::writer::GcsWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
-
 const DEFAULT_GCS_ENDPOINT: &str = "https://storage.googleapis.com";
 const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read_write";
 
@@ -63,143 +57,6 @@ const DEFAULT_GCS_SCOPE: &str = "https://www.googleapis.com/auth/devstorage.read
 pub struct GcsBuilder {
     pub(super) config: GcsConfig,
     pub(super) credential_provider_chain: Option<ProvideCredentialChain<Credential>>,
-}
-
-// TODO(remove): drop this adapter once reqsign-google provides a built-in
-// static access token provider.
-// Tracking issue: https://github.com/apache/opendal-reqsign/issues/694
-#[derive(Clone, Debug)]
-struct StaticTokenCredentialProvider {
-    token: String,
-}
-
-impl StaticTokenCredentialProvider {
-    fn new(token: impl Into<String>) -> Self {
-        Self {
-            token: token.into(),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProvideCredential for StaticTokenCredentialProvider {
-    type Credential = Credential;
-
-    async fn provide_credential(
-        &self,
-        _: &Context,
-    ) -> reqsign_core::Result<Option<Self::Credential>> {
-        Ok(Some(Credential::with_token(Token {
-            access_token: self.token.clone(),
-            expires_at: None,
-        })))
-    }
-}
-
-// TODO(remove): drop this adapter once reqsign-google provides a built-in
-// file-path credential provider for explicit credential_path usage.
-// Tracking issue: https://github.com/apache/opendal-reqsign/issues/696
-#[derive(Clone, Debug)]
-struct PathCredentialProvider {
-    path: String,
-    scope: String,
-}
-
-impl PathCredentialProvider {
-    fn new(path: impl Into<String>, scope: impl Into<String>) -> Self {
-        Self {
-            path: path.into(),
-            scope: scope.into(),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProvideCredential for PathCredentialProvider {
-    type Credential = Credential;
-
-    async fn provide_credential(
-        &self,
-        ctx: &Context,
-    ) -> reqsign_core::Result<Option<Self::Credential>> {
-        let content = String::from_utf8(ctx.file_read(&self.path).await?).map_err(|err| {
-            reqsign_core::Error::unexpected("credential file content is invalid utf-8")
-                .with_source(err)
-        })?;
-
-        StaticCredentialProvider::new(content)
-            .with_scope(&self.scope)
-            .provide_credential(ctx)
-            .await
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct VmMetadataTokenResponse {
-    access_token: String,
-    expires_in: u64,
-}
-
-// TODO(remove): drop this adapter once reqsign-google supports selecting
-// service account for VM metadata credential loading.
-// Tracking issue: https://github.com/apache/opendal-reqsign/issues/695
-#[derive(Clone, Debug)]
-struct ServiceAccountVmMetadataCredentialProvider {
-    service_account: String,
-    scope: String,
-}
-
-impl ServiceAccountVmMetadataCredentialProvider {
-    fn new(service_account: impl Into<String>, scope: impl Into<String>) -> Self {
-        Self {
-            service_account: service_account.into(),
-            scope: scope.into(),
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl ProvideCredential for ServiceAccountVmMetadataCredentialProvider {
-    type Credential = Credential;
-
-    async fn provide_credential(
-        &self,
-        ctx: &Context,
-    ) -> reqsign_core::Result<Option<Self::Credential>> {
-        let metadata_host = ctx
-            .env_var("GCE_METADATA_HOST")
-            .unwrap_or_else(|| "metadata.google.internal".to_string());
-
-        let url = format!(
-            "http://{metadata_host}/computeMetadata/v1/instance/service-accounts/{}/token?scopes={}",
-            self.service_account, self.scope
-        );
-
-        let req = http::Request::builder()
-            .method(http::Method::GET)
-            .uri(&url)
-            .header("Metadata-Flavor", "Google")
-            .body(Bytes::new())
-            .map_err(|err| {
-                reqsign_core::Error::unexpected("failed to build vm metadata request")
-                    .with_source(err)
-            })?;
-
-        let resp = ctx.http_send(req).await?;
-        if resp.status() != StatusCode::OK {
-            return Ok(None);
-        }
-
-        let resp: VmMetadataTokenResponse = serde_json::from_slice(resp.body()).map_err(|err| {
-            reqsign_core::Error::unexpected("failed to parse vm metadata token response")
-                .with_source(err)
-        })?;
-
-        Ok(Some(Credential::with_token(Token {
-            access_token: resp.access_token,
-            expires_at: Some(Timestamp::now() + Duration::from_secs(resp.expires_in)),
-        })))
-    }
 }
 
 impl Debug for GcsBuilder {
@@ -408,9 +265,11 @@ impl Builder for GcsBuilder {
         let mut envs = os_env.vars();
         envs.insert("GOOGLE_SCOPE".to_string(), scope.clone());
 
+        let info = Arc::new(AccessorInfo::default());
+
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -419,19 +278,15 @@ impl Builder for GcsBuilder {
         let mut default_credential = DefaultCredentialProvider::builder();
         #[cfg(target_arch = "wasm32")]
         {
-            default_credential = default_credential
-                .disable_env(true)
-                .disable_well_known(true);
+            default_credential = default_credential.no_env().no_well_known();
         }
 
         if self.config.disable_config_load {
-            default_credential = default_credential
-                .disable_env(true)
-                .disable_well_known(true);
+            default_credential = default_credential.no_env().no_well_known();
         }
 
         if self.config.disable_vm_metadata || self.config.service_account.is_some() {
-            default_credential = default_credential.disable_vm_metadata(true);
+            default_credential = default_credential.no_vm_metadata();
         }
 
         let mut credential_chain = ProvideCredentialChain::new().push(default_credential.build());
@@ -439,14 +294,16 @@ impl Builder for GcsBuilder {
         if !self.config.disable_vm_metadata {
             if let Some(service_account) = self.config.service_account.as_deref() {
                 credential_chain = credential_chain.push(
-                    ServiceAccountVmMetadataCredentialProvider::new(service_account, &scope),
+                    VmMetadataCredentialProvider::new()
+                        .with_scope(&scope)
+                        .with_service_account(service_account),
                 );
             }
         }
 
         if let Some(path) = self.config.credential_path.as_deref() {
             credential_chain =
-                credential_chain.push_front(PathCredentialProvider::new(path, scope.clone()));
+                credential_chain.push_front(FileCredentialProvider::new(path).with_scope(&scope));
         }
 
         if let Some(content) = self.config.credential.as_deref() {
@@ -456,8 +313,7 @@ impl Builder for GcsBuilder {
         }
 
         if let Some(token) = self.config.token.as_deref() {
-            credential_chain =
-                credential_chain.push_front(StaticTokenCredentialProvider::new(token));
+            credential_chain = credential_chain.push_front(TokenCredentialProvider::new(token));
         }
 
         if let Some(customized_credential_chain) = self.credential_provider_chain {
@@ -473,8 +329,7 @@ impl Builder for GcsBuilder {
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(GCS_SCHEME)
+                    info.set_scheme(GCS_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -528,7 +383,7 @@ impl Builder for GcsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 endpoint,
                 bucket: bucket.to_string(),

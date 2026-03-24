@@ -36,10 +36,9 @@ http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-core = "2.0.2"
-reqsign-file-read-tokio = "2.0.2"
-reqsign-http-send-reqwest = "2.0.1"
-reqsign-huaweicloud-obs = "2.0.2"
+reqsign-core = "3.0.0"
+reqsign-file-read-tokio = "3.0.0"
+reqsign-huaweicloud-obs = "3.0.0"
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

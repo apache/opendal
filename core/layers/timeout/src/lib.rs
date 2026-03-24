@@ -349,7 +349,8 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        let fut = self.inner.delete(path, args);
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -423,6 +424,19 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default)]
+    struct MockDeleter;
+
+    impl oio::Delete for MockDeleter {
+        fn delete(&mut self, _: &str, _: OpDelete) -> impl Future<Output = Result<()>> {
+            pending()
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_operation_timeout() {
         let srv = MockService;
@@ -473,6 +487,19 @@ mod tests {
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(err.to_string().contains("timeout"))
+    }
+
+    #[tokio::test]
+    async fn test_delete_io_timeout() {
+        use oio::Delete;
+
+        let mut deleter = TimeoutWrapper::new(MockDeleter, Duration::from_secs(1));
+
+        let res = deleter.delete("test", OpDelete::default()).await;
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("timeout"));
     }
 
     #[tokio::test]

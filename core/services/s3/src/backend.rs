@@ -1091,17 +1091,16 @@ impl Access for S3Backend {
                 // ref: https://repost.aws/knowledge-center/s3-resolve-200-internalerror
                 let body = resp.into_body().to_bytes();
 
-                let result: CopyObjectResult = quick_xml::de::from_reader(body.as_ref())
-                    .map_err(new_xml_deserialize_error)?;
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(body.as_ref()).map_err(new_xml_deserialize_error)?;
 
                 // On success, ETag is always present. If it's empty, the body was not a
                 // valid <CopyObjectResult> — it's an error response embedded in 200 OK.
                 if result.etag.is_empty() {
-                    return Err(Error::new(
-                        ErrorKind::Unexpected,
-                        String::from_utf8_lossy(&body),
-                    )
-                    .set_temporary());
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&body))
+                            .set_temporary(),
+                    );
                 }
 
                 Ok(RpCopy::default())

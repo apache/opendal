@@ -828,7 +828,7 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set SSE headers.
+        // Set checksum type headers.
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.

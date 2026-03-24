@@ -50,10 +50,12 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
-        uses: 1Password/load-secrets-action/configure@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
-        with:
-          connect-host: ${{ secrets.OP_CONNECT_HOST }}
-          connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
+        shell: bash
+        run: |
+          echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
+          echo "::add-mask::${{ secrets.OP_CONNECT_TOKEN }}"
+          echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
+          echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
       - name: Test Core
         uses: ./.github/actions/test_behavior_binding_dotnet

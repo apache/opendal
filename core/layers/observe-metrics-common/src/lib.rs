@@ -503,10 +503,7 @@ impl<I: MetricsIntercept> ExecutingGuard<I> {
 impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
     fn drop(&mut self) {
         if let Some(ref interceptor) = self.interceptor {
-            interceptor.observe(
-                std::mem::take(&mut self.labels),
-                (self.metric_fn)(-1),
-            );
+            interceptor.observe(std::mem::take(&mut self.labels), (self.metric_fn)(-1));
         }
     }
 }

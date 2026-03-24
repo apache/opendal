@@ -805,6 +805,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -828,7 +832,7 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set SSE headers.
+        // Set checksum type headers.
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.

@@ -388,7 +388,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -462,7 +462,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {

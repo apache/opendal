@@ -120,7 +120,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -225,7 +225,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -259,7 +259,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {

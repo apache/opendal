@@ -186,11 +186,7 @@ impl HttpFetch for TracingHttpFetcher {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
         let span = span!(Level::DEBUG, "http::fetch", ?req);
 
-        let resp = self
-            .inner
-            .fetch(req)
-            .instrument(span.clone())
-            .await?;
+        let resp = self.inner.fetch(req).instrument(span.clone()).await?;
 
         let (parts, body) = resp.into_parts();
         let body = body.map_inner(|s| Box::new(TracingStream { inner: s, span }));
@@ -240,11 +236,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let span = span!(Level::DEBUG, "read", path, ?args);
 
-        let (rp, r) = self
-            .inner
-            .read(path, args)
-            .instrument(span.clone())
-            .await?;
+        let (rp, r) = self.inner.read(path, args).instrument(span.clone()).await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }
@@ -279,11 +271,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         let span = span!(Level::DEBUG, "delete");
 
-        let (rp, r) = self
-            .inner
-            .delete()
-            .instrument(span.clone())
-            .await?;
+        let (rp, r) = self.inner.delete().instrument(span.clone()).await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }
@@ -291,11 +279,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let span = span!(Level::DEBUG, "list", path, ?args);
 
-        let (rp, r) = self
-            .inner
-            .list(path, args)
-            .instrument(span.clone())
-            .await?;
+        let (rp, r) = self.inner.list(path, args).instrument(span.clone()).await?;
 
         Ok((rp, TracingWrapper::new(span, r)))
     }

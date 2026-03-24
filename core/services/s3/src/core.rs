@@ -833,6 +833,15 @@ impl S3Core {
         req = self.insert_sse_headers(req, true);
 
         // Set checksum type headers.
+        // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
+        // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+        if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "checksum_algorithm \"md5\" is not supported for multipart uploads. \
+                 S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
+            ));
+        }
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.

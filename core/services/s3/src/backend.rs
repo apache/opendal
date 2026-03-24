@@ -1099,9 +1099,9 @@ impl Access for S3Backend {
                 self.core
                     .s3_get_object_request(path, BytesRange::default(), &v)
             }
-            PresignOperation::Write(_) => {
+            PresignOperation::Write(v) => {
                 self.core
-                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
+                    .s3_put_object_request(path, None, &v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
                 ErrorKind::Unsupported,
@@ -1228,5 +1228,30 @@ mod tests {
             let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_preserves_content_type() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .allow_anonymous()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpWrite::default().with_content_type("application/json");
+        let args = OpPresign::new(op, Duration::from_secs(3600));
+        let presigned = backend
+            .presign("test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
     }
 }

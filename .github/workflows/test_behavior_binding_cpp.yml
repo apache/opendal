@@ -46,7 +46,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
-        uses: 1password/load-secrets-action/configure@v3
+        uses: 1Password/load-secrets-action/configure@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}

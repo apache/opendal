@@ -46,13 +46,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
-        uses: 1password/load-secrets-action/configure@v3
+        uses: 1Password/load-secrets-action/configure@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
         with:
           connect-host: ${{ secrets.OP_CONNECT_HOST }}
           connect-token: ${{ secrets.OP_CONNECT_TOKEN }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
       - name: Build with maturin

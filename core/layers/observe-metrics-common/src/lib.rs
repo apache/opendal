@@ -987,8 +987,10 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
         self.inner
             .next()
             .await
-            .inspect(|_| {
-                self.size += 1;
+            .inspect(|entry| {
+                if entry.is_some() {
+                    self.size += 1;
+                }
             })
             .inspect_err(|err| {
                 self.interceptor.observe(

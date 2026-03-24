@@ -37,9 +37,9 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 opendal-service-azure-common = { path = "../azure-common", version = "0.55.0" }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
-reqsign-azure-storage = { version = "2.0.2", default-features = false }
-reqsign-core = { version = "2.0.1", default-features = false }
-reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
+reqsign-azure-storage = { version = "3.0.0", default-features = false }
+reqsign-core = { version = "3.0.0", default-features = false }
+reqsign-file-read-tokio = { version = "3.0.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

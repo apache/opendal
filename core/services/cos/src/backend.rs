@@ -188,8 +188,8 @@ impl Builder for CosBuilder {
 
         let mut credential = if self.config.disable_config_load {
             DefaultCredentialProvider::builder()
-                .disable_env(true)
-                .disable_assume_role(true)
+                .no_env()
+                .no_web_identity()
                 .build()
         } else {
             DefaultCredentialProvider::new()

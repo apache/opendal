@@ -130,46 +130,24 @@ impl HttpClient {
 }
 
 impl reqsign_core::HttpSend for HttpClient {
-    fn http_send<'life0, 'async_trait>(
-        &'life0 self,
-        req: Request<Bytes>,
-    ) -> Pin<
-        Box<dyn Future<Output = reqsign_core::Result<Response<Bytes>>> + Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            let req = req.map(Buffer::from);
-            let resp = self.send(req).await.map_err(|err| {
-                let retryable = err.is_temporary();
-                reqsign_core::Error::unexpected("send request via OpenDAL HttpClient")
-                    .with_source(err)
-                    .set_retryable(retryable)
-            })?;
+    async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
+        let req = req.map(Buffer::from);
+        let resp = self.send(req).await.map_err(|err| {
+            let retryable = err.is_temporary();
+            reqsign_core::Error::unexpected("send request via OpenDAL HttpClient")
+                .with_source(err)
+                .set_retryable(retryable)
+        })?;
 
-            let (parts, body) = resp.into_parts();
-            Ok(Response::from_parts(parts, body.to_bytes()))
-        })
+        let (parts, body) = resp.into_parts();
+        Ok(Response::from_parts(parts, body.to_bytes()))
     }
 }
 
 impl reqsign_core::HttpSend for AccessorInfoHttpSend {
-    fn http_send<'life0, 'async_trait>(
-        &'life0 self,
-        req: Request<Bytes>,
-    ) -> Pin<
-        Box<dyn Future<Output = reqsign_core::Result<Response<Bytes>>> + Send + 'async_trait>,
-    >
-    where
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        Box::pin(async move {
-            let client = self.info.http_client();
-            reqsign_core::HttpSend::http_send(&client, req).await
-        })
+    async fn http_send(&self, req: Request<Bytes>) -> reqsign_core::Result<Response<Bytes>> {
+        let client = self.info.http_client();
+        reqsign_core::HttpSend::http_send(&client, req).await
     }
 }
 

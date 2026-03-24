@@ -808,11 +808,11 @@ impl Builder for S3Builder {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
-                builder = builder.disable_env(true).disable_profile(true);
+                builder = builder.no_env().no_profile();
             }
 
             if config.disable_ec2_metadata {
-                builder = builder.disable_imds(true);
+                builder = builder.no_imds();
             }
 
             ProvideCredentialChain::new().push(builder.build())

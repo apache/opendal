@@ -409,6 +409,15 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
+        *,
+        version: builtins.str | None = ...,
+        if_match: builtins.str | None = ...,
+        if_none_match: builtins.str | None = ...,
+        if_modified_since: datetime.datetime = ...,
+        if_unmodified_since: datetime.datetime = ...,
+        content_type: builtins.str | None = ...,
+        cache_control: builtins.str | None = ...,
+        content_disposition: builtins.str | None = ...,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a stat operation.
@@ -419,6 +428,22 @@ class AsyncOperator:
             The path of the object to stat.
         expire_second : int
             The number of seconds until the presigned URL expires.
+        version : str, optional
+            The version of the file.
+        if_match : str, optional
+            The ETag to match.
+        if_none_match : str, optional
+            The ETag to not match.
+        if_modified_since : datetime, optional
+            Only return if modified since this time.
+        if_unmodified_since : datetime, optional
+            Only return if unmodified since this time.
+        content_type : str, optional
+            Override the content type in the presigned response.
+        cache_control : str, optional
+            Override the cache control in the presigned response.
+        content_disposition : str, optional
+            Override the content disposition in the presigned response.
 
         Returns
         -------
@@ -429,6 +454,15 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
+        *,
+        version: builtins.str | None = ...,
+        if_match: builtins.str | None = ...,
+        if_none_match: builtins.str | None = ...,
+        if_modified_since: datetime.datetime = ...,
+        if_unmodified_since: datetime.datetime = ...,
+        content_type: builtins.str | None = ...,
+        cache_control: builtins.str | None = ...,
+        content_disposition: builtins.str | None = ...,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a read operation.
@@ -439,6 +473,22 @@ class AsyncOperator:
             The path of the object to read.
         expire_second : int
             The number of seconds until the presigned URL expires.
+        version : str, optional
+            The version of the file.
+        if_match : str, optional
+            The ETag to match.
+        if_none_match : str, optional
+            The ETag to not match.
+        if_modified_since : datetime, optional
+            Only return if modified since this time.
+        if_unmodified_since : datetime, optional
+            Only return if unmodified since this time.
+        content_type : str, optional
+            Override the content type in the presigned response.
+        cache_control : str, optional
+            Override the cache control in the presigned response.
+        content_disposition : str, optional
+            Override the content disposition in the presigned response.
 
         Returns
         -------
@@ -449,6 +499,15 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
+        *,
+        content_type: builtins.str | None = ...,
+        content_disposition: builtins.str | None = ...,
+        content_encoding: builtins.str | None = ...,
+        cache_control: builtins.str | None = ...,
+        if_match: builtins.str | None = ...,
+        if_none_match: builtins.str | None = ...,
+        if_not_exists: builtins.bool | None = ...,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = ...,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a write operation.
@@ -459,6 +518,22 @@ class AsyncOperator:
             The path of the object to write to.
         expire_second : int
             The number of seconds until the presigned URL expires.
+        content_type : str, optional
+            The content type header to set on the file.
+        content_disposition : str, optional
+            The content disposition header to set on the file.
+        content_encoding : str, optional
+            The content encoding header to set on the file.
+        cache_control : str, optional
+            The cache control header to set on the file.
+        if_match : str, optional
+            The ETag to match when writing the file.
+        if_none_match : str, optional
+            The ETag to not match when writing the file.
+        if_not_exists : bool, optional
+            Whether to fail if the file already exists.
+        user_metadata : dict, optional
+            The user metadata to set on the file.
 
         Returns
         -------
@@ -469,6 +544,8 @@ class AsyncOperator:
         self,
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
+        *,
+        version: builtins.str | None = ...,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a delete operation.
@@ -479,6 +556,8 @@ class AsyncOperator:
             The path of the object to delete.
         expire_second : int
             The number of seconds until the presigned URL expires.
+        version : str, optional
+            The version of the file to delete.
 
         Returns
         -------

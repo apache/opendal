@@ -151,6 +151,15 @@ impl AsyncSeek for FuturesAsyncReader {
         }
 
         let new_pos = new_pos as u64;
+        let length = self.end - self.start;
+
+        // Check if new_pos is past the end of the range.
+        if new_pos > length {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid seek to a position beyond the end of the range",
+            )));
+        }
 
         if (self.pos..self.pos + self.buf.remaining() as u64).contains(&new_pos) {
             let cnt = new_pos - self.pos;
@@ -160,7 +169,7 @@ impl AsyncSeek for FuturesAsyncReader {
             self.stream = BufferStream::new(
                 self.ctx.clone(),
                 new_pos + self.start,
-                Some(self.end - self.start - new_pos),
+                Some(length - new_pos),
             );
         }
 
@@ -283,6 +292,38 @@ mod tests {
         fr.consume_unpin(1);
         let chunk = fr.fill_buf().await.unwrap();
         assert_eq!(chunk, "W".as_bytes());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_seek_past_end_returns_error() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write(
+            "test",
+            Buffer::from(vec![Bytes::from("Hello"), Bytes::from("World")]),
+        )
+        .await?;
+
+        let acc = op.into_inner();
+        let ctx = Arc::new(ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+        ));
+
+        // Range 4..8, in total 4 bytes of logical data.
+        let mut fr = FuturesAsyncReader::new(ctx, 4..8);
+
+        // Seek to position 5, which is past the 4-byte logical range.
+        let res = fr.seek(SeekFrom::Start(5)).await;
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err().kind(), io::ErrorKind::InvalidInput);
+
+        // Seeking exactly to the end should still work.
+        let pos = fr.seek(SeekFrom::Start(4)).await.unwrap();
+        assert_eq!(pos, 4);
 
         Ok(())
     }

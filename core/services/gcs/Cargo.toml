@@ -38,14 +38,9 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 percent-encoding = "2.3"
 quick-xml = { workspace = true, features = ["serialize"] }
-reqsign-core = { version = "2.0.1", default-features = false }
-reqsign-file-read-tokio = { version = "2.0.1", default-features = false }
-reqsign-google = { version = "2.0.2", default-features = false }
-reqsign-http-send-reqwest = { version = "2.0.1", default-features = false }
-reqwest = { version = "0.12.24", default-features = false, features = [
-  "json",
-  "stream",
-] }
+reqsign-core = { version = "3.0.0", default-features = false }
+reqsign-file-read-tokio = { version = "3.0.0", default-features = false }
+reqsign-google = { version = "3.0.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

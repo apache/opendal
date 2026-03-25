@@ -805,6 +805,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -817,13 +821,18 @@ impl S3Core {
             }
         }
 
+        // also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set SSE headers.
+        // Set checksum type headers.
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
@@ -1100,6 +1109,17 @@ pub struct CompleteMultipartUploadResult {
     pub code: String,
     pub message: String,
     pub request_id: String,
+}
+
+/// Partial output of a successful `CopyObject` operation.
+///
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CopyObjectResult {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub last_modified: String,
 }
 
 /// Request of DeleteObjects.

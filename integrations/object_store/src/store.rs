@@ -18,11 +18,13 @@
 use std::fmt::{self, Debug, Display, Formatter};
 use std::future::IntoFuture;
 use std::io;
+use std::ops::Range;
 use std::sync::Arc;
 
 use crate::utils::*;
 use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
@@ -413,6 +415,32 @@ impl ObjectStore for OpendalStore {
             meta,
             attributes,
         })
+    }
+
+    async fn get_ranges(
+        &self,
+        location: &Path,
+        ranges: &[Range<u64>],
+    ) -> object_store::Result<Vec<Bytes>> {
+        let raw_location = percent_decode_path(location.as_ref());
+        let reader = self
+            .inner
+            .reader_with(&raw_location)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        let mut results = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            let data = reader
+                .read(range.start..range.end)
+                .into_send()
+                .await
+                .map(|buf| buf.to_bytes())
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            results.push(data);
+        }
+        Ok(results)
     }
 
     fn delete_stream(
@@ -965,13 +993,15 @@ mod tests {
         // Reset counter after put
         stat_count.store(0, Ordering::SeqCst);
 
-        // Test 1: get_range should NOT call stat()
-        let ret = store.get_range(&location, 0..5).await.unwrap();
-        assert_eq!(Bytes::from_static(b"Hello"), ret);
+        // Test 1: get_ranges should NOT call stat()
+        #[allow(clippy::single_range_in_vec_init)]
+        let ranges = [0u64..5];
+        let ret = store.get_ranges(&location, &ranges).await.unwrap();
+        assert_eq!(Bytes::from_static(b"Hello"), ret[0]);
         assert_eq!(
             stat_count.load(Ordering::SeqCst),
             0,
-            "get_range should not call stat()"
+            "get_ranges should not call stat()"
         );
 
         // Reset counter

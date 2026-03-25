@@ -625,6 +625,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                         labels: labels.clone(),
                         size: 0,
                         start: Instant::now(),
+                        succeeded: false,
                     })
                 });
 
@@ -641,6 +642,7 @@ struct MetricsStream<S, I: MetricsIntercept> {
     labels: MetricLabels,
     size: u64,
     start: Instant,
+    succeeded: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -657,7 +659,10 @@ where
                 Poll::Ready(Some(Ok(bs)))
             }
             Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            None => Poll::Ready(None),
+            None => {
+                self.succeeded = true;
+                Poll::Ready(None)
+            }
         }
     }
 }
@@ -666,6 +671,11 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
     fn drop(&mut self) {
         let resp_size = self.size;
         let resp_duration = self.start.elapsed();
+
+        if !self.succeeded {
+            self.interceptor
+                .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+        }
 
         self.interceptor.observe(
             self.labels.clone(),

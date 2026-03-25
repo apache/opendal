@@ -63,9 +63,11 @@ impl oio::BatchDelete for HfDeleter {
 mod tests {
     use super::super::backend::test_utils::testing_operator;
     use opendal_core::*;
+    use serial_test::serial;
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_delete_nonexistent() {
         let op = testing_operator();
 
@@ -76,6 +78,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_delete_then_read() {
         let op = testing_operator();
         let path = "tests/delete-then-read.txt";
@@ -95,6 +98,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_batch_delete() {
         let op = testing_operator();
         let paths = [

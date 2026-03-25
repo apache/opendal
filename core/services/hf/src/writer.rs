@@ -95,11 +95,13 @@ impl oio::Write for HfWriter {
             }
             HfWriter::Xet { cleaner, .. } => {
                 // get_mut() required here: lock() would hold a MutexGuard across .await
-                let cleaner = cleaner.get_mut().expect("mutex poisoned")
-                    .as_mut().expect("cleaner missing");
+                let cleaner = cleaner
+                    .get_mut()
+                    .expect("mutex poisoned")
+                    .as_mut()
+                    .expect("cleaner missing");
                 cleaner.add_data(&bs.to_bytes()).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to write xet chunk")
-                        .set_source(err)
+                    Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
                 })
             }
         }
@@ -136,8 +138,8 @@ impl oio::Write for HfWriter {
                     .expect("mutex poisoned")
                     .take()
                     .ok_or_else(|| {
-                    Error::new(ErrorKind::Unexpected, "xet writer already closed")
-                })?;
+                        Error::new(ErrorKind::Unexpected, "xet writer already closed")
+                    })?;
 
                 let (file_info, _metrics) = cleaner.finish().await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
@@ -211,6 +213,7 @@ mod tests {
     use super::super::backend::test_utils::testing_operator;
     use super::*;
     use base64::Engine;
+    use serial_test::serial;
 
     // --- Unit tests (no network required) ---
 
@@ -243,6 +246,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_http() {
         let op = testing_operator();
         op.write("test-file.txt", b"Hello, HuggingFace!".as_slice())
@@ -252,6 +256,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_http_with_content_type() {
         let op = testing_operator();
         op.write_with("test.json", br#"{"test": "data"}"#.as_slice())
@@ -262,6 +267,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_xet() {
         let op = testing_operator();
         op.write("test-xet.bin", b"Binary data for XET test".as_slice())
@@ -273,6 +279,7 @@ mod tests {
     /// in commit) and verify the content roundtrips correctly.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_regular_roundtrip() {
         let op = testing_operator();
         let path = "tests/regular-roundtrip.txt";
@@ -292,6 +299,7 @@ mod tests {
     /// Verify stat returns correct metadata after writing.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_and_stat() {
         let op = testing_operator();
         let path = "tests/stat-after-write.txt";
@@ -310,6 +318,7 @@ mod tests {
     /// Overwriting an existing file should replace its content.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_overwrite() {
         let op = testing_operator();
         let path = "tests/overwrite-test.txt";
@@ -331,6 +340,7 @@ mod tests {
     /// Full lifecycle: write → stat → read → delete → confirm gone.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_delete_lifecycle() {
         let op = testing_operator();
         let path = "tests/lifecycle-test.txt";
@@ -351,6 +361,7 @@ mod tests {
     /// Write an empty (0-byte) file and verify roundtrip.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_empty_file_roundtrip() {
         let op = testing_operator();
         let path = "tests/empty-file.txt";
@@ -372,6 +383,7 @@ mod tests {
     /// HuggingFace creates intermediate directories implicitly.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_nested_directory() {
         let op = testing_operator();
         let path = "tests/deep/nested/dir/file.txt";
@@ -390,6 +402,7 @@ mod tests {
     /// Write a file with special characters in the path.
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_write_special_characters_in_path() {
         let op = testing_operator();
         let path = "tests/special chars (1).txt";
@@ -409,6 +422,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_bucket_write() {
         let op = testing_bucket_operator();
         let path = "test-bucket-file.txt";
@@ -426,6 +440,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_bucket_write_roundtrip() {
         let op = testing_bucket_operator();
         let path = "tests/bucket-roundtrip.bin";
@@ -446,6 +461,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
+    #[serial]
     async fn test_bucket_overwrite() {
         let op = testing_bucket_operator();
         let path = "tests/bucket-overwrite.txt";

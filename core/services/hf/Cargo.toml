@@ -53,4 +53,5 @@ opendal-core = { path = "../../core", version = "0.55.0", features = [
   "reqwest-rustls-tls",
 ] }
 serde_json = { workspace = true }
+serial_test = "3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

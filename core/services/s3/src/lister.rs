@@ -383,7 +383,7 @@ impl oio::PageList for S3ObjectVersionsLister {
                     path = "/".to_owned();
                 }
 
-                let mut meta = Metadata::new(EntryMode::FILE);
+                let mut meta = Metadata::new(EntryMode::from_path(&path));
                 meta.set_version(&delete_marker.version_id);
                 meta.set_is_deleted(true);
                 meta.set_is_current(delete_marker.is_latest);

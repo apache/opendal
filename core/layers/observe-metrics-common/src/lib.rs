@@ -475,26 +475,47 @@ struct MetricsHttpFetcher<I: MetricsIntercept> {
     interceptor: I,
 }
 
-/// Guard to ensure an executing gauge is decremented even if the async future is cancelled.
-///
-/// When a timeout or cancellation drops an in-flight future, any code after the `.await`
-/// suspension point won't run. This guard uses RAII to guarantee the decrement always happens.
+enum ExecutingGuardKind {
+    Http,
+    Operation,
+}
+
+/// Guard to ensure metrics accounted even if the async future is cancelled.
 struct ExecutingGuard<I: MetricsIntercept> {
+    /// The interceptor to use for recording metrics. `None` if defused.
     interceptor: Option<I>,
     labels: MetricLabels,
-    metric_fn: fn(isize) -> MetricValue,
+    start: Instant,
+    kind: ExecutingGuardKind,
+    /// Whether the async operation finished.
+    completed: bool,
 }
 
 impl<I: MetricsIntercept> ExecutingGuard<I> {
-    fn new(interceptor: I, labels: MetricLabels, metric_fn: fn(isize) -> MetricValue) -> Self {
+    fn new_http(interceptor: I, labels: MetricLabels, start: Instant) -> Self {
         Self {
             interceptor: Some(interceptor),
             labels,
-            metric_fn,
+            start,
+            kind: ExecutingGuardKind::Http,
+            completed: false,
         }
     }
 
-    /// Defuse the guard, preventing it from decrementing on drop.
+    fn new_operation(interceptor: I, labels: MetricLabels, start: Instant) -> Self {
+        Self {
+            interceptor: Some(interceptor),
+            labels,
+            start,
+            kind: ExecutingGuardKind::Operation,
+            completed: false,
+        }
+    }
+
+    fn complete(&mut self) {
+        self.completed = true;
+    }
+
     fn defuse(&mut self) {
         self.interceptor = None;
     }
@@ -502,8 +523,46 @@ impl<I: MetricsIntercept> ExecutingGuard<I> {
 
 impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
     fn drop(&mut self) {
-        if let Some(ref interceptor) = self.interceptor {
-            interceptor.observe(std::mem::take(&mut self.labels), (self.metric_fn)(-1));
+        let Some(ref interceptor) = self.interceptor else {
+            return;
+        };
+
+        if !self.completed {
+            match self.kind {
+                ExecutingGuardKind::Http => {
+                    interceptor
+                        .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+                    interceptor.observe(
+                        self.labels.clone(),
+                        MetricValue::HttpRequestDurationSeconds(self.start.elapsed()),
+                    );
+                }
+                ExecutingGuardKind::Operation => {
+                    interceptor.observe(
+                        self.labels.clone().with_error(ErrorKind::Unexpected),
+                        MetricValue::OperationErrorsTotal,
+                    );
+                    interceptor.observe(
+                        self.labels.clone(),
+                        MetricValue::OperationDurationSeconds(self.start.elapsed()),
+                    );
+                }
+            }
+        }
+
+        match self.kind {
+            ExecutingGuardKind::Http => {
+                interceptor.observe(
+                    std::mem::take(&mut self.labels),
+                    MetricValue::HttpExecuting(-1),
+                );
+            }
+            ExecutingGuardKind::Operation => {
+                interceptor.observe(
+                    std::mem::take(&mut self.labels),
+                    MetricValue::OperationExecuting(-1),
+                );
+            }
         }
     }
 }
@@ -524,13 +583,10 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::HttpExecuting(1));
-        let mut guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::HttpExecuting,
-        );
+        let mut guard = ExecutingGuard::new_http(self.interceptor.clone(), labels.clone(), start);
 
         let res = self.inner.fetch(req).await;
+        guard.complete();
         let req_duration = start.elapsed();
 
         match res {
@@ -569,6 +625,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                         labels: labels.clone(),
                         size: 0,
                         start: Instant::now(),
+                        succeeded: false,
                     })
                 });
 
@@ -585,6 +642,7 @@ struct MetricsStream<S, I: MetricsIntercept> {
     labels: MetricLabels,
     size: u64,
     start: Instant,
+    succeeded: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -601,7 +659,10 @@ where
                 Poll::Ready(Some(Ok(bs)))
             }
             Some(Err(err)) => Poll::Ready(Some(Err(err))),
-            None => Poll::Ready(None),
+            None => {
+                self.succeeded = true;
+                Poll::Ready(None)
+            }
         }
     }
 }
@@ -610,6 +671,11 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
     fn drop(&mut self) {
         let resp_size = self.size;
         let resp_duration = self.start.elapsed();
+
+        if !self.succeeded {
+            self.interceptor
+                .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+        }
 
         self.interceptor.observe(
             self.labels.clone(),
@@ -661,13 +727,11 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let _guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        self.inner()
+        let res = self
+            .inner()
             .create_dir(path, args)
             .await
             .inspect(|_| {
@@ -681,7 +745,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })
+            });
+
+        guard.complete();
+        res
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
@@ -691,34 +758,30 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let mut guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let (rp, reader) = self
-            .inner
-            .read(path, args)
-            .await
-            .inspect(|_| {
+        match self.inner.read(path, args).await {
+            Ok((rp, reader)) => {
                 self.interceptor.observe(
                     labels.clone(),
                     MetricValue::OperationTtfbSeconds(start.elapsed()),
                 );
-            })
-            .inspect_err(|err| {
+                guard.defuse();
+                Ok((
+                    rp,
+                    MetricsWrapper::new(reader, self.interceptor.clone(), labels, start),
+                ))
+            }
+            Err(err) => {
                 self.interceptor.observe(
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })?;
-
-        guard.defuse();
-        Ok((
-            rp,
-            MetricsWrapper::new(reader, self.interceptor.clone(), labels, start),
-        ))
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -728,24 +791,26 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let mut guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let (rp, writer) = self.inner.write(path, args).await.inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        guard.defuse();
-        Ok((
-            rp,
-            MetricsWrapper::new(writer, self.interceptor.clone(), labels, start),
-        ))
+        match self.inner.write(path, args).await {
+            Ok((rp, writer)) => {
+                guard.defuse();
+                Ok((
+                    rp,
+                    MetricsWrapper::new(writer, self.interceptor.clone(), labels, start),
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
@@ -755,13 +820,11 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let _guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        self.inner()
+        let res = self
+            .inner()
             .copy(from, to, args)
             .await
             .inspect(|_| {
@@ -775,7 +838,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })
+            });
+
+        guard.complete();
+        res
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -785,13 +851,11 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let _guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        self.inner()
+        let res = self
+            .inner()
             .rename(from, to, args)
             .await
             .inspect(|_| {
@@ -805,7 +869,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })
+            });
+
+        guard.complete();
+        res
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -815,13 +882,11 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let _guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        self.inner()
+        let res = self
+            .inner()
             .stat(path, args)
             .await
             .inspect(|_| {
@@ -835,7 +900,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })
+            });
+
+        guard.complete();
+        res
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
@@ -845,24 +913,26 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let mut guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let (rp, deleter) = self.inner.delete().await.inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        guard.defuse();
-        Ok((
-            rp,
-            MetricsWrapper::new(deleter, self.interceptor.clone(), labels, start),
-        ))
+        match self.inner.delete().await {
+            Ok((rp, deleter)) => {
+                guard.defuse();
+                Ok((
+                    rp,
+                    MetricsWrapper::new(deleter, self.interceptor.clone(), labels, start),
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
@@ -872,24 +942,26 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let mut guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let (rp, lister) = self.inner.list(path, args).await.inspect_err(|err| {
-            self.interceptor.observe(
-                labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })?;
-
-        guard.defuse();
-        Ok((
-            rp,
-            MetricsWrapper::new(lister, self.interceptor.clone(), labels, start),
-        ))
+        match self.inner.list(path, args).await {
+            Ok((rp, lister)) => {
+                guard.defuse();
+                Ok((
+                    rp,
+                    MetricsWrapper::new(lister, self.interceptor.clone(), labels, start),
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
@@ -899,13 +971,11 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         self.interceptor
             .observe(labels.clone(), MetricValue::OperationExecuting(1));
-        let _guard = ExecutingGuard::new(
-            self.interceptor.clone(),
-            labels.clone(),
-            MetricValue::OperationExecuting,
-        );
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        self.inner()
+        let res = self
+            .inner()
             .presign(path, args)
             .await
             .inspect(|_| {
@@ -919,7 +989,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-            })
+            });
+
+        guard.complete();
+        res
     }
 }
 

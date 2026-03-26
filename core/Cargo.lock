@@ -4307,6 +4307,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
+name = "hf-xet"
+version = "1.4.0"
+source = "git+https://github.com/huggingface/xet-core.git?rev=60a916f74df506a5d10c0656ee3e86a8411ab4f6#60a916f74df506a5d10c0656ee3e86a8411ab4f6"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "http 1.4.0",
+ "more-asserts",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "xet-client",
+ "xet-core-structures",
+ "xet-data",
+ "xet-runtime",
+]
+
+[[package]]
 name = "hickory-proto"
 version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7167,6 +7187,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "futures",
+ "hf-xet",
  "http 1.4.0",
  "log",
  "opendal-core",
@@ -7176,8 +7197,6 @@ dependencies = [
  "serde_json",
  "serial_test",
  "tokio",
- "xet-client",
- "xet-data",
 ]
 
 [[package]]
@@ -13441,7 +13460,7 @@ dependencies = [
 [[package]]
 name = "xet-client"
 version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=101837f6#101837f69114499b2d48a01a7d5d422028c95f04"
+source = "git+https://github.com/huggingface/xet-core.git?rev=60a916f74df506a5d10c0656ee3e86a8411ab4f6#60a916f74df506a5d10c0656ee3e86a8411ab4f6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13488,7 +13507,7 @@ dependencies = [
 [[package]]
 name = "xet-core-structures"
 version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=101837f6#101837f69114499b2d48a01a7d5d422028c95f04"
+source = "git+https://github.com/huggingface/xet-core.git?rev=60a916f74df506a5d10c0656ee3e86a8411ab4f6#60a916f74df506a5d10c0656ee3e86a8411ab4f6"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -13527,7 +13546,7 @@ dependencies = [
 [[package]]
 name = "xet-data"
 version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=101837f6#101837f69114499b2d48a01a7d5d422028c95f04"
+source = "git+https://github.com/huggingface/xet-core.git?rev=60a916f74df506a5d10c0656ee3e86a8411ab4f6#60a916f74df506a5d10c0656ee3e86a8411ab4f6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13561,7 +13580,7 @@ dependencies = [
 [[package]]
 name = "xet-runtime"
 version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=101837f6#101837f69114499b2d48a01a7d5d422028c95f04"
+source = "git+https://github.com/huggingface/xet-core.git?rev=60a916f74df506a5d10c0656ee3e86a8411ab4f6#60a916f74df506a5d10c0656ee3e86a8411ab4f6"
 dependencies = [
  "anyhow",
  "async-trait",

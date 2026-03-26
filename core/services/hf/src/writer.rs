@@ -16,7 +16,6 @@
 // under the License.
 
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use base64::Engine;
 
@@ -24,9 +23,7 @@ use super::core::{BucketOperation, CommitFile, HfCore, LfsFile};
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-use xet_data::processing::FileUploadSession;
-use xet_data::processing::Sha256Policy;
-use xet_data::processing::SingleFileCleaner;
+use xet::xet_session::{Sha256Policy, XetStreamUpload, XetUploadCommit};
 
 /// Writer that handles both regular (small) and XET (large) file uploads.
 pub enum HfWriter {
@@ -40,8 +37,8 @@ pub enum HfWriter {
     Xet {
         core: Arc<HfCore>,
         path: String,
-        session: Arc<FileUploadSession>,
-        cleaner: Mutex<Option<SingleFileCleaner>>,
+        commit: XetUploadCommit,
+        stream: Option<XetStreamUpload>,
     },
 }
 
@@ -54,17 +51,23 @@ impl HfWriter {
             || core.determine_upload_mode(&path).await? == "lfs";
 
         let writer = if use_xet {
-            let session = core.xet_upload_session().await?;
-            let (_id, cleaner) = session
-                .start_clean(None, None, Sha256Policy::Compute)
+            let session = core.xet_session().await?;
+            let commit = session.new_upload_commit().await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
+                    .set_source(err)
+            })?;
+            let stream = commit
+                .upload_stream(None, Sha256Policy::Compute)
+                .await
                 .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to start xet upload").set_source(err)
+                    Error::new(ErrorKind::Unexpected, "failed to start xet upload stream")
+                        .set_source(err)
                 })?;
             HfWriter::Xet {
                 core,
                 path,
-                session,
-                cleaner: Mutex::new(Some(cleaner)),
+                commit,
+                stream: Some(stream),
             }
         } else {
             HfWriter::Regular {
@@ -93,14 +96,9 @@ impl oio::Write for HfWriter {
                 buf.push(bs);
                 Ok(())
             }
-            HfWriter::Xet { cleaner, .. } => {
-                // get_mut() required here: lock() would hold a MutexGuard across .await
-                let cleaner = cleaner
-                    .get_mut()
-                    .expect("mutex poisoned")
-                    .as_mut()
-                    .expect("cleaner missing");
-                cleaner.add_data(&bs.to_bytes()).await.map_err(|err| {
+            HfWriter::Xet { stream, .. } => {
+                let stream = stream.as_ref().expect("stream missing");
+                stream.write(bs.to_bytes()).await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
                 })
             }
@@ -130,51 +128,38 @@ impl oio::Write for HfWriter {
             HfWriter::Xet {
                 core,
                 path,
-                session,
-                cleaner,
+                commit,
+                stream,
             } => {
-                let cleaner = cleaner
-                    .get_mut()
-                    .expect("mutex poisoned")
+                let stream = stream
                     .take()
-                    .ok_or_else(|| {
-                        Error::new(ErrorKind::Unexpected, "xet writer already closed")
-                    })?;
+                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "xet writer already closed"))?;
 
-                let (file_info, _metrics) = cleaner.finish().await.map_err(|err| {
+                let file_meta = stream.finish().await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
                 })?;
-
+                let file_info = file_meta.xet_info;
                 let content_length = file_info
                     .file_size()
                     .expect("file_size must be set after finish()");
                 let meta = Metadata::default().with_content_length(content_length);
 
+                commit.commit().await.map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
+                        .set_source(err)
+                })?;
+
                 if core.repo.repo_type == RepoType::Bucket {
                     let xet_hash = file_info.hash().to_string();
-                    session.clone().finalize().await.map_err(|err| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "failed to finalize xet upload session",
-                        )
-                        .set_source(err)
-                    })?;
-                    let operation = BucketOperation::AddFile {
+                    core.bucket_batch(vec![BucketOperation::AddFile {
                         path: path.clone(),
                         xet_hash,
-                    };
-                    core.bucket_batch(vec![operation]).await?;
+                    }])
+                    .await?;
                     Ok(meta)
                 } else {
                     let sha256 = file_info.sha256().ok_or_else(|| {
                         Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
-                    })?;
-                    session.clone().finalize().await.map_err(|err| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "failed to finalize xet upload session",
-                        )
-                        .set_source(err)
                     })?;
                     let lfs_file = LfsFile {
                         path: path.clone(),
@@ -183,12 +168,11 @@ impl oio::Write for HfWriter {
                         size: content_length,
                     };
                     let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
-
-                    if let Some(commit_oid) = resp.commit_oid {
-                        Ok(meta.with_version(commit_oid))
+                    Ok(if let Some(oid) = resp.commit_oid {
+                        meta.with_version(oid)
                     } else {
-                        Ok(meta)
-                    }
+                        meta
+                    })
                 }
             }
         }
@@ -199,8 +183,10 @@ impl oio::Write for HfWriter {
             HfWriter::Regular { buf, .. } => {
                 buf.clear();
             }
-            HfWriter::Xet { cleaner, .. } => {
-                cleaner.get_mut().expect("mutex poisoned").take();
+            HfWriter::Xet { stream, .. } => {
+                if let Some(s) = stream.take() {
+                    s.abort();
+                }
             }
         }
         Ok(())

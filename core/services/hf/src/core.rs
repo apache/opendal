@@ -27,11 +27,7 @@ use http::Response;
 use http::header;
 use serde::Deserialize;
 
-use xet_client::cas_client::auth::TokenRefresher;
-use xet_data::processing::FileDownloadSession;
-use xet_data::processing::FileUploadSession;
-use xet_data::processing::XetFileInfo;
-use xet_data::processing::configurations::TranslatorConfig;
+use xet::xet_session::{XetFileInfo, XetSession, XetSessionBuilder};
 
 use super::error::parse_error;
 use super::uri::HfRepo;
@@ -182,34 +178,6 @@ pub(super) struct XetToken {
     pub exp: u64,
 }
 
-pub(super) struct XetTokenRefresher {
-    core: HfCore,
-    token_type: &'static str,
-}
-
-impl XetTokenRefresher {
-    pub(super) fn new(core: &HfCore, token_type: &'static str) -> Self {
-        Self {
-            core: core.clone(),
-            token_type,
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl TokenRefresher for XetTokenRefresher {
-    async fn refresh(
-        &self,
-    ) -> std::result::Result<(String, u64), xet_client::cas_client::auth::AuthError> {
-        let token = self
-            .core
-            .xet_token(self.token_type)
-            .await
-            .map_err(xet_client::cas_client::auth::AuthError::token_refresh_failure)?;
-        Ok((token.access_token, token.exp))
-    }
-}
-
 // Core HuggingFace client that manages API interactions, authentication
 // and shared logic for reader/writer/lister.
 
@@ -226,8 +194,7 @@ pub struct HfCore {
     /// inspect headers on 302 responses.
     pub no_redirect_client: HttpClient,
 
-    upload_config: Arc<OnceCell<Arc<TranslatorConfig>>>,
-    download_config: Arc<OnceCell<Arc<TranslatorConfig>>>,
+    xet_session: Arc<OnceCell<XetSession>>,
 }
 
 impl Debug for HfCore {
@@ -256,8 +223,7 @@ impl HfCore {
             token,
             endpoint,
             no_redirect_client,
-            upload_config: Arc::new(OnceCell::new()),
-            download_config: Arc::new(OnceCell::new()),
+            xet_session: Arc::new(OnceCell::new()),
         }
     }
 
@@ -352,52 +318,22 @@ impl HfCore {
         Ok(token)
     }
 
-    async fn xet_config(&self, token_type: &'static str) -> Result<Arc<TranslatorConfig>> {
-        let cas_url = self.xet_token(token_type).await?.cas_url;
-        let refresher = Arc::new(XetTokenRefresher::new(self, token_type));
-        xet_data::processing::data_client::default_config(
-            cas_url,
-            None,
-            Some(refresher as Arc<dyn TokenRefresher>),
-            None,
-        )
-        .map(Arc::new)
-        .map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "failed to create xet config").set_source(err)
-        })
-    }
-
-    async fn upload_config(&self) -> Result<Arc<TranslatorConfig>> {
+    pub(super) async fn xet_session(&self) -> Result<XetSession> {
         let this = self.clone();
-        self.upload_config
-            .get_or_try_init(|| async move { this.xet_config("write").await })
-            .await
-            .map(Arc::clone)
-    }
-
-    async fn download_config(&self) -> Result<Arc<TranslatorConfig>> {
-        let this = self.clone();
-        self.download_config
-            .get_or_try_init(|| async move { this.xet_config("read").await })
-            .await
-            .map(Arc::clone)
-    }
-
-    pub(super) async fn xet_upload_session(&self) -> Result<Arc<FileUploadSession>> {
-        FileUploadSession::new(self.upload_config().await?)
-            .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create upload session").set_source(err)
+        self.xet_session
+            .get_or_try_init(|| async move {
+                let token = this.xet_token("write").await?;
+                XetSessionBuilder::new()
+                    .with_endpoint(token.cas_url)
+                    .with_token_info(token.access_token, token.exp)
+                    .build()
+                    .map_err(|err| {
+                        Error::new(ErrorKind::Unexpected, "failed to create xet session")
+                            .set_source(err)
+                    })
             })
-    }
-
-    pub(super) async fn xet_download_session(&self) -> Result<Arc<FileDownloadSession>> {
-        FileDownloadSession::new(self.download_config().await?)
             .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create download session")
-                    .set_source(err)
-            })
+            .cloned()
     }
 
     /// Issue a HEAD request and extract XET file info (hash and size).

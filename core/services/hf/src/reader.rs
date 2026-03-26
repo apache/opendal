@@ -19,10 +19,7 @@ use http::Response;
 use http::StatusCode;
 use http::header;
 
-use xet_client::ClientError;
-use xet_data::file_reconstruction::FileReconstructionError;
-use xet_data::processing::DownloadStream;
-use xet_data::processing::XetFileInfo;
+use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
 
 use super::core::HfCore;
 use super::uri::RepoType;
@@ -31,7 +28,7 @@ use opendal_core::*;
 
 pub enum HfReader {
     Http(HttpBody),
-    Xet(DownloadStream),
+    Xet(XetDownloadStream),
 }
 
 impl HfReader {
@@ -86,32 +83,28 @@ impl HfReader {
         file_info: &XetFileInfo,
         range: BytesRange,
     ) -> Result<Self> {
-        let session = core.xet_download_session().await?;
-
-        let (_id, stream) = session
-            .download_stream_range(file_info, range.to_range())
+        let session = core.xet_session().await?;
+        let xet_range = if range.is_full() {
+            None
+        } else {
+            let start = range.offset();
+            let end = range.size().map(|s| start + s).unwrap_or(u64::MAX);
+            Some(start..end)
+        };
+        let mut stream = session
+            .download_stream(file_info.clone(), xet_range)
             .await
             .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "failed to create xet download stream",
-                )
-                .set_source(err)
+                Error::new(ErrorKind::Unexpected, "failed to create xet download stream")
+                    .set_source(err)
             })?;
+        stream.start();
         Ok(Self::Xet(stream))
     }
 }
 
-fn map_reconstruction_error(e: FileReconstructionError) -> Error {
-    let kind = match &e {
-        FileReconstructionError::ClientError(arc) => match arc.as_ref() {
-            ClientError::FileNotFound(_) | ClientError::XORBNotFound(_) => ErrorKind::NotFound,
-            ClientError::InvalidRange => ErrorKind::RangeNotSatisfied,
-            _ => ErrorKind::Unexpected,
-        },
-        _ => ErrorKind::Unexpected,
-    };
-    Error::new(kind, "xet read error").set_source(e)
+fn map_session_error(e: SessionError) -> Error {
+    Error::new(ErrorKind::Unexpected, "xet read error").set_source(e)
 }
 
 impl oio::Read for HfReader {
@@ -121,7 +114,7 @@ impl oio::Read for HfReader {
             Self::Xet(stream) => match stream.next().await {
                 Ok(Some(bytes)) => Ok(Buffer::from(bytes)),
                 Ok(None) => Ok(Buffer::new()),
-                Err(e) => Err(map_reconstruction_error(e)),
+                Err(e) => Err(map_session_error(e)),
             },
         }
     }

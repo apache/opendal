@@ -45,8 +45,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
-xet-client = { git = "https://github.com/huggingface/xet-core.git", rev = "101837f6" }
-xet-data = { git = "https://github.com/huggingface/xet-core.git", rev = "101837f6" }
+hf-xet = { git = "https://github.com/huggingface/xet-core.git", rev = "60a916f74df506a5d10c0656ee3e86a8411ab4f6" }
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.55.0", features = [

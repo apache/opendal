@@ -254,4 +254,76 @@ mod tests {
             *flushed
         );
     }
+
+    /// Mock that reconstructs OpDelete from scratch (losing `recursive`),
+    /// just like the real S3 deleter does.
+    struct S3LikeMock;
+
+    impl oio::BatchDelete for S3LikeMock {
+        async fn delete_once(&self, _: String, _: OpDelete) -> Result<()> {
+            Ok(())
+        }
+        async fn delete_batch(
+            &self,
+            batch: Vec<(String, OpDelete)>,
+        ) -> Result<oio::BatchDeleteResult> {
+            Ok(oio::BatchDeleteResult {
+                succeeded: batch
+                    .into_iter()
+                    .map(|(p, _)| (p, OpDelete::new()))
+                    .collect(),
+                failed: vec![],
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct S3LikeBackend;
+
+    impl Access for S3LikeBackend {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let info = AccessorInfo::default();
+            info.set_native_capability(Capability {
+                delete: true,
+                delete_max_size: Some(1000),
+                delete_with_recursive: true,
+                ..Default::default()
+            });
+            info.into()
+        }
+
+        async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+            Ok((
+                RpDelete::default(),
+                Box::new(oio::BatchDeleter::new(S3LikeMock, Some(1000))),
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_operator_delete_recursive_with_multiple_directories() {
+        let op = OperatorBuilder::new(S3LikeBackend).finish();
+
+        let mut d = op.deleter().await.unwrap();
+        d.delete(DeleteInput {
+            path: "dir_a/".to_string(),
+            recursive: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        d.delete(DeleteInput {
+            path: "dir_b/".to_string(),
+            recursive: true,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+        d.close().await.unwrap();
+    }
 }

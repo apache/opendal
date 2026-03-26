@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::future::Future;
 
 use crate::raw::*;
@@ -58,7 +58,7 @@ pub struct BatchDeleteResult {
 /// BatchDeleter is used to implement [`oio::Delete`] based on batch delete.
 pub struct BatchDeleter<D: BatchDelete> {
     inner: D,
-    buffer: HashSet<(String, OpDelete)>,
+    buffer: HashMap<String, OpDelete>,
     max_batch_size: usize,
 }
 
@@ -73,7 +73,7 @@ impl<D: BatchDelete> BatchDeleter<D> {
 
         Self {
             inner,
-            buffer: HashSet::default(),
+            buffer: HashMap::default(),
             max_batch_size,
         }
     }
@@ -88,14 +88,18 @@ impl<D: BatchDelete> BatchDeleter<D> {
                 .buffer
                 .iter()
                 .next()
-                .expect("the delete buffer size must be 1")
-                .clone();
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .expect("the delete buffer size must be 1");
             self.inner.delete_once(path, args).await?;
             self.buffer.clear();
             return Ok(1);
         }
 
-        let batch = self.buffer.iter().cloned().collect();
+        let batch: Vec<(String, OpDelete)> = self
+            .buffer
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
         let result = self.inner.delete_batch(batch).await?;
 
         if result.succeeded.is_empty() {
@@ -112,8 +116,8 @@ impl<D: BatchDelete> BatchDeleter<D> {
         }
 
         let mut deleted = 0;
-        for i in result.succeeded {
-            self.buffer.remove(&i);
+        for (path, _) in result.succeeded {
+            self.buffer.remove(&path);
             deleted += 1;
         }
 
@@ -131,7 +135,7 @@ impl<D: BatchDelete> BatchDeleter<D> {
 
 impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.buffer.insert((path.to_string(), args));
+        self.buffer.insert(path.to_string(), args);
         if self.buffer.len() >= self.max_batch_size {
             let _ = self.flush_buffer().await?;
             return Ok(());

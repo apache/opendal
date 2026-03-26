@@ -92,6 +92,11 @@ impl Deleter {
         Ok(Self { deleter })
     }
 
+    #[cfg(test)]
+    pub fn new_raw(deleter: oio::Deleter) -> Self {
+        Self { deleter }
+    }
+
     /// Delete a path.
     pub async fn delete(&mut self, input: impl IntoDeleteInput) -> Result<()> {
         let input = input.into_delete_input();

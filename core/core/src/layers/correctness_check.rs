@@ -147,6 +147,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_not_exists",
             ));
         }
+        if args.if_match().is_some() && !capability.write_with_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Write,
+                "if_match",
+            ));
+        }
         if let Some(if_none_match) = args.if_none_match() {
             if !capability.write_with_if_none_match {
                 let mut err =

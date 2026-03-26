@@ -217,6 +217,19 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
         })
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let capability = self.info.full_capability();
+        if args.if_not_exists() && !capability.copy_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.copy(from, to, args).await
+    }
+
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         self.inner.list(path, args).await
     }

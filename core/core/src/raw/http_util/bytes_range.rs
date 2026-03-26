@@ -120,7 +120,10 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.1 {
             None => write!(f, "{}-", self.0),
-            Some(size) => write!(f, "{}-{}", self.0, self.0 + size - 1),
+            Some(size) => match (self.0 + size).checked_sub(1) {
+                Some(end) => write!(f, "{}-{}", self.0, end),
+                None => Err(std::fmt::Error),
+            },
         }
     }
 }
@@ -201,6 +204,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bytes_range_display_zero_size_from_start() {
+        let range = BytesRange::new(0, Some(0));
+        assert!(
+            std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err(),
+            "Display of empty range at offset 0 should return fmt::Error"
+        );
+    }
 
     #[test]
     fn test_bytes_range_to_string() {

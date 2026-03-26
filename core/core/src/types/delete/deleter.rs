@@ -255,8 +255,6 @@ mod tests {
         );
     }
 
-    /// Mock that reconstructs OpDelete from scratch (losing `recursive`),
-    /// just like the real S3 deleter does.
     struct S3LikeMock;
 
     impl oio::BatchDelete for S3LikeMock {
@@ -270,6 +268,8 @@ mod tests {
             Ok(oio::BatchDeleteResult {
                 succeeded: batch
                     .into_iter()
+                    // Use a fresh new OpDelete; certain options (i.e., `recursive`) are opendal concept instead of backend's,
+                    // so we don't really have a way to populate them.
                     .map(|(p, _)| (p, OpDelete::new()))
                     .collect(),
                 failed: vec![],

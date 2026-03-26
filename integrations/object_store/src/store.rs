@@ -31,6 +31,8 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use mea::mutex::Mutex;
 use mea::oneshot;
+use object_store::CopyMode as ObjectStoreCopyMode;
+use object_store::CopyOptions as ObjectStoreCopyOptions;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -62,6 +64,7 @@ use std::collections::HashMap;
 /// use bytes::Bytes;
 /// use object_store::path::Path;
 /// use object_store::ObjectStore;
+/// use object_store::ObjectStoreExt;
 /// use object_store_opendal::OpendalStore;
 /// use opendal::services::S3;
 /// use opendal::{Builder, Operator};
@@ -227,23 +230,6 @@ impl ObjectStore for OpendalStore {
         let version = rp.version().map(|s| s.to_string());
 
         Ok(PutResult { e_tag, version })
-    }
-
-    async fn put_multipart(
-        &self,
-        location: &Path,
-    ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        let writer = self
-            .inner
-            .writer_with(&decoded_location)
-            .concurrent(8)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-        let upload = OpendalMultipartUpload::new(writer, location.clone());
-
-        Ok(Box::new(upload))
     }
 
     async fn put_multipart_opts(
@@ -432,13 +418,11 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    /// Return the bytes that are stored at the specified location
-    /// in the given byte range.
-    ///
-    /// See [`GetRange::Bounded`] for more details on how `range` gets interpreted
-    async fn get_range(&self, location: &Path, range: Range<u64>) -> object_store::Result<Bytes> {
-        // For bounded ranges, we can read directly without calling stat()
-        // This avoids the unnecessary metadata fetch in get_opts
+    async fn get_ranges(
+        &self,
+        location: &Path,
+        ranges: &[Range<u64>],
+    ) -> object_store::Result<Vec<Bytes>> {
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
@@ -447,23 +431,39 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        reader
-            .read(range.start..range.end)
-            .into_send()
-            .await
-            .map(|buf| buf.to_bytes())
-            .map_err(|err| format_object_store_error(err, location.as_ref()))
+        let mut results = Vec::with_capacity(ranges.len());
+        for range in ranges {
+            let data = reader
+                .read(range.start..range.end)
+                .into_send()
+                .await
+                .map(|buf| buf.to_bytes())
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            results.push(data);
+        }
+        Ok(results)
     }
 
-    async fn delete(&self, location: &Path) -> object_store::Result<()> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        self.inner
-            .delete(&decoded_location)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        Ok(())
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<Path>>,
+    ) -> BoxStream<'static, object_store::Result<Path>> {
+        let this = self.clone();
+        locations
+            .and_then(move |location| {
+                let this = this.clone();
+                async move {
+                    let decoded = percent_decode_path(location.as_ref());
+                    this.inner
+                        .delete(&decoded)
+                        .into_send()
+                        .await
+                        .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                    Ok(location)
+                }
+                .into_send()
+            })
+            .boxed()
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
@@ -601,25 +601,14 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, false).await
-    }
-
-    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.inner
-            .rename(
-                &percent_decode_path(from.as_ref()),
-                &percent_decode_path(to.as_ref()),
-            )
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
-
-        Ok(())
-    }
-
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, true).await
+    async fn copy_opts(
+        &self,
+        from: &Path,
+        to: &Path,
+        options: ObjectStoreCopyOptions,
+    ) -> object_store::Result<()> {
+        let if_not_exists = matches!(options.mode, ObjectStoreCopyMode::Create);
+        self.copy_request(from, to, if_not_exists).await
     }
 }
 
@@ -716,7 +705,7 @@ impl Debug for OpendalMultipartUpload {
 mod tests {
     use bytes::Bytes;
     use object_store::path::Path;
-    use object_store::{ObjectStore, WriteMultipart};
+    use object_store::{ObjectStore, ObjectStoreExt, WriteMultipart};
     use opendal::services;
     use rand::prelude::*;
     use std::sync::Arc;
@@ -1005,13 +994,15 @@ mod tests {
         // Reset counter after put
         stat_count.store(0, Ordering::SeqCst);
 
-        // Test 1: get_range should NOT call stat()
-        let ret = store.get_range(&location, 0..5).await.unwrap();
-        assert_eq!(Bytes::from_static(b"Hello"), ret);
+        // Test 1: get_ranges should NOT call stat()
+        #[allow(clippy::single_range_in_vec_init)]
+        let ranges = [0u64..5];
+        let ret = store.get_ranges(&location, &ranges).await.unwrap();
+        assert_eq!(Bytes::from_static(b"Hello"), ret[0]);
         assert_eq!(
             stat_count.load(Ordering::SeqCst),
             0,
-            "get_range should not call stat()"
+            "get_ranges should not call stat()"
         );
 
         // Reset counter

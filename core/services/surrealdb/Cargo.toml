@@ -34,7 +34,7 @@ all-features = true
 mea = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
-surrealdb = { version = "2", features = ["protocol-http"] }
+surrealdb = { version = "3", features = ["protocol-http"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

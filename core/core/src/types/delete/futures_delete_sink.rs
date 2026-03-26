@@ -126,7 +126,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                         (deleter, res)
                     };
                     self.state = State::Close(Box::pin(fut));
-                    return Poll::Ready(Ok(()));
+                    continue;
                 }
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
@@ -141,5 +141,64 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                 }
             };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use futures::SinkExt;
+
+    use super::*;
+    use crate::raw::OpDelete;
+    use crate::raw::oio;
+
+    struct MockBatchDeleter {
+        buffer: Vec<String>,
+        flushed: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl oio::Delete for MockBatchDeleter {
+        async fn delete(&mut self, path: &str, _args: OpDelete) -> Result<()> {
+            self.buffer.push(path.to_string());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            let mut flushed = self.flushed.lock().unwrap();
+            flushed.extend(self.buffer.drain(..));
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sink_close_must_flush_buffered_deletes() {
+        let flushed = Arc::new(Mutex::new(Vec::<String>::new()));
+
+        let mock = MockBatchDeleter {
+            buffer: Vec::new(),
+            flushed: flushed.clone(),
+        };
+
+        let deleter = Deleter::new_raw(Box::new(mock));
+        let mut sink = deleter.into_sink::<String>();
+
+        sink.send("file_a".to_string()).await.unwrap();
+        sink.send("file_b".to_string()).await.unwrap();
+        sink.close().await.unwrap();
+
+        let flushed = flushed.lock().unwrap();
+        assert!(
+            flushed.contains(&"file_a".to_string()),
+            "file_a should have been flushed by close, got: {:?}",
+            *flushed
+        );
+        assert!(
+            flushed.contains(&"file_b".to_string()),
+            "file_b should have been flushed by close, got: {:?}",
+            *flushed
+        );
     }
 }

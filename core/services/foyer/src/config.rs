@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::backend::FoyerBuilder;
-use opendal_core::{Configurator, Error, ErrorKind, OperatorUri, Result};
+use opendal_core::{Configurator, OperatorUri, Result};
 
 /// Config for Foyer services support.
 #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -31,9 +31,6 @@ pub struct FoyerConfig {
     /// Root path of this backend.
     pub root: Option<String>,
     /// Memory capacity in bytes for the cache.
-    ///
-    /// This is used when the cache is lazily initialized. Supports human-readable
-    /// formats like "1MiB", "64MB", "1GiB", etc.
     pub memory: Option<usize>,
     /// Disk cache directory path.
     ///
@@ -41,13 +38,11 @@ pub struct FoyerConfig {
     /// this directory when memory cache is full.
     pub disk_path: Option<String>,
     /// Disk cache total capacity in bytes.
-    ///
-    /// Supports human-readable formats like "1GiB", "100MB", etc.
     /// Only used when `disk_path` is set.
     pub disk_capacity: Option<usize>,
     /// Individual cache file size in bytes.
     ///
-    /// Supports human-readable formats. Default is 1MiB.
+    /// Default is 1 MiB.
     /// Only used when `disk_path` is set.
     pub disk_file_size: Option<usize>,
     /// Recovery mode when starting the cache.
@@ -79,28 +74,6 @@ impl Configurator for FoyerConfig {
             }
         }
 
-        // Parse capacity values with human-readable format support
-        for (key, param_name) in [
-            ("memory", "memory"),
-            ("disk_capacity", "disk_capacity"),
-            ("disk_file_size", "disk_file_size"),
-        ] {
-            if let Some(value_str) = uri.option(param_name) {
-                match parse_capacity(value_str) {
-                    Ok(size) => {
-                        map.insert(key.to_string(), size.to_string());
-                    }
-                    Err(e) => {
-                        return Err(Error::new(
-                            ErrorKind::ConfigInvalid,
-                            format!("invalid {}: {}", param_name, e),
-                        )
-                        .with_context("service", "foyer"));
-                    }
-                }
-            }
-        }
-
         Self::from_iter(map)
     }
 
@@ -112,71 +85,14 @@ impl Configurator for FoyerConfig {
     }
 }
 
-fn parse_capacity(s: &str) -> Result<usize> {
-    let s = s.trim();
-
-    if let Ok(num) = s.parse::<usize>() {
-        return Ok(num);
-    }
-
-    let (num_str, unit) = s.split_at(
-        s.find(|c: char| !c.is_ascii_digit() && c != '.')
-            .unwrap_or(s.len()),
-    );
-
-    let num: f64 = num_str
-        .trim()
-        .parse()
-        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "invalid number format"))?;
-
-    let multiplier = match unit.trim().to_lowercase().as_str() {
-        "" => 1,
-        "b" => 1,
-        "k" | "kb" => 1000,
-        "ki" | "kib" => 1024,
-        "m" | "mb" => 1000 * 1000,
-        "mi" | "mib" => 1024 * 1024,
-        "g" | "gb" => 1000 * 1000 * 1000,
-        "gi" | "gib" => 1024 * 1024 * 1024,
-        "t" | "tb" => 1000_usize * 1000 * 1000 * 1000,
-        "ti" | "tib" => 1024_usize * 1024 * 1024 * 1024,
-        _ => {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                format!("unknown unit: {}", unit.trim()),
-            ));
-        }
-    };
-
-    Ok((num * multiplier as f64) as usize)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::Configurator;
-    use opendal_core::OperatorUri;
-
-    #[test]
-    fn test_parse_capacity() {
-        assert_eq!(parse_capacity("1024").unwrap(), 1024);
-        assert_eq!(parse_capacity("1KB").unwrap(), 1000);
-        assert_eq!(parse_capacity("1KiB").unwrap(), 1024);
-        assert_eq!(parse_capacity("1MB").unwrap(), 1000 * 1000);
-        assert_eq!(parse_capacity("1MiB").unwrap(), 1024 * 1024);
-        assert_eq!(parse_capacity("1GB").unwrap(), 1000 * 1000 * 1000);
-        assert_eq!(parse_capacity("1GiB").unwrap(), 1024 * 1024 * 1024);
-        assert_eq!(parse_capacity("64 MiB").unwrap(), 64 * 1024 * 1024);
-        assert_eq!(
-            parse_capacity("2.5GB").unwrap(),
-            (2.5 * 1000.0 * 1000.0 * 1000.0) as usize
-        );
-    }
 
     #[test]
     fn test_from_uri_sets_memory() {
         let uri = OperatorUri::new(
-            "foyer:///cache?name=test&memory=64MiB",
+            "foyer:///cache?name=test&memory=67108864",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
@@ -200,7 +116,7 @@ mod tests {
     #[test]
     fn test_from_uri_sets_disk_config() {
         let uri = OperatorUri::new(
-            "foyer:///cache?memory=64MiB&disk_path=/tmp/foyer&disk_capacity=1GiB&disk_file_size=2MiB",
+            "foyer:///cache?memory=67108864&disk_path=/tmp/foyer&disk_capacity=1073741824&disk_file_size=2097152",
             Vec::<(String, String)>::new(),
         )
         .unwrap();

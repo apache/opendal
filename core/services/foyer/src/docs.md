@@ -35,8 +35,6 @@ When using the builder API without providing a pre-built cache, the following op
 - `recover_mode`: Recovery mode on startup - "none" (default), "quiet", or "strict"
 - `shards`: Number of cache shards for concurrency (default: 1)
 
-All capacity values support human-readable formats like "64MiB", "1GB", etc.
-
 ## Example
 
 ### Via Pre-configured Cache
@@ -104,11 +102,11 @@ use opendal::Operator;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Memory-only cache via URI
-    let op = Operator::from_uri("foyer:///?memory=64MiB")?;
+    let op = Operator::from_uri("foyer:///?memory=67108864")?;
 
     // Hybrid cache via URI
     let op = Operator::from_uri(
-        "foyer:///cache?memory=64MiB&disk_path=/tmp/foyer&disk_capacity=1GiB"
+        "foyer:///cache?memory=67108864&disk_path=/tmp/foyer&disk_capacity=1073741824"
     )?;
 
     Ok(())

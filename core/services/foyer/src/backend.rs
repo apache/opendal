@@ -299,6 +299,3 @@ impl Access for FoyerBackend {
         ))
     }
 }
-
-#[cfg(test)]
-mod tests {}

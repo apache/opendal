@@ -41,6 +41,7 @@ internal static class AsyncStateRegistry
 
             if (AsyncStates.TryAdd(id, state))
             {
+                state.Context = id;
                 return id;
             }
         }
@@ -66,6 +67,8 @@ internal static class AsyncStateRegistry
 
 public sealed class AsyncState<T>
 {
+    internal long Context { get; set; }
+
     public TaskCompletionSource<T> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public CancellationTokenRegistration CancellationRegistration { get; private set; }
@@ -77,10 +80,24 @@ public sealed class AsyncState<T>
             return;
         }
 
-        CancellationRegistration = cancellationToken.Register(static value =>
+        var registration = cancellationToken.Register(static value =>
         {
             var current = (AsyncState<T>)value!;
+            AsyncStateRegistry.Unregister(current.Context);
             current.Completion.TrySetCanceled();
         }, this);
+
+        if (Completion.Task.IsCompleted)
+        {
+            registration.Dispose();
+            return;
+        }
+
+        CancellationRegistration = registration;
+
+        if (Completion.Task.IsCompleted)
+        {
+            CancellationRegistration.Dispose();
+        }
     }
 }

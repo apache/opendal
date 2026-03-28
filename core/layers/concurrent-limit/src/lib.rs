@@ -64,6 +64,19 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 /// that the total number of concurrent requests across the entire
 /// application does not exceed the limit.
 ///
+/// # HTTP semaphore and deadlock risk
+///
+/// When interacting with `read_with().concurrent(N).chunk(C)` (same for write), which
+/// creates a task pool of size `N`. The pool eagerly creates readers (each issuing
+/// an HTTP request and acquiring a permit) to fill all `N` slots before it starts
+/// consuming any completed readers. If `N` exceeds the HTTP semaphore's permit count,
+/// the pool will exhaust all permits while still trying to create more readers, and
+/// no permits can be freed because the pool only releases readers when draining
+/// completed tasks — which it cannot reach while blocked on permit acquisition.
+///
+/// To avoid deadlocks, ensure that any `read_with().concurrent(N)` value does not
+/// exceed the HTTP semaphore permit count.
+///
 /// # Examples
 ///
 /// Add a concurrent limit layer to the operator:

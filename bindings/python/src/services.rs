@@ -2343,6 +2343,9 @@ submit! {
                 /,
                 *,
                 access_token: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                team_id: builtins.str = ...,
+                team_slug: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `Operator` for `vercel-artifacts` service.
@@ -2351,6 +2354,12 @@ submit! {
                 ----------
                 access_token : builtins.str, optional
                     The access token for Vercel.
+                endpoint : builtins.str, optional
+                    The endpoint for the Vercel artifacts API. Defaults to ``https://api.vercel.com``.
+                team_id : builtins.str, optional
+                    The Vercel team ID.
+                team_slug : builtins.str, optional
+                    The Vercel team slug.
                 Returns
                 -------
                 Operator
@@ -4677,6 +4686,9 @@ submit! {
                 /,
                 *,
                 access_token: builtins.str = ...,
+                endpoint: builtins.str = ...,
+                team_id: builtins.str = ...,
+                team_slug: builtins.str = ...,
             ) -> typing_extensions.Self:
                 r"""
                 Create a new `AsyncOperator` for `vercel-artifacts` service.
@@ -4685,6 +4697,12 @@ submit! {
                 ----------
                 access_token : builtins.str, optional
                     The access token for Vercel.
+                endpoint : builtins.str, optional
+                    The endpoint for the Vercel artifacts API. Defaults to ``https://api.vercel.com``.
+                team_id : builtins.str, optional
+                    The Vercel team ID.
+                team_slug : builtins.str, optional
+                    The Vercel team slug.
                 Returns
                 -------
                 AsyncOperator

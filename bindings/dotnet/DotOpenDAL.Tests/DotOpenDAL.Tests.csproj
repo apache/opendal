@@ -13,19 +13,7 @@
     <ItemGroup>
         <ProjectReference Include="../DotOpenDAL/DotOpenDAL.csproj" />
     </ItemGroup>
-    <ItemGroup>
-        <!-- Linux/macOS -->
-        <None Include="../target/debug/libopendal_dotnet.*"
-            Condition="'$(OS)' != 'Windows_NT'">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
 
-        <!-- Windows -->
-        <None Include="../target/debug/opendal_dotnet.dll"
-            Condition="'$(OS)' == 'Windows_NT'">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
         <PackageReference Include="xunit.v3" Version="3.2.0" />

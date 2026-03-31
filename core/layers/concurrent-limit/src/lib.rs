@@ -362,6 +362,7 @@ impl<R: oio::Delete, P: Send + Sync + 'static + Unpin> oio::Delete
 mod tests {
     use super::*;
     use opendal_core::Operator;
+    use opendal_core::OperatorBuilder;
     use opendal_core::services;
     use std::sync::Arc;
     use std::time::Duration;
@@ -395,6 +396,99 @@ mod tests {
             completed.is_ok(),
             "operation should proceed once permit is released"
         );
+    }
+
+    #[tokio::test]
+    async fn concurrent_chunked_read_with_http_limit() {
+        use opendal_core::raw::*;
+
+        struct EchoFetcher;
+
+        impl HttpFetch for EchoFetcher {
+            async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+                let data = req.into_body();
+                let len = data.len() as u64;
+                let body =
+                    HttpBody::new(Box::pin(stream::once(async move { Ok(data) })), Some(len));
+                Ok(http::Response::builder()
+                    .status(http::StatusCode::OK)
+                    .body(body)
+                    .unwrap())
+            }
+        }
+
+        #[derive(Clone, Debug)]
+        struct HttpBackend {
+            info: Arc<AccessorInfo>,
+            content: Buffer,
+        }
+
+        impl Access for HttpBackend {
+            type Reader = HttpBody;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn read(&self, _: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+                let range = args.range();
+                let start = range.offset() as usize;
+                let data = match range.size() {
+                    Some(sz) => self.content.slice(start..start + sz as usize),
+                    None => self.content.slice(start..),
+                };
+                let req = http::Request::get("http://fake").body(data).unwrap();
+                let resp = self.info.http_client().fetch(req).await?;
+                Ok((RpRead::default(), resp.into_body()))
+            }
+
+            async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+                Ok(RpStat::new(
+                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
+                ))
+            }
+
+            async fn write(&self, _: &str, _: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+            async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+            async fn list(&self, _: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
+                Err(Error::new(ErrorKind::Unsupported, "not needed"))
+            }
+        }
+
+        let content = Buffer::from(vec![0u8; 4096]);
+        let info = Arc::new(AccessorInfo::default());
+        info.update_http_client(|_| HttpClient::with(EchoFetcher));
+
+        let op = OperatorBuilder::new(HttpBackend {
+            info,
+            content: content.clone(),
+        })
+        .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2))
+        .finish();
+
+        // chunk=256 ⇒ 16 HTTP requests, concurrent=4, but only 2 HTTP permits.
+        let result = timeout(Duration::from_secs(5), async {
+            op.reader_with("test")
+                .chunk(256)
+                .concurrent(4)
+                .await
+                .expect("reader must build")
+                .read(..)
+                .await
+        })
+        .await;
+
+        let buf = result
+            .expect("read must not deadlock (timeout)")
+            .expect("read must succeed");
+        assert_eq!(buf.to_bytes(), content.to_bytes());
     }
 
     #[tokio::test]

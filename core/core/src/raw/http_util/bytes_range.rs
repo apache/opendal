@@ -182,15 +182,7 @@ impl FromStr for BytesRange {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
-            if end < start {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "header range is invalid: end < start",
-                )
-                .with_operation("BytesRange::from_str")
-                .with_context("value", value));
-            }
-            Ok(BytesRange::new(start, Some(end - start + 1)))
+            BytesRange::from_range(start..=end)
         }
     }
 }

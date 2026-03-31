@@ -66,7 +66,7 @@ pub struct ReadOptions {
     /// - `0..1024` and `..1024` means read bytes in range `[0, 1024)` of file
     /// - `1024..` means read bytes in range `[1024, n)` of file
     ///
-    /// The type implements `From<RangeBounds<u64>>`, so users can use `(1024..).into()` instead.
+    /// Use `BytesRange::from_range(1024..)?` to construct from a range.
     pub range: BytesRange,
     /// Set `version` for this operation.
     ///

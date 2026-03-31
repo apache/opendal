@@ -19,6 +19,7 @@ use criterion::Criterion;
 use opendal::Operator;
 use opendal::blocking;
 use opendal::options;
+use opendal::raw::BytesRange;
 use opendal::services;
 use rand::prelude::*;
 
@@ -59,7 +60,7 @@ fn bench_vs_fs(c: &mut Criterion) {
                 .read_options(
                     &path,
                     options::ReadOptions {
-                        range: (0..16 * 1024 * 1024).into(),
+                        range: BytesRange::from_range(0..16 * 1024 * 1024).unwrap(),
                         ..Default::default()
                     },
                 )

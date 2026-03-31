@@ -106,6 +106,7 @@
 //! ```no_run
 //! use opendal_core::layers::HttpClientLayer;
 //! use opendal_core::options;
+//! use opendal_core::raw::BytesRange;
 //! use opendal_core::raw::HttpClient;
 //! use opendal_core::services;
 //! use opendal_core::Operator;
@@ -130,7 +131,7 @@
 //!     // Read data from `hello.txt` with options.
 //!     let bs = op
 //!         .read_with("hello.txt")
-//!         .range(0..8 * 1024 * 1024)
+//!         .range(0..8 * 1024 * 1024)?
 //!         .chunk(1024 * 1024)
 //!         .concurrent(4)
 //!         .await?;
@@ -138,7 +139,7 @@
 //!     // The same to:
 //!     let bs = op
 //!         .read_options("hello.txt", options::ReadOptions {
-//!             range: (0..8 * 1024 * 1024).into(),
+//!             range: BytesRange::from_range(0..8 * 1024 * 1024).unwrap(),
 //!             chunk: Some(1024 * 1024),
 //!             concurrent: 4,
 //!             ..Default::default()

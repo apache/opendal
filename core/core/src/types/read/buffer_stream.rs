@@ -174,9 +174,9 @@ impl BufferStream {
     ) -> Result<Self> {
         let reader = if ctx.options().chunk().is_some() {
             let range = ctx.parse_into_range(range).await?;
-            TwoWays::Two(ChunkedReader::new(ctx, range.into()))
+            TwoWays::Two(ChunkedReader::new(ctx, BytesRange::from_range(range)?))
         } else {
-            TwoWays::One(StreamingReader::new(ctx, range.into()))
+            TwoWays::One(StreamingReader::new(ctx, BytesRange::from_range(range)?))
         };
 
         Ok(Self {

@@ -260,13 +260,13 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// # use opendal_core::Operator;
     /// # use futures::TryStreamExt;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.read_with("path/to/file").range(0..1024).await?;
+    /// let bs = op.read_with("path/to/file").range(0..1024)?.await?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn range(mut self, range: impl RangeBounds<u64>) -> Self {
-        self.args.range = range.into();
-        self
+    pub fn range(mut self, range: impl RangeBounds<u64>) -> Result<Self> {
+        self.args.range = BytesRange::from_range(range)?;
+        Ok(self)
     }
 
     /// Set `concurrent` for the reader.

@@ -105,6 +105,7 @@ use crate::*;
 ///
 /// ```no_run
 /// use opendal_core::options;
+/// use opendal_core::raw::BytesRange;
 /// use opendal_core::services;
 /// use opendal_core::Operator;
 /// use opendal_core::Result;
@@ -124,7 +125,7 @@ use crate::*;
 ///     // Read data from `hello.txt` with options.
 ///     let bs = op
 ///         .read_with("hello.txt")
-///         .range(0..8 * 1024 * 1024)
+///         .range(0..8 * 1024 * 1024)?
 ///         .chunk(1024 * 1024)
 ///         .concurrent(4)
 ///         .await?;
@@ -132,7 +133,7 @@ use crate::*;
 ///     // The same to:
 ///     let bs = op
 ///         .read_options("hello.txt", options::ReadOptions {
-///             range: (0..8 * 1024 * 1024).into(),
+///             range: BytesRange::from_range(0..8 * 1024 * 1024).unwrap(),
 ///             chunk: Some(1024 * 1024),
 ///             concurrent: 4,
 ///             ..Default::default()
@@ -500,10 +501,11 @@ impl Operator {
     /// # use opendal_core::Result;
     /// # use opendal_core::Operator;
     /// use opendal_core::options;
+    /// use opendal_core::raw::BytesRange;
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op
     ///     .read_options("path/to/file", options::ReadOptions {
-    ///         range: (0..10).into(),
+    ///         range: BytesRange::from_range(0..10).unwrap(),
     ///         ..Default::default()
     ///     })
     ///     .await?;

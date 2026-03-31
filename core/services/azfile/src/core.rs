@@ -183,7 +183,7 @@ impl AzfileCore {
 
         req = req.header(
             RANGE,
-            BytesRange::from(position..position + size).to_header(),
+            BytesRange::from_range(position..position + size)?.to_header(),
         );
 
         let req = req.extension(Operation::Write);

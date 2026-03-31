@@ -49,7 +49,7 @@ pub struct BytesRange(
 impl BytesRange {
     /// Create a new `BytesRange`
     ///
-    /// It better to use `BytesRange::from(1024..2048)` to construct.
+    /// It better to use `BytesRange::from_range(1024..2048)` to construct.
     ///
     /// # Note
     ///
@@ -195,11 +195,11 @@ impl FromStr for BytesRange {
     }
 }
 
-impl<T> From<T> for BytesRange
-where
-    T: RangeBounds<u64>,
-{
-    fn from(range: T) -> Self {
+impl BytesRange {
+    /// Create a `BytesRange` from any `RangeBounds<u64>`.
+    ///
+    /// Returns an error if the end bound is before the start bound.
+    pub fn from_range(range: impl RangeBounds<u64>) -> Result<Self> {
         let offset = match range.start_bound().cloned() {
             Bound::Included(n) => n,
             Bound::Excluded(n) => n + 1,
@@ -207,23 +207,27 @@ where
         };
         let size = match range.end_bound().cloned() {
             Bound::Included(n) => {
-                assert!(
-                    n + 1 >= offset,
-                    "invalid range: inclusive end ({n}) is before start ({offset})"
-                );
+                if n + 1 < offset {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("invalid range: inclusive end ({n}) is before start ({offset})"),
+                    ));
+                }
                 Some(n + 1 - offset)
             }
             Bound::Excluded(n) => {
-                assert!(
-                    n >= offset,
-                    "invalid range: exclusive end ({n}) is before start ({offset})"
-                );
+                if n < offset {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("invalid range: exclusive end ({n}) is before start ({offset})"),
+                    ));
+                }
                 Some(n - offset)
             }
             Bound::Unbounded => None,
         };
 
-        BytesRange(offset, size)
+        Ok(BytesRange(offset, size))
     }
 }
 
@@ -267,13 +271,21 @@ mod tests {
     }
 
     #[test]
-    fn test_bytes_range_from_range_bounds() {
-        assert_eq!(BytesRange::new(0, None), BytesRange::from(..));
-        assert_eq!(BytesRange::new(10, None), BytesRange::from(10..));
-        assert_eq!(BytesRange::new(0, Some(11)), BytesRange::from(..=10));
-        assert_eq!(BytesRange::new(0, Some(10)), BytesRange::from(..10));
-        assert_eq!(BytesRange::new(10, Some(10)), BytesRange::from(10..20));
-        assert_eq!(BytesRange::new(10, Some(11)), BytesRange::from(10..=20));
+    fn test_bytes_range_from_range_bounds() -> Result<()> {
+        assert_eq!(BytesRange::new(0, None), BytesRange::from_range(..)?);
+        assert_eq!(BytesRange::new(10, None), BytesRange::from_range(10..)?);
+        assert_eq!(BytesRange::new(0, Some(11)), BytesRange::from_range(..=10)?);
+        assert_eq!(BytesRange::new(0, Some(10)), BytesRange::from_range(..10)?);
+        assert_eq!(
+            BytesRange::new(10, Some(10)),
+            BytesRange::from_range(10..20)?
+        );
+        assert_eq!(
+            BytesRange::new(10, Some(11)),
+            BytesRange::from_range(10..=20)?
+        );
+
+        Ok(())
     }
 
     #[test]

@@ -21,11 +21,6 @@ on:
   push:
     tags:
       - "v*"
-  pull_request:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/release_python.yml"
   workflow_dispatch:
 
 concurrency:
@@ -36,16 +31,7 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Validate workflow definition
-        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/release_python.yml")'
-
   sdist:
-    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -61,7 +47,6 @@ jobs:
           path: bindings/python/dist
 
   wheels:
-    if: github.event_name != 'pull_request'
     runs-on: "${{ matrix.os }}"
     strategy:
       matrix:
@@ -121,7 +106,6 @@ jobs:
           path: bindings/python/dist
 
   release:
-    if: github.event_name != 'pull_request'
     name: Release
     runs-on: ubuntu-latest
     permissions:

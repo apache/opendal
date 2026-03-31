@@ -25,10 +25,16 @@ on:
     branches:
       - main
     paths:
-      - "core/src/**"
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
       - "core/fuzz/**"
-      - "!core/src/docs/**"
-      - ".github/workflows/fuzz_test.yml"
+      - "core/layers/**"
+      - "core/services/**"
+      - "core/testkit/**"
+      - "!core/core/src/docs/**"
+      - ".github/workflows/test_fuzz.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}

@@ -169,14 +169,6 @@ impl FromStr for BytesContentRange {
         }
         let start: u64 = v[0].parse().map_err(parse_int_error)?;
         let end: u64 = v[1].parse().map_err(parse_int_error)?;
-        if end < start {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "header content range is invalid: end ({end}) < start ({start})",
-            )
-            .with_operation("BytesContentRange::from_str")
-            .with_context("value", value));
-        }
         let mut bcr = BytesContentRange::default().with_range(start, end)?;
 
         // Handle size part first.

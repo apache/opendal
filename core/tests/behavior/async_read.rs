@@ -102,7 +102,7 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
 
     let bs = op
         .read_with(&path)
-        .range(offset..offset + length)
+        .range(offset..offset + length)?
         .await?
         .to_bytes();
     assert_eq!(bs.len() as u64, length, "read size");
@@ -638,7 +638,7 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> anyhow
 pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> {
     let bs = op
         .read_with("normal_file.txt")
-        .range(1024..2048)
+        .range(1024..2048)?
         .await?
         .to_bytes();
     assert_eq!(bs.len(), 1024, "read size");

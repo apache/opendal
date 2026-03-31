@@ -283,7 +283,9 @@ fn make_read_options<'a>(
     let length = convert::read_int64_field(env, options, "length")?;
 
     Ok(opendal::options::ReadOptions {
-        range: convert::offset_length_to_range(offset, length)?.into(),
+        range: opendal::raw::BytesRange::from_range(convert::offset_length_to_range(
+            offset, length,
+        )?)?,
         ..Default::default()
     })
 }

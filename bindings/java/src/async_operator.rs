@@ -214,9 +214,10 @@ fn intern_read(
     let op_cloned = unsafe { &*op }.clone();
 
     executor_or_default(env, executor)?.spawn(async move {
-        let mut read_op = op_cloned.read_with(&path_str);
-        read_op = read_op.range(range);
-        let result = read_op.await.map_err(Into::into);
+        let result = match op_cloned.read_with(&path_str).range(range) {
+            Ok(fut) => fut.await.map_err(Into::into),
+            Err(e) => Err(e.into()),
+        };
 
         let mut env = unsafe { get_current_env() };
         let result = result.and_then(|bs| bytes_to_jbytearray(&mut env, bs.to_bytes()));

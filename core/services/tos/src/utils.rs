@@ -15,25 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#![cfg_attr(docsrs, feature(doc_cfg))]
-//! Volcengine TOS service implementation for Apache OpenDAL.
-#![deny(missing_docs)]
+use http::HeaderMap;
+use http::header::ETAG;
+use opendal_core::Metadata;
+use opendal_core::raw::{parse_header_to_str, parse_into_metadata};
 
-mod backend;
-mod config;
-mod core;
-mod deleter;
-mod error;
-mod utils;
-mod writer;
+/// Parse etag from header map.
+///
+/// Trim quotes from etag if present (TOS returns etag with quotes)
+pub fn tos_parse_etag(headers: &HeaderMap) -> opendal_core::Result<Option<&str>> {
+    let etag = parse_header_to_str(headers, ETAG)?.map(|etag| etag.trim_matches('"'));
+    Ok(etag)
+}
 
-pub use backend::TosBuilder as Tos;
-pub use config::TosConfig;
+pub(crate) fn tos_parse_into_metadata(
+    path: &str,
+    headers: &HeaderMap,
+) -> opendal_core::Result<Metadata> {
+    let mut metadata = parse_into_metadata(path, headers)?;
 
-/// Default scheme for TOS service.
-pub const TOS_SCHEME: &str = "tos";
+    if let Some(etag) = tos_parse_etag(headers)? {
+        metadata.set_etag(etag);
+    }
 
-/// Register this service into the given registry.
-pub fn register_tos_service(registry: &opendal_core::OperatorRegistry) {
-    registry.register::<Tos>(TOS_SCHEME);
+    Ok(metadata)
 }

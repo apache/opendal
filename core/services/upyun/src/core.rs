@@ -38,6 +38,7 @@ pub(super) mod constants {
     pub const X_UPYUN_FILE_SIZE: &str = "x-upyun-file-size";
     pub const X_UPYUN_CACHE_CONTROL: &str = "x-upyun-meta-cache-control";
     pub const X_UPYUN_CONTENT_DISPOSITION: &str = "x-upyun-meta-content-disposition";
+    pub const X_UPYUN_META_PREFIX: &str = "x-upyun-meta-";
     pub const X_UPYUN_MULTI_STAGE: &str = "X-Upyun-Multi-Stage";
     pub const X_UPYUN_MULTI_TYPE: &str = "X-Upyun-Multi-Type";
     pub const X_UPYUN_MULTI_DISORDER: &str = "X-Upyun-Multi-Disorder";
@@ -173,6 +174,13 @@ impl UpyunCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_UPYUN_META_PREFIX}{key}"), value)
+            }
         }
 
         let req = req.extension(Operation::Write);
@@ -315,6 +323,13 @@ impl UpyunCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(X_UPYUN_CACHE_CONTROL, cache_control)
+        }
+
+        // Set user metadata headers.
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_UPYUN_META_PREFIX}{key}"), value)
+            }
         }
 
         let req = req.extension(Operation::Write);

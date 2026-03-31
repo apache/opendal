@@ -364,7 +364,7 @@ mod tests {
 
         // After reading, small file should be cached, but large and tiny should not
         // We can verify this by reading with range - cached files should support range reads
-        let read_small_range = op.read_with("small.txt").range(0..1024).await.unwrap();
+        let read_small_range = op.read_with("small.txt").range(0..1024).unwrap().await.unwrap();
         assert_eq!(read_small_range.len(), 1024);
         assert_eq!(read_small_range.to_vec(), small_data[0..1024]);
     }

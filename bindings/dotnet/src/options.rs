@@ -91,8 +91,10 @@ pub fn parse_read_options(
     let length = parse_u64(values, "length")?;
     if offset > 0 || length.is_some() {
         options.range = match validate_read_range_end(offset, length)? {
-            Some(end) => (offset..end).into(),
-            None => (offset..).into(),
+            Some(end) => opendal::raw::BytesRange::from_range(offset..end)
+                .map_err(OpenDALError::from_opendal_error)?,
+            None => opendal::raw::BytesRange::from_range(offset..)
+                .map_err(OpenDALError::from_opendal_error)?,
         };
     }
 

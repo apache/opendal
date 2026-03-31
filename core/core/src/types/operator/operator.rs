@@ -470,7 +470,7 @@ impl Operator {
     /// # use opendal_core::Result;
     /// # use opendal_core::Operator;
     /// # async fn test(op: Operator) -> Result<()> {
-    /// let bs = op.read_with("path/to/file").range(0..10).await?;
+    /// let bs = op.read_with("path/to/file").range(0..10)?.await?;
     /// # Ok(())
     /// # }
     /// ```

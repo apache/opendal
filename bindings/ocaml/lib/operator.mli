@@ -63,16 +63,18 @@ val new_operator :
 
     Example:
     {[
-      (* Local filesystem *)
-      let fs_op = new_operator "fs" [("root", "/tmp")] in
+    (* Local filesystem *)
+    let fs_op = new_operator "fs" [ ("root", "/tmp") ]
 
-      (* S3 storage *)
-      let s3_op = new_operator "s3" [
-        ("bucket", "my-bucket");
-        ("region", "us-east-1");
-        ("access_key_id", "...");
-        ("secret_access_key", "...")
-      ] in
+    (* S3 storage *)
+    let s3_op =
+      new_operator "s3"
+        [
+          ("bucket", "my-bucket");
+          ("region", "us-east-1");
+          ("access_key_id", "...");
+          ("secret_access_key", "...");
+        ]
     ]} *)
 
 val list :

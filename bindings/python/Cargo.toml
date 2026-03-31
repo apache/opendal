@@ -60,7 +60,7 @@ services-all = [
   'services-ftp',
   'services-gdrive',
   'services-gridfs',
-  'services-huggingface',
+  'services-hf',
   'services-ipfs',
   'services-koofr',
   'services-memcached',
@@ -122,8 +122,9 @@ services-hdfs = [
   "opendal/services-hdfs",
 ] # FIXME EXCLUDED: how to support HDFS services in bindings?
 services-hdfs-native = ["opendal/services-hdfs-native"]
+services-hf = ["opendal/services-hf"]
 services-http = ["opendal/services-http"]
-services-huggingface = ["opendal/services-huggingface"]
+services-huggingface = ["services-hf"]
 services-ipfs = ["opendal/services-ipfs"]
 services-ipmfs = ["opendal/services-ipmfs"]
 services-koofr = ["opendal/services-koofr"]

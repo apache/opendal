@@ -56,8 +56,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

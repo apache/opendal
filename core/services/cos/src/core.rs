@@ -29,15 +29,12 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign::TencentCosCredential;
-use reqsign::TencentCosCredentialLoader;
-use reqsign::TencentCosSigner;
+use reqsign_core::Signer;
+use reqsign_tencent_cos::Credential;
 use serde::Deserialize;
 use serde::Serialize;
 
 use opendal_core::Buffer;
-use opendal_core::Error;
-use opendal_core::ErrorKind;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
@@ -53,8 +50,7 @@ pub struct CosCore {
     pub root: String,
     pub endpoint: String,
 
-    pub signer: TencentCosSigner,
-    pub loader: TencentCosCredentialLoader,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for CosCore {
@@ -68,43 +64,26 @@ impl Debug for CosCore {
 }
 
 impl CosCore {
-    async fn load_credential(&self) -> Result<Option<TencentCosCredential>> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            return Ok(Some(cred));
-        }
-
-        Err(Error::new(
-            ErrorKind::PermissionDenied,
-            "no valid credential found and anonymous access is not allowed",
-        ))
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
-
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
-    }
-
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
         self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
+    }
+
+    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -120,9 +99,8 @@ impl CosCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let mut req = self.cos_get_object_request(path, range, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.cos_get_object_request(path, range, args)?;
+        let req = self.sign(req).await?;
 
         self.info.http_client().fetch(req).await
     }
@@ -231,9 +209,8 @@ impl CosCore {
     }
 
     pub async fn cos_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
-        let mut req = self.cos_head_object_request(path, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.cos_head_object_request(path, args)?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -293,9 +270,8 @@ impl CosCore {
 
         let req = req.extension(Operation::Delete);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -345,13 +321,13 @@ impl CosCore {
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
-        let mut req = Request::put(&url)
+        let req = Request::put(&url)
             .extension(Operation::Copy)
             .header("x-cos-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -380,12 +356,12 @@ impl CosCore {
             url = url.push("marker", next_marker);
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -422,9 +398,8 @@ impl CosCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -453,9 +428,8 @@ impl CosCore {
         let req = req.extension(Operation::Write);
 
         // Set body
-        let mut req = req.body(body).map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -486,11 +460,11 @@ impl CosCore {
 
         let req = req.extension(Operation::Write);
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -510,11 +484,11 @@ impl CosCore {
             percent_encode_path(upload_id)
         );
 
-        let mut req = Request::delete(&url)
+        let req = Request::delete(&url)
             .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -547,12 +521,12 @@ impl CosCore {
             url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }

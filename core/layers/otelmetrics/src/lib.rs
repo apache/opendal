@@ -231,7 +231,7 @@ impl OtelMetricsLayerBuilder {
                 meter,
                 "opendal.operation.ttfb",
                 metric,
-                self.duration_seconds_boundaries.clone(),
+                self.ttfb_boundaries.clone(),
             )
         };
 

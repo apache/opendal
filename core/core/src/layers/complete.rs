@@ -57,7 +57,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type Writer = CompleteWriter<A::Writer>;
-    type Lister = A::Lister;
+    type Lister = CompleteLister<A>;
     type Deleter = A::Deleter;
 
     fn inner(&self) -> &Self::Inner {
@@ -95,11 +95,73 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args).await
+        let (rp, lister) = self.inner.list(path, args).await?;
+        let lister = CompleteLister::new(self.inner.clone(), self.info.clone(), lister);
+        Ok((rp, lister))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
+    }
+}
+
+pub struct CompleteLister<A: Access> {
+    inner: A::Lister,
+    acc: Arc<A>,
+    info: Arc<AccessorInfo>,
+}
+
+impl<A: Access> CompleteLister<A> {
+    fn new(acc: Arc<A>, info: Arc<AccessorInfo>, inner: A::Lister) -> Self {
+        Self { inner, acc, info }
+    }
+
+    async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
+        let path = entry.path().to_string();
+        let version = entry.metadata().version().map(str::to_owned);
+        let mut op = OpStat::new();
+        if let Some(version) = version.as_deref() {
+            op = op.with_version(version);
+        }
+
+        let stat_metadata = self.acc.stat(&path, op).await?.into_metadata();
+        if !stat_metadata.has_content_length() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "content length is required for list file entries",
+            )
+            .with_operation("CompleteLister::ensure_file_content_length")
+            .with_context("service", self.info.scheme().to_string())
+            .with_context("path", path));
+        }
+
+        entry
+            .metadata_mut()
+            .set_content_length(stat_metadata.content_length());
+        Ok(())
+    }
+}
+
+impl<A: Access> oio::List for CompleteLister<A> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        loop {
+            let Some(mut entry) = self.inner.next().await? else {
+                return Ok(None);
+            };
+
+            if !entry.mode().is_file()
+                || entry.metadata().is_deleted()
+                || entry.metadata().has_content_length()
+            {
+                return Ok(Some(entry));
+            }
+
+            match self.ensure_file_content_length(&mut entry).await {
+                Ok(()) => return Ok(Some(entry)),
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err),
+            }
+        }
     }
 }
 

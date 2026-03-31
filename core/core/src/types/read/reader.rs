@@ -144,6 +144,10 @@ impl Reader {
     /// The returning `Buffer` may share the same underlying memory without
     /// any extra copy.
     pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
+        if ranges.is_empty() {
+            return Ok(vec![]);
+        }
+
         let merged_ranges = self.merge_ranges(ranges.clone());
 
         #[derive(Clone)]
@@ -599,6 +603,26 @@ mod tests {
                 content[range.start as usize..range.end as usize]
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_empty_ranges() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader(path).await.unwrap();
+        let result = reader
+            .fetch(vec![])
+            .await
+            .expect("fetch with empty ranges must not panic");
+        assert!(result.is_empty());
+
         Ok(())
     }
 }

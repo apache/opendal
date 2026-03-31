@@ -28,13 +28,14 @@ version = "0.4.0"
 
 [dependencies]
 async-trait = "0.1.88"
-libunftp = "0.21.0"
 opendal = { version = "0.55.0", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
+unftp-core = "0.1.0"
 
 [dev-dependencies]
 anyhow = "1"
+libunftp = "0.23.0"
 opendal = { version = "0.55.0", path = "../../core", features = [
   "services-s3",
 ] }

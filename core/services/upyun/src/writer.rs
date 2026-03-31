@@ -95,6 +95,7 @@ impl oio::MultipartWrite for UpyunWriter {
                 part_number,
                 etag: "".to_string(),
                 checksum: None,
+                size: None,
             }),
             _ => Err(parse_error(resp)),
         }

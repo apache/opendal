@@ -22,9 +22,14 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign::TencentCosConfig;
-use reqsign::TencentCosCredentialLoader;
-use reqsign::TencentCosSigner;
+use reqsign_core::Context;
+use reqsign_core::Env as _;
+use reqsign_core::OsEnv;
+use reqsign_core::Signer;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_tencent_cos::DefaultCredentialProvider;
+use reqsign_tencent_cos::RequestSigner;
+use reqsign_tencent_cos::StaticCredentialProvider;
 
 use super::COS_SCHEME;
 use super::config::CosConfig;
@@ -37,9 +42,6 @@ use super::lister::CosObjectVersionsLister;
 use super::writer::CosWriter;
 use super::writer::CosWriters;
 use opendal_core::raw::*;
-use std::sync::LazyLock;
-
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 use opendal_core::*;
 
 /// Tencent-Cloud COS services support.
@@ -175,27 +177,50 @@ impl Builder for CosBuilder {
         let endpoint = uri.host().unwrap().replace(&format!("//{bucket}."), "//");
         debug!("backend use endpoint {}", &endpoint);
 
-        let mut cfg = TencentCosConfig::default();
-        if !self.config.disable_config_load {
-            cfg = cfg.from_env();
+        let info = Arc::new(AccessorInfo::default());
+
+        let os_env = OsEnv;
+        let envs = os_env.vars();
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
+            .with_env(os_env);
+
+        let mut credential = if self.config.disable_config_load {
+            DefaultCredentialProvider::builder()
+                .no_env()
+                .no_web_identity()
+                .build()
+        } else {
+            DefaultCredentialProvider::new()
+        };
+
+        if let (Some(secret_id), Some(secret_key)) = (
+            self.config.secret_id.as_deref(),
+            self.config.secret_key.as_deref(),
+        ) {
+            let security_token = envs
+                .get("TENCENTCLOUD_TOKEN")
+                .or_else(|| envs.get("TENCENTCLOUD_SECURITY_TOKEN"))
+                .or_else(|| envs.get("QCLOUD_SECRET_TOKEN"));
+
+            let static_provider = if self.config.disable_config_load {
+                StaticCredentialProvider::new(secret_id, secret_key)
+            } else if let Some(token) = security_token {
+                StaticCredentialProvider::with_security_token(secret_id, secret_key, token)
+            } else {
+                StaticCredentialProvider::new(secret_id, secret_key)
+            };
+
+            credential = credential.push_front(static_provider);
         }
 
-        if let Some(v) = self.config.secret_id {
-            cfg.secret_id = Some(v);
-        }
-        if let Some(v) = self.config.secret_key {
-            cfg.secret_key = Some(v);
-        }
-
-        let cred_loader = TencentCosCredentialLoader::new(GLOBAL_REQWEST_CLIENT.clone(), cfg);
-
-        let signer = TencentCosSigner::new();
+        let signer = Signer::new(ctx, credential, RequestSigner::new());
 
         Ok(CosBackend {
             core: Arc::new(CosCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(COS_SCHEME)
+                    info.set_scheme(COS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -254,13 +279,12 @@ impl Builder for CosBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket: bucket.clone(),
                 root,
                 endpoint: format!("{}://{}.{}", &scheme, &bucket, &endpoint),
                 signer,
-                loader: cred_loader,
             }),
         })
     }
@@ -399,8 +423,8 @@ impl Access for CosBackend {
                 "operation is not supported",
             )),
         };
-        let mut req = req?;
-        self.core.sign_query(&mut req, args.expire()).await?;
+        let req = req?;
+        let req = self.core.sign_query(req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

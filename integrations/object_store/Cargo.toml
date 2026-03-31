@@ -42,7 +42,7 @@ bytes = "1"
 chrono = { version = "0.4.42", features = ["std", "clock"] }
 futures = "0.3"
 mea = "0.6"
-object_store = "0.12.3"
+object_store = "0.13.1"
 opendal = { version = "0.55.0", path = "../../core", default-features = false }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
@@ -50,7 +50,7 @@ tokio = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = "1.0.86"
-datafusion = "51.0.0"
+datafusion = "53.0.0"
 libtest-mimic = "0.8.1"
 opendal = { version = "0.55.0", path = "../../core", features = [
   "services-fs",

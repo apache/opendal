@@ -222,6 +222,11 @@ impl Metadata {
         self.content_length.unwrap_or_default()
     }
 
+    /// Returns `true` if this metadata contains an explicit content length.
+    pub(crate) fn has_content_length(&self) -> bool {
+        self.content_length.is_some()
+    }
+
     /// Set content length of this entry.
     pub fn set_content_length(&mut self, v: u64) -> &mut Self {
         self.content_length = Some(v);

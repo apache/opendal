@@ -75,6 +75,8 @@ pub mod constants {
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
     pub const X_AMZ_OBJECT_SIZE: &str = "x-amz-object-size";
 
+    pub const X_AMZ_ACL: &str = "x-amz-acl";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -97,6 +99,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
+    pub default_acl: Option<String>,
 
     pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
@@ -329,6 +332,11 @@ impl S3Core {
             for (key, value) in user_metadata {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
+        }
+
+        // Set ACL header.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
         }
         req
     }
@@ -797,6 +805,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -809,13 +821,27 @@ impl S3Core {
             }
         }
 
+        // also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set SSE headers.
+        // Set checksum type headers.
+        // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
+        // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+        if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "checksum_algorithm \"md5\" is not supported for multipart uploads. \
+                 S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
+            ));
+        }
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
@@ -874,6 +900,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -895,6 +922,14 @@ impl S3Core {
         req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         req = req.header(CONTENT_TYPE, "application/xml");
+
+        // Set conditional write headers.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
@@ -1092,6 +1127,17 @@ pub struct CompleteMultipartUploadResult {
     pub code: String,
     pub message: String,
     pub request_id: String,
+}
+
+/// Partial output of a successful `CopyObject` operation.
+///
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CopyObjectResult {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub last_modified: String,
 }
 
 /// Request of DeleteObjects.

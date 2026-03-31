@@ -11,16 +11,46 @@
         <Copyright>$(Company)</Copyright>
         <PackageTags>Apache;OpenDAL</PackageTags>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-
-        <TargetFramework>net7.0</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="../target/debug/libopendal_dotnet.*">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        <None Include="runtimes\win-x64\native\opendal_dotnet.dll"
+            Pack="true"
+            PackagePath="runtimes/win-x64/native/" />
+        <None Include="runtimes\linux-x64\native\libopendal_dotnet.so"
+            Pack="true"
+            PackagePath="runtimes/linux-x64/native/" />
+        <None Include="runtimes\osx-arm64\native\libopendal_dotnet.dylib"
+            Pack="true"
+            PackagePath="runtimes/osx-arm64/native/" />
+    </ItemGroup>
+
+    <!-- Resolve Rust build output path -->
+    <PropertyGroup>
+        <RustTargetDir>../target</RustTargetDir>
+        <NativeOutputDir Condition="'$(Configuration)' == 'Debug'">$(RustTargetDir)/debug</NativeOutputDir>
+        <NativeOutputDir Condition="'$(Configuration)' == 'Release'">$(RustTargetDir)/release</NativeOutputDir>
+    </PropertyGroup>
+
+    <!-- Copy native libs for local run -->
+    <ItemGroup Condition="Exists('$(NativeOutputDir)')">
+
+        <!-- Unix (Linux + macOS) -->
+        <None Include="$(NativeOutputDir)/libopendal_dotnet.*"
+            Condition="'$(OS)' != 'Windows_NT'">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+
+        <!-- Windows -->
+        <None Include="$(NativeOutputDir)/opendal_dotnet.dll"
+            Condition="'$(OS)' == 'Windows_NT'">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+
     </ItemGroup>
 
 </Project>

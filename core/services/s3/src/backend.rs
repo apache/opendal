@@ -18,7 +18,6 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -42,8 +41,7 @@ use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
-use reqsign_http_send_reqwest::ReqwestHttpSend;
-use reqwest::Url;
+use url::Url;
 
 use crate::S3_SCHEME;
 use crate::config::S3Config;
@@ -58,8 +56,6 @@ use crate::writer::S3Writer;
 use crate::writer::S3Writers;
 use opendal_core::raw::*;
 use opendal_core::*;
-
-static GLOBAL_REQWEST_CLIENT: LazyLock<reqwest::Client> = LazyLock::new(reqwest::Client::new);
 
 /// Allow constructing correct region endpoint if user gives a global endpoint.
 static ENDPOINT_TEMPLATES: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
@@ -499,7 +495,7 @@ impl S3Builder {
         endpoint = endpoint.replace(&format!("//{bucket}."), "//");
 
         // Omit default ports if specified.
-        if let Ok(url) = Url::from_str(&endpoint) {
+        if let Ok(url) = Url::parse(&endpoint) {
             // Remove the trailing `/` of root path.
             endpoint = url.to_string().trim_end_matches('/').to_string();
         }
@@ -682,6 +678,12 @@ impl S3Builder {
 
         None
     }
+
+    /// Set default ACL for new objects.
+    pub fn default_acl(mut self, acl: &str) -> Self {
+        self.config.default_acl = Some(acl.to_string());
+        self
+    }
 }
 
 impl Builder for S3Builder {
@@ -800,21 +802,23 @@ impl Builder for S3Builder {
         let endpoint = Self::build_endpoint(&config, &region);
         debug!("backend use endpoint: {endpoint}");
 
+        let info = Arc::new(AccessorInfo::default());
+
         // Create the context for reqsign-core
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(ReqwestHttpSend::new(GLOBAL_REQWEST_CLIENT.clone()))
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(OsEnv);
 
         let mut provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
-                builder = builder.disable_env(true).disable_profile(true);
+                builder = builder.no_env().no_profile();
             }
 
             if config.disable_ec2_metadata {
-                builder = builder.disable_imds(true);
+                builder = builder.no_imds();
             }
 
             ProvideCredentialChain::new().push(builder.build())
@@ -870,8 +874,7 @@ impl Builder for S3Builder {
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(S3_SCHEME)
+                    info.set_scheme(S3_SCHEME)
                         .set_root(&root)
                         .set_name(bucket)
                         .set_native_capability(Capability {
@@ -944,7 +947,7 @@ impl Builder for S3Builder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket: bucket.to_string(),
                 endpoint,
@@ -960,6 +963,7 @@ impl Builder for S3Builder {
                 enable_request_payer: config.enable_request_payer,
                 signer,
                 checksum_algorithm,
+                default_acl: config.default_acl,
             }),
         })
     }
@@ -1078,7 +1082,29 @@ impl Access for S3Backend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => {
+                // S3 CopyObject may return an error embedded in a 200 OK response body
+                // when the error occurs during the copy (e.g., throttling, internal error).
+                // We must parse the body to detect this.
+                //
+                // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
+                // ref: https://repost.aws/knowledge-center/s3-resolve-200-internalerror
+                let body = resp.into_body().to_bytes();
+
+                let result: CopyObjectResult =
+                    quick_xml::de::from_reader(body.as_ref()).map_err(new_xml_deserialize_error)?;
+
+                // On success, ETag is always present. If it's empty, the body was not a
+                // valid <CopyObjectResult> — it's an error response embedded in 200 OK.
+                if result.etag.is_empty() {
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&body))
+                            .set_temporary(),
+                    );
+                }
+
+                Ok(RpCopy::default())
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -1092,9 +1118,9 @@ impl Access for S3Backend {
                 self.core
                     .s3_get_object_request(path, BytesRange::default(), &v)
             }
-            PresignOperation::Write(_) => {
+            PresignOperation::Write(v) => {
                 self.core
-                    .s3_put_object_request(path, None, &OpWrite::default(), Buffer::new())
+                    .s3_put_object_request(path, None, &v, Buffer::new())
             }
             PresignOperation::Delete(_) => Err(Error::new(
                 ErrorKind::Unsupported,
@@ -1221,5 +1247,30 @@ mod tests {
             let region = S3Builder::detect_region(endpoint, bucket).await;
             assert_eq!(region.as_deref(), expected, "{name}");
         }
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_preserves_content_type() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .allow_anonymous()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build()
+            .expect("build");
+
+        let op = OpWrite::default().with_content_type("application/json");
+        let args = OpPresign::new(op, Duration::from_secs(3600));
+        let presigned = backend
+            .presign("test.txt", args)
+            .await
+            .expect("presign")
+            .into_presigned_request();
+
+        assert_eq!(
+            presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
     }
 }

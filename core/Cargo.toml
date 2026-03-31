@@ -51,7 +51,6 @@ logforth = { version = "0.29.1", features = ["starter-log"] }
 mea = "0.6"
 quick-xml = { version = "0.38", default-features = false }
 rand = "0.8"
-reqsign = { version = "0.16.5", default-features = false }
 serde = { version = "1", default-features = false }
 serde_json = "1"
 sha2 = "0.10"
@@ -81,8 +80,11 @@ unused_async = "warn"
 all-features = true
 
 [features]
+# Register services enabled to the OperatorRegistry so that they can be used by `Operator::from_uri`.
+auto-register-services = ["dep:ctor"]
 blocking = ["opendal-core/blocking"]
 default = [
+  "auto-register-services",
   "reqwest-rustls-tls",
   "executors-tokio",
   "layers-concurrent-limit",
@@ -144,8 +146,9 @@ services-github = ["dep:opendal-service-github"]
 services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
+services-hf = ["dep:opendal-service-hf"]
 services-http = ["dep:opendal-service-http"]
-services-huggingface = ["dep:opendal-service-huggingface"]
+services-huggingface = ["services-hf"]
 services-ipfs = ["dep:opendal-service-ipfs"]
 services-ipmfs = ["dep:opendal-service-ipmfs"]
 services-koofr = ["dep:opendal-service-koofr"]
@@ -180,6 +183,7 @@ services-sqlite = ["dep:opendal-service-sqlite"]
 services-surrealdb = ["dep:opendal-service-surrealdb"]
 services-swift = ["dep:opendal-service-swift"]
 services-tikv = ["dep:opendal-service-tikv"]
+services-tos = ["dep:opendal-service-tos"]
 services-upyun = ["dep:opendal-service-upyun"]
 services-vercel-artifacts = ["dep:opendal-service-vercel-artifacts"]
 services-vercel-blob = ["dep:opendal-service-vercel-blob"]
@@ -207,7 +211,7 @@ path = "tests/behavior/main.rs"
 required-features = ["tests"]
 
 [dependencies]
-ctor = { workspace = true }
+ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.55.0", default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.55.0", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.55.0", optional = true, default-features = false }
@@ -259,8 +263,8 @@ opendal-service-github = { path = "services/github", version = "0.55.0", optiona
 opendal-service-gridfs = { path = "services/gridfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs = { path = "services/hdfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.55.0", optional = true, default-features = false }
+opendal-service-hf = { path = "services/hf", version = "0.55.0", optional = true, default-features = false }
 opendal-service-http = { path = "services/http", version = "0.55.0", optional = true, default-features = false }
-opendal-service-huggingface = { path = "services/huggingface", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-ipmfs = { path = "services/ipmfs", version = "0.55.0", optional = true, default-features = false }
 opendal-service-koofr = { path = "services/koofr", version = "0.55.0", optional = true, default-features = false }
@@ -288,6 +292,7 @@ opendal-service-sqlite = { path = "services/sqlite", version = "0.55.0", optiona
 opendal-service-surrealdb = { path = "services/surrealdb", version = "0.55.0", optional = true, default-features = false }
 opendal-service-swift = { path = "services/swift", version = "0.55.0", optional = true, default-features = false }
 opendal-service-tikv = { path = "services/tikv", version = "0.55.0", optional = true, default-features = false }
+opendal-service-tos = { path = "services/tos", version = "0.55.0", optional = true, default-features = false }
 opendal-service-upyun = { path = "services/upyun", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-artifacts = { path = "services/vercel-artifacts", version = "0.55.0", optional = true, default-features = false }
 opendal-service-vercel-blob = { path = "services/vercel-blob", version = "0.55.0", optional = true, default-features = false }

@@ -138,6 +138,7 @@ impl oio::MultipartWrite for OssWriter {
                     part_number,
                     etag,
                     checksum: None,
+                    size: None,
                 })
             }
             _ => Err(parse_error(resp)),

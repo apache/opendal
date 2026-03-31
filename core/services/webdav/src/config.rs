@@ -39,6 +39,17 @@ pub struct WebdavConfig {
     pub root: Option<String>,
     /// WebDAV Service doesn't support copy.
     pub disable_copy: bool,
+    /// Disable automatic parent directory creation before write operations.
+    ///
+    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
+    /// This requires PROPFIND support to check directory existence.
+    ///
+    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
+    /// or don't require explicit directory creation. Enable this option to skip
+    /// the MKCOL calls and write files directly.
+    ///
+    /// Default: false
+    pub disable_create_dir: bool,
     /// Enable user metadata support via WebDAV PROPPATCH.
     ///
     /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
@@ -71,6 +82,7 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_copy", &self.disable_copy)
+            .field("disable_create_dir", &self.disable_create_dir)
             .field("enable_user_metadata", &self.enable_user_metadata)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
@@ -143,5 +155,17 @@ mod tests {
 
         let cfg = WebdavConfig::from_uri(&uri).unwrap();
         assert!(cfg.disable_copy);
+    }
+
+    #[test]
+    fn from_uri_propagates_disable_create_dir() {
+        let uri = OperatorUri::new(
+            "webdav://dav.example.com",
+            vec![("disable_create_dir".to_string(), "true".to_string())],
+        )
+        .unwrap();
+
+        let cfg = WebdavConfig::from_uri(&uri).unwrap();
+        assert!(cfg.disable_create_dir);
     }
 }

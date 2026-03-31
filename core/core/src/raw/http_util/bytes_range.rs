@@ -120,6 +120,8 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self.1 {
             None => write!(f, "{}-", self.0),
+            // A zero-size range can't be represented as a valid HTTP Range.
+            Some(0) => Err(std::fmt::Error),
             Some(size) => write!(f, "{}-{}", self.0, self.0 + size - 1),
         }
     }
@@ -201,6 +203,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bytes_range_display_zero_size() {
+        // Zero-size at offset 0
+        let range = BytesRange::new(0, Some(0));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+
+        // Zero-size at nonzero offset
+        let range = BytesRange::new(5, Some(0));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+    }
 
     #[test]
     fn test_bytes_range_to_string() {

@@ -65,8 +65,8 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build OpenDAL doc
         working-directory: core
@@ -88,12 +88,12 @@ jobs:
 
       - uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "17"
+          distribution: zulu
+          java-version: 25
 
       - name: Build and test
         working-directory: bindings/java
-        run: mvn javadoc:javadoc
+        run: ./mvnw javadoc:javadoc
 
       - name: Upload docs
         uses: actions/upload-artifact@v6
@@ -149,7 +149,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
 
@@ -247,6 +247,8 @@ jobs:
 
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
+          sudo apt-get update
+          sudo apt-get install -y alex happy
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set

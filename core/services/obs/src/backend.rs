@@ -23,9 +23,16 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
-use reqsign::HuaweicloudObsConfig;
-use reqsign::HuaweicloudObsCredentialLoader;
-use reqsign::HuaweicloudObsSigner;
+use opendal_core::raw::*;
+use opendal_core::*;
+use reqsign_core::Context;
+use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredentialChain;
+use reqsign_core::Signer;
+use reqsign_file_read_tokio::TokioFileRead;
+use reqsign_huaweicloud_obs::EnvCredentialProvider;
+use reqsign_huaweicloud_obs::RequestSigner;
+use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
 use super::OBS_SCHEME;
 use super::config::ObsConfig;
@@ -36,8 +43,6 @@ use super::error::parse_error;
 use super::lister::ObsLister;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
-use opendal_core::raw::*;
-use opendal_core::*;
 
 /// Huawei-Cloud Object Storage Service (OBS) support
 #[doc = include_str!("docs.md")]
@@ -169,19 +174,19 @@ impl Builder for ObsBuilder {
         };
         debug!("backend use endpoint {}", &endpoint);
 
-        let mut cfg = HuaweicloudObsConfig::default();
-        // Load cfg from env first.
-        cfg = cfg.from_env();
+        let info = Arc::new(AccessorInfo::default());
 
-        if let Some(v) = self.config.access_key_id {
-            cfg.access_key_id = Some(v);
+        let ctx = Context::new()
+            .with_file_read(TokioFileRead)
+            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
+            .with_env(OsEnv);
+
+        let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
+
+        if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.secret_access_key) {
+            let static_provider = StaticCredentialProvider::new(ak, sk);
+            provider = provider.push_front(static_provider);
         }
-
-        if let Some(v) = self.config.secret_access_key {
-            cfg.secret_access_key = Some(v);
-        }
-
-        let loader = HuaweicloudObsCredentialLoader::new(cfg);
 
         // Set the bucket name in CanonicalizedResource.
         // 1. If the bucket is bound to a user domain name, use the user domain name as the bucket name,
@@ -190,14 +195,14 @@ impl Builder for ObsBuilder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        let signer = HuaweicloudObsSigner::new(if is_obs_default { &bucket } else { &endpoint });
+        let request_signer = RequestSigner::new(if is_obs_default { &bucket } else { &endpoint });
+        let signer = Signer::new(ctx, provider, request_signer);
 
         debug!("backend build finished");
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
                 info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(OBS_SCHEME)
+                    info.set_scheme(OBS_SCHEME)
                         .set_root(&root)
                         .set_name(&bucket)
                         .set_native_capability(Capability {
@@ -246,13 +251,12 @@ impl Builder for ObsBuilder {
                             ..Default::default()
                         });
 
-                    am.into()
+                    info.clone()
                 },
                 bucket,
                 root,
                 endpoint: format!("{}://{}", &scheme, &endpoint),
                 signer,
-                loader,
             }),
         })
     }
@@ -390,8 +394,8 @@ impl Access for ObsBackend {
                 "operation is not supported",
             )),
         };
-        let mut req = req?;
-        self.core.sign_query(&mut req, args.expire()).await?;
+        let req = req?;
+        let req = self.core.sign_query(req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

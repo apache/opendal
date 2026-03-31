@@ -63,6 +63,10 @@ impl BytesContentRange {
     pub fn with_range(mut self, start: u64, end: u64) -> Self {
         self.0 = Some(start);
         self.1 = Some(end);
+        assert!(
+            end >= start,
+            "invalid BytesContentRange: end ({end}) < start ({start})"
+        );
         self
     }
 
@@ -163,6 +167,14 @@ impl FromStr for BytesContentRange {
         }
         let start: u64 = v[0].parse().map_err(parse_int_error)?;
         let end: u64 = v[1].parse().map_err(parse_int_error)?;
+        if end < start {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "header content range is invalid: end ({end}) < start ({start})",
+            )
+            .with_operation("BytesContentRange::from_str")
+            .with_context("value", value));
+        }
         let mut bcr = BytesContentRange::default().with_range(start, end);
 
         // Handle size part first.
@@ -235,5 +247,11 @@ mod tests {
             .with_range(0, 1023)
             .with_size(1024);
         assert_eq!(h.to_header(), "bytes 0-1023/1024");
+    }
+
+    #[test]
+    #[should_panic(expected = "invalid BytesContentRange: end (50) < start (100)")]
+    fn test_bytes_content_range_len_panics_on_inverted_range() {
+        let _ = BytesContentRange::default().with_range(100, 50);
     }
 }

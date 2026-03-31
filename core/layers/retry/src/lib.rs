@@ -402,7 +402,7 @@ impl<A: Access> oio::Read for RetryReader<A, A::Reader> {
                 Some(mut reader) => {
                     let buf = reader.read().await?;
                     self.reader = Some(reader);
-                    self.args.range_mut().advance(buf.len() as u64);
+                    self.args.range_mut().advance(buf.len() as u64)?;
                     return Ok(buf);
                 }
             }

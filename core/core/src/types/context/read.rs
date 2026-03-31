@@ -100,6 +100,16 @@ impl ReadContext {
             }
         };
 
+        if start > end {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "read range is invalid: start ({start}) is after end ({end})",
+            )
+            .with_operation("ReadContext::parse_into_range")
+            .with_context("start", start.to_string())
+            .with_context("end", end.to_string()));
+        }
+
         Ok(start..end)
     }
 }

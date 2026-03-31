@@ -73,12 +73,19 @@ impl BytesRange {
 
     /// Advance the range by `n` bytes.
     ///
-    /// # Panics
-    ///
-    /// Panic if input `n` is larger than the size of the range.
-    pub fn advance(&mut self, n: u64) {
+    /// Returns an error if `n` is larger than the size of the range.
+    pub fn advance(&mut self, n: u64) -> Result<()> {
+        if let Some(size) = self.1 {
+            if n > size {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    &format!("cannot advance BytesRange by {n} bytes, only {size} bytes left"),
+                ));
+            }
+        }
         self.0 += n;
         self.1 = self.1.map(|size| size - n);
+        Ok(())
     }
 
     /// Check if this range is full of this content.
@@ -175,6 +182,14 @@ impl FromStr for BytesRange {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
+            if end < start {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "header range is invalid: end < start",
+                )
+                .with_operation("BytesRange::from_str")
+                .with_context("value", value));
+            }
             Ok(BytesRange::new(start, Some(end - start + 1)))
         }
     }
@@ -191,8 +206,20 @@ where
             Bound::Unbounded => 0,
         };
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset),
-            Bound::Excluded(n) => Some(n - offset),
+            Bound::Included(n) => {
+                assert!(
+                    n + 1 >= offset,
+                    "invalid range: inclusive end ({n}) is before start ({offset})"
+                );
+                Some(n + 1 - offset)
+            }
+            Bound::Excluded(n) => {
+                assert!(
+                    n >= offset,
+                    "invalid range: exclusive end ({n}) is before start ({offset})"
+                );
+                Some(n - offset)
+            }
             Bound::Unbounded => None,
         };
 
@@ -269,5 +296,21 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bytes_range_from_str_inverted_returns_error() {
+        let result = "bytes=100-50".parse::<BytesRange>();
+        assert!(result.is_err(), "inverted range header should return Err");
+    }
+
+    #[test]
+    fn test_bytes_range_advance_beyond_size_returns_error() {
+        let mut r = BytesRange::new(0, Some(3));
+        let err = r.advance(5).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("cannot advance BytesRange by 5 bytes, only 3 bytes left")
+        );
     }
 }

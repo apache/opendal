@@ -133,7 +133,7 @@ use crate::*;
 ///     // The same to:
 ///     let bs = op
 ///         .read_options("hello.txt", options::ReadOptions {
-///             range: BytesRange::from_range(0..8 * 1024 * 1024).unwrap(),
+///             range: BytesRange::from_range(0..8 * 1024 * 1024)?,
 ///             chunk: Some(1024 * 1024),
 ///             concurrent: 4,
 ///             ..Default::default()
@@ -505,7 +505,7 @@ impl Operator {
     /// # async fn test(op: Operator) -> Result<()> {
     /// let bs = op
     ///     .read_options("path/to/file", options::ReadOptions {
-    ///         range: BytesRange::from_range(0..10).unwrap(),
+    ///         range: BytesRange::from_range(0..10)?,
     ///         ..Default::default()
     ///     })
     ///     .await?;

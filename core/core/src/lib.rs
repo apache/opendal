@@ -139,7 +139,7 @@
 //!     // The same to:
 //!     let bs = op
 //!         .read_options("hello.txt", options::ReadOptions {
-//!             range: BytesRange::from_range(0..8 * 1024 * 1024).unwrap(),
+//!             range: BytesRange::from_range(0..8 * 1024 * 1024)?,
 //!             chunk: Some(1024 * 1024),
 //!             concurrent: 4,
 //!             ..Default::default()

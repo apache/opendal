@@ -84,6 +84,29 @@ impl HfReader {
         range: BytesRange,
     ) -> Result<Self> {
         let session = core.xet_session().await?;
+        let refresh_url = core.repo.xet_token_url(&core.endpoint, "read");
+        let refresh_headers = core.xet_token_refresh_headers();
+
+        let group = session
+            .new_download_stream_group()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to create download stream group",
+                )
+                .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to build download stream group",
+                )
+                .set_source(err)
+            })?;
+
         let xet_range = if range.is_full() {
             None
         } else {
@@ -91,12 +114,16 @@ impl HfReader {
             let end = range.size().map(|s| start + s).unwrap_or(u64::MAX);
             Some(start..end)
         };
-        let mut stream = session
+
+        let mut stream = group
             .download_stream(file_info.clone(), xet_range)
             .await
             .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create xet download stream")
-                    .set_source(err)
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to create xet download stream",
+                )
+                .set_source(err)
             })?;
         stream.start();
         Ok(Self::Xet(stream))

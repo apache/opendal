@@ -173,9 +173,7 @@ pub(super) struct LastCommit {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct XetToken {
-    pub access_token: String,
     pub cas_url: String,
-    pub exp: u64,
 }
 
 // Core HuggingFace client that manages API interactions, authentication
@@ -322,10 +320,9 @@ impl HfCore {
         let this = self.clone();
         self.xet_session
             .get_or_try_init(|| async move {
-                let token = this.xet_token("write").await?;
+                let token = this.xet_token("read").await?;
                 XetSessionBuilder::new()
                     .with_endpoint(token.cas_url)
-                    .with_token_info(token.access_token, token.exp)
                     .build()
                     .map_err(|err| {
                         Error::new(ErrorKind::Unexpected, "failed to create xet session")
@@ -334,6 +331,17 @@ impl HfCore {
             })
             .await
             .cloned()
+    }
+
+    /// Build an HTTP HeaderMap with the Authorization header for XET token refresh.
+    pub(super) fn xet_token_refresh_headers(&self) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        if let Some(token) = &self.token {
+            if let Ok(val) = format!("Bearer {}", token).parse() {
+                headers.insert(header::AUTHORIZATION, val);
+            }
+        }
+        headers
     }
 
     /// Issue a HEAD request and extract XET file info (hash and size).

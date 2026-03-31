@@ -52,10 +52,22 @@ impl HfWriter {
 
         let writer = if use_xet {
             let session = core.xet_session().await?;
-            let commit = session.new_upload_commit().await.map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
-                    .set_source(err)
-            })?;
+            let refresh_url = core.repo.xet_token_url(&core.endpoint, "write");
+            let refresh_headers = core.xet_token_refresh_headers();
+
+            let commit = session
+                .new_upload_commit()
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
+                        .set_source(err)
+                })?
+                .with_token_refresh_url(refresh_url, refresh_headers)
+                .build()
+                .await
+                .map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
+                        .set_source(err)
+                })?;
             let stream = commit
                 .upload_stream(None, Sha256Policy::Compute)
                 .await
@@ -131,9 +143,9 @@ impl oio::Write for HfWriter {
                 commit,
                 stream,
             } => {
-                let stream = stream
-                    .take()
-                    .ok_or_else(|| Error::new(ErrorKind::Unexpected, "xet writer already closed"))?;
+                let stream = stream.take().ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "xet writer already closed")
+                })?;
 
                 let file_meta = stream.finish().await.map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
@@ -145,8 +157,7 @@ impl oio::Write for HfWriter {
                 let meta = Metadata::default().with_content_length(content_length);
 
                 commit.commit().await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
-                        .set_source(err)
+                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload").set_source(err)
                 })?;
 
                 if core.repo.repo_type == RepoType::Bucket {

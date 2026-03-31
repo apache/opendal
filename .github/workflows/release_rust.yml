@@ -31,7 +31,16 @@ on:
   workflow_dispatch:
 
 jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate workflow definition
+        run: ruby -e 'require "yaml"; YAML.load_file(".github/workflows/release_rust.yml")'
+
   publish:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       id-token: write

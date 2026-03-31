@@ -115,7 +115,7 @@ impl<A: Access> FullReader<A> {
             Ok(entry) => {
                 let end = range_end.unwrap_or(entry.len() as u64);
                 let range = BytesContentRange::default()
-                    .with_range(range_start, end - 1)
+                    .with_range(range_start, end - 1)?
                     .with_size(entry.len() as _);
                 let buffer = entry.slice(range_start as usize..end as usize);
                 let rp = RpRead::new()

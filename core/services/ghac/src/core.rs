@@ -303,7 +303,7 @@ impl GhacCore {
         req = req.header(
             CONTENT_RANGE,
             BytesContentRange::default()
-                .with_range(offset, offset + size - 1)
+                .with_range(offset, offset + size - 1)?
                 .to_header(),
         );
         let req = req

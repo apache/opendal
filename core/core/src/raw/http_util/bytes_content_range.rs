@@ -60,14 +60,16 @@ impl BytesContentRange {
     /// Update BytesContentRange with range.
     ///
     /// The range is inclusive: `[start..=end]` as described in `content-range`.
-    pub fn with_range(mut self, start: u64, end: u64) -> Self {
+    pub fn with_range(mut self, start: u64, end: u64) -> Result<Self> {
+        if end < start {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                format!("invalid BytesContentRange: end ({end}) < start ({start})"),
+            ));
+        }
         self.0 = Some(start);
         self.1 = Some(end);
-        assert!(
-            end >= start,
-            "invalid BytesContentRange: end ({end}) < start ({start})"
-        );
-        self
+        Ok(self)
     }
 
     /// Update BytesContentRange with size.
@@ -175,7 +177,7 @@ impl FromStr for BytesContentRange {
             .with_operation("BytesContentRange::from_str")
             .with_context("value", value));
         }
-        let mut bcr = BytesContentRange::default().with_range(start, end);
+        let mut bcr = BytesContentRange::default().with_range(start, end)?;
 
         // Handle size part first.
         if s[1] != "*" {
@@ -196,13 +198,13 @@ mod tests {
             (
                 "range start with unknown size",
                 "bytes 123-123/*",
-                BytesContentRange::default().with_range(123, 123),
+                BytesContentRange::default().with_range(123, 123)?,
             ),
             (
                 "range start with known size",
                 "bytes 123-123/1024",
                 BytesContentRange::default()
-                    .with_range(123, 123)
+                    .with_range(123, 123)?
                     .with_size(1024),
             ),
             (
@@ -222,36 +224,45 @@ mod tests {
     }
 
     #[test]
-    fn test_bytes_content_range_to_string() {
+    fn test_bytes_content_range_to_string() -> Result<()> {
         let h = BytesContentRange::default().with_size(1024);
         assert_eq!(h.to_string(), "*/1024");
 
-        let h = BytesContentRange::default().with_range(0, 1023);
+        let h = BytesContentRange::default().with_range(0, 1023)?;
         assert_eq!(h.to_string(), "0-1023/*");
 
         let h = BytesContentRange::default()
-            .with_range(0, 1023)
+            .with_range(0, 1023)?
             .with_size(1024);
         assert_eq!(h.to_string(), "0-1023/1024");
+
+        Ok(())
     }
 
     #[test]
-    fn test_bytes_content_range_to_header() {
+    fn test_bytes_content_range_to_header() -> Result<()> {
         let h = BytesContentRange::default().with_size(1024);
         assert_eq!(h.to_header(), "bytes */1024");
 
-        let h = BytesContentRange::default().with_range(0, 1023);
+        let h = BytesContentRange::default().with_range(0, 1023)?;
         assert_eq!(h.to_header(), "bytes 0-1023/*");
 
         let h = BytesContentRange::default()
-            .with_range(0, 1023)
+            .with_range(0, 1023)?
             .with_size(1024);
         assert_eq!(h.to_header(), "bytes 0-1023/1024");
+
+        Ok(())
     }
 
     #[test]
-    #[should_panic(expected = "invalid BytesContentRange: end (50) < start (100)")]
-    fn test_bytes_content_range_len_panics_on_inverted_range() {
-        let _ = BytesContentRange::default().with_range(100, 50);
+    fn test_bytes_content_range_inverted_range_returns_error() {
+        let err = BytesContentRange::default()
+            .with_range(100, 50)
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("invalid BytesContentRange: end (50) < start (100)")
+        );
     }
 }

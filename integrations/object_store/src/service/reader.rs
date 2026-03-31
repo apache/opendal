@@ -54,7 +54,7 @@ impl ObjectStoreReader {
         })
     }
 
-    pub(crate) fn rp(&self) -> RpRead {
+    pub(crate) fn rp(&self) -> Result<RpRead> {
         let mut rp = RpRead::new().with_size(Some(self.meta.size));
         if !self.args.range().is_full() {
             let range = self.args.range();
@@ -63,10 +63,11 @@ impl ObjectStoreReader {
                 None => self.meta.size,
             };
             rp = rp.with_range(Some(
-                BytesContentRange::default().with_range(range.offset(), range.offset() + size - 1),
+                BytesContentRange::default()
+                    .with_range(range.offset(), range.offset() + size - 1)?,
             ));
         }
-        rp
+        Ok(rp)
     }
 }
 

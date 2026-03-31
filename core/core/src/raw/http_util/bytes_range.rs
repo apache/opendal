@@ -79,7 +79,7 @@ impl BytesRange {
             if n > size {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
-                    &format!("cannot advance BytesRange by {n} bytes, only {size} bytes left"),
+                    format!("cannot advance BytesRange by {n} bytes, only {size} bytes left"),
                 ));
             }
         }

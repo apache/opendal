@@ -131,7 +131,7 @@ impl Access for ObjectStoreService {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let reader = ObjectStoreReader::new(self.store.clone(), path, args).await?;
-        Ok((reader.rp(), reader))
+        Ok((reader.rp()?, reader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

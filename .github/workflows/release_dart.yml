@@ -22,7 +22,7 @@ name: Release Dart Binding
 on:
   push:
     tags:
-      - "*"
+      - "v*"
   pull_request:
     branches:
       - main

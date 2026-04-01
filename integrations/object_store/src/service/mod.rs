@@ -143,7 +143,7 @@ impl Access for ObjectStoreService {
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()), Some(1000));
+        let deleter = BatchDeleter::new(ObjectStoreDeleter::new(self.store.clone()));
         Ok((RpDelete::default(), deleter))
     }
 

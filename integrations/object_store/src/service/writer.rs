@@ -156,7 +156,6 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             part_number,
             etag,
             checksum: None, // No checksum for now
-            size: None,
         };
         Ok(multipart_part)
     }

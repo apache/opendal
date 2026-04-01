@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# This workflow is used for publish all rust based packages
+# This workflow publishes all Rust packages that are intended for crates.io.
 
 name: Release Rust Packages
 
@@ -30,23 +30,120 @@ on:
       - ".github/workflows/release_rust.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Plan publish matrix
+        id: plan
+        shell: python
+        run: |
+          import json
+          import tomllib
+          from collections import defaultdict, deque
+          from pathlib import Path
+
+          root = Path(".").resolve()
+          manifests = [
+              root / "core" / "Cargo.toml",
+              root / "core" / "core" / "Cargo.toml",
+              *sorted((root / "core" / "layers").glob("*/Cargo.toml")),
+              *sorted((root / "core" / "services").glob("*/Cargo.toml")),
+              *sorted((root / "integrations").glob("*/Cargo.toml")),
+          ]
+
+          packages = {}
+          for manifest in manifests:
+              with manifest.open("rb") as fp:
+                  data = tomllib.load(fp)
+
+              package = data.get("package")
+              if not package or package.get("publish") is False:
+                  continue
+
+              manifest_dir = manifest.parent.resolve()
+              packages[manifest_dir] = {
+                  "manifest_dir": manifest_dir,
+                  "path": manifest_dir.relative_to(root).as_posix(),
+              }
+
+          def iter_dependency_dirs(data, manifest_dir):
+              def tables():
+                  for name in ("dependencies", "build-dependencies"):
+                      table = data.get(name)
+                      if isinstance(table, dict):
+                          yield table
+
+                  for target in data.get("target", {}).values():
+                      if not isinstance(target, dict):
+                          continue
+                      for name in ("dependencies", "build-dependencies"):
+                          table = target.get(name)
+                          if isinstance(table, dict):
+                              yield table
+
+              for table in tables():
+                  for dependency in table.values():
+                      if not isinstance(dependency, dict):
+                          continue
+                      path = dependency.get("path")
+                      if not isinstance(path, str):
+                          continue
+                      yield (manifest_dir / path).resolve()
+
+          graph = defaultdict(set)
+          indegree = {manifest_dir: 0 for manifest_dir in packages}
+
+          for manifest_dir in packages:
+              manifest = manifest_dir / "Cargo.toml"
+              with manifest.open("rb") as fp:
+                  data = tomllib.load(fp)
+              for dependency_dir in iter_dependency_dirs(data, manifest_dir):
+                  if dependency_dir not in packages:
+                      continue
+                  if manifest_dir in graph[dependency_dir]:
+                      continue
+                  graph[dependency_dir].add(manifest_dir)
+                  indegree[manifest_dir] += 1
+
+          queue = deque(sorted(
+              (manifest_dir for manifest_dir, degree in indegree.items() if degree == 0),
+              key=lambda manifest_dir: packages[manifest_dir]["path"],
+          ))
+          ordered = []
+
+          while queue:
+              manifest_dir = queue.popleft()
+              ordered.append(packages[manifest_dir]["path"])
+              for dependent in sorted(graph[manifest_dir], key=lambda item: packages[item]["path"]):
+                  indegree[dependent] -= 1
+                  if indegree[dependent] == 0:
+                      queue.append(dependent)
+
+          if len(ordered) != len(packages):
+              raise RuntimeError("failed to resolve publish order for Rust crates")
+
+          matrix = json.dumps({"package": ordered})
+          print(f"matrix={matrix}")
+          with open(Path(__import__('os').environ["GITHUB_OUTPUT"]), "a", encoding="utf-8") as fp:
+              fp.write(f"matrix={matrix}\n")
+
   publish:
+    if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
+    needs: plan
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     strategy:
-      # Publish package one by one instead of flooding the registry
       max-parallel: 1
       fail-fast: false
-      matrix:
-        # Order here is sensitive, as it will be used to determine the order of publishing
-        package:
-          - "core"
-          - "integrations/object_store"
-          - "integrations/parquet"
-          - "integrations/dav-server"
-          - "integrations/unftp-sbe"
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
       - name: Checkout python env
@@ -58,27 +155,15 @@ jobs:
         with:
           distribution: zulu
           java-version: 25
-
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
           need-rocksdb: true
           need-protoc: true
-
-      - name: Dryrun ${{ matrix.package }}
-        # Only dryrun test upon core.
-        if: matrix.package == 'core'
-        working-directory: ${{ matrix.package }}
-        run: cargo publish --dry-run
-        env:
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-
       - uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec
         id: auth
       - name: Publish ${{ matrix.package }}
         working-directory: ${{ matrix.package }}
-        # Only publish if it's a tag and the tag is not a pre-release
-        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
         run: cargo publish --no-verify
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}

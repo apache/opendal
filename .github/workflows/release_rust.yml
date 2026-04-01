@@ -37,7 +37,7 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.plan.outputs.matrix }}
+      packages: ${{ steps.plan.outputs.packages }}
     steps:
       - uses: actions/checkout@v6
       - name: Plan publish matrix
@@ -129,10 +129,10 @@ jobs:
           if len(ordered) != len(packages):
               raise RuntimeError("failed to resolve publish order for Rust crates")
 
-          matrix = json.dumps({"package": ordered})
-          print(f"matrix={matrix}")
+          packages = json.dumps(ordered)
+          print(f"packages={packages}")
           with open(Path(__import__('os').environ["GITHUB_OUTPUT"]), "a", encoding="utf-8") as fp:
-              fp.write(f"matrix={matrix}\n")
+              fp.write(f"packages={packages}\n")
 
   publish:
     if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-') }}
@@ -140,10 +140,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-    strategy:
-      max-parallel: 1
-      fail-fast: false
-      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
       - name: Checkout python env
@@ -162,9 +158,24 @@ jobs:
           need-protoc: true
       - uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec
         id: auth
-      - name: Publish ${{ matrix.package }}
-        working-directory: ${{ matrix.package }}
-        run: cargo publish --no-verify
+      - name: Publish Rust crates
+        shell: python
         env:
+          PACKAGES: ${{ needs.plan.outputs.packages }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          import json
+          import os
+          import subprocess
+
+          packages = json.loads(os.environ["PACKAGES"])
+
+          for package in packages:
+              print(f"Publishing {package}")
+              subprocess.run(
+                  ["cargo", "publish", "--no-verify"],
+                  cwd=package,
+                  check=True,
+                  env=os.environ,
+              )

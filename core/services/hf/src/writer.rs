@@ -51,11 +51,11 @@ impl HfWriter {
             || core.determine_upload_mode(&path).await? == "lfs";
 
         let writer = if use_xet {
-            let session = core.xet_session().await?;
             let refresh_url = core.repo.xet_token_url(&core.endpoint, "write");
             let refresh_headers = core.xet_token_refresh_headers();
 
-            let commit = session
+            let commit = core
+                .xet_session
                 .new_upload_commit()
                 .map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")

@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use tokio::sync::OnceCell;
-
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -170,29 +168,20 @@ pub(super) struct LastCommit {
     pub date: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct XetToken {
-    pub cas_url: String,
-}
-
 // Core HuggingFace client that manages API interactions, authentication
 // and shared logic for reader/writer/lister.
 
 #[derive(Clone)]
 pub struct HfCore {
     pub info: Arc<AccessorInfo>,
-
     pub repo: HfRepo,
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
-
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
     pub no_redirect_client: HttpClient,
-
-    xet_session: Arc<OnceCell<XetSession>>,
+    pub xet_session: XetSession,
 }
 
 impl Debug for HfCore {
@@ -213,6 +202,7 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
         no_redirect_client: HttpClient,
+        xet_session: XetSession,
     ) -> Self {
         Self {
             info,
@@ -221,7 +211,7 @@ impl HfCore {
             token,
             endpoint,
             no_redirect_client,
-            xet_session: Arc::new(OnceCell::new()),
+            xet_session,
         }
     }
 
@@ -240,7 +230,19 @@ impl HfCore {
         let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
         info.update_http_client(|_| standard);
 
-        Ok(Self::new(info, repo, root, token, endpoint, no_redirect))
+        let xet_session = XetSessionBuilder::new().build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
+        })?;
+
+        Ok(Self::new(
+            info,
+            repo,
+            root,
+            token,
+            endpoint,
+            no_redirect,
+            xet_session,
+        ))
     }
 
     /// Build an authenticated HTTP request.
@@ -304,33 +306,6 @@ impl HfCore {
         }
 
         Ok(files.remove(0))
-    }
-
-    pub(super) async fn xet_token(&self, token_type: &str) -> Result<XetToken> {
-        let url = self.repo.xet_token_url(&self.endpoint, token_type);
-        let req = self
-            .request(http::Method::GET, &url, Operation::Read)
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        let (_, token) = self.send_parse(req).await?;
-        Ok(token)
-    }
-
-    pub(super) async fn xet_session(&self) -> Result<XetSession> {
-        let this = self.clone();
-        self.xet_session
-            .get_or_try_init(|| async move {
-                let token = this.xet_token("read").await?;
-                XetSessionBuilder::new()
-                    .with_endpoint(token.cas_url)
-                    .build()
-                    .map_err(|err| {
-                        Error::new(ErrorKind::Unexpected, "failed to create xet session")
-                            .set_source(err)
-                    })
-            })
-            .await
-            .cloned()
     }
 
     /// Build an HTTP HeaderMap with the Authorization header for XET token refresh.
@@ -567,6 +542,9 @@ pub(crate) mod test_utils {
             .set_native_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
+        let xet_session = XetSessionBuilder::new()
+            .build()
+            .expect("failed to create xet session");
         let core = HfCore::new(
             Arc::new(info),
             HfRepo::new(repo_type, repo_id.to_string(), Some(revision.to_string())),
@@ -574,6 +552,7 @@ pub(crate) mod test_utils {
             None,
             endpoint.to_string(),
             HttpClient::with(mock_client.clone()),
+            xet_session,
         );
 
         (core, mock_client)

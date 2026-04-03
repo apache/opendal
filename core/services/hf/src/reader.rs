@@ -83,11 +83,11 @@ impl HfReader {
         file_info: &XetFileInfo,
         range: BytesRange,
     ) -> Result<Self> {
-        let session = core.xet_session().await?;
         let refresh_url = core.repo.xet_token_url(&core.endpoint, "read");
         let refresh_headers = core.xet_token_refresh_headers();
 
-        let group = session
+        let group = core
+            .xet_session
             .new_download_stream_group()
             .map_err(|err| {
                 Error::new(

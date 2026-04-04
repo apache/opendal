@@ -352,6 +352,8 @@ pub mod services {
     pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-tos")]
+    pub use opendal_service_tos::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-artifacts")]

@@ -33,17 +33,24 @@ all-features = true
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 js-sys = "0.3.77"
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+send_wrapper = "0.6"
 serde = { workspace = true, features = ["derive"] }
 wasm-bindgen = "0.2.100"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = [
-  "Window",
+  "Blob",
+  "console",
+  "DomException",
   "File",
   "FileSystemDirectoryHandle",
   "FileSystemFileHandle",
   "FileSystemGetDirectoryOptions",
   "FileSystemGetFileOptions",
+  "FileSystemRemoveOptions",
   "FileSystemWritableFileStream",
   "Navigator",
+  "WriteCommandType",
+  "WriteParams",
   "StorageManager",
+  "Window",
 ] }

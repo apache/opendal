@@ -15,59 +15,45 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::fmt::Debug;
+use std::sync::Arc;
 
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::File;
-use web_sys::FileSystemWritableFileStream;
+use super::OPFS_SCHEME;
+use opendal_core::raw::*;
+use opendal_core::*;
 
-use opendal_core::Error;
-use opendal_core::Result;
-
-use super::error::*;
-use super::utils::*;
-
-#[derive(Default, Debug)]
-pub struct OpfsCore {}
+#[derive(Debug, Clone)]
+pub struct OpfsCore {
+    pub root: String,
+    pub info: Arc<AccessorInfo>,
+}
 
 impl OpfsCore {
-    #[allow(unused)]
-    async fn store_file(&self, file_name: &str, content: &[u8]) -> Result<(), Error> {
-        let handle = get_handle_by_filename(file_name).await?;
+    pub fn new(root: String) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme(OPFS_SCHEME);
+        info.set_name("opfs");
+        info.set_root(&root);
+        info.set_native_capability(Capability {
+            stat: true,
 
-        let writable: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
+            read: true,
 
-        JsFuture::from(
-            writable
-                .write_with_u8_array(content)
-                .map_err(parse_js_error)?,
-        )
-        .await
-        .map_err(parse_js_error)?;
+            list: true,
 
-        JsFuture::from(writable.close())
-            .await
-            .map_err(parse_js_error)?;
+            create_dir: true,
 
-        Ok(())
-    }
+            write: true,
+            write_can_empty: true,
+            write_can_multi: true,
 
-    #[allow(unused)]
-    async fn read_file(&self, file_name: &str) -> Result<Vec<u8>, Error> {
-        let handle = get_handle_by_filename(file_name).await?;
+            delete: true,
 
-        let file: File = JsFuture::from(handle.get_file())
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
-        let array_buffer = JsFuture::from(file.array_buffer())
-            .await
-            .map_err(parse_js_error)?;
+            ..Default::default()
+        });
 
-        Ok(js_sys::Uint8Array::new(&array_buffer).to_vec())
+        Self {
+            root,
+            info: Arc::new(info),
+        }
     }
 }

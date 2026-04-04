@@ -148,6 +148,9 @@ pub struct Capability {
     /// Maximum size supported for single delete operations.
     pub delete_max_size: Option<usize>,
 
+    /// Indicates if undelete (restore) operations are supported for soft-deleted objects.
+    pub undelete: bool,
+
     /// Indicates if copy operations are supported.
     pub copy: bool,
     /// Indicates if conditional copy operations with if-not-exists are supported.

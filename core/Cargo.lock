@@ -2543,7 +2543,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4113,8 +4113,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hf-xet"
-version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=014ff2d75bb5284a5459094695f04c9fc35218ac#014ff2d75bb5284a5459094695f04c9fc35218ac"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c263f8e6508e4f3a616cd580597c59862d7f44f004b5e654a1329d92637e5f53"
 dependencies = [
  "async-trait",
  "bytes",
@@ -13074,8 +13075,9 @@ dependencies = [
 
 [[package]]
 name = "xet-client"
-version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=014ff2d75bb5284a5459094695f04c9fc35218ac#014ff2d75bb5284a5459094695f04c9fc35218ac"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b05838f0c85303e331ae54926cf197ddf1498e8d4b97467cbb1ad0d199dd6d6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13113,8 +13115,9 @@ dependencies = [
 
 [[package]]
 name = "xet-core-structures"
-version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=014ff2d75bb5284a5459094695f04c9fc35218ac#014ff2d75bb5284a5459094695f04c9fc35218ac"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4c112a2b3a69b2fcccc3f69f93f059e27c9437b57733e3acc71d3af3facf464"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -13149,8 +13152,9 @@ dependencies = [
 
 [[package]]
 name = "xet-data"
-version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=014ff2d75bb5284a5459094695f04c9fc35218ac#014ff2d75bb5284a5459094695f04c9fc35218ac"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5cf1cb808192c1bac9067022f84fd67f97e1e908ac8206caee3fb5c7146581d5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -13181,8 +13185,9 @@ dependencies = [
 
 [[package]]
 name = "xet-runtime"
-version = "1.4.0"
-source = "git+https://github.com/huggingface/xet-core.git?rev=014ff2d75bb5284a5459094695f04c9fc35218ac#014ff2d75bb5284a5459094695f04c9fc35218ac"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9dd0b331ef495dfba9ddfb9552cb00cd777712534551af11ecbd15deb9399e6b"
 dependencies = [
  "anyhow",
  "async-trait",

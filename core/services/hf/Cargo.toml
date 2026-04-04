@@ -35,7 +35,7 @@ async-trait = "0.1"
 base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
-hf-xet = { git = "https://github.com/huggingface/xet-core.git", rev = "014ff2d75bb5284a5459094695f04c9fc35218ac" }
+hf-xet = "1.5.0"
 http = { workspace = true }
 log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", default-features = false }

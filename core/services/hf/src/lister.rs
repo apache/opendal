@@ -90,7 +90,15 @@ impl oio::PageList for HfLister {
         } else {
             Some(ctx.token.as_str())
         };
-        let response = self.file_tree(&self.path, self.recursive, cursor).await?;
+        let response = match self.file_tree(&self.path, self.recursive, cursor).await {
+            Ok(r) => r,
+            // HF returns 404 when a path doesn't exist; treat as empty listing.
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                ctx.done = true;
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         if let Some(next_cursor) = response.next_cursor {
             ctx.token = next_cursor;
@@ -117,7 +125,7 @@ impl oio::PageList for HfLister {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::{gpt2_operator, mbpp_operator};
+    use super::super::backend::test_utils::gpt2_operator;
     use super::*;
 
     #[test]
@@ -142,32 +150,4 @@ mod tests {
         assert!(names.contains(&"config.json"));
     }
 
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_list_dataset_root() {
-        let op = mbpp_operator();
-        let entries = op.list("/").await.expect("list should succeed");
-        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
-        assert!(names.contains(&"full/"));
-    }
-
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_list_dataset_subdirectory() {
-        let op = mbpp_operator();
-        let entries = op.list("full/").await.expect("list should succeed");
-        let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
-        assert!(names.iter().any(|n| n.ends_with(".parquet")));
-    }
-
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_list_nonexistent_directory() {
-        let op = gpt2_operator();
-        let err = op
-            .list("nonexistent-dir/")
-            .await
-            .expect_err("list on nonexistent dir should fail");
-        assert_eq!(err.kind(), opendal_core::ErrorKind::NotFound);
-    }
 }

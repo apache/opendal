@@ -206,13 +206,8 @@ impl oio::Write for HfWriter {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::testing_bucket_operator;
-    use super::super::backend::test_utils::testing_operator;
     use super::*;
     use base64::Engine;
-    use serial_test::serial;
-
-    // --- Unit tests (no network required) ---
 
     #[test]
     fn test_prepare_commit_file() {
@@ -239,207 +234,13 @@ mod tests {
         assert!(decoded.is_empty());
     }
 
-    // --- Integration tests (require HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN) ---
-
+    /// Bucket writes always use XET and commit via NDJSON batch — this code
+    /// path is not covered by behavior tests unless run with a bucket config.
+    /// Requires HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
     #[tokio::test]
     #[ignore]
-    #[serial]
-    async fn test_write_http() {
-        let op = testing_operator();
-        op.write("test-file.txt", b"Hello, HuggingFace!".as_slice())
-            .await
-            .expect("write should succeed");
-    }
-
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_http_with_content_type() {
-        let op = testing_operator();
-        op.write_with("test.json", br#"{"test": "data"}"#.as_slice())
-            .content_type("application/json")
-            .await
-            .expect("write with content type should succeed");
-    }
-
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_xet() {
-        let op = testing_operator();
-        op.write("test-xet.bin", b"Binary data for XET test".as_slice())
-            .await
-            .expect("xet write should succeed");
-    }
-
-    /// Write a small text file (should use Regular upload mode — base64 inline
-    /// in commit) and verify the content roundtrips correctly.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_regular_roundtrip() {
-        let op = testing_operator();
-        let path = "tests/regular-roundtrip.txt";
-        let content = b"Small text file for regular upload.";
-
-        op.write(path, content.as_slice())
-            .await
-            .expect("write should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), content);
-
-        // Cleanup is best-effort; transient 500s from concurrent ops are OK.
-        let _ = op.delete(path).await;
-    }
-
-    /// Verify stat returns correct metadata after writing.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_and_stat() {
-        let op = testing_operator();
-        let path = "tests/stat-after-write.txt";
-        let content = b"Content for stat verification.";
-
-        op.write(path, content.as_slice())
-            .await
-            .expect("write should succeed");
-
-        let meta = op.stat(path).await.expect("stat should succeed");
-        assert_eq!(meta.content_length(), content.len() as u64);
-
-        let _ = op.delete(path).await;
-    }
-
-    /// Overwriting an existing file should replace its content.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_overwrite() {
-        let op = testing_operator();
-        let path = "tests/overwrite-test.txt";
-
-        op.write(path, b"first version".as_slice())
-            .await
-            .expect("first write should succeed");
-
-        op.write(path, b"second version".as_slice())
-            .await
-            .expect("overwrite should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), b"second version");
-
-        let _ = op.delete(path).await;
-    }
-
-    /// Full lifecycle: write → stat → read → delete → confirm gone.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_delete_lifecycle() {
-        let op = testing_operator();
-        let path = "tests/lifecycle-test.txt";
-
-        op.write(path, b"temporary file".as_slice())
-            .await
-            .expect("write should succeed");
-
-        assert!(op.stat(path).await.is_ok());
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), b"temporary file");
-
-        op.delete(path).await.expect("delete should succeed");
-        assert!(op.stat(path).await.is_err());
-    }
-
-    /// Write an empty (0-byte) file and verify roundtrip.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_empty_file_roundtrip() {
-        let op = testing_operator();
-        let path = "tests/empty-file.txt";
-
-        op.write(path, Vec::<u8>::new())
-            .await
-            .expect("write empty file should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert!(data.to_bytes().is_empty());
-
-        let meta = op.stat(path).await.expect("stat should succeed");
-        assert_eq!(meta.content_length(), 0);
-
-        let _ = op.delete(path).await;
-    }
-
-    /// Write a file in a deeply nested directory structure.
-    /// HuggingFace creates intermediate directories implicitly.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_nested_directory() {
-        let op = testing_operator();
-        let path = "tests/deep/nested/dir/file.txt";
-        let content = b"nested directory test";
-
-        op.write(path, content.as_slice())
-            .await
-            .expect("write to nested path should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), content);
-
-        let _ = op.delete(path).await;
-    }
-
-    /// Write a file with special characters in the path.
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_write_special_characters_in_path() {
-        let op = testing_operator();
-        let path = "tests/special chars (1).txt";
-        let content = b"special character path test";
-
-        op.write(path, content.as_slice())
-            .await
-            .expect("write with special chars should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), content);
-
-        let _ = op.delete(path).await;
-    }
-
-    // --- Bucket tests (require HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN) ---
-
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_bucket_write() {
-        let op = testing_bucket_operator();
-        let path = "test-bucket-file.txt";
-        let content = b"Hello from bucket!";
-
-        op.write(path, content.as_slice())
-            .await
-            .expect("bucket write should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), content);
-
-        let _ = op.delete(path).await;
-    }
-
-    #[tokio::test]
-    #[ignore]
-    #[serial]
     async fn test_bucket_write_roundtrip() {
-        let op = testing_bucket_operator();
+        let op = super::super::backend::test_utils::testing_bucket_operator();
         let path = "tests/bucket-roundtrip.bin";
         let content = b"Binary content for bucket roundtrip test";
 
@@ -449,30 +250,6 @@ mod tests {
 
         let data = op.read(path).await.expect("read should succeed");
         assert_eq!(data.to_bytes().as_ref(), content);
-
-        let meta = op.stat(path).await.expect("stat should succeed");
-        assert_eq!(meta.content_length(), content.len() as u64);
-
-        let _ = op.delete(path).await;
-    }
-
-    #[tokio::test]
-    #[ignore]
-    #[serial]
-    async fn test_bucket_overwrite() {
-        let op = testing_bucket_operator();
-        let path = "tests/bucket-overwrite.txt";
-
-        op.write(path, b"first content".as_slice())
-            .await
-            .expect("first write should succeed");
-
-        op.write(path, b"second content".as_slice())
-            .await
-            .expect("overwrite should succeed");
-
-        let data = op.read(path).await.expect("read should succeed");
-        assert_eq!(data.to_bytes().as_ref(), b"second content");
 
         let _ = op.delete(path).await;
     }

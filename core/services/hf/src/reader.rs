@@ -162,18 +162,9 @@ mod tests {
             .expect("config.json should be valid JSON");
     }
 
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_http_parquet_header() {
-        let op = mbpp_operator();
-        let data = op
-            .read_with("full/train-00000-of-00001.parquet")
-            .range(0..4)
-            .await
-            .expect("read should succeed");
-        assert_eq!(&data.to_vec(), PARQUET_MAGIC);
-    }
-
+    /// Exercises the XET download code path against a public dataset known to
+    /// have XET-stored files. Behavior tests cannot reliably cover this path
+    /// because the test dataset may not contain any XET files.
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_parquet() {
@@ -188,6 +179,7 @@ mod tests {
         assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 
+    /// Exercises XET range reads (XetDownloadStream with a byte range).
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_range() {

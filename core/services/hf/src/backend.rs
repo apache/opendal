@@ -255,46 +255,6 @@ pub(super) mod test_utils {
         op.layer(HttpClientLayer::new(client))
     }
 
-    pub fn testing_credentials() -> (String, String) {
-        let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
-        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
-        (repo_id, token)
-    }
-
-    pub fn testing_bucket_credentials() -> (String, String) {
-        let repo_id = std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
-        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
-        (repo_id, token)
-    }
-
-    /// Operator for a private dataset requiring HF_OPENDAL_DATASET and HF_OPENDAL_TOKEN.
-    pub fn testing_operator() -> Operator {
-        let (repo_id, token) = testing_credentials();
-        let op = Operator::new(
-            HfBuilder::default()
-                .repo_type("dataset")
-                .repo_id(&repo_id)
-                .token(&token),
-        )
-        .unwrap()
-        .finish();
-        finish_operator(op)
-    }
-
-    /// Operator for a bucket requiring HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN.
-    pub fn testing_bucket_operator() -> Operator {
-        let (repo_id, token) = testing_bucket_credentials();
-        let op = Operator::new(
-            HfBuilder::default()
-                .repo_type("bucket")
-                .repo_id(&repo_id)
-                .token(&token),
-        )
-        .unwrap()
-        .finish();
-        finish_operator(op)
-    }
-
     pub fn gpt2_operator() -> Operator {
         let op = Operator::new(
             HfBuilder::default()
@@ -306,6 +266,7 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
+    /// Public dataset known to contain XET-stored files (no credentials required).
     pub fn mbpp_operator() -> Operator {
         let op = Operator::new(
             HfBuilder::default()
@@ -316,11 +277,26 @@ pub(super) mod test_utils {
         .finish();
         finish_operator(op)
     }
+
+    /// Operator for a bucket (requires HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN).
+    pub fn testing_bucket_operator() -> Operator {
+        let repo_id =
+            std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
+        let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("bucket")
+                .repo_id(&repo_id)
+                .token(&token),
+        )
+        .unwrap()
+        .finish();
+        finish_operator(op)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::test_utils::mbpp_operator;
     use super::*;
 
     #[test]
@@ -359,148 +335,5 @@ mod tests {
             .load("huggingface://user/repo")
             .expect("long scheme should be registered and work");
         assert_eq!(op.info().scheme(), "hf");
-    }
-
-    /// Parquet magic bytes: "PAR1"
-    const PARQUET_MAGIC: &[u8] = b"PAR1";
-
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_parquet_http() {
-        let op = mbpp_operator();
-        let path = "full/train-00000-of-00001.parquet";
-
-        let meta = op.stat(path).await.expect("stat should succeed");
-        assert!(meta.content_length() > 0);
-
-        // Read the first 4 bytes to check parquet header magic
-        let header = op
-            .read_with(path)
-            .range(0..4)
-            .await
-            .expect("read header should succeed");
-        assert_eq!(&header.to_vec(), PARQUET_MAGIC);
-
-        // Read the last 4 bytes to check parquet footer magic
-        let size = meta.content_length();
-        let footer = op
-            .read_with(path)
-            .range(size - 4..size)
-            .await
-            .expect("read footer should succeed");
-        assert_eq!(&footer.to_vec(), PARQUET_MAGIC);
-    }
-
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_parquet_xet() {
-        let op = mbpp_operator();
-        let path = "full/train-00000-of-00001.parquet";
-
-        // Full read via XET and verify parquet magic at both ends
-        let data = op.read(path).await.expect("xet read should succeed");
-        let bytes = data.to_vec();
-        assert!(bytes.len() > 8);
-        assert_eq!(&bytes[..4], PARQUET_MAGIC);
-        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
-    }
-
-    /// List files in a known dataset directory.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_list_directory() {
-        let op = mbpp_operator();
-        let entries = op.list("full/").await.expect("list should succeed");
-        assert!(!entries.is_empty(), "directory should contain files");
-        assert!(
-            entries.iter().any(|e| e.path().ends_with(".parquet")),
-            "should contain parquet files"
-        );
-    }
-
-    /// List files recursively from root.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_list_recursive() {
-        let op = mbpp_operator();
-        let entries = op
-            .list_with("/")
-            .recursive(true)
-            .await
-            .expect("recursive list should succeed");
-        assert!(
-            entries.len() > 1,
-            "recursive listing should find multiple files"
-        );
-    }
-
-    /// Stat a known file and verify metadata fields.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_stat_known_file() {
-        let op = mbpp_operator();
-        let meta = op
-            .stat("full/train-00000-of-00001.parquet")
-            .await
-            .expect("stat should succeed");
-        assert!(meta.content_length() > 0);
-        assert!(!meta.etag().unwrap_or_default().is_empty());
-    }
-
-    /// Stat a nonexistent path should return NotFound.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_stat_nonexistent() {
-        let op = mbpp_operator();
-        let err = op
-            .stat("this/path/does/not/exist.txt")
-            .await
-            .expect_err("stat on nonexistent path should fail");
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-    }
-
-    /// Read a nonexistent file should return NotFound.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_nonexistent() {
-        let op = mbpp_operator();
-        let err = op
-            .read("this/path/does/not/exist.txt")
-            .await
-            .expect_err("read on nonexistent path should fail");
-        assert_eq!(err.kind(), ErrorKind::NotFound);
-    }
-
-    /// Read a middle range of a known file.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_range_middle() {
-        let op = mbpp_operator();
-        let data = op
-            .read_with("full/train-00000-of-00001.parquet")
-            .range(100..200)
-            .await
-            .expect("range read should succeed");
-        assert_eq!(data.to_bytes().len(), 100);
-    }
-
-    /// Read the last N bytes of a file to exercise tail-range handling.
-    #[tokio::test]
-    #[ignore = "requires network access"]
-    async fn test_read_range_tail() {
-        let op = mbpp_operator();
-        let path = "full/train-00000-of-00001.parquet";
-        let meta = op.stat(path).await.expect("stat should succeed");
-        let size = meta.content_length();
-
-        let data = op
-            .read_with(path)
-            .range(size - 100..size)
-            .await
-            .expect("tail range read should succeed");
-        let bytes = data.to_bytes();
-        assert_eq!(bytes.len(), 100);
-        // Parquet files end with "PAR1" magic
-        assert_eq!(&bytes[bytes.len() - 4..], PARQUET_MAGIC);
     }
 }

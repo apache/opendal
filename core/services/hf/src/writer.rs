@@ -23,6 +23,37 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload};
 
+/// CAS propagation can lag behind `commit.commit()`. Retry the HF
+/// registration call a few times with exponential backoff.
+async fn retry_on_cas_delay<T, F, Fut>(op: F) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let delays = [500, 1000, 2000];
+    let mut last_err = None;
+    for (i, delay_ms) in std::iter::once(&0).chain(delays.iter()).enumerate() {
+        if i > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(*delay_ms));
+        }
+        match op().await {
+            Ok(v) => return Ok(v),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("not found in Xet storage")
+                    || msg.contains("LFS pointer pointed to a file that does not exist")
+                    || msg.contains("Invalid file change")
+                {
+                    last_err = Some(e);
+                    continue;
+                }
+                return Err(e);
+            }
+        }
+    }
+    Err(last_err.unwrap())
+}
+
 /// Tracks the close() progress so retries can resume from the last successful step.
 enum CloseState {
     /// Stream is still being written to.
@@ -78,6 +109,9 @@ impl HfWriter {
     }
 
     /// Register the uploaded file with HF (LFS commit or bucket batch).
+    ///
+    /// Retries on transient CAS propagation failures where the file
+    /// data hasn't propagated yet after `commit.commit()`.
     async fn register_file(&self, file_info: &XetFileInfo) -> Result<Metadata> {
         let content_length = file_info
             .file_size()
@@ -87,24 +121,32 @@ impl HfWriter {
         let repo_path = self.core.repo_path(&self.path);
         if self.core.repo.repo_type == RepoType::Bucket {
             let xet_hash = file_info.hash().to_string();
-            self.core
-                .bucket_batch(vec![BucketOperation::AddFile {
-                    path: repo_path,
-                    xet_hash,
-                }])
-                .await?;
+            let op = || async {
+                self.core
+                    .bucket_batch(vec![BucketOperation::AddFile {
+                        path: repo_path.clone(),
+                        xet_hash: xet_hash.clone(),
+                    }])
+                    .await
+            };
+            retry_on_cas_delay(op).await?;
             Ok(meta)
         } else {
             let sha256 = file_info.sha256().ok_or_else(|| {
                 Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
             })?;
-            let lfs_file = LfsFile {
-                path: repo_path,
-                oid: sha256.to_string(),
-                algo: "sha256".to_string(),
-                size: content_length,
+            let op = || async {
+                let lfs_file = LfsFile {
+                    path: repo_path.clone(),
+                    oid: sha256.to_string(),
+                    algo: "sha256".to_string(),
+                    size: content_length,
+                };
+                self.core
+                    .commit_files(vec![], vec![lfs_file], vec![])
+                    .await
             };
-            let resp = self.core.commit_files(vec![], vec![lfs_file], vec![]).await?;
+            let resp = retry_on_cas_delay(op).await?;
             Ok(if let Some(oid) = resp.commit_oid {
                 meta.with_version(oid)
             } else {

@@ -44,16 +44,34 @@ fn parse_next_cursor(link_str: &str) -> Option<String> {
 
 pub struct HfLister {
     core: Arc<HfCore>,
-    path: String,
+    /// The directory path to list via the tree API (always ends with `/` or is empty for root).
+    list_path: String,
+    /// When the original path didn't end with `/`, filter results to this prefix.
+    prefix: Option<String>,
     recursive: bool,
 }
 
 impl HfLister {
     pub fn new(core: Arc<HfCore>, path: String, recursive: bool) -> Self {
-        Self {
-            core,
-            path,
-            recursive,
+        if path.is_empty() || path.ends_with('/') {
+            Self {
+                core,
+                list_path: path,
+                prefix: None,
+                recursive,
+            }
+        } else {
+            // Prefix listing: list the parent directory and filter by prefix.
+            let parent = match path.rfind('/') {
+                Some(pos) => path[..=pos].to_string(),
+                None => String::new(),
+            };
+            Self {
+                core,
+                list_path: parent,
+                prefix: Some(path),
+                recursive,
+            }
         }
     }
 
@@ -91,7 +109,7 @@ impl oio::PageList for HfLister {
             Some(ctx.token.as_str())
         };
 
-        let response = match self.file_tree(&self.path, self.recursive, cursor).await {
+        let response = match self.file_tree(&self.list_path, self.recursive, cursor).await {
             Ok(r) => r,
             // HF returns 404 when a path doesn't exist; treat as empty listing.
             Err(e) if e.kind() == ErrorKind::NotFound => {
@@ -114,10 +132,17 @@ impl oio::PageList for HfLister {
             } else {
                 info.path.clone()
             };
-            ctx.entries.push_back(oio::Entry::new(
-                &build_rel_path(&self.core.root, &path),
-                meta,
-            ));
+            let rel_path = build_rel_path(&self.core.root, &path);
+
+            // Filter by prefix when doing prefix-based listing.
+            if let Some(prefix) = &self.prefix {
+                if !rel_path.starts_with(prefix.as_str()) {
+                    continue;
+                }
+            }
+
+            ctx.entries
+                .push_back(oio::Entry::new(&rel_path, meta));
         }
 
         Ok(())

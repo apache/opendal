@@ -170,6 +170,7 @@ impl Builder for HfBuilder {
                 stat: true,
                 read: true,
                 write: token.is_some(),
+                write_can_empty: token.is_some(),
                 delete: token.is_some(),
                 delete_max_size: Some(100),
                 list: true,

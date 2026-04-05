@@ -195,10 +195,24 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
+pub enum HfListerWrapper {
+    Page(oio::PageLister<HfLister>),
+    Hierarchy(oio::HierarchyLister<oio::PageLister<HfLister>>),
+}
+
+impl oio::List for HfListerWrapper {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        match self {
+            Self::Page(l) => l.next().await,
+            Self::Hierarchy(l) => l.next().await,
+        }
+    }
+}
+
 impl Access for HfBackend {
     type Reader = HfReader;
     type Writer = HfWriter;
-    type Lister = oio::PageLister<HfLister>;
+    type Lister = HfListerWrapper;
     type Deleter = oio::BatchDeleter<HfDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -211,6 +225,22 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
+        // Buckets use HEAD on resolve URL for files; dirs always succeed.
+        if self.core.repo.repo_type == RepoType::Bucket {
+            if path.ends_with('/') {
+                return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            }
+            return match self.core.maybe_xet_file(path).await? {
+                Some(file_info) => {
+                    let size = file_info.file_size().unwrap_or(0);
+                    Ok(RpStat::new(
+                        Metadata::new(EntryMode::FILE).with_content_length(size),
+                    ))
+                }
+                None => Err(Error::new(ErrorKind::NotFound, "path not found")),
+            };
+        }
+
         let info = self.core.path_info(path).await?;
         Ok(RpStat::new(info.metadata()?))
     }
@@ -221,8 +251,23 @@ impl Access for HfBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
-        Ok((RpList::default(), oio::PageLister::new(lister)))
+        // Bucket tree API returns flat file entries; always list recursively
+        // and use HierarchyLister to restore directory structure.
+        let recursive = if self.core.repo.repo_type == RepoType::Bucket {
+            true
+        } else {
+            args.recursive()
+        };
+        let lister = HfLister::new(self.core.clone(), path.to_string(), recursive);
+        let lister = oio::PageLister::new(lister);
+        if self.core.repo.repo_type == RepoType::Bucket && !args.recursive() {
+            Ok((
+                RpList::default(),
+                HfListerWrapper::Hierarchy(oio::HierarchyLister::new(lister, path, false)),
+            ))
+        } else {
+            Ok((RpList::default(), HfListerWrapper::Page(lister)))
+        }
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

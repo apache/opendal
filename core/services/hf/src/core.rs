@@ -32,32 +32,6 @@ use super::uri::HfRepo;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// API payload structures for preupload operations
-#[derive(serde::Serialize)]
-struct PreuploadFile {
-    path: String,
-    size: i64,
-    sample: String,
-}
-
-#[derive(serde::Serialize)]
-struct PreuploadRequest {
-    files: Vec<PreuploadFile>,
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct PreuploadFileResponse {
-    #[allow(dead_code)]
-    path: String,
-    #[serde(rename = "uploadMode")]
-    upload_mode: String,
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct PreuploadResponse {
-    files: Vec<PreuploadFileResponse>,
-}
-
 /// API payload structures for commit operations
 #[derive(Debug, serde::Serialize)]
 pub(super) struct CommitFile {
@@ -181,7 +155,6 @@ pub struct HfCore {
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
     pub no_redirect_client: HttpClient,
-    pub xet_session: XetSession,
 }
 
 impl Debug for HfCore {
@@ -202,7 +175,6 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
         no_redirect_client: HttpClient,
-        xet_session: XetSession,
     ) -> Self {
         Self {
             info,
@@ -211,7 +183,6 @@ impl HfCore {
             token,
             endpoint,
             no_redirect_client,
-            xet_session,
         }
     }
 
@@ -230,19 +201,17 @@ impl HfCore {
         let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
         info.update_http_client(|_| standard);
 
-        let xet_session = XetSessionBuilder::new().build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
-        })?;
-
         Ok(Self::new(
-            info,
-            repo,
-            root,
-            token,
-            endpoint,
-            no_redirect,
-            xet_session,
+            info, repo, root, token, endpoint, no_redirect,
         ))
+    }
+
+    /// Create a fresh XET session for each operation to avoid
+    /// concurrent upload/download interference.
+    pub(super) fn new_xet_session(&self) -> Result<XetSession> {
+        XetSessionBuilder::new().build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
+        })
     }
 
     /// Build an authenticated HTTP request.
@@ -263,6 +232,14 @@ impl HfCore {
 
     pub(super) fn uri(&self, path: &str) -> super::uri::HfUri {
         self.repo.uri(&self.root, path)
+    }
+
+    /// Convert an operator-relative path to a repo-absolute path
+    /// (no leading `/`) for use in commit/delete/batch payloads.
+    pub(super) fn repo_path(&self, path: &str) -> String {
+        build_abs_path(&self.root, path)
+            .trim_start_matches('/')
+            .to_string()
     }
 
     /// Send a request and return the successful response or a parsed error.
@@ -361,40 +338,6 @@ impl HfCore {
         Ok(Some(XetFileInfo::new(hash.to_string(), size)))
     }
 
-    /// Determine upload mode by calling the preupload API.
-    ///
-    /// Returns the upload mode string from the API (e.g., "regular" or "lfs").
-    pub(super) async fn determine_upload_mode(&self, path: &str) -> Result<String> {
-        let uri = self.uri(path);
-        let preupload_url = uri.preupload_url(&self.endpoint);
-
-        let preupload_payload = PreuploadRequest {
-            files: vec![PreuploadFile {
-                path: path.to_string(),
-                size: -1,
-                sample: String::new(),
-            }],
-        };
-        let json_body = serde_json::to_vec(&preupload_payload).map_err(new_json_serialize_error)?;
-
-        let req = self
-            .request(http::Method::POST, &preupload_url, Operation::Write)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Buffer::from(json_body))
-            .map_err(new_request_build_error)?;
-
-        let (_, preupload_resp): (_, PreuploadResponse) = self.send_parse(req).await?;
-
-        let mode = preupload_resp
-            .files
-            .first()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files in preupload response"))?
-            .upload_mode
-            .clone();
-
-        Ok(mode)
-    }
-
     pub(super) async fn commit_files(
         &self,
         regular_files: Vec<CommitFile>,
@@ -477,6 +420,7 @@ impl HfCore {
         self.send(req).await?;
         Ok(())
     }
+
 }
 
 #[cfg(test)]
@@ -542,9 +486,6 @@ pub(crate) mod test_utils {
             .set_native_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
-        let xet_session = XetSessionBuilder::new()
-            .build()
-            .expect("failed to create xet session");
         let core = HfCore::new(
             Arc::new(info),
             HfRepo::new(repo_type, repo_id.to_string(), Some(revision.to_string())),
@@ -552,7 +493,6 @@ pub(crate) mod test_utils {
             None,
             endpoint.to_string(),
             HttpClient::with(mock_client.clone()),
-            xet_session,
         );
 
         (core, mock_client)

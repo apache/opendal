@@ -300,14 +300,26 @@ impl HfUri {
 
     /// Build the file tree API URL for this URI.
     pub fn file_tree_url(&self, endpoint: &str, recursive: bool, cursor: Option<&str>) -> String {
-        let mut url = format!(
-            "{}/api/{}/{}/tree/{}/{}?expand=True",
-            endpoint,
-            self.repo.repo_type.as_plural_str(),
-            &self.repo.repo_id,
-            percent_encode_revision(self.revision()),
-            percent_encode_path(&self.path),
-        );
+        let mut url = match self.repo.repo_type {
+            RepoType::Bucket => {
+                format!(
+                    "{}/api/buckets/{}/tree/{}?expand=True",
+                    endpoint,
+                    &self.repo.repo_id,
+                    percent_encode_path(&self.path),
+                )
+            }
+            _ => {
+                format!(
+                    "{}/api/{}/{}/tree/{}/{}?expand=True",
+                    endpoint,
+                    self.repo.repo_type.as_plural_str(),
+                    &self.repo.repo_id,
+                    percent_encode_revision(self.revision()),
+                    percent_encode_path(&self.path),
+                )
+            }
+        };
 
         if recursive {
             url.push_str("&recursive=True");
@@ -318,26 +330,6 @@ impl HfUri {
         }
 
         url
-    }
-
-    /// Build the preupload API URL for this URI.
-    pub fn preupload_url(&self, endpoint: &str) -> String {
-        // Split repo_id into namespace and repo (e.g., "user/repo" -> "user", "repo")
-        let parts: Vec<&str> = self.repo.repo_id.splitn(2, '/').collect();
-        let (namespace, repo) = if parts.len() == 2 {
-            (parts[0], parts[1])
-        } else {
-            ("", self.repo.repo_id.as_str())
-        };
-
-        format!(
-            "{}/api/{}/{}/{}/preupload/{}",
-            endpoint,
-            self.repo.repo_type.as_plural_str(),
-            namespace,
-            repo,
-            percent_encode_revision(self.revision()),
-        )
     }
 
     /// Build the commit API URL for this URI.

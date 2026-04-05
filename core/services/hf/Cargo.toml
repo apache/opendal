@@ -32,7 +32,6 @@ all-features = true
 
 [dependencies]
 async-trait = "0.1"
-base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 hf-xet = "1.5.0"

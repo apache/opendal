@@ -90,6 +90,7 @@ impl oio::PageList for HfLister {
         } else {
             Some(ctx.token.as_str())
         };
+
         let response = match self.file_tree(&self.path, self.recursive, cursor).await {
             Ok(r) => r,
             // HF returns 404 when a path doesn't exist; treat as empty listing.
@@ -149,5 +150,4 @@ mod tests {
         let names: Vec<&str> = entries.iter().map(|e| e.name()).collect();
         assert!(names.contains(&"config.json"));
     }
-
 }

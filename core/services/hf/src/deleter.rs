@@ -17,7 +17,8 @@
 
 use std::sync::Arc;
 
-use super::core::{DeletedFile, HfCore};
+use super::core::{BucketOperation, DeletedFile, HfCore};
+use super::uri::RepoType;
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -31,27 +32,45 @@ impl HfDeleter {
         Self { core }
     }
 
-    async fn commit_delete(&self, deleted_files: Vec<DeletedFile>) -> Result<()> {
-        match self.core.commit_files(vec![], vec![], deleted_files).await {
-            Ok(_) => Ok(()),
-            Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(err),
+    async fn delete_paths(&self, paths: Vec<String>) -> Result<()> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+
+        if self.core.repo.repo_type == RepoType::Bucket {
+            let ops = paths
+                .into_iter()
+                .map(|path| BucketOperation::DeleteFile { path })
+                .collect();
+            match self.core.bucket_batch(ops).await {
+                Ok(()) => Ok(()),
+                Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+                Err(err) => Err(err),
+            }
+        } else {
+            let deleted_files = paths.into_iter().map(|path| DeletedFile { path }).collect();
+            match self.core.commit_files(vec![], vec![], deleted_files).await {
+                Ok(_) => Ok(()),
+                Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+                Err(err) => Err(err),
+            }
         }
     }
 }
 
 impl oio::BatchDelete for HfDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        self.commit_delete(vec![DeletedFile { path }]).await
+        let repo_path = self.core.repo_path(&path);
+        self.delete_paths(vec![repo_path]).await
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let deleted_files: Vec<DeletedFile> = batch
+        let paths: Vec<String> = batch
             .iter()
-            .map(|(path, _)| DeletedFile { path: path.clone() })
+            .map(|(path, _)| self.core.repo_path(path))
             .collect();
 
-        self.commit_delete(deleted_files).await?;
+        self.delete_paths(paths).await?;
         Ok(BatchDeleteResult {
             succeeded: batch,
             failed: vec![],

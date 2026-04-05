@@ -17,222 +17,167 @@
 
 use std::sync::Arc;
 
-use base64::Engine;
-
-use super::core::{BucketOperation, CommitFile, HfCore, LfsFile};
+use super::core::{BucketOperation, HfCore, LfsFile};
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-use xet::xet_session::{Sha256Policy, XetStreamUpload, XetUploadCommit};
+use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload};
 
-/// Writer that handles both regular (small) and XET (large) file uploads.
-pub enum HfWriter {
-    /// Regular writer for small files using base64 inline commit.
-    Regular {
-        core: Arc<HfCore>,
-        path: String,
-        buf: Vec<Buffer>,
-    },
-    /// XET writer for large files using the session-based upload protocol.
-    Xet {
-        core: Arc<HfCore>,
-        path: String,
-        commit: XetUploadCommit,
-        stream: Option<XetStreamUpload>,
-    },
+/// Tracks the close() progress so retries can resume from the last successful step.
+enum CloseState {
+    /// Stream is still being written to.
+    Streaming(XetStreamUpload),
+    /// stream.finish() succeeded; commit.commit() is next.
+    Finished(XetFileInfo),
+    /// CAS commit succeeded; the final registration (LFS or bucket_batch) is next.
+    Committed(XetFileInfo),
+    /// All done.
+    Done,
+}
+
+/// Writer that always uses the XET protocol for uploads.
+pub struct HfWriter {
+    core: Arc<HfCore>,
+    path: String,
+    upload_commit: xet::xet_session::XetUploadCommit,
+    state: CloseState,
 }
 
 impl HfWriter {
-    /// Create a new writer by determining the upload mode from the API.
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
-        // Buckets always use XET and don't have a preupload endpoint;
-        // other repo types check the preupload API.
-        let use_xet = core.repo.repo_type == RepoType::Bucket
-            || core.determine_upload_mode(&path).await? == "lfs";
+        let xet_session = core.new_xet_session()?;
+        let refresh_url = core.repo.xet_token_url(&core.endpoint, "write");
+        let refresh_headers = core.xet_token_refresh_headers();
 
-        let writer = if use_xet {
-            let refresh_url = core.repo.xet_token_url(&core.endpoint, "write");
-            let refresh_headers = core.xet_token_refresh_headers();
-
-            let commit = core
-                .xet_session
-                .new_upload_commit()
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
-                        .set_source(err)
-                })?
-                .with_token_refresh_url(refresh_url, refresh_headers)
-                .build()
-                .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
-                        .set_source(err)
-                })?;
-            let stream = commit
-                .upload_stream(None, Sha256Policy::Compute)
-                .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to start xet upload stream")
-                        .set_source(err)
-                })?;
-            HfWriter::Xet {
-                core,
-                path,
-                commit,
-                stream: Some(stream),
-            }
-        } else {
-            HfWriter::Regular {
-                core,
-                path,
-                buf: Vec::new(),
-            }
-        };
-        Ok(writer)
+        let upload_commit = xet_session
+            .new_upload_commit()
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
+                    .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
+                    .set_source(err)
+            })?;
+        let stream = upload_commit
+            .upload_stream(None, Sha256Policy::Compute)
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to start xet upload stream")
+                    .set_source(err)
+            })?;
+        Ok(HfWriter {
+            core,
+            path,
+            upload_commit,
+            state: CloseState::Streaming(stream),
+        })
     }
 
-    fn prepare_commit_file(path: &str, body: &[u8]) -> CommitFile {
-        let content = base64::engine::general_purpose::STANDARD.encode(body);
-        CommitFile {
-            path: path.to_string(),
-            content,
-            encoding: "base64".to_string(),
+    /// Register the uploaded file with HF (LFS commit or bucket batch).
+    async fn register_file(&self, file_info: &XetFileInfo) -> Result<Metadata> {
+        let content_length = file_info
+            .file_size()
+            .expect("file_size must be set after finish()");
+        let meta = Metadata::default().with_content_length(content_length);
+
+        let repo_path = self.core.repo_path(&self.path);
+        if self.core.repo.repo_type == RepoType::Bucket {
+            let xet_hash = file_info.hash().to_string();
+            self.core
+                .bucket_batch(vec![BucketOperation::AddFile {
+                    path: repo_path,
+                    xet_hash,
+                }])
+                .await?;
+            Ok(meta)
+        } else {
+            let sha256 = file_info.sha256().ok_or_else(|| {
+                Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
+            })?;
+            let lfs_file = LfsFile {
+                path: repo_path,
+                oid: sha256.to_string(),
+                algo: "sha256".to_string(),
+                size: content_length,
+            };
+            let resp = self.core.commit_files(vec![], vec![lfs_file], vec![]).await?;
+            Ok(if let Some(oid) = resp.commit_oid {
+                meta.with_version(oid)
+            } else {
+                meta
+            })
         }
     }
 }
 
 impl oio::Write for HfWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        match self {
-            HfWriter::Regular { buf, .. } => {
-                buf.push(bs);
-                Ok(())
-            }
-            HfWriter::Xet { stream, .. } => {
-                let stream = stream.as_ref().expect("stream missing");
-                stream.write(bs.to_bytes()).await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
-                })
-            }
-        }
+        let CloseState::Streaming(stream) = &self.state else {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "cannot write: upload stream is no longer active",
+            ));
+        };
+        stream.write(bs.to_bytes()).await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
+        })
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        match self {
-            HfWriter::Regular {
-                core, path, buf, ..
-            } => {
-                // Flatten buffer
-                let mut data = Vec::new();
-                for buf in std::mem::take(buf) {
-                    data.extend_from_slice(&buf.to_bytes());
-                }
-
-                let file = Self::prepare_commit_file(path, &data);
-                let resp = core.commit_files(vec![file], vec![], vec![]).await?;
-
-                let mut meta = Metadata::default().with_content_length(data.len() as u64);
-                if let Some(commit_oid) = resp.commit_oid {
-                    meta = meta.with_version(commit_oid);
-                }
-                Ok(meta)
-            }
-            HfWriter::Xet {
-                core,
-                path,
-                commit,
-                stream,
-            } => {
-                let stream = stream.take().ok_or_else(|| {
-                    Error::new(ErrorKind::Unexpected, "xet writer already closed")
-                })?;
-
-                let file_meta = stream.finish().await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
-                })?;
-                let file_info = file_meta.xet_info;
-                let content_length = file_info
-                    .file_size()
-                    .expect("file_size must be set after finish()");
-                let meta = Metadata::default().with_content_length(content_length);
-
-                commit.commit().await.map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload").set_source(err)
-                })?;
-
-                if core.repo.repo_type == RepoType::Bucket {
-                    let xet_hash = file_info.hash().to_string();
-                    core.bucket_batch(vec![BucketOperation::AddFile {
-                        path: path.clone(),
-                        xet_hash,
-                    }])
-                    .await?;
-                    Ok(meta)
-                } else {
-                    let sha256 = file_info.sha256().ok_or_else(|| {
-                        Error::new(ErrorKind::Unexpected, "xet upload returned no sha256")
-                    })?;
-                    let lfs_file = LfsFile {
-                        path: path.clone(),
-                        oid: sha256.to_string(),
-                        algo: "sha256".to_string(),
-                        size: content_length,
-                    };
-                    let resp = core.commit_files(vec![], vec![lfs_file], vec![]).await?;
-                    Ok(if let Some(oid) = resp.commit_oid {
-                        meta.with_version(oid)
-                    } else {
-                        meta
-                    })
-                }
-            }
+        // Step 1: finish the upload stream.
+        if let CloseState::Streaming(stream) = &self.state {
+            let file_meta = stream.finish().await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
+            })?;
+            self.state = CloseState::Finished(file_meta.xet_info);
         }
+
+        // Step 2: commit data to CAS. Ignore "Already completed" on retry.
+        if let CloseState::Finished(file_info) = &self.state {
+            let file_info = file_info.clone();
+            match self.upload_commit.commit().await {
+                Ok(_) => {}
+                Err(e) if e.to_string().contains("Already completed") => {}
+                Err(e) => {
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
+                            .set_source(e),
+                    );
+                }
+            }
+            self.state = CloseState::Committed(file_info);
+        }
+
+        // Step 3: register the file with HF (LFS commit or bucket batch).
+        if let CloseState::Committed(file_info) = &self.state {
+            let file_info = file_info.clone();
+            let meta = self.register_file(&file_info).await?;
+            self.state = CloseState::Done;
+            return Ok(meta);
+        }
+
+        Err(Error::new(
+            ErrorKind::Unexpected,
+            "close called on already-completed writer",
+        ))
     }
 
     async fn abort(&mut self) -> Result<()> {
-        match self {
-            HfWriter::Regular { buf, .. } => {
-                buf.clear();
-            }
-            HfWriter::Xet { stream, .. } => {
-                if let Some(s) = stream.take() {
-                    s.abort();
-                }
-            }
+        if let CloseState::Streaming(stream) = &self.state {
+            stream.abort();
         }
+        self.state = CloseState::Done;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use base64::Engine;
-
-    #[test]
-    fn test_prepare_commit_file() {
-        let content = b"Hello, World!";
-        let file = HfWriter::prepare_commit_file("data/test.txt", content);
-
-        assert_eq!(file.path, "data/test.txt");
-        assert_eq!(file.encoding, "base64");
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(&file.content)
-            .unwrap();
-        assert_eq!(decoded, content);
-    }
-
-    #[test]
-    fn test_prepare_commit_file_empty() {
-        let file = HfWriter::prepare_commit_file("empty.bin", &[]);
-
-        assert_eq!(file.path, "empty.bin");
-        assert_eq!(file.encoding, "base64");
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(&file.content)
-            .unwrap();
-        assert!(decoded.is_empty());
-    }
+    use super::super::backend::test_utils::testing_bucket_operator;
 
     /// Bucket writes always use XET and commit via NDJSON batch — this code
     /// path is not covered by behavior tests unless run with a bucket config.
@@ -240,7 +185,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn test_bucket_write_roundtrip() {
-        let op = super::super::backend::test_utils::testing_bucket_operator();
+        let op = testing_bucket_operator();
         let path = "tests/bucket-roundtrip.bin";
         let content = b"Binary content for bucket roundtrip test";
 

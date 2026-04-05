@@ -86,8 +86,8 @@ impl HfReader {
         let refresh_url = core.repo.xet_token_url(&core.endpoint, "read");
         let refresh_headers = core.xet_token_refresh_headers();
 
-        let group = core
-            .xet_session
+        let xet_session = core.new_xet_session()?;
+        let group = xet_session
             .new_download_stream_group()
             .map_err(|err| {
                 Error::new(

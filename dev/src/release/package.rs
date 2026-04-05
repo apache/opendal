@@ -19,6 +19,7 @@ use crate::workspace_dir;
 use semver::Version;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use toml_edit::{DocumentMut, Item, TableLike};
 
 #[derive(Debug, Clone)]
 pub struct Package {
@@ -65,7 +66,7 @@ pub fn all_packages() -> Vec<Package> {
     // Integrations
     let dav_server = make_package("integrations/dav-server", "0.7.0", vec![core.clone()]);
     let object_store = make_package("integrations/object_store", "0.55.0", vec![core.clone()]);
-    let parquet = make_package("integrations/parquet", "0.7.0", vec![core.clone()]);
+    let parquet = make_package("integrations/parquet", "0.8.0", vec![core.clone()]);
     let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.0", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
@@ -93,17 +94,25 @@ pub fn all_packages() -> Vec<Package> {
 
 pub fn update_package_version(package: &Package) -> bool {
     match package.name.as_str() {
-        "core" => update_cargo_version(&package.path, &package.version),
-        "integrations/dav-server" => update_cargo_version(&package.path, &package.version),
-        "integrations/object_store" => update_cargo_version(&package.path, &package.version),
-        "integrations/parquet" => update_cargo_version(&package.path, &package.version),
-        "integrations/unftp-sbe" => update_cargo_version(&package.path, &package.version),
+        "core" => update_cargo_version(&package.path, &package.version, package.dependencies()),
+        "integrations/dav-server" => {
+            update_cargo_version(&package.path, &package.version, package.dependencies())
+        }
+        "integrations/object_store" => {
+            update_cargo_version(&package.path, &package.version, package.dependencies())
+        }
+        "integrations/parquet" => {
+            update_cargo_version(&package.path, &package.version, package.dependencies())
+        }
+        "integrations/unftp-sbe" => {
+            update_cargo_version(&package.path, &package.version, package.dependencies())
+        }
 
         "bindings/c" => false,   // C bindings has no version to update
         "bindings/cpp" => false, // C++ bindings has no version to update
         "bindings/lua" => false, // Lua bindings has no version to update
 
-        "bindings/python" => update_cargo_version(&package.path, &package.version),
+        "bindings/python" => update_cargo_version(&package.path, &package.version, &[]),
         "bindings/java" => update_maven_version(&package.path, &package.version),
         "bindings/nodejs" => update_nodejs_version(&package.path, &package.version),
 
@@ -111,28 +120,148 @@ pub fn update_package_version(package: &Package) -> bool {
     }
 }
 
-fn update_cargo_version(path: &Path, version: &Version) -> bool {
+fn update_cargo_version(path: &Path, version: &Version, dependencies: &[Package]) -> bool {
     let path = path.join("Cargo.toml");
     let manifest = std::fs::read_to_string(&path).unwrap();
-    let mut manifest = toml_edit::DocumentMut::from_str(manifest.as_str()).unwrap();
+    let mut manifest = DocumentMut::from_str(manifest.as_str()).unwrap();
+    let mut updated = update_manifest_version(&mut manifest, version, &path);
 
-    let old_version = match manifest["package"]["version"].as_str() {
-        Some(version) => Version::parse(version).unwrap(),
-        None => panic!("missing version for package: {}", path.display()),
+    for dependency in dependencies {
+        updated |= update_dependency_version(&mut manifest, dependency);
+    }
+
+    if updated {
+        std::fs::write(&path, manifest.to_string()).unwrap();
+    }
+
+    updated
+}
+
+fn update_manifest_version(manifest: &mut DocumentMut, version: &Version, path: &Path) -> bool {
+    if let Some(old_version) = manifest["package"]["version"]
+        .as_str()
+        .map(Version::parse)
+        .transpose()
+        .unwrap()
+    {
+        if &old_version != version {
+            manifest["package"]["version"] = toml_edit::value(version.to_string());
+            println!(
+                "updating version for package: {} from {} to {}",
+                path.display(),
+                old_version,
+                version
+            );
+            return true;
+        }
+
+        return false;
+    }
+
+    if let Some(old_version) = manifest["workspace"]["package"]["version"]
+        .as_str()
+        .map(Version::parse)
+        .transpose()
+        .unwrap()
+    {
+        if &old_version != version {
+            manifest["workspace"]["package"]["version"] = toml_edit::value(version.to_string());
+            println!(
+                "updating version for package: {} from {} to {}",
+                path.display(),
+                old_version,
+                version
+            );
+            return true;
+        }
+
+        return false;
+    }
+
+    panic!("missing version for package: {}", path.display());
+}
+
+fn update_dependency_version(manifest: &mut DocumentMut, dependency: &Package) -> bool {
+    let Some(crate_name) = dependency.crate_name() else {
+        return false;
     };
 
-    if &old_version != version {
-        manifest["package"]["version"] = toml_edit::value(version.to_string());
-        std::fs::write(&path, manifest.to_string()).unwrap();
-        println!(
-            "updating version for package: {} from {} to {}",
-            path.display(),
-            old_version,
-            version
-        );
-        true
-    } else {
-        false
+    update_dependency_version_in_table(manifest.as_table_mut(), crate_name, dependency)
+}
+
+fn update_dependency_version_in_table(
+    table: &mut dyn TableLike,
+    crate_name: &str,
+    dependency: &Package,
+) -> bool {
+    let mut updated = false;
+
+    for table_name in ["dependencies", "dev-dependencies", "build-dependencies"] {
+        let Some(dependencies) = table.get_mut(table_name).and_then(Item::as_table_like_mut) else {
+            continue;
+        };
+
+        updated |= update_dependency_version_in_dependencies(dependencies, crate_name, dependency);
+    }
+
+    let Some(targets) = table.get_mut("target").and_then(Item::as_table_like_mut) else {
+        return updated;
+    };
+
+    for (_, target) in targets.iter_mut() {
+        let Some(target) = target.as_table_like_mut() else {
+            continue;
+        };
+        updated |= update_dependency_version_in_table(target, crate_name, dependency);
+    }
+
+    updated
+}
+
+fn update_dependency_version_in_dependencies(
+    dependencies: &mut dyn TableLike,
+    crate_name: &str,
+    dependency: &Package,
+) -> bool {
+    let Some(entry) = dependencies.get_mut(crate_name) else {
+        return false;
+    };
+    let Some(entry) = entry.as_table_like_mut() else {
+        return false;
+    };
+    let Some("../../core") = entry.get("path").and_then(Item::as_str) else {
+        return false;
+    };
+    let Some(value) = entry.get_mut("version") else {
+        return false;
+    };
+
+    let old_version = match value.as_str() {
+        Some(version) => match Version::parse(version) {
+            Ok(version) => version,
+            Err(_) => return false,
+        },
+        None => panic!("missing dependency version for crate: {crate_name}"),
+    };
+
+    if old_version == dependency.version {
+        return false;
+    }
+
+    *value = toml_edit::value(dependency.version.to_string());
+    println!(
+        "updating dependency version for crate: {} from {} to {}",
+        crate_name, old_version, dependency.version
+    );
+    true
+}
+
+impl Package {
+    fn crate_name(&self) -> Option<&'static str> {
+        match self.name.as_str() {
+            "core" => Some("opendal"),
+            _ => None,
+        }
     }
 }
 
@@ -192,4 +321,127 @@ fn update_nodejs_version(path: &Path, version: &Version) -> bool {
     }
 
     updated
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("odev-package-{name}-{nanos}"))
+    }
+
+    #[test]
+    fn parquet_release_version_matches_manifest() {
+        let parquet = all_packages()
+            .into_iter()
+            .find(|package| package.name() == "integrations/parquet")
+            .unwrap();
+
+        assert_eq!(parquet.version, Version::parse("0.8.0").unwrap());
+    }
+
+    #[test]
+    fn update_manifest_version_supports_workspace_package_version() {
+        let mut manifest = DocumentMut::from_str(
+            r#"
+[workspace.package]
+version = "0.55.0"
+
+[package]
+name = "opendal"
+version = { workspace = true }
+"#,
+        )
+        .unwrap();
+
+        let updated = update_manifest_version(
+            &mut manifest,
+            &Version::parse("0.56.0").unwrap(),
+            Path::new("core/Cargo.toml"),
+        );
+
+        assert!(updated);
+        assert_eq!(
+            manifest["workspace"]["package"]["version"].as_str(),
+            Some("0.56.0")
+        );
+        assert!(!manifest["package"]["version"].is_str());
+    }
+
+    #[test]
+    fn update_dependency_version_only_touches_release_managed_core_constraints() {
+        let dir = temp_test_dir("dependency-sync");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let manifest_path = dir.join("Cargo.toml");
+        std::fs::write(
+            &manifest_path,
+            r#"[package]
+name = "demo"
+version = "0.8.0"
+
+[dependencies]
+opendal = { version = "0.55.0", path = "../../core" }
+serde = "1"
+
+[dev-dependencies]
+opendal = { version = "0.55.0", path = "../../core", features = ["services-memory"] }
+
+[build-dependencies]
+opendal = { version = ">=0", path = "../../core" }
+
+[target.'cfg(unix)'.dependencies]
+opendal = { version = "0.55.0", path = "../../core" }
+
+[target.'cfg(windows)'.dependencies]
+opendal = { version = "0.55.0", path = "../core" }
+"#,
+        )
+        .unwrap();
+
+        let dependency = Package {
+            name: "core".to_string(),
+            path: PathBuf::from("core"),
+            version: Version::parse("0.56.0").unwrap(),
+            dependencies: vec![],
+        };
+
+        let updated = update_cargo_version(
+            dir.as_path(),
+            &Version::parse("0.8.0").unwrap(),
+            &[dependency],
+        );
+        assert!(updated);
+
+        let manifest = std::fs::read_to_string(&manifest_path).unwrap();
+        let manifest = DocumentMut::from_str(&manifest).unwrap();
+
+        assert_eq!(
+            manifest["dependencies"]["opendal"]["version"].as_str(),
+            Some("0.56.0")
+        );
+        assert_eq!(
+            manifest["dev-dependencies"]["opendal"]["version"].as_str(),
+            Some("0.56.0")
+        );
+        assert_eq!(
+            manifest["target"]["cfg(unix)"]["dependencies"]["opendal"]["version"].as_str(),
+            Some("0.56.0")
+        );
+        assert_eq!(
+            manifest["build-dependencies"]["opendal"]["version"].as_str(),
+            Some(">=0")
+        );
+        assert_eq!(
+            manifest["target"]["cfg(windows)"]["dependencies"]["opendal"]["version"].as_str(),
+            Some("0.55.0")
+        );
+
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

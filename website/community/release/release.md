@@ -75,10 +75,13 @@ Start a [tracking issue on GitHub](https://github.com/apache/opendal/issues/new?
 
 Update the version list in the `dev/src/release/package.rs` file.
 
+This file is the source of truth for the split source release layout. Each entry in this list produces an independent source archive named `apache-opendal-{package}-{version}-src.tar.gz`.
+
 For example:
 
 - If there is any breaking change, please bump the `minor` version instead of the `patch` version.
-- If this package is not ready for release, please skip.
+- If this package is not ready for release, please skip it from the release list.
+- Packages that have moved to separate repositories must not be included here.
 
 ## GitHub Side
 
@@ -103,7 +106,7 @@ Running `python3 ./scripts/dependencies.py generate` to update the dependency li
 
 ### Push release candidate tag
 
-After bump version PR gets merged, we can create a GitHub release for the release candidate:
+After bump version PR gets merged, push the release candidate tag:
 
 - Create a tag at `main` branch on the `Bump Version` / `Patch up version` commit: `git tag -s "v0.46.0-rc.1"`, please correctly check out the corresponding commit instead of directly tagging on the main branch.
 - Push tags to GitHub: `git push --tags`.
@@ -111,17 +114,18 @@ After bump version PR gets merged, we can create a GitHub release for the releas
 
 :::note
 
-Pushing a Git tag to GitHub repo will trigger a GitHub Actions workflow that creates a staging Maven release on https://repository.apache.org which can be verified on voting.
+Pushing an RC tag to GitHub will trigger the tag-based release workflows. In the current flow, this includes the Java staging artifacts on https://repository.apache.org and dry-run checks for other released packages.
 
 :::
 
 ### Check the GitHub action status
 
-After pushing the tag, we need to check the GitHub action status to make sure the release candidate is created successfully.
+After pushing the tag, check the GitHub action status to make sure the RC workflows finished successfully.
 
-- Python: [Bindings Python CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_python.yml)
+- Rust packages: [Release Rust Packages](https://github.com/apache/opendal/actions/workflows/release_rust.yml)
 - Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
-- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_nodejs.yml)
+- Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_nodejs.yml) and [Release NodeJS Binding](https://github.com/apache/opendal/actions/workflows/release_nodejs.yml)
+- Docs: [Docs](https://github.com/apache/opendal/actions/workflows/docs.yml)
 
 In the most cases, it would be great to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
 
@@ -135,15 +139,17 @@ Additionally, we should also drop the staging Maven artifacts on https://reposit
 
 ### Create an ASF Release
 
-After GitHub Release has been created, we can start to create ASF Release.
+After the RC tag has been pushed and the required workflows are green, create the ASF source release artifacts.
 
 - Checkout to released tag. (e.g. `git checkout v0.46.0-rc.1`, tag is created in the previous step)
 - Use the release script to create a new release: `just release`
-  - This script will generate the release candidate artifacts under `dist`, including:
+  - This script will generate the release candidate artifacts under `dist` for every package listed in `dev/src/release/package.rs`, including:
     - `apache-opendal-{package}-{version}-src.tar.gz`
     - `apache-opendal-{package}-{version}-src.tar.gz.asc`
     - `apache-opendal-{package}-{version}-src.tar.gz.sha512`
-- Push the newly created branch to GitHub
+  - Artifact names use each package's own version. The RC version is only used for the SVN directory name, such as `0.55.0-rc.1/`.
+  - Each archive contains `LICENSE`, `NOTICE`, the package directory itself, and any repo-local dependencies needed to build that package from source.
+  - This repository no longer produces a monolithic `apache-opendal-${opendal_version}-src.tar.gz` artifact or any `apache-opendal-bin-*` artifacts.
 
 This script will create a new release under `dist`.
 
@@ -151,21 +157,36 @@ For example:
 
 ```shell
 dist
-├── apache-opendal-bindings-c-0.44.2-src.tar.gz
-├── apache-opendal-bindings-c-0.44.2-src.tar.gz.asc
-├── apache-opendal-bindings-c-0.44.2-src.tar.gz.sha512
-...
-├── apache-opendal-core-0.45.0-src.tar.gz
-├── apache-opendal-core-0.45.0-src.tar.gz.asc
-├── apache-opendal-core-0.45.0-src.tar.gz.sha512
-├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz
-├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz.asc
-├── apache-opendal-integrations-dav-server-0.0.0-src.tar.gz.sha512
-├── apache-opendal-integrations-object_store-0.42.0-src.tar.gz
-├── apache-opendal-integrations-object_store-0.42.0-src.tar.gz.asc
-└── apache-opendal-integrations-object_store-0.42.0-src.tar.gz.sha512
-
-1 directory, 60 files
+├── apache-opendal-bindings-c-${c_version}-src.tar.gz
+├── apache-opendal-bindings-c-${c_version}-src.tar.gz.asc
+├── apache-opendal-bindings-c-${c_version}-src.tar.gz.sha512
+├── apache-opendal-bindings-cpp-${cpp_version}-src.tar.gz
+├── apache-opendal-bindings-cpp-${cpp_version}-src.tar.gz.asc
+├── apache-opendal-bindings-cpp-${cpp_version}-src.tar.gz.sha512
+├── apache-opendal-bindings-java-${java_version}-src.tar.gz
+├── apache-opendal-bindings-java-${java_version}-src.tar.gz.asc
+├── apache-opendal-bindings-java-${java_version}-src.tar.gz.sha512
+├── apache-opendal-bindings-nodejs-${nodejs_version}-src.tar.gz
+├── apache-opendal-bindings-nodejs-${nodejs_version}-src.tar.gz.asc
+├── apache-opendal-bindings-nodejs-${nodejs_version}-src.tar.gz.sha512
+├── apache-opendal-bindings-python-${python_version}-src.tar.gz
+├── apache-opendal-bindings-python-${python_version}-src.tar.gz.asc
+├── apache-opendal-bindings-python-${python_version}-src.tar.gz.sha512
+├── apache-opendal-core-${core_version}-src.tar.gz
+├── apache-opendal-core-${core_version}-src.tar.gz.asc
+├── apache-opendal-core-${core_version}-src.tar.gz.sha512
+├── apache-opendal-integrations-dav-server-${dav_server_version}-src.tar.gz
+├── apache-opendal-integrations-dav-server-${dav_server_version}-src.tar.gz.asc
+├── apache-opendal-integrations-dav-server-${dav_server_version}-src.tar.gz.sha512
+├── apache-opendal-integrations-object_store-${object_store_version}-src.tar.gz
+├── apache-opendal-integrations-object_store-${object_store_version}-src.tar.gz.asc
+├── apache-opendal-integrations-object_store-${object_store_version}-src.tar.gz.sha512
+├── apache-opendal-integrations-parquet-${parquet_version}-src.tar.gz
+├── apache-opendal-integrations-parquet-${parquet_version}-src.tar.gz.asc
+├── apache-opendal-integrations-parquet-${parquet_version}-src.tar.gz.sha512
+├── apache-opendal-integrations-unftp-sbe-${unftp_sbe_version}-src.tar.gz
+├── apache-opendal-integrations-unftp-sbe-${unftp_sbe_version}-src.tar.gz.asc
+└── apache-opendal-integrations-unftp-sbe-${unftp_sbe_version}-src.tar.gz.sha512
 ```
 
 ### Upload artifacts to the SVN dist repo
@@ -249,9 +270,9 @@ Hello, Apache OpenDAL Community,
 
 This is a call for a vote to release Apache OpenDAL version ${opendal_version}.
 
-The tag to be voted on is ${opendal_version}.
+The tag to be voted on is v${release_version}.
 
-The release candidate:
+The release candidate source packages:
 
 https://dist.apache.org/repos/dist/dev/opendal/${release_version}/
 

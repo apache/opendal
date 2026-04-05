@@ -833,6 +833,15 @@ impl S3Core {
         req = self.insert_sse_headers(req, true);
 
         // Set checksum type headers.
+        // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
+        // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+        if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "checksum_algorithm \"md5\" is not supported for multipart uploads. \
+                 S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
+            ));
+        }
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
@@ -891,6 +900,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -912,6 +922,14 @@ impl S3Core {
         req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
         req = req.header(CONTENT_TYPE, "application/xml");
+
+        // Set conditional write headers.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);

@@ -225,7 +225,6 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        // Buckets use HEAD on resolve URL for files; dirs always succeed.
         if self.core.repo.repo_type == RepoType::Bucket {
             if path.ends_with('/') {
                 return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
@@ -251,8 +250,6 @@ impl Access for HfBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        // Bucket tree API returns flat file entries; always list recursively
-        // and use HierarchyLister to restore directory structure.
         let recursive = if self.core.repo.repo_type == RepoType::Bucket {
             true
         } else {
@@ -292,9 +289,6 @@ pub(super) mod test_utils {
     use opendal_core::layers::HttpClientLayer;
     use opendal_core::raw::HttpClient;
 
-    /// Create an operator with a fresh HTTP client so parallel tests
-    /// don't share the global static reqwest client (which causes
-    /// "dispatch task is gone" errors when runtimes are dropped).
     fn finish_operator(op: Operator) -> Operator {
         let client = HttpClient::with(reqwest::Client::new());
         op.layer(HttpClientLayer::new(client))
@@ -311,7 +305,6 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
-    /// Public dataset known to contain XET-stored files (no credentials required).
     pub fn mbpp_operator() -> Operator {
         let op = Operator::new(
             HfBuilder::default()
@@ -323,7 +316,6 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
-    /// Operator for a bucket (requires HF_OPENDAL_BUCKET and HF_OPENDAL_TOKEN).
     pub fn testing_bucket_operator() -> Operator {
         let repo_id =
             std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");

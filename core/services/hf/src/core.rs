@@ -421,7 +421,6 @@ impl HfCore {
         self.send(req).await?;
         Ok(())
     }
-
 }
 
 #[cfg(test)]

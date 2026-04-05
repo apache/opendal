@@ -120,11 +120,14 @@ impl HfWriter {
 
         let repo_path = self.core.repo_path(&self.path);
         if self.core.repo.repo_type == RepoType::Bucket {
+            // Bucket batch API rejects paths ending with '/'; strip it
+            // for directory-marker writes from SimulateLayer's create_dir.
+            let bucket_path = repo_path.trim_end_matches('/').to_string();
             let xet_hash = file_info.hash().to_string();
             let op = || async {
                 self.core
                     .bucket_batch(vec![BucketOperation::AddFile {
-                        path: repo_path.clone(),
+                        path: bucket_path.clone(),
                         xet_hash: xet_hash.clone(),
                     }])
                     .await

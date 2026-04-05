@@ -79,6 +79,7 @@ pub(super) struct MixedCommitPayload {
 
 #[derive(serde::Deserialize, Debug)]
 pub(super) struct CommitResponse {
+    #[allow(dead_code)]
     #[serde(rename = "commitOid")]
     pub commit_oid: Option<String>,
     #[allow(dead_code)]

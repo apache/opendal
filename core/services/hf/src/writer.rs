@@ -30,7 +30,7 @@ where
     F: Fn() -> Fut,
     Fut: std::future::Future<Output = Result<T>>,
 {
-    let delays = [500, 1000, 2000];
+    let delays = [1000, 2000, 4000, 8000];
     let mut last_err = None;
     for (i, delay_ms) in std::iter::once(&0).chain(delays.iter()).enumerate() {
         if i > 0 {
@@ -146,12 +146,8 @@ impl HfWriter {
                     .commit_files(vec![], vec![lfs_file], vec![])
                     .await
             };
-            let resp = retry_on_cas_delay(op).await?;
-            Ok(if let Some(oid) = resp.commit_oid {
-                meta.with_version(oid)
-            } else {
-                meta
-            })
+            retry_on_cas_delay(op).await?;
+            Ok(meta)
         }
     }
 }

@@ -92,6 +92,8 @@ moka = { version = "0.12", optional = true, features = ["sync"] }
 jiff = { version = "0.2.15", features = ["serde", "js"] }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 web-time = { version = "1.1.0" }
 
 [dev-dependencies]

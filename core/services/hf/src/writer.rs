@@ -118,9 +118,7 @@ impl HfWriter {
             .expect("file_size must be set after finish()");
         let meta = Metadata::default().with_content_length(content_length);
 
-        // Bucket paths must not end with '/'; strip it for directory-marker writes
-        // created by the SimulateLayer's create_dir implementation.
-        let repo_path = self.core.repo_path(self.path.trim_end_matches('/'));
+        let repo_path = self.core.repo_path(&self.path);
         if self.core.repo.repo_type == RepoType::Bucket {
             let xet_hash = file_info.hash().to_string();
             let op = || async {

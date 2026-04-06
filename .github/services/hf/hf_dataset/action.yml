@@ -15,36 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: huggingface_dataset
+name: hf_dataset
 description: "Behavior test for Huggingface Dataset (read/write)"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup secrets
+    - name: Setup
       uses: 1password/load-secrets-action@13f58eec611f8e5db52ec16247f58c508398f3e6 # v3
       with:
         export-env: true
       env:
-        HF_TOKEN: op://services/hf/token
-        HF_OWNER: op://services/hf/owner
-    - name: Install hf CLI
-      shell: bash
-      run: curl -LsSf https://hf.co/cli/install.sh | bash
-    - name: Create ephemeral dataset
+        OPENDAL_HF_TOKEN: op://services/hf/token
+        OPENDAL_HF_REPO_ID: op://services/hf/dataset_repo_id
+    - name: Setup env
       shell: bash
       run: |
-        REPO_ID="${HF_OWNER}/opendal-ci-dataset-${GITHUB_RUN_ID}"
-        hf repos create "${REPO_ID}" --repo-type dataset --private
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HF_REPO_TYPE=dataset
-        OPENDAL_HF_REPO_ID=${REPO_ID}
-        OPENDAL_HF_TOKEN=${HF_TOKEN}
         RUST_TEST_THREADS=1
         EOF
-    - name: Cleanup ephemeral dataset
-      if: always()
-      shell: bash
-      run: |
-        REPO_ID="${HF_OWNER}/opendal-ci-dataset-${GITHUB_RUN_ID}"
-        hf repos delete "${REPO_ID}" --repo-type dataset --yes || true

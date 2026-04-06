@@ -79,7 +79,7 @@ impl HfWriter {
         let meta = Metadata::default().with_content_length(content_length);
 
         let repo_path = self.core.repo_path(&self.path);
-        if self.core.is_bucket() {
+        if self.core.repo.is_bucket() {
             let xet_hash = file_info.hash().to_string();
             self.core
                 .commit_bucket(vec![BucketOperation::AddFile {

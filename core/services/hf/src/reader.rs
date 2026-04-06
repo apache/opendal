@@ -41,7 +41,7 @@ impl HfReader {
             return Self::try_new_xet(core, &xet_file, range).await;
         }
 
-        if core.is_bucket() {
+        if core.repo.is_bucket() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "bucket file is missing XET metadata",

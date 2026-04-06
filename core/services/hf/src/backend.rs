@@ -195,24 +195,10 @@ pub struct HfBackend {
     pub(crate) core: Arc<HfCore>,
 }
 
-pub enum HfListerWrapper {
-    Page(oio::PageLister<HfLister>),
-    Hierarchy(oio::HierarchyLister<oio::PageLister<HfLister>>),
-}
-
-impl oio::List for HfListerWrapper {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        match self {
-            Self::Page(l) => l.next().await,
-            Self::Hierarchy(l) => l.next().await,
-        }
-    }
-}
-
 impl Access for HfBackend {
     type Reader = HfReader;
     type Writer = HfWriter;
-    type Lister = HfListerWrapper;
+    type Lister = oio::PageLister<HfLister>;
     type Deleter = oio::BatchDeleter<HfDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
@@ -225,7 +211,7 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        if self.core.is_bucket() {
+        if self.core.repo.is_bucket() {
             if path.ends_with('/') {
                 return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
             }
@@ -250,21 +236,8 @@ impl Access for HfBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let recursive = if self.core.is_bucket() {
-            true
-        } else {
-            args.recursive()
-        };
-        let lister = HfLister::new(self.core.clone(), path.to_string(), recursive);
-        let lister = oio::PageLister::new(lister);
-        if self.core.is_bucket() && !args.recursive() {
-            Ok((
-                RpList::default(),
-                HfListerWrapper::Hierarchy(oio::HierarchyLister::new(lister, path, false)),
-            ))
-        } else {
-            Ok((RpList::default(), HfListerWrapper::Page(lister)))
-        }
+        let lister = HfLister::new(self.core.clone(), path.to_string(), args.recursive());
+        Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 
     async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {

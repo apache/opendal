@@ -30,7 +30,7 @@ use xet::xet_session::{
 };
 
 use super::error::parse_error;
-use super::uri::{HfRepo, HfRepoType, HfUri};
+use super::uri::{HfRepo, HfUri};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -96,6 +96,7 @@ pub(super) struct PathInfo {
     pub type_: String,
     #[serde(default)]
     pub oid: Option<String>,
+    #[serde(default)]
     pub size: u64,
     #[serde(default)]
     pub lfs: Option<LfsInfo>,
@@ -294,11 +295,6 @@ impl HfCore {
             }
         }
         req
-    }
-
-    /// Whether this backend targets a bucket repo (as opposed to a git-based repo).
-    pub(super) fn is_bucket(&self) -> bool {
-        self.repo.repo_type == HfRepoType::Bucket
     }
 
     /// Build an [`HfUri`] for the given operator-relative path.

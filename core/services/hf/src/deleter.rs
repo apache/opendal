@@ -36,7 +36,7 @@ impl HfDeleter {
             return Ok(());
         }
 
-        let result = if self.core.is_bucket() {
+        let result = if self.core.repo.is_bucket() {
             let ops = paths
                 .into_iter()
                 .map(|path| BucketOperation::DeleteFile { path })

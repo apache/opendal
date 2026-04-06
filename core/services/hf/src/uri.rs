@@ -84,6 +84,11 @@ impl HfRepo {
         }
     }
 
+    /// Whether this repo is a bucket (as opposed to a git-based repo).
+    pub fn is_bucket(&self) -> bool {
+        self.repo_type == HfRepoType::Bucket
+    }
+
     /// Return the revision, defaulting to "main" if unset.
     pub fn revision(&self) -> &str {
         self.revision.as_deref().unwrap_or("main")
@@ -300,29 +305,29 @@ impl HfUri {
 
     /// Build the file tree API URL for this URI.
     pub fn file_tree_url(&self, endpoint: &str, recursive: bool, cursor: Option<&str>) -> String {
-        let mut url = match self.repo.repo_type {
-            HfRepoType::Bucket => {
-                format!(
-                    "{}/api/buckets/{}/tree/{}?expand=True",
-                    endpoint,
-                    &self.repo.repo_id,
-                    percent_encode_path(&self.path),
-                )
-            }
-            _ => {
-                format!(
-                    "{}/api/{}/{}/tree/{}/{}?expand=True",
-                    endpoint,
-                    self.repo.repo_type.as_plural_str(),
-                    &self.repo.repo_id,
-                    percent_encode_revision(self.revision()),
-                    percent_encode_path(&self.path),
-                )
-            }
+        let mut url = if self.repo.is_bucket() {
+            format!(
+                "{}/api/buckets/{}/tree/{}?expand=True",
+                endpoint,
+                &self.repo.repo_id,
+                percent_encode_path(&self.path),
+            )
+        } else {
+            format!(
+                "{}/api/{}/{}/tree/{}/{}?expand=True",
+                endpoint,
+                self.repo.repo_type.as_plural_str(),
+                &self.repo.repo_id,
+                percent_encode_revision(self.revision()),
+                percent_encode_path(&self.path),
+            )
         };
 
         if recursive {
             url.push_str("&recursive=True");
+        } else if self.repo.is_bucket() {
+            // Bucket tree API defaults to recursive; must opt out explicitly.
+            url.push_str("&recursive=false");
         }
 
         if let Some(cursor_val) = cursor {

@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use super::core::{BucketOperation, HfCore, LfsFile};
-use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload, XetUploadCommit};
@@ -81,7 +80,7 @@ impl HfWriter {
         let meta = Metadata::default().with_content_length(content_length);
 
         let repo_path = self.core.repo_path(&self.path);
-        if self.core.repo.repo_type == RepoType::Bucket {
+        if self.core.is_bucket() {
             let xet_hash = file_info.hash().to_string();
             self.core
                 .commit_bucket(vec![BucketOperation::AddFile {

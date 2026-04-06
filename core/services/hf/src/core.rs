@@ -290,6 +290,10 @@ impl HfCore {
         req
     }
 
+    pub(super) fn is_bucket(&self) -> bool {
+        self.repo.repo_type == super::uri::RepoType::Bucket
+    }
+
     pub(super) fn uri(&self, path: &str) -> super::uri::HfUri {
         self.repo.uri(&self.root, path)
     }

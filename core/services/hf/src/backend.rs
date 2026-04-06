@@ -225,7 +225,7 @@ impl Access for HfBackend {
             return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
         }
 
-        if self.core.repo.repo_type == RepoType::Bucket {
+        if self.core.is_bucket() {
             if path.ends_with('/') {
                 return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
             }
@@ -250,14 +250,14 @@ impl Access for HfBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let recursive = if self.core.repo.repo_type == RepoType::Bucket {
+        let recursive = if self.core.is_bucket() {
             true
         } else {
             args.recursive()
         };
         let lister = HfLister::new(self.core.clone(), path.to_string(), recursive);
         let lister = oio::PageLister::new(lister);
-        if self.core.repo.repo_type == RepoType::Bucket && !args.recursive() {
+        if self.core.is_bucket() && !args.recursive() {
             Ok((
                 RpList::default(),
                 HfListerWrapper::Hierarchy(oio::HierarchyLister::new(lister, path, false)),

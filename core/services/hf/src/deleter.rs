@@ -18,7 +18,6 @@
 use std::sync::Arc;
 
 use super::core::{BucketOperation, DeletedFile, HfCore};
-use super::uri::RepoType;
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -37,7 +36,7 @@ impl HfDeleter {
             return Ok(());
         }
 
-        let result = if self.core.repo.repo_type == RepoType::Bucket {
+        let result = if self.core.is_bucket() {
             let ops = paths
                 .into_iter()
                 .map(|path| BucketOperation::DeleteFile { path })

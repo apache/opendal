@@ -22,7 +22,6 @@ use http::header;
 use xet::xet_session::{SessionError, XetDownloadStream, XetFileInfo};
 
 use super::core::HfCore;
-use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -42,7 +41,7 @@ impl HfReader {
             return Self::try_new_xet(core, &xet_file, range).await;
         }
 
-        if core.repo.repo_type == RepoType::Bucket {
+        if core.is_bucket() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "bucket file is missing XET metadata",

@@ -282,19 +282,31 @@ impl HfCore {
     }
 
     /// Build an authenticated HTTP request.
+    ///
+    /// Returns `PermissionDenied` for write operations when no token
+    /// is configured.
     pub(super) fn request(
         &self,
         method: http::Method,
         url: &str,
         op: Operation,
-    ) -> http::request::Builder {
+    ) -> Result<http::request::Builder> {
         let mut req = Request::builder().method(method).uri(url).extension(op);
-        if let Some(token) = &self.token {
-            if let Ok(auth) = format_authorization_by_bearer(token) {
-                req = req.header(header::AUTHORIZATION, auth);
+        match &self.token {
+            Some(token) => {
+                if let Ok(auth) = format_authorization_by_bearer(token) {
+                    req = req.header(header::AUTHORIZATION, auth);
+                }
             }
+            None if matches!(op, Operation::Write | Operation::Delete) => {
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
+                    "token is required for write operations",
+                ));
+            }
+            None => {}
         }
-        req
+        Ok(req)
     }
 
     /// Build an [`HfUri`] for the given operator-relative path.
@@ -311,7 +323,7 @@ impl HfCore {
     }
 
     /// Send a request and return the successful response or a parsed error.
-    pub(super) async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         let resp = self.info.http_client().send(req).await?;
         if resp.status().is_success() {
             Ok(resp)
@@ -339,7 +351,7 @@ impl HfCore {
         let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Stat)
+            .request(http::Method::POST, &url, Operation::Stat)?
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(Bytes::from(form_body)))
             .map_err(new_request_build_error)?;
@@ -364,7 +376,7 @@ impl HfCore {
         let url = uri.resolve_url(&self.endpoint);
 
         let req = self
-            .request(http::Method::HEAD, &url, Operation::Stat)
+            .request(http::Method::HEAD, &url, Operation::Stat)?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -404,14 +416,6 @@ impl HfCore {
         lfs_files: Vec<LfsFile>,
         deleted_files: Vec<DeletedFile>,
     ) -> Result<CommitResponse> {
-        let _token = self.token.as_deref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::PermissionDenied,
-                "token is required for commit operations",
-            )
-            .with_operation("commit")
-        })?;
-
         let first_path = regular_files
             .first()
             .map(|f| f.path.as_str())
@@ -432,7 +436,7 @@ impl HfCore {
         let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Write)
+            .request(http::Method::POST, &url, Operation::Write)?
             .header(header::CONTENT_TYPE, "application/json")
             .header(header::CONTENT_LENGTH, json_body.len())
             .body(Buffer::from(json_body))
@@ -446,14 +450,6 @@ impl HfCore {
     ///
     /// Counterpart of [`commit_git`](Self::commit_git) for git-based repos.
     pub(super) async fn commit_bucket(&self, operations: Vec<BucketOperation>) -> Result<()> {
-        let _token = self.token.as_deref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::PermissionDenied,
-                "token is required for bucket operations",
-            )
-            .with_operation("commit_bucket")
-        })?;
-
         if operations.is_empty() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -471,7 +467,7 @@ impl HfCore {
         }
 
         let req = self
-            .request(http::Method::POST, &url, Operation::Write)
+            .request(http::Method::POST, &url, Operation::Write)?
             .header(header::CONTENT_TYPE, "application/x-ndjson")
             .header(header::CONTENT_LENGTH, body.len())
             .body(Buffer::from(Bytes::from(body)))

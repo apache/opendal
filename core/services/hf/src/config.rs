@@ -42,7 +42,6 @@ pub struct HfConfig {
     /// Root of this backend. Can be "/path/to/dir".
     ///
     /// Default is "/".
-    /// TODO(kszucs): consider removing it
     pub root: Option<String>,
     /// Token of this backend.
     ///

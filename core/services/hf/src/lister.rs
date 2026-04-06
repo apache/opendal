@@ -86,7 +86,7 @@ impl HfLister {
 
         let req = self
             .core
-            .request(http::Method::GET, &url, Operation::List)
+            .request(http::Method::GET, &url, Operation::List)?
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         let (parts, files) = self.core.send_parse::<Vec<PathInfo>>(req).await?;

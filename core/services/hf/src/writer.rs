@@ -20,6 +20,7 @@ use std::sync::Arc;
 use super::core::{BucketOperation, HfCore, LfsFile};
 use opendal_core::raw::*;
 use opendal_core::*;
+use xet::error::XetError;
 use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload, XetUploadCommit};
 
 /// Writer that always uses the XET protocol for uploads.
@@ -27,7 +28,7 @@ pub struct HfWriter {
     core: Arc<HfCore>,
     path: String,
     xet_commit: XetUploadCommit,
-    xet_stream: Option<XetStreamUpload>,
+    xet_stream: XetStreamUpload,
 }
 
 impl HfWriter {
@@ -50,7 +51,7 @@ impl HfWriter {
             core,
             path,
             xet_commit: commit,
-            xet_stream: Some(stream),
+            xet_stream: stream,
         })
     }
 
@@ -61,11 +62,10 @@ impl HfWriter {
     ///
     /// Retries on transient CAS propagation delays.
     async fn commit(&mut self, file_info: &XetFileInfo) -> Result<Metadata> {
-        // Finalize the XET CAS upload. May return "Already completed"
+        // Finalize the XET CAS upload. May return AlreadyCompleted
         // if stream.finish() already committed internally.
         match self.xet_commit.commit().await {
-            Ok(_) => {}
-            Err(e) if e.to_string().contains("Already completed") => {}
+            Ok(_) | Err(XetError::AlreadyCompleted) => {}
             Err(e) => {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "failed to commit xet upload").set_source(e),
@@ -106,20 +106,13 @@ impl HfWriter {
 
 impl oio::Write for HfWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let stream = self.xet_stream.as_ref().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-        stream.write(bs.to_bytes()).await.map_err(|err| {
+        self.xet_stream.write(bs.to_bytes()).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
         })
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let stream = self.xet_stream.take().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        let file_meta = stream.finish().await.map_err(|err| {
+        let file_meta = self.xet_stream.finish().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
         })?;
 
@@ -127,9 +120,7 @@ impl oio::Write for HfWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let Some(stream) = self.xet_stream.take() {
-            stream.abort();
-        }
+        self.xet_stream.abort();
         Ok(())
     }
 }

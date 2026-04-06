@@ -56,7 +56,7 @@ impl HfReader {
         let uri = core.uri(path);
         let url = uri.resolve_url(&core.endpoint);
 
-        let mut req = core.request(http::Method::GET, &url, Operation::Read);
+        let mut req = core.request(http::Method::GET, &url, Operation::Read)?;
 
         if !range.is_full() {
             req = req.header(header::RANGE, range.to_header());

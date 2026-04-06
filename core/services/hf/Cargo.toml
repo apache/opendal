@@ -31,9 +31,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-async-trait = "0.1"
 bytes = { workspace = true }
-futures = { workspace = true }
 hf-xet = "1.5.0"
 http = { workspace = true }
 log = { workspace = true }
@@ -46,6 +44,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
+futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.55.0", features = [
   "reqwest-rustls-tls",
 ] }

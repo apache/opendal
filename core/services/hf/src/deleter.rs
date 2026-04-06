@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::{BucketOperation, DeletedFile, HfCore};
+use super::core::{BucketOperation, DeletedFile, DeletedFolder, HfCore};
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -43,9 +43,18 @@ impl HfDeleter {
                 .collect();
             self.core.commit_bucket(ops).await.map(|_| ())
         } else {
-            let deleted_files = paths.into_iter().map(|path| DeletedFile { path }).collect();
+            // Git commit API distinguishes file and folder deletions.
+            let mut deleted_files = Vec::new();
+            let mut deleted_folders = Vec::new();
+            for path in paths {
+                if path.ends_with('/') {
+                    deleted_folders.push(DeletedFolder { path });
+                } else {
+                    deleted_files.push(DeletedFile { path });
+                }
+            }
             self.core
-                .commit_git(vec![], vec![], deleted_files)
+                .commit_git(vec![], vec![], deleted_files, deleted_folders)
                 .await
                 .map(|_| ())
         };

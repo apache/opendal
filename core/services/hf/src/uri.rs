@@ -149,6 +149,17 @@ impl HfRepo {
     pub fn bucket_batch_url(&self, endpoint: &str) -> String {
         format!("{}/api/buckets/{}/batch", endpoint, &self.repo_id)
     }
+
+    /// Build the git commit API URL for this repository.
+    pub fn git_commit_url(&self, endpoint: &str) -> String {
+        format!(
+            "{}/api/{}/{}/commit/{}",
+            endpoint,
+            self.repo_type.as_plural_str(),
+            &self.repo_id,
+            percent_encode_revision(self.revision()),
+        )
+    }
 }
 
 /// Parsed Hugging Face URI following the official format:
@@ -335,27 +346,6 @@ impl HfUri {
         }
 
         url
-    }
-
-    /// Build the commit API URL for this URI.
-    pub fn commit_url(&self, endpoint: &str) -> String {
-        // Split repo_id into namespace and repo (e.g., "user/repo" -> "user", "repo")
-        let parts: Vec<&str> = self.repo.repo_id.splitn(2, '/').collect();
-        let (namespace, repo) = if parts.len() == 2 {
-            (parts[0], parts[1])
-        } else {
-            // Handle case where repo_id doesn't contain a slash (shouldn't happen normally)
-            ("", self.repo.repo_id.as_str())
-        };
-
-        format!(
-            "{}/api/{}/{}/{}/commit/{}",
-            endpoint,
-            self.repo.repo_type.as_plural_str(),
-            namespace,
-            repo,
-            percent_encode_revision(self.revision()),
-        )
     }
 }
 

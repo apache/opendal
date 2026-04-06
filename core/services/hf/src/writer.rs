@@ -97,7 +97,9 @@ impl HfWriter {
                 algo: "sha256".to_string(),
                 size: content_length,
             };
-            self.core.commit_git(vec![], vec![lfs_file], vec![]).await?;
+            self.core
+                .commit_git(vec![], vec![lfs_file], vec![], vec![])
+                .await?;
         }
 
         Ok(meta)

@@ -55,6 +55,11 @@ pub(super) struct DeletedFile {
     pub path: String,
 }
 
+#[derive(Clone, Debug, serde::Serialize)]
+pub(super) struct DeletedFolder {
+    pub path: String,
+}
+
 /// Bucket batch operation payload structures
 #[derive(Debug, serde::Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -75,6 +80,8 @@ pub(super) struct MixedCommitPayload {
     pub lfs_files: Vec<LfsFile>,
     #[serde(rename = "deletedFiles", skip_serializing_if = "Vec::is_empty")]
     pub deleted_files: Vec<DeletedFile>,
+    #[serde(rename = "deletedFolders", skip_serializing_if = "Vec::is_empty")]
+    pub deleted_folders: Vec<DeletedFolder>,
 }
 
 // API response types
@@ -415,22 +422,16 @@ impl HfCore {
         regular_files: Vec<CommitFile>,
         lfs_files: Vec<LfsFile>,
         deleted_files: Vec<DeletedFile>,
+        deleted_folders: Vec<DeletedFolder>,
     ) -> Result<CommitResponse> {
-        let first_path = regular_files
-            .first()
-            .map(|f| f.path.as_str())
-            .or_else(|| lfs_files.first().map(|f| f.path.as_str()))
-            .or_else(|| deleted_files.first().map(|f| f.path.as_str()))
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "no files to commit"))?;
-
-        let uri = self.uri(first_path);
-        let url = uri.commit_url(&self.endpoint);
+        let url = self.repo.git_commit_url(&self.endpoint);
 
         let payload = MixedCommitPayload {
             summary: "Commit via OpenDAL".to_string(),
             files: regular_files,
             lfs_files,
             deleted_files,
+            deleted_folders,
         };
 
         let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;

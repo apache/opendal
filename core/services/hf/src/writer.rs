@@ -68,8 +68,7 @@ impl HfWriter {
             Err(e) if e.to_string().contains("Already completed") => {}
             Err(e) => {
                 return Err(
-                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
-                        .set_source(e),
+                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload").set_source(e),
                 );
             }
         }

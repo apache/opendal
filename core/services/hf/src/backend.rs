@@ -25,7 +25,7 @@ use super::core::HfCore;
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
 use super::reader::HfReader;
-use super::uri::{HfRepo, RepoType};
+use super::uri::{HfRepo, HfRepoType};
 use super::writer::HfWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -50,7 +50,7 @@ impl HfBuilder {
     /// [Reference](https://huggingface.co/docs/hub/repositories)
     pub fn repo_type(mut self, repo_type: &str) -> Self {
         if !repo_type.is_empty() {
-            if let Ok(rt) = RepoType::parse(repo_type) {
+            if let Ok(rt) = HfRepoType::parse(repo_type) {
                 self.config.repo_type = rt;
             }
         }
@@ -317,8 +317,7 @@ pub(super) mod test_utils {
     }
 
     pub fn testing_bucket_operator() -> Operator {
-        let repo_id =
-            std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
+        let repo_id = std::env::var("HF_OPENDAL_BUCKET").expect("HF_OPENDAL_BUCKET must be set");
         let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
         let op = Operator::new(
             HfBuilder::default()

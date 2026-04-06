@@ -26,7 +26,7 @@ use opendal_core::raw::*;
 /// [Reference](https://huggingface.co/docs/hub/repositories)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum RepoType {
+pub enum HfRepoType {
     #[default]
     Model,
     Dataset,
@@ -34,7 +34,7 @@ pub enum RepoType {
     Bucket,
 }
 
-impl RepoType {
+impl HfRepoType {
     pub fn parse(s: &str) -> opendal_core::Result<Self> {
         match s.to_lowercase().replace(' ', "").as_str() {
             "model" | "models" => Ok(Self::Model),
@@ -70,13 +70,13 @@ impl RepoType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HfRepo {
-    pub repo_type: RepoType,
+    pub repo_type: HfRepoType,
     pub repo_id: String,
     pub revision: Option<String>,
 }
 
 impl HfRepo {
-    pub fn new(repo_type: RepoType, repo_id: String, revision: Option<String>) -> Self {
+    pub fn new(repo_type: HfRepoType, repo_id: String, revision: Option<String>) -> Self {
         Self {
             repo_type,
             repo_id,
@@ -103,7 +103,7 @@ impl HfRepo {
     /// Build the paths-info API URL for this repository.
     pub fn paths_info_url(&self, endpoint: &str) -> String {
         match self.repo_type {
-            RepoType::Bucket => {
+            HfRepoType::Bucket => {
                 format!("{}/api/buckets/{}/paths-info", endpoint, &self.repo_id)
             }
             _ => {
@@ -121,7 +121,7 @@ impl HfRepo {
     /// Build the XET token API URL for this repository.
     pub fn xet_token_url(&self, endpoint: &str, token_type: &str) -> String {
         match self.repo_type {
-            RepoType::Bucket => {
+            HfRepoType::Bucket => {
                 format!(
                     "{}/api/buckets/{}/xet-{}-token",
                     endpoint, &self.repo_id, token_type
@@ -173,20 +173,20 @@ impl HfUri {
 
         // Strip repo_type prefix if present (e.g. "datasets/user/repo" → "user/repo")
         let repo_type = if let Some((first, rest)) = path.split_once('/') {
-            if let Ok(rt) = RepoType::parse(first) {
+            if let Ok(rt) = HfRepoType::parse(first) {
                 path = rest.to_string();
                 rt
             } else {
-                RepoType::Model
+                HfRepoType::Model
             }
-        } else if RepoType::parse(&path).is_ok() {
+        } else if HfRepoType::parse(&path).is_ok() {
             return Err(opendal_core::Error::new(
                 opendal_core::ErrorKind::ConfigInvalid,
                 "repository name is required in uri path",
             )
             .with_context("service", HUGGINGFACE_SCHEME));
         } else {
-            RepoType::Model
+            HfRepoType::Model
         };
 
         // Parse repo_id, revision, and path_in_repo.
@@ -266,25 +266,25 @@ impl HfUri {
         let revision = percent_encode_revision(self.revision());
         let path = percent_encode_path(&self.path);
         match self.repo.repo_type {
-            RepoType::Model => {
+            HfRepoType::Model => {
                 format!(
                     "{}/{}/resolve/{}/{}",
                     endpoint, &self.repo.repo_id, revision, path
                 )
             }
-            RepoType::Dataset => {
+            HfRepoType::Dataset => {
                 format!(
                     "{}/datasets/{}/resolve/{}/{}",
                     endpoint, &self.repo.repo_id, revision, path
                 )
             }
-            RepoType::Space => {
+            HfRepoType::Space => {
                 format!(
                     "{}/spaces/{}/resolve/{}/{}",
                     endpoint, &self.repo.repo_id, revision, path
                 )
             }
-            RepoType::Bucket => {
+            HfRepoType::Bucket => {
                 format!(
                     "{}/buckets/{}/resolve/{}",
                     endpoint, &self.repo.repo_id, path
@@ -301,7 +301,7 @@ impl HfUri {
     /// Build the file tree API URL for this URI.
     pub fn file_tree_url(&self, endpoint: &str, recursive: bool, cursor: Option<&str>) -> String {
         let mut url = match self.repo.repo_type {
-            RepoType::Bucket => {
+            HfRepoType::Bucket => {
                 format!(
                     "{}/api/buckets/{}/tree/{}?expand=True",
                     endpoint,
@@ -368,26 +368,26 @@ mod tests {
 
     #[test]
     fn test_repo_type_parse() {
-        assert_eq!(RepoType::parse("models").unwrap(), RepoType::Model);
-        assert_eq!(RepoType::parse("Models").unwrap(), RepoType::Model);
-        assert_eq!(RepoType::parse("MODELS").unwrap(), RepoType::Model);
-        assert_eq!(RepoType::parse("datasets").unwrap(), RepoType::Dataset);
-        assert_eq!(RepoType::parse("Datasets").unwrap(), RepoType::Dataset);
-        assert_eq!(RepoType::parse("spaces").unwrap(), RepoType::Space);
-        assert_eq!(RepoType::parse("Spaces").unwrap(), RepoType::Space);
-        assert_eq!(RepoType::parse("model").unwrap(), RepoType::Model);
-        assert_eq!(RepoType::parse("dataset").unwrap(), RepoType::Dataset);
-        assert_eq!(RepoType::parse("space").unwrap(), RepoType::Space);
-        assert_eq!(RepoType::parse("data sets").unwrap(), RepoType::Dataset);
-        assert_eq!(RepoType::parse("Data Sets").unwrap(), RepoType::Dataset);
-        assert!(RepoType::parse("unknown").is_err());
-        assert!(RepoType::parse("foobar").is_err());
+        assert_eq!(HfRepoType::parse("models").unwrap(), HfRepoType::Model);
+        assert_eq!(HfRepoType::parse("Models").unwrap(), HfRepoType::Model);
+        assert_eq!(HfRepoType::parse("MODELS").unwrap(), HfRepoType::Model);
+        assert_eq!(HfRepoType::parse("datasets").unwrap(), HfRepoType::Dataset);
+        assert_eq!(HfRepoType::parse("Datasets").unwrap(), HfRepoType::Dataset);
+        assert_eq!(HfRepoType::parse("spaces").unwrap(), HfRepoType::Space);
+        assert_eq!(HfRepoType::parse("Spaces").unwrap(), HfRepoType::Space);
+        assert_eq!(HfRepoType::parse("model").unwrap(), HfRepoType::Model);
+        assert_eq!(HfRepoType::parse("dataset").unwrap(), HfRepoType::Dataset);
+        assert_eq!(HfRepoType::parse("space").unwrap(), HfRepoType::Space);
+        assert_eq!(HfRepoType::parse("data sets").unwrap(), HfRepoType::Dataset);
+        assert_eq!(HfRepoType::parse("Data Sets").unwrap(), HfRepoType::Dataset);
+        assert!(HfRepoType::parse("unknown").is_err());
+        assert!(HfRepoType::parse("foobar").is_err());
     }
 
     #[test]
     fn resolve_with_namespace() {
         let p = resolve("username/my_model");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn resolve_with_revision() {
         let p = resolve("username/my_model@dev");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "");
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn resolve_datasets_prefix() {
         let p = resolve("datasets/username/my_dataset");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "username/my_dataset");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -414,7 +414,7 @@ mod tests {
     #[test]
     fn resolve_datasets_prefix_and_revision() {
         let p = resolve("datasets/username/my_dataset@dev");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "username/my_dataset");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "");
@@ -423,7 +423,7 @@ mod tests {
     #[test]
     fn resolve_with_path_in_repo() {
         let p = resolve("username/my_model/config.json");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "config.json");
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn resolve_with_revision_and_path() {
         let p = resolve("username/my_model@dev/path/to/file.txt");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "path/to/file.txt");
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn resolve_datasets_revision_and_path() {
         let p = resolve("datasets/username/my_dataset@dev/train/data.csv");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "username/my_dataset");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "train/data.csv");
@@ -450,7 +450,7 @@ mod tests {
     #[test]
     fn resolve_refs_convert_revision() {
         let p = resolve("datasets/squad@refs/convert/parquet");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "squad");
         assert_eq!(p.repo.revision.as_deref(), Some("refs/convert/parquet"));
         assert_eq!(p.path, "");
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn resolve_refs_pr_revision() {
         let p = resolve("username/my_model@refs/pr/10");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
         assert_eq!(p.path, "");
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn resolve_encoded_revision() {
         let p = resolve("username/my_model@refs%2Fpr%2F10");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
         assert_eq!(p.path, "");
@@ -477,7 +477,7 @@ mod tests {
     #[test]
     fn resolve_at_in_path_not_revision() {
         let p = resolve("username/my_model/path/to/@not-a-revision.txt");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "path/to/@not-a-revision.txt");
@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn resolve_bare_repo_no_namespace() {
         let p = resolve("gpt2");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "gpt2");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn resolve_bare_repo_with_revision() {
         let p = resolve("gpt2@dev");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "gpt2");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "");
@@ -510,7 +510,7 @@ mod tests {
     #[test]
     fn resolve_bare_dataset_no_namespace() {
         let p = resolve("datasets/squad");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "squad");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -519,7 +519,7 @@ mod tests {
     #[test]
     fn resolve_bare_dataset_with_revision() {
         let p = resolve("datasets/squad@dev");
-        assert_eq!(p.repo.repo_type, RepoType::Dataset);
+        assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
         assert_eq!(p.repo.repo_id, "squad");
         assert_eq!(p.repo.revision.as_deref(), Some("dev"));
         assert_eq!(p.path, "");
@@ -528,7 +528,7 @@ mod tests {
     #[test]
     fn resolve_models_prefix() {
         let p = resolve("models/username/my_model");
-        assert_eq!(p.repo.repo_type, RepoType::Model);
+        assert_eq!(p.repo.repo_type, HfRepoType::Model);
         assert_eq!(p.repo.repo_id, "username/my_model");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn resolve_spaces_prefix() {
         let p = resolve("spaces/username/my_space");
-        assert_eq!(p.repo.repo_type, RepoType::Space);
+        assert_eq!(p.repo.repo_type, HfRepoType::Space);
         assert_eq!(p.repo.repo_id, "username/my_space");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -546,7 +546,7 @@ mod tests {
     #[test]
     fn resolve_buckets_prefix() {
         let p = resolve("buckets/username/my_bucket");
-        assert_eq!(p.repo.repo_type, RepoType::Bucket);
+        assert_eq!(p.repo.repo_type, HfRepoType::Bucket);
         assert_eq!(p.repo.repo_id, "username/my_bucket");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "");
@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn resolve_buckets_with_path() {
         let p = resolve("buckets/username/my_bucket/data/file.txt");
-        assert_eq!(p.repo.repo_type, RepoType::Bucket);
+        assert_eq!(p.repo.repo_type, HfRepoType::Bucket);
         assert_eq!(p.repo.repo_id, "username/my_bucket");
         assert!(p.repo.revision.is_none());
         assert_eq!(p.path, "data/file.txt");

@@ -16,8 +16,8 @@
 // under the License.
 
 use super::backend::HfBuilder;
+use super::uri::HfRepoType;
 use super::uri::HfUri;
-use super::uri::RepoType;
 use serde::Deserialize;
 use serde::Serialize;
 use std::fmt::Debug;
@@ -30,7 +30,7 @@ pub struct HfConfig {
     /// Repo type of this backend. Default is model.
     ///
     /// Default is model
-    pub repo_type: RepoType,
+    pub repo_type: HfRepoType,
     /// Repo id of this backend.
     ///
     /// This is required.
@@ -104,7 +104,7 @@ impl opendal_core::Configurator for HfConfig {
             // Bare scheme from via_iter, all config is in options.
             let repo_type = opts
                 .get("repo_type")
-                .map(|s| RepoType::parse(s))
+                .map(|s| HfRepoType::parse(s))
                 .transpose()?
                 .unwrap_or_default();
             Ok(Self {
@@ -139,7 +139,7 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.repo_type, RepoType::Dataset);
+        assert_eq!(cfg.repo_type, HfRepoType::Dataset);
         assert_eq!(cfg.repo_id.as_deref(), Some("username/my_dataset"));
         assert_eq!(cfg.revision.as_deref(), Some("dev"));
         assert!(cfg.root.is_none());
@@ -163,7 +163,7 @@ mod tests {
         .unwrap();
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.repo_type, RepoType::Dataset);
+        assert_eq!(cfg.repo_type, HfRepoType::Dataset);
         assert_eq!(cfg.repo_id.as_deref(), Some("opendal/huggingface-testdata"));
         assert_eq!(cfg.revision.as_deref(), Some("main"));
         assert_eq!(cfg.root.as_deref(), Some("/testdata/"));

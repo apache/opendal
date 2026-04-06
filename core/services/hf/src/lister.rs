@@ -109,7 +109,10 @@ impl oio::PageList for HfLister {
             Some(ctx.token.as_str())
         };
 
-        let response = match self.file_tree(&self.list_path, self.recursive, cursor).await {
+        let response = match self
+            .file_tree(&self.list_path, self.recursive, cursor)
+            .await
+        {
             Ok(r) => r,
             // HF returns 404 when a path doesn't exist; treat as empty listing.
             Err(e) if e.kind() == ErrorKind::NotFound => {
@@ -141,8 +144,7 @@ impl oio::PageList for HfLister {
                 }
             }
 
-            ctx.entries
-                .push_back(oio::Entry::new(&rel_path, meta));
+            ctx.entries.push_back(oio::Entry::new(&rel_path, meta));
         }
 
         Ok(())

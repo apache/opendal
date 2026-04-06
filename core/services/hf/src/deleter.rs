@@ -44,7 +44,10 @@ impl HfDeleter {
             self.core.commit_bucket(ops).await.map(|_| ())
         } else {
             let deleted_files = paths.into_iter().map(|path| DeletedFile { path }).collect();
-            self.core.commit_git(vec![], vec![], deleted_files).await.map(|_| ())
+            self.core
+                .commit_git(vec![], vec![], deleted_files)
+                .await
+                .map(|_| ())
         };
 
         match result {

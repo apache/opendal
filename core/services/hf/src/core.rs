@@ -30,7 +30,7 @@ use xet::xet_session::{
 };
 
 use super::error::parse_error;
-use super::uri::HfRepo;
+use super::uri::{HfRepo, HfRepoType, HfUri};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -212,7 +212,13 @@ impl HfCore {
         })?;
 
         Ok(Self::new(
-            info, repo, root, token, endpoint, no_redirect, xet_session,
+            info,
+            repo,
+            root,
+            token,
+            endpoint,
+            no_redirect,
+            xet_session,
         ))
     }
 
@@ -290,11 +296,13 @@ impl HfCore {
         req
     }
 
+    /// Whether this backend targets a bucket repo (as opposed to a git-based repo).
     pub(super) fn is_bucket(&self) -> bool {
-        self.repo.repo_type == super::uri::RepoType::Bucket
+        self.repo.repo_type == HfRepoType::Bucket
     }
 
-    pub(super) fn uri(&self, path: &str) -> super::uri::HfUri {
+    /// Build an [`HfUri`] for the given operator-relative path.
+    pub(super) fn uri(&self, path: &str) -> HfUri {
         self.repo.uri(&self.root, path)
     }
 
@@ -483,7 +491,7 @@ pub(crate) mod test_utils {
     use http::{Request, Response, StatusCode};
     use std::sync::{Arc, Mutex};
 
-    use super::super::uri::RepoType;
+    use super::super::uri::HfRepoType;
     use super::*;
 
     #[derive(Clone)]
@@ -528,7 +536,7 @@ pub(crate) mod test_utils {
     }
 
     pub(crate) fn create_test_core(
-        repo_type: RepoType,
+        repo_type: HfRepoType,
         repo_id: &str,
         revision: &str,
         endpoint: &str,
@@ -560,14 +568,14 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod tests {
-    use super::super::uri::RepoType;
+    use super::super::uri::HfRepoType;
     use super::test_utils::create_test_core;
     use super::*;
 
     #[tokio::test]
     async fn test_hf_path_info_url_model() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Model,
+            HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
@@ -587,7 +595,7 @@ mod tests {
     #[tokio::test]
     async fn test_hf_path_info_url_dataset() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Dataset,
+            HfRepoType::Dataset,
             "test-org/test-dataset",
             "v1.0.0",
             "https://huggingface.co",
@@ -607,7 +615,7 @@ mod tests {
     #[tokio::test]
     async fn test_hf_path_info_url_custom_endpoint() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Model,
+            HfRepoType::Model,
             "test-org/test-dataset",
             "refs/convert/parquet",
             "https://custom-hf.example.com",
@@ -627,7 +635,7 @@ mod tests {
     #[tokio::test]
     async fn test_hf_path_info_url_space() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Space,
+            HfRepoType::Space,
             "test-user/test-space",
             "main",
             "https://huggingface.co",

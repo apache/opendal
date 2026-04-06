@@ -42,14 +42,14 @@ impl HfDeleter {
                 .into_iter()
                 .map(|path| BucketOperation::DeleteFile { path })
                 .collect();
-            match self.core.bucket_batch(ops).await {
+            match self.core.commit_bucket(ops).await {
                 Ok(()) => Ok(()),
                 Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
                 Err(err) => Err(err),
             }
         } else {
             let deleted_files = paths.into_iter().map(|path| DeletedFile { path }).collect();
-            match self.core.commit_files(vec![], vec![], deleted_files).await {
+            match self.core.commit_git(vec![], vec![], deleted_files).await {
                 Ok(_) => Ok(()),
                 Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
                 Err(err) => Err(err),

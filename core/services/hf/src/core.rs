@@ -387,7 +387,10 @@ impl HfCore {
         Ok(Some(XetFileInfo::new(hash.to_string(), size)))
     }
 
-    pub(super) async fn commit_files(
+    /// Commit file changes to a git-based repo (model/dataset/space).
+    ///
+    /// Counterpart of [`commit_bucket`](Self::commit_bucket) for bucket repos.
+    pub(super) async fn commit_git(
         &self,
         regular_files: Vec<CommitFile>,
         lfs_files: Vec<LfsFile>,
@@ -431,16 +434,16 @@ impl HfCore {
         Ok(resp)
     }
 
-    /// Upload files to a bucket using the batch API.
+    /// Commit file changes to a bucket repo via the NDJSON batch API.
     ///
-    /// Sends operations as JSON lines (one operation per line).
-    pub(super) async fn bucket_batch(&self, operations: Vec<BucketOperation>) -> Result<()> {
+    /// Counterpart of [`commit_git`](Self::commit_git) for git-based repos.
+    pub(super) async fn commit_bucket(&self, operations: Vec<BucketOperation>) -> Result<()> {
         let _token = self.token.as_deref().ok_or_else(|| {
             Error::new(
                 ErrorKind::PermissionDenied,
                 "token is required for bucket operations",
             )
-            .with_operation("bucket_batch")
+            .with_operation("commit_bucket")
         })?;
 
         if operations.is_empty() {

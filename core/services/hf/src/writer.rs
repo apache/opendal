@@ -95,7 +95,7 @@ impl HfWriter {
             let xet_hash = file_info.hash().to_string();
             let op = || async {
                 self.core
-                    .bucket_batch(vec![BucketOperation::AddFile {
+                    .commit_bucket(vec![BucketOperation::AddFile {
                         path: repo_path.clone(),
                         xet_hash: xet_hash.clone(),
                     }])
@@ -115,7 +115,7 @@ impl HfWriter {
                     size: content_length,
                 };
                 self.core
-                    .commit_files(vec![], vec![lfs_file], vec![])
+                    .commit_git(vec![], vec![lfs_file], vec![])
                     .await
             };
             retry_on_cas_delay(op).await?;

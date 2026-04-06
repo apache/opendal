@@ -58,11 +58,17 @@ where
 pub struct HfWriter {
     core: Arc<HfCore>,
     path: String,
-    commit: XetUploadCommit,
-    stream: Option<XetStreamUpload>,
+    xet_commit: XetUploadCommit,
+    xet_stream: Option<XetStreamUpload>,
 }
 
 impl HfWriter {
+    /// Create a new writer for the given path.
+    ///
+    /// All uploads go through the XET protocol regardless of file size.
+    /// An XET upload commit and stream are created eagerly so that
+    /// subsequent [`write`](oio::Write::write) calls can stream data
+    /// directly into the XET CAS.
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
         let commit = core.xet_upload_commit().await?;
         let stream = commit
@@ -75,16 +81,31 @@ impl HfWriter {
         Ok(HfWriter {
             core,
             path,
-            commit,
-            stream: Some(stream),
+            xet_commit: commit,
+            xet_stream: Some(stream),
         })
     }
 
-    /// Register the uploaded file with HF (LFS commit or bucket batch).
+    /// Finalize the XET upload and register the file with HF.
     ///
-    /// Retries on transient CAS propagation failures where the file
-    /// data hasn't propagated yet after `commit.commit()`.
-    async fn register_file(&self, file_info: &XetFileInfo) -> Result<Metadata> {
+    /// 1. Commit data to XET CAS (may already be done by `stream.finish()`)
+    /// 2. Register the file via git LFS commit or bucket batch API
+    ///
+    /// Retries on transient CAS propagation delays.
+    async fn commit(&mut self, file_info: &XetFileInfo) -> Result<Metadata> {
+        // Finalize the XET CAS upload. May return "Already completed"
+        // if stream.finish() already committed internally.
+        match self.xet_commit.commit().await {
+            Ok(_) => {}
+            Err(e) if e.to_string().contains("Already completed") => {}
+            Err(e) => {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
+                        .set_source(e),
+                );
+            }
+        }
+
         let content_length = file_info
             .file_size()
             .expect("file_size must be set after finish()");
@@ -126,7 +147,7 @@ impl HfWriter {
 
 impl oio::Write for HfWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let stream = self.stream.as_ref().ok_or_else(|| {
+        let stream = self.xet_stream.as_ref().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
         stream.write(bs.to_bytes()).await.map_err(|err| {
@@ -135,7 +156,7 @@ impl oio::Write for HfWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let stream = self.stream.take().ok_or_else(|| {
+        let stream = self.xet_stream.take().ok_or_else(|| {
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
@@ -143,24 +164,11 @@ impl oio::Write for HfWriter {
             Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
         })?;
 
-        // commit.commit() may return "Already completed" if finish()
-        // already committed internally — ignore that error.
-        match self.commit.commit().await {
-            Ok(_) => {}
-            Err(e) if e.to_string().contains("Already completed") => {}
-            Err(e) => {
-                return Err(
-                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
-                        .set_source(e),
-                );
-            }
-        }
-
-        self.register_file(&file_meta.xet_info).await
+        self.commit(&file_meta.xet_info).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let Some(stream) = self.stream.take() {
+        if let Some(stream) = self.xet_stream.take() {
             stream.abort();
         }
         Ok(())

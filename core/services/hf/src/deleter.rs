@@ -37,23 +37,21 @@ impl HfDeleter {
             return Ok(());
         }
 
-        if self.core.repo.repo_type == RepoType::Bucket {
+        let result = if self.core.repo.repo_type == RepoType::Bucket {
             let ops = paths
                 .into_iter()
                 .map(|path| BucketOperation::DeleteFile { path })
                 .collect();
-            match self.core.commit_bucket(ops).await {
-                Ok(()) => Ok(()),
-                Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-                Err(err) => Err(err),
-            }
+            self.core.commit_bucket(ops).await.map(|_| ())
         } else {
             let deleted_files = paths.into_iter().map(|path| DeletedFile { path }).collect();
-            match self.core.commit_git(vec![], vec![], deleted_files).await {
-                Ok(_) => Ok(()),
-                Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
-                Err(err) => Err(err),
-            }
+            self.core.commit_git(vec![], vec![], deleted_files).await.map(|_| ())
+        };
+
+        match result {
+            Ok(()) => Ok(()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(err),
         }
     }
 }

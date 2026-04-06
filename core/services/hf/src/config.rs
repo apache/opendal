@@ -127,12 +127,11 @@ impl opendal_core::Configurator for HfConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
 
     #[test]
     fn from_uri_with_all_components() {
-        use opendal_core::Configurator;
-        use opendal_core::OperatorUri;
-
         let uri = OperatorUri::new(
             "hf://datasets/username/my_dataset@dev/train/data.csv",
             Vec::<(String, String)>::new(),
@@ -148,9 +147,6 @@ mod tests {
 
     #[test]
     fn from_uri_via_iter_options() {
-        use opendal_core::Configurator;
-        use opendal_core::OperatorUri;
-
         // Simulates the via_iter path: bare scheme with options map.
         let uri = OperatorUri::new(
             "huggingface",

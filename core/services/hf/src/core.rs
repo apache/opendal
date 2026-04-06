@@ -25,7 +25,9 @@ use http::Response;
 use http::header;
 use serde::Deserialize;
 
-use xet::xet_session::{XetFileInfo, XetSession, XetSessionBuilder};
+use xet::xet_session::{
+    XetDownloadStreamGroup, XetFileInfo, XetSession, XetSessionBuilder, XetUploadCommit,
+};
 
 use super::error::parse_error;
 use super::uri::HfRepo;
@@ -156,6 +158,7 @@ pub struct HfCore {
     /// HTTP client with redirects disabled, used by XET probes to
     /// inspect headers on 302 responses.
     pub no_redirect_client: HttpClient,
+    pub xet_session: XetSession,
 }
 
 impl Debug for HfCore {
@@ -176,6 +179,7 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
         no_redirect_client: HttpClient,
+        xet_session: XetSession,
     ) -> Self {
         Self {
             info,
@@ -184,6 +188,7 @@ impl HfCore {
             token,
             endpoint,
             no_redirect_client,
+            xet_session,
         }
     }
 
@@ -202,17 +207,71 @@ impl HfCore {
         let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
         info.update_http_client(|_| standard);
 
+        let xet_session = XetSessionBuilder::new().build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
+        })?;
+
         Ok(Self::new(
-            info, repo, root, token, endpoint, no_redirect,
+            info, repo, root, token, endpoint, no_redirect, xet_session,
         ))
     }
 
-    /// Create a fresh XET session for each operation to avoid
-    /// concurrent upload/download interference.
-    pub(super) fn new_xet_session(&self) -> Result<XetSession> {
-        XetSessionBuilder::new().build().map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
-        })
+    fn xet_token_refresh_headers(&self) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        if let Some(token) = &self.token {
+            if let Ok(val) = format!("Bearer {}", token).parse() {
+                headers.insert(header::AUTHORIZATION, val);
+            }
+        }
+        headers
+    }
+
+    /// Create a new XET upload commit with token refresh configured.
+    ///
+    /// Each call creates a fresh XET session to avoid concurrent interference.
+    pub(super) async fn xet_upload_commit(&self) -> Result<XetUploadCommit> {
+        let refresh_url = self.repo.xet_token_url(&self.endpoint, "write");
+        let refresh_headers = self.xet_token_refresh_headers();
+        self.xet_session
+            .new_upload_commit()
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
+                    .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
+                    .set_source(err)
+            })
+    }
+
+    /// Create a new XET download stream group with token refresh configured.
+    ///
+    /// Each call creates a fresh XET session to avoid concurrent interference.
+    pub(super) async fn xet_download_group(&self) -> Result<XetDownloadStreamGroup> {
+        let refresh_url = self.repo.xet_token_url(&self.endpoint, "read");
+        let refresh_headers = self.xet_token_refresh_headers();
+        self.xet_session
+            .new_download_stream_group()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to create download stream group",
+                )
+                .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to build download stream group",
+                )
+                .set_source(err)
+            })
     }
 
     /// Build an authenticated HTTP request.
@@ -284,17 +343,6 @@ impl HfCore {
         }
 
         Ok(files.remove(0))
-    }
-
-    /// Build an HTTP HeaderMap with the Authorization header for XET token refresh.
-    pub(super) fn xet_token_refresh_headers(&self) -> http::HeaderMap {
-        let mut headers = http::HeaderMap::new();
-        if let Some(token) = &self.token {
-            if let Ok(val) = format!("Bearer {}", token).parse() {
-                headers.insert(header::AUTHORIZATION, val);
-            }
-        }
-        headers
     }
 
     /// Issue a HEAD request and extract XET file info (hash and size).
@@ -486,6 +534,9 @@ pub(crate) mod test_utils {
             .set_native_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
+        let xet_session = XetSessionBuilder::new()
+            .build()
+            .expect("failed to create xet session");
         let core = HfCore::new(
             Arc::new(info),
             HfRepo::new(repo_type, repo_id.to_string(), Some(revision.to_string())),
@@ -493,6 +544,7 @@ pub(crate) mod test_utils {
             None,
             endpoint.to_string(),
             HttpClient::with(mock_client.clone()),
+            xet_session,
         );
 
         (core, mock_client)

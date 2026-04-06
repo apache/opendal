@@ -21,7 +21,7 @@ use super::core::{BucketOperation, HfCore, LfsFile};
 use super::uri::RepoType;
 use opendal_core::raw::*;
 use opendal_core::*;
-use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload};
+use xet::xet_session::{Sha256Policy, XetFileInfo, XetStreamUpload, XetUploadCommit};
 
 /// CAS propagation can lag behind `commit.commit()`. Retry the HF
 /// registration call a few times with exponential backoff.
@@ -54,46 +54,18 @@ where
     Err(last_err.unwrap())
 }
 
-/// Tracks the close() progress so retries can resume from the last successful step.
-enum CloseState {
-    /// Stream is still being written to.
-    Streaming(XetStreamUpload),
-    /// stream.finish() succeeded; commit.commit() is next.
-    Finished(XetFileInfo),
-    /// CAS commit succeeded; the final registration (LFS or bucket_batch) is next.
-    Committed(XetFileInfo),
-    /// All done.
-    Done,
-}
-
 /// Writer that always uses the XET protocol for uploads.
 pub struct HfWriter {
     core: Arc<HfCore>,
     path: String,
-    upload_commit: xet::xet_session::XetUploadCommit,
-    state: CloseState,
+    commit: XetUploadCommit,
+    stream: Option<XetStreamUpload>,
 }
 
 impl HfWriter {
     pub async fn try_new(core: Arc<HfCore>, path: String) -> Result<Self> {
-        let xet_session = core.new_xet_session()?;
-        let refresh_url = core.repo.xet_token_url(&core.endpoint, "write");
-        let refresh_headers = core.xet_token_refresh_headers();
-
-        let upload_commit = xet_session
-            .new_upload_commit()
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
-                    .set_source(err)
-            })?
-            .with_token_refresh_url(refresh_url, refresh_headers)
-            .build()
-            .await
-            .map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
-                    .set_source(err)
-            })?;
-        let stream = upload_commit
+        let commit = core.xet_upload_commit().await?;
+        let stream = commit
             .upload_stream(None, Sha256Policy::Compute)
             .await
             .map_err(|err| {
@@ -103,8 +75,8 @@ impl HfWriter {
         Ok(HfWriter {
             core,
             path,
-            upload_commit,
-            state: CloseState::Streaming(stream),
+            commit,
+            stream: Some(stream),
         })
     }
 
@@ -120,14 +92,11 @@ impl HfWriter {
 
         let repo_path = self.core.repo_path(&self.path);
         if self.core.repo.repo_type == RepoType::Bucket {
-            // Bucket batch API rejects paths ending with '/'; strip it
-            // for directory-marker writes from SimulateLayer's create_dir.
-            let bucket_path = repo_path.trim_end_matches('/').to_string();
             let xet_hash = file_info.hash().to_string();
             let op = || async {
                 self.core
                     .bucket_batch(vec![BucketOperation::AddFile {
-                        path: bucket_path.clone(),
+                        path: repo_path.clone(),
                         xet_hash: xet_hash.clone(),
                     }])
                     .await
@@ -157,61 +126,43 @@ impl HfWriter {
 
 impl oio::Write for HfWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let CloseState::Streaming(stream) = &self.state else {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "cannot write: upload stream is no longer active",
-            ));
-        };
+        let stream = self.stream.as_ref().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
         stream.write(bs.to_bytes()).await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to write xet chunk").set_source(err)
         })
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        // Step 1: finish the upload stream.
-        if let CloseState::Streaming(stream) = &self.state {
-            let file_meta = stream.finish().await.map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
-            })?;
-            self.state = CloseState::Finished(file_meta.xet_info);
-        }
+        let stream = self.stream.take().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
 
-        // Step 2: commit data to CAS. Ignore "Already completed" on retry.
-        if let CloseState::Finished(file_info) = &self.state {
-            let file_info = file_info.clone();
-            match self.upload_commit.commit().await {
-                Ok(_) => {}
-                Err(e) if e.to_string().contains("Already completed") => {}
-                Err(e) => {
-                    return Err(
-                        Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
-                            .set_source(e),
-                    );
-                }
+        let file_meta = stream.finish().await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
+        })?;
+
+        // commit.commit() may return "Already completed" if finish()
+        // already committed internally — ignore that error.
+        match self.commit.commit().await {
+            Ok(_) => {}
+            Err(e) if e.to_string().contains("Already completed") => {}
+            Err(e) => {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "failed to commit xet upload")
+                        .set_source(e),
+                );
             }
-            self.state = CloseState::Committed(file_info);
         }
 
-        // Step 3: register the file with HF (LFS commit or bucket batch).
-        if let CloseState::Committed(file_info) = &self.state {
-            let file_info = file_info.clone();
-            let meta = self.register_file(&file_info).await?;
-            self.state = CloseState::Done;
-            return Ok(meta);
-        }
-
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "close called on already-completed writer",
-        ))
+        self.register_file(&file_meta.xet_info).await
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let CloseState::Streaming(stream) = &self.state {
+        if let Some(stream) = self.stream.take() {
             stream.abort();
         }
-        self.state = CloseState::Done;
         Ok(())
     }
 }

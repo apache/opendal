@@ -1257,7 +1257,7 @@ mod tests {
         /// Fail before receiving a response.
         ConnectionError,
         /// Return HTTP 200 with a body stream that yields the given items.
-        BodyError(Vec<Result<Buffer>>),
+        StreamBody(Vec<Result<Buffer>>),
     }
 
     struct MockHttpFetch {
@@ -1279,7 +1279,7 @@ mod tests {
                 MockFetchBehavior::ConnectionError => {
                     Err(Error::new(ErrorKind::Unexpected, "mock connection refused"))
                 }
-                MockFetchBehavior::BodyError(items) => {
+                MockFetchBehavior::StreamBody(items) => {
                     let body = HttpBody::new(stream::iter(items), None);
                     let resp = http::Response::builder()
                         .status(StatusCode::OK)
@@ -1357,7 +1357,7 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::BodyError(vec![
+            MockFetchBehavior::StreamBody(vec![
                 Ok(Buffer::from("hello")),
                 Ok(Buffer::from(" world")),
             ]),
@@ -1406,7 +1406,7 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::BodyError(vec![
+            MockFetchBehavior::StreamBody(vec![
                 Ok(Buffer::from("partial")),
                 Err(Error::new(ErrorKind::Unexpected, "connection reset")),
             ]),

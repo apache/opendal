@@ -27,7 +27,7 @@ import { test, describe, expect } from 'vitest'
 export function run(op) {
   const capability = op.capability()
 
-  describe.runIf(capability.write && capability.read && capability.list && capability.createDir)('sync lister tests', () => {
+  describe.runIf(capability.write && capability.read && capability.list)('sync lister tests', () => {
     test('test basic lister', () => {
       const dirname = `random_dir_${randomUUID()}/`
       op.createDirSync(dirname)

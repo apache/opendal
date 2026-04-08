@@ -45,6 +45,7 @@ opentelemetry = { version = "0.31.0", default-features = false, features = [
 ] }
 opentelemetry-otlp = { version = "0.31.0", default-features = false, features = [
   "grpc-tonic",
+  "trace",
 ] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

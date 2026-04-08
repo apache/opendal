@@ -28,7 +28,7 @@ import { EntryMode } from '../../index.mjs'
 export function run(op) {
   const capability = op.capability()
 
-  describe.runIf(capability.write && capability.read && capability.list)('async listOptions tests', () => {
+  describe.runIf(capability.write && capability.read && capability.list && capability.createDir)('async listOptions tests', () => {
     test('test remove all', async () => {
       const parent = `random_remove_${randomUUID()}/`
       await op.createDir(parent)

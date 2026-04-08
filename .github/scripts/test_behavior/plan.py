@@ -269,6 +269,7 @@ def generate_language_binding_cases(
     if language == "java":
         cases = [v for v in cases if v["service"] not in [
             "compfs",
+            # FIXME: Re-enable hf after https://github.com/apache/opendal/issues/7367 is fixed.
             "hf",
             "hdfs",
             "hdfs_native",

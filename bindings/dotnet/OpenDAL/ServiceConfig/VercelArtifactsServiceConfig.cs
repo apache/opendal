@@ -33,6 +33,24 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AccessToken { get; init; }
 
+        /// <summary>
+        /// The endpoint for the Vercel artifacts API.
+        /// Defaults to <c>https://api.vercel.com</c>.
+        /// </summary>
+        public string? Endpoint { get; init; }
+
+        /// <summary>
+        /// The Vercel team ID. When set, the <c>teamId</c> query parameter
+        /// is appended to all API requests.
+        /// </summary>
+        public string? TeamId { get; init; }
+
+        /// <summary>
+        /// The Vercel team slug. When set, the <c>slug</c> query parameter
+        /// is appended to all API requests.
+        /// </summary>
+        public string? TeamSlug { get; init; }
+
         public string Scheme => "vercel_artifacts";
 
         public IReadOnlyDictionary<string, string> ToOptions()
@@ -41,6 +59,18 @@ namespace OpenDAL.ServiceConfig
             if (AccessToken is not null)
             {
                 map["access_token"] = Utilities.ToOptionString(AccessToken);
+            }
+            if (Endpoint is not null)
+            {
+                map["endpoint"] = Utilities.ToOptionString(Endpoint);
+            }
+            if (TeamId is not null)
+            {
+                map["team_id"] = Utilities.ToOptionString(TeamId);
+            }
+            if (TeamSlug is not null)
+            {
+                map["team_slug"] = Utilities.ToOptionString(TeamSlug);
             }
             return map;
         }

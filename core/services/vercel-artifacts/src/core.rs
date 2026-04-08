@@ -28,6 +28,8 @@ use opendal_core::*;
 pub struct VercelArtifactsCore {
     pub info: Arc<AccessorInfo>,
     pub(crate) access_token: String,
+    pub(crate) endpoint: String,
+    pub(crate) query_string: String,
 }
 
 impl Debug for VercelArtifactsCore {
@@ -45,8 +47,10 @@ impl VercelArtifactsCore {
         _: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let url: String = format!(
-            "https://api.vercel.com/v8/artifacts/{}",
-            percent_encode_path(hash)
+            "{}/v8/artifacts/{}{}",
+            self.endpoint,
+            percent_encode_path(hash),
+            self.query_string
         );
 
         let mut req = Request::get(&url);
@@ -72,8 +76,10 @@ impl VercelArtifactsCore {
         body: Buffer,
     ) -> Result<Response<Buffer>> {
         let url = format!(
-            "https://api.vercel.com/v8/artifacts/{}",
-            percent_encode_path(hash)
+            "{}/v8/artifacts/{}{}",
+            self.endpoint,
+            percent_encode_path(hash),
+            self.query_string
         );
 
         let mut req = Request::put(&url);
@@ -92,8 +98,10 @@ impl VercelArtifactsCore {
 
     pub(crate) async fn vercel_artifacts_stat(&self, hash: &str) -> Result<Response<Buffer>> {
         let url = format!(
-            "https://api.vercel.com/v8/artifacts/{}",
-            percent_encode_path(hash)
+            "{}/v8/artifacts/{}{}",
+            self.endpoint,
+            percent_encode_path(hash),
+            self.query_string
         );
 
         let mut req = Request::head(&url);

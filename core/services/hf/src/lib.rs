@@ -62,4 +62,3 @@ mod tests {
         assert_eq!(HUGGINGFACE_SCHEME, "huggingface");
     }
 }
-

@@ -28,7 +28,7 @@ import { EntryMode } from '../../index.mjs'
 export function run(op) {
   const capability = op.capability()
 
-  describe.runIf(capability.write && capability.read && capability.list)('sync listOptions tests', () => {
+  describe.runIf(capability.write && capability.read && capability.list && capability.createDir)('sync listOptions tests', () => {
     test('test remove all', () => {
       const parent = `random_remove_${randomUUID()}/`
       op.createDirSync(parent)

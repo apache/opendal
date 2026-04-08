@@ -269,6 +269,7 @@ def generate_language_binding_cases(
     if language == "java":
         cases = [v for v in cases if v["service"] not in [
             "compfs",
+            "hf",
             "hdfs",
             "hdfs_native",
             "monoiofs",

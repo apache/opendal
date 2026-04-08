@@ -18,38 +18,161 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::header;
-use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Deserialize;
 
-use super::backend::RepoType;
+use xet::xet_session::{
+    XetDownloadStreamGroup, XetFileInfo, XetSession, XetSessionBuilder, XetUploadCommit,
+};
+
+use super::error::parse_error;
+use super::uri::{HfRepo, HfUri};
 use opendal_core::raw::*;
 use opendal_core::*;
 
-fn percent_encode_revision(revision: &str) -> String {
-    utf8_percent_encode(revision, NON_ALPHANUMERIC).to_string()
+/// API payload structures for commit operations
+#[derive(Debug, serde::Serialize)]
+pub(super) struct CommitFile {
+    pub path: String,
+    pub content: String,
+    pub encoding: String,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub(super) struct LfsFile {
+    pub path: String,
+    pub oid: String,
+    pub algo: String,
+    pub size: u64,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub(super) struct DeletedFile {
+    pub path: String,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub(super) struct DeletedFolder {
+    pub path: String,
+}
+
+/// Bucket batch operation payload structures
+#[derive(Debug, serde::Serialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub(super) enum BucketOperation {
+    #[serde(rename_all = "camelCase")]
+    AddFile { path: String, xet_hash: String },
+    #[serde(rename_all = "camelCase")]
+    #[allow(dead_code)]
+    DeleteFile { path: String },
+}
+
+#[derive(serde::Serialize)]
+pub(super) struct MixedCommitPayload {
+    pub summary: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<CommitFile>,
+    #[serde(rename = "lfsFiles", skip_serializing_if = "Vec::is_empty")]
+    pub lfs_files: Vec<LfsFile>,
+    #[serde(rename = "deletedFiles", skip_serializing_if = "Vec::is_empty")]
+    pub deleted_files: Vec<DeletedFile>,
+    #[serde(rename = "deletedFolders", skip_serializing_if = "Vec::is_empty")]
+    pub deleted_folders: Vec<DeletedFolder>,
+}
+
+// API response types
+
+#[derive(serde::Deserialize, Debug)]
+pub(super) struct CommitResponse {
+    #[allow(dead_code)]
+    #[serde(rename = "commitOid")]
+    pub commit_oid: Option<String>,
+    #[allow(dead_code)]
+    #[serde(rename = "commitUrl")]
+    pub commit_url: Option<String>,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct PathInfo {
+    #[serde(rename = "type")]
+    pub type_: String,
+    #[serde(default)]
+    pub oid: Option<String>,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub lfs: Option<LfsInfo>,
+    pub path: String,
+    #[serde(default)]
+    pub last_commit: Option<LastCommit>,
+}
+
+impl PathInfo {
+    pub fn entry_mode(&self) -> EntryMode {
+        match self.type_.as_str() {
+            "directory" => EntryMode::DIR,
+            "file" => EntryMode::FILE,
+            _ => EntryMode::Unknown,
+        }
+    }
+
+    pub fn metadata(&self) -> Result<Metadata> {
+        let mode = self.entry_mode();
+        let mut meta = Metadata::new(mode);
+
+        if let Some(commit_info) = self.last_commit.as_ref() {
+            meta.set_last_modified(commit_info.date.parse::<Timestamp>()?);
+        }
+
+        if mode == EntryMode::FILE {
+            meta.set_content_length(self.size);
+            // For buckets, oid may be None; for regular repos, prefer lfs.oid then oid
+            if let Some(lfs) = &self.lfs {
+                meta.set_etag(&lfs.oid);
+            } else if let Some(oid) = &self.oid {
+                meta.set_etag(oid);
+            }
+        }
+
+        Ok(meta)
+    }
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub(super) struct LfsInfo {
+    pub oid: String,
+}
+
+#[derive(Deserialize, Eq, PartialEq, Debug)]
+pub(super) struct LastCommit {
+    pub date: String,
+}
+
+// Core HuggingFace client that manages API interactions, authentication
+// and shared logic for reader/writer/lister.
+
+#[derive(Clone)]
 pub struct HfCore {
     pub info: Arc<AccessorInfo>,
-
-    pub repo_type: RepoType,
-    pub repo_id: String,
-    pub revision: String,
+    pub repo: HfRepo,
     pub root: String,
     pub token: Option<String>,
     pub endpoint: String,
+    /// HTTP client with redirects disabled, used by XET probes to
+    /// inspect headers on 302 responses.
+    pub no_redirect_client: HttpClient,
+    pub xet_session: XetSession,
 }
 
 impl Debug for HfCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HfCore")
-            .field("repo_type", &self.repo_type)
-            .field("repo_id", &self.repo_id)
-            .field("revision", &self.revision)
+            .field("repo", &self.repo)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .finish_non_exhaustive()
@@ -57,287 +180,356 @@ impl Debug for HfCore {
 }
 
 impl HfCore {
-    pub async fn hf_path_info(&self, path: &str) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+    pub fn new(
+        info: Arc<AccessorInfo>,
+        repo: HfRepo,
+        root: String,
+        token: Option<String>,
+        endpoint: String,
+        no_redirect_client: HttpClient,
+        xet_session: XetSession,
+    ) -> Self {
+        Self {
+            info,
+            repo,
+            root,
+            token,
+            endpoint,
+            no_redirect_client,
+            xet_session,
+        }
+    }
 
-        let url = match self.repo_type {
-            RepoType::Model => format!(
-                "{}/api/models/{}/paths-info/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision)
-            ),
-            RepoType::Dataset => format!(
-                "{}/api/datasets/{}/paths-info/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision)
-            ),
-            RepoType::Space => format!(
-                "{}/api/spaces/{}/paths-info/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision)
-            ),
-        };
+    /// Build HfCore with dedicated reqwest HTTP clients.
+    ///
+    /// Uses separate clients for standard and no-redirect requests to
+    /// avoid "dispatch task is gone" errors with multiple tokio runtimes.
+    pub fn build(
+        info: Arc<AccessorInfo>,
+        repo: HfRepo,
+        root: String,
+        token: Option<String>,
+        endpoint: String,
+    ) -> Result<Self> {
+        let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
+        let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
+        info.update_http_client(|_| standard);
 
-        let mut req = Request::post(&url);
-        // Inject operation to the request.
-        req = req.extension(Operation::Stat);
+        let xet_session = XetSessionBuilder::new().build().map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
+        })?;
+
+        Ok(Self::new(
+            info,
+            repo,
+            root,
+            token,
+            endpoint,
+            no_redirect,
+            xet_session,
+        ))
+    }
+
+    fn xet_token_refresh_headers(&self) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
         if let Some(token) = &self.token {
-            let auth_header_content = format_authorization_by_bearer(token)?;
-            req = req.header(header::AUTHORIZATION, auth_header_content);
+            if let Ok(val) = format!("Bearer {}", token).parse() {
+                headers.insert(header::AUTHORIZATION, val);
+            }
+        }
+        headers
+    }
+
+    /// Create a new XET upload commit with token refresh configured.
+    ///
+    /// Each call creates a fresh XET session to avoid concurrent interference.
+    pub(super) async fn xet_upload_commit(&self) -> Result<XetUploadCommit> {
+        let refresh_url = self.repo.xet_token_url(&self.endpoint, "write");
+        let refresh_headers = self.xet_token_refresh_headers();
+        self.xet_session
+            .new_upload_commit()
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to create xet upload commit")
+                    .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "failed to build xet upload commit")
+                    .set_source(err)
+            })
+    }
+
+    /// Create a new XET download stream group with token refresh configured.
+    ///
+    /// Each call creates a fresh XET session to avoid concurrent interference.
+    pub(super) async fn xet_download_group(&self) -> Result<XetDownloadStreamGroup> {
+        let refresh_url = self.repo.xet_token_url(&self.endpoint, "read");
+        let refresh_headers = self.xet_token_refresh_headers();
+        self.xet_session
+            .new_download_stream_group()
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to create download stream group",
+                )
+                .set_source(err)
+            })?
+            .with_token_refresh_url(refresh_url, refresh_headers)
+            .build()
+            .await
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "failed to build download stream group",
+                )
+                .set_source(err)
+            })
+    }
+
+    /// Build an authenticated HTTP request.
+    ///
+    /// Returns `PermissionDenied` for write operations when no token
+    /// is configured.
+    pub(super) fn request(
+        &self,
+        method: http::Method,
+        url: &str,
+        op: Operation,
+    ) -> Result<http::request::Builder> {
+        let mut req = Request::builder().method(method).uri(url).extension(op);
+        match &self.token {
+            Some(token) => {
+                if let Ok(auth) = format_authorization_by_bearer(token) {
+                    req = req.header(header::AUTHORIZATION, auth);
+                }
+            }
+            None if matches!(op, Operation::Write | Operation::Delete) => {
+                return Err(Error::new(
+                    ErrorKind::PermissionDenied,
+                    "token is required for write operations",
+                ));
+            }
+            None => {}
+        }
+        Ok(req)
+    }
+
+    /// Build an [`HfUri`] for the given operator-relative path.
+    pub(super) fn uri(&self, path: &str) -> HfUri {
+        self.repo.uri(&self.root, path)
+    }
+
+    /// Convert an operator-relative path to a repo-absolute path
+    /// (no leading `/`) for use in commit/delete/batch payloads.
+    pub(super) fn repo_path(&self, path: &str) -> String {
+        build_abs_path(&self.root, path)
+            .trim_start_matches('/')
+            .to_string()
+    }
+
+    /// Send a request and return the successful response or a parsed error.
+    async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+        let resp = self.info.http_client().send(req).await?;
+        if resp.status().is_success() {
+            Ok(resp)
+        } else {
+            Err(parse_error(resp))
+        }
+    }
+
+    /// Send a request, check for success, and deserialize the JSON response.
+    ///
+    /// Returns the response parts (status, headers, etc.) alongside the
+    /// deserialized body so callers can inspect headers when needed.
+    pub(super) async fn send_parse<T: serde::de::DeserializeOwned>(
+        &self,
+        req: Request<Buffer>,
+    ) -> Result<(http::response::Parts, T)> {
+        let (parts, body) = self.send(req).await?.into_parts();
+        let parsed = serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+        Ok((parts, parsed))
+    }
+
+    pub(super) async fn path_info(&self, path: &str) -> Result<PathInfo> {
+        let uri = self.uri(path);
+        let url = uri.paths_info_url(&self.endpoint);
+        let form_body = format!("paths={}&expand=True", percent_encode_path(&uri.path));
+
+        let req = self
+            .request(http::Method::POST, &url, Operation::Stat)?
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Buffer::from(Bytes::from(form_body)))
+            .map_err(new_request_build_error)?;
+        let (_, mut files) = self.send_parse::<Vec<PathInfo>>(req).await?;
+
+        // NOTE: if the file is not found, the server will return 200 with an empty array
+        if files.is_empty() {
+            return Err(Error::new(ErrorKind::NotFound, "path not found"));
         }
 
-        req = req.header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        Ok(files.remove(0))
+    }
 
-        let req_body = format!("paths={}&expand=True", percent_encode_path(&p));
+    /// Issue a HEAD request and extract XET file info (hash and size).
+    ///
+    /// Returns `None` if the `X-Xet-Hash` header is absent or empty.
+    ///
+    /// Uses a dedicated no-redirect HTTP client so we can inspect
+    /// headers (e.g. `X-Xet-Hash`) on the 302 response.
+    pub(super) async fn maybe_xet_file(&self, path: &str) -> Result<Option<XetFileInfo>> {
+        let uri = self.uri(path);
+        let url = uri.resolve_url(&self.endpoint);
 
-        let req = req
-            .body(Buffer::from(Bytes::from(req_body)))
+        let req = self
+            .request(http::Method::HEAD, &url, Operation::Stat)?
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
-    }
+        let resp = self.no_redirect_client.send(req).await?;
 
-    pub async fn hf_list(
-        &self,
-        path: &str,
-        recursive: bool,
-        cursor: Option<&str>,
-    ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        if resp.status().is_client_error() || resp.status().is_server_error() {
+            return Err(parse_error(resp));
+        }
 
-        let mut url = match self.repo_type {
-            RepoType::Model => format!(
-                "{}/api/models/{}/tree/{}/{}?expand=True",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
-            RepoType::Dataset => format!(
-                "{}/api/datasets/{}/tree/{}/{}?expand=True",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
-            RepoType::Space => format!(
-                "{}/api/spaces/{}/tree/{}/{}?expand=True",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
+        let hash = resp
+            .headers()
+            .get("X-Xet-Hash")
+            .and_then(|v| v.to_str().ok())
+            .filter(|s| !s.is_empty());
+
+        let Some(hash) = hash else {
+            return Ok(None);
         };
 
-        if recursive {
-            url.push_str("&recursive=True");
-        }
+        let size = resp
+            .headers()
+            .get("X-Linked-Size")
+            .or_else(|| resp.headers().get(header::CONTENT_LENGTH))
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(0);
 
-        if let Some(cursor_val) = cursor {
-            url.push_str(&format!("&cursor={}", cursor_val));
-        }
-
-        let mut req = Request::get(&url);
-        // Inject operation to the request.
-        req = req.extension(Operation::List);
-        if let Some(token) = &self.token {
-            let auth_header_content = format_authorization_by_bearer(token)?;
-            req = req.header(header::AUTHORIZATION, auth_header_content);
-        }
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.info.http_client().send(req).await
+        Ok(Some(XetFileInfo::new(hash.to_string(), size)))
     }
 
-    pub async fn hf_list_with_url(&self, url: &str) -> Result<Response<Buffer>> {
-        let mut req = Request::get(url);
-        // Inject operation to the request.
-        req = req.extension(Operation::List);
-        if let Some(token) = &self.token {
-            let auth_header_content = format_authorization_by_bearer(token)?;
-            req = req.header(header::AUTHORIZATION, auth_header_content);
-        }
-
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.info.http_client().send(req).await
-    }
-
-    pub async fn hf_resolve(
+    /// Commit file changes to a git-based repo (model/dataset/space).
+    ///
+    /// Counterpart of [`commit_bucket`](Self::commit_bucket) for bucket repos.
+    pub(super) async fn commit_git(
         &self,
-        path: &str,
-        range: BytesRange,
-        _args: &OpRead,
-    ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
-            .trim_end_matches('/')
-            .to_string();
+        regular_files: Vec<CommitFile>,
+        lfs_files: Vec<LfsFile>,
+        deleted_files: Vec<DeletedFile>,
+        deleted_folders: Vec<DeletedFolder>,
+    ) -> Result<CommitResponse> {
+        let url = self.repo.git_commit_url(&self.endpoint);
 
-        let url = match self.repo_type {
-            RepoType::Model => format!(
-                "{}/{}/resolve/{}/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
-            RepoType::Dataset => format!(
-                "{}/datasets/{}/resolve/{}/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
-            RepoType::Space => format!(
-                "{}/spaces/{}/resolve/{}/{}",
-                &self.endpoint,
-                &self.repo_id,
-                percent_encode_revision(&self.revision),
-                percent_encode_path(&p)
-            ),
+        let payload = MixedCommitPayload {
+            summary: "Commit via OpenDAL".to_string(),
+            files: regular_files,
+            lfs_files,
+            deleted_files,
+            deleted_folders,
         };
 
-        let mut req = Request::get(&url);
+        let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
 
-        if let Some(token) = &self.token {
-            let auth_header_content = format_authorization_by_bearer(token)?;
-            req = req.header(header::AUTHORIZATION, auth_header_content);
-        }
+        let req = self
+            .request(http::Method::POST, &url, Operation::Write)?
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, json_body.len())
+            .body(Buffer::from(json_body))
+            .map_err(new_request_build_error)?;
 
-        if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
-        }
-        // Inject operation to the request.
-        let req = req.extension(Operation::Read);
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.info.http_client().fetch(req).await
+        let (_, resp) = self.send_parse::<CommitResponse>(req).await?;
+        Ok(resp)
     }
-}
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HfStatus {
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub oid: String,
-    pub size: u64,
-    pub lfs: Option<HfLfs>,
-    pub path: String,
-    pub last_commit: Option<HfLastCommit>,
-    pub security: Option<HfSecurity>,
-}
+    /// Commit file changes to a bucket repo via the NDJSON batch API.
+    ///
+    /// Counterpart of [`commit_git`](Self::commit_git) for git-based repos.
+    pub(super) async fn commit_bucket(&self, operations: Vec<BucketOperation>) -> Result<()> {
+        if operations.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "no operations to perform",
+            ));
+        }
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HfLfs {
-    pub oid: String,
-    pub size: u64,
-    pub pointer_size: u64,
-}
+        let url = self.repo.bucket_batch_url(&self.endpoint);
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HfLastCommit {
-    pub id: String,
-    pub title: String,
-    pub date: String,
-}
+        let mut body = String::new();
+        for op in operations {
+            let json = serde_json::to_string(&op).map_err(new_json_serialize_error)?;
+            body.push_str(&json);
+            body.push('\n');
+        }
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HfSecurity {
-    pub blob_id: String,
-    pub safe: bool,
-    pub av_scan: Option<HfAvScan>,
-    pub pickle_import_scan: Option<HfPickleImportScan>,
-}
+        let req = self
+            .request(http::Method::POST, &url, Operation::Write)?
+            .header(header::CONTENT_TYPE, "application/x-ndjson")
+            .header(header::CONTENT_LENGTH, body.len())
+            .body(Buffer::from(Bytes::from(body)))
+            .map_err(new_request_build_error)?;
 
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct HfAvScan {
-    pub virus_found: bool,
-    pub virus_names: Option<Vec<String>>,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
-pub(super) struct HfPickleImportScan {
-    pub highest_safety_level: String,
-    pub imports: Vec<HfImport>,
-}
-
-#[derive(Deserialize, Eq, PartialEq, Debug)]
-#[allow(dead_code)]
-pub(super) struct HfImport {
-    pub module: String,
-    pub name: String,
-    pub safety: String,
+        self.send(req).await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
-mod tests {
-    use bytes::Bytes;
+pub(crate) mod test_utils {
     use http::{Request, Response, StatusCode};
     use std::sync::{Arc, Mutex};
 
+    use super::super::uri::HfRepoType;
     use super::*;
 
-    // Mock HTTP client that captures the request URL and headers
     #[derive(Clone)]
-    struct MockHttpClient {
+    pub(crate) struct MockHttpClient {
         url: Arc<Mutex<Option<String>>>,
-        headers: Arc<Mutex<Option<http::HeaderMap>>>,
     }
 
     impl MockHttpClient {
-        fn new() -> Self {
+        pub(crate) fn new() -> Self {
             Self {
                 url: Arc::new(Mutex::new(None)),
-                headers: Arc::new(Mutex::new(None)),
             }
         }
 
-        fn get_captured_url(&self) -> String {
+        pub(crate) fn get_captured_url(&self) -> String {
             self.url.lock().unwrap().clone().unwrap()
-        }
-
-        fn get_captured_headers(&self) -> http::HeaderMap {
-            self.headers.lock().unwrap().clone().unwrap()
         }
     }
 
     impl HttpFetch for MockHttpClient {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            // Capture the URL and headers
             *self.url.lock().unwrap() = Some(req.uri().to_string());
-            *self.headers.lock().unwrap() = Some(req.headers().clone());
 
-            // Return a mock response with empty body
+            // Return a minimal valid JSON response for API requests
+            let body = if req.uri().to_string().contains("/paths-info/")
+                || req.uri().to_string().contains("/tree/")
+            {
+                let data =
+                    Bytes::from(r#"[{"type":"file","oid":"abc123","size":100,"path":"test.txt"}]"#);
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+            } else {
+                HttpBody::new(futures::stream::empty(), Some(0))
+            };
+
             Ok(Response::builder()
                 .status(StatusCode::OK)
-                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .body(body)
                 .unwrap())
         }
     }
 
-    /// Utility function to create HfCore with mocked HTTP client
-    fn create_test_core(
-        repo_type: RepoType,
+    pub(crate) fn create_test_core(
+        repo_type: HfRepoType,
         repo_id: &str,
         revision: &str,
         endpoint: &str,
@@ -350,29 +542,39 @@ mod tests {
             .set_native_capability(Capability::default());
         info.update_http_client(|_| http_client);
 
-        let core = HfCore {
-            info: Arc::new(info),
-            repo_type,
-            repo_id: repo_id.to_string(),
-            revision: revision.to_string(),
-            root: "/".to_string(),
-            token: None,
-            endpoint: endpoint.to_string(),
-        };
+        let xet_session = XetSessionBuilder::new()
+            .build()
+            .expect("failed to create xet session");
+        let core = HfCore::new(
+            Arc::new(info),
+            HfRepo::new(repo_type, repo_id.to_string(), Some(revision.to_string())),
+            "/".to_string(),
+            None,
+            endpoint.to_string(),
+            HttpClient::with(mock_client.clone()),
+            xet_session,
+        );
 
         (core, mock_client)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::uri::HfRepoType;
+    use super::test_utils::create_test_core;
+    use super::*;
 
     #[tokio::test]
     async fn test_hf_path_info_url_model() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Model,
+            HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
 
-        core.hf_path_info("test.txt").await?;
+        core.path_info("test.txt").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -386,13 +588,13 @@ mod tests {
     #[tokio::test]
     async fn test_hf_path_info_url_dataset() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Dataset,
+            HfRepoType::Dataset,
             "test-org/test-dataset",
             "v1.0.0",
             "https://huggingface.co",
         );
 
-        core.hf_path_info("data/file.csv").await?;
+        core.path_info("data/file.csv").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -406,13 +608,13 @@ mod tests {
     #[tokio::test]
     async fn test_hf_path_info_url_custom_endpoint() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Model,
+            HfRepoType::Model,
             "test-org/test-dataset",
             "refs/convert/parquet",
             "https://custom-hf.example.com",
         );
 
-        core.hf_path_info("model.bin").await?;
+        core.path_info("model.bin").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -424,119 +626,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_hf_list_url_non_recursive() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Model,
-            "org/model",
-            "main",
-            "https://huggingface.co",
-        );
-
-        core.hf_list("path1", false, None).await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/api/models/org/model/tree/main/path1?expand=True"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_list_url_recursive() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Model,
-            "org/model",
-            "main",
-            "https://huggingface.co",
-        );
-
-        core.hf_list("path2", true, None).await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/api/models/org/model/tree/main/path2?expand=True&recursive=True"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_list_url_with_cursor() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Model,
-            "org/model",
-            "main",
-            "https://huggingface.co",
-        );
-
-        core.hf_list("path3", false, Some("abc123")).await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/api/models/org/model/tree/main/path3?expand=True&cursor=abc123"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_resolve_url_model() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Model,
-            "user/model",
-            "main",
-            "https://huggingface.co",
-        );
-
-        let args = OpRead::default();
-        core.hf_resolve("config.json", BytesRange::default(), &args)
-            .await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/user/model/resolve/main/config.json"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_resolve_url_dataset() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Dataset,
-            "org/data",
-            "v1.0",
-            "https://huggingface.co",
-        );
-
-        let args = OpRead::default();
-        core.hf_resolve("train.csv", BytesRange::default(), &args)
-            .await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/datasets/org/data/resolve/v1%2E0/train.csv"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_hf_path_info_url_space() -> Result<()> {
         let (core, mock_client) = create_test_core(
-            RepoType::Space,
+            HfRepoType::Space,
             "test-user/test-space",
             "main",
             "https://huggingface.co",
         );
 
-        core.hf_path_info("app.py").await?;
+        core.path_info("app.py").await?;
 
         let url = mock_client.get_captured_url();
         assert_eq!(
@@ -546,235 +644,13 @@ mod tests {
 
         Ok(())
     }
+}
 
-    #[tokio::test]
-    async fn test_hf_list_url_space() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Space,
-            "org/space",
-            "main",
-            "https://huggingface.co",
-        );
-
-        core.hf_list("static", false, None).await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/api/spaces/org/space/tree/main/static?expand=True"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_resolve_url_space() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Space,
-            "user/space",
-            "main",
-            "https://huggingface.co",
-        );
-
-        let args = OpRead::default();
-        core.hf_resolve("README.md", BytesRange::default(), &args)
-            .await?;
-
-        let url = mock_client.get_captured_url();
-        assert_eq!(
-            url,
-            "https://huggingface.co/spaces/user/space/resolve/main/README.md"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_resolve_with_range() -> Result<()> {
-        let (core, mock_client) = create_test_core(
-            RepoType::Model,
-            "user/model",
-            "main",
-            "https://huggingface.co",
-        );
-
-        let args = OpRead::default();
-        let range = BytesRange::new(0, Some(1024));
-        core.hf_resolve("large_file.bin", range, &args).await?;
-
-        let url = mock_client.get_captured_url();
-        let headers = mock_client.get_captured_headers();
-        assert_eq!(
-            url,
-            "https://huggingface.co/user/model/resolve/main/large_file.bin"
-        );
-        assert_eq!(headers.get(http::header::RANGE).unwrap(), "bytes=0-1023");
-
-        Ok(())
-    }
-
-    #[test]
-    fn parse_list_response_test() -> Result<()> {
-        let resp = Bytes::from(
-            r#"
-            [
-                {
-                    "type": "file",
-                    "oid": "45fa7c3d85ee7dd4139adbc056da25ae136a65f2",
-                    "size": 69512435,
-                    "lfs": {
-                        "oid": "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c",
-                        "size": 69512435,
-                        "pointerSize": 133
-                    },
-                    "path": "maelstrom/lib/maelstrom.jar"
-                },
-                {
-                    "type": "directory",
-                    "oid": "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c",
-                    "size": 69512435,
-                    "path": "maelstrom/lib/plugins"
-                }
-            ]
-            "#,
-        );
-
-        let decoded_response =
-            serde_json::from_slice::<Vec<HfStatus>>(&resp).map_err(new_json_deserialize_error)?;
-
-        assert_eq!(decoded_response.len(), 2);
-
-        let file_entry = HfStatus {
-            type_: "file".to_string(),
-            oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
-            size: 69512435,
-            lfs: Some(HfLfs {
-                oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
-                size: 69512435,
-                pointer_size: 133,
-            }),
-            path: "maelstrom/lib/maelstrom.jar".to_string(),
-            last_commit: None,
-            security: None,
-        };
-
-        assert_eq!(decoded_response[0], file_entry);
-
-        let dir_entry = HfStatus {
-            type_: "directory".to_string(),
-            oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
-            size: 69512435,
-            lfs: None,
-            path: "maelstrom/lib/plugins".to_string(),
-            last_commit: None,
-            security: None,
-        };
-
-        assert_eq!(decoded_response[1], dir_entry);
-
-        Ok(())
-    }
-
-    #[test]
-    fn parse_files_info_test() -> Result<()> {
-        let resp = Bytes::from(
-            r#"
-            [
-                {
-                    "type": "file",
-                    "oid": "45fa7c3d85ee7dd4139adbc056da25ae136a65f2",
-                    "size": 69512435,
-                    "lfs": {
-                        "oid": "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c",
-                        "size": 69512435,
-                        "pointerSize": 133
-                    },
-                    "path": "maelstrom/lib/maelstrom.jar",
-                    "lastCommit": {
-                        "id": "bc1ef030bf3743290d5e190695ab94582e51ae2f",
-                        "title": "Upload 141 files",
-                        "date": "2023-11-17T23:50:28.000Z"
-                    },
-                    "security": {
-                        "blobId": "45fa7c3d85ee7dd4139adbc056da25ae136a65f2",
-                        "name": "maelstrom/lib/maelstrom.jar",
-                        "safe": true,
-                        "avScan": {
-                            "virusFound": false,
-                            "virusNames": null
-                        },
-                        "pickleImportScan": {
-                            "highestSafetyLevel": "innocuous",
-                            "imports": [
-                                {"module": "torch", "name": "FloatStorage", "safety": "innocuous"},
-                                {"module": "collections", "name": "OrderedDict", "safety": "innocuous"},
-                                {"module": "torch", "name": "LongStorage", "safety": "innocuous"},
-                                {"module": "torch._utils", "name": "_rebuild_tensor_v2", "safety": "innocuous"}
-                            ]
-                        }
-                    }
-                }
-            ]
-            "#,
-        );
-
-        let decoded_response =
-            serde_json::from_slice::<Vec<HfStatus>>(&resp).map_err(new_json_deserialize_error)?;
-
-        assert_eq!(decoded_response.len(), 1);
-
-        let file_info = HfStatus {
-            type_: "file".to_string(),
-            oid: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
-            size: 69512435,
-            lfs: Some(HfLfs {
-                oid: "b43f4c2ea569da1d66ca74e26ca8ea4430dfc29195e97144b2d0b4f3f6cafa1c".to_string(),
-                size: 69512435,
-                pointer_size: 133,
-            }),
-            path: "maelstrom/lib/maelstrom.jar".to_string(),
-            last_commit: Some(HfLastCommit {
-                id: "bc1ef030bf3743290d5e190695ab94582e51ae2f".to_string(),
-                title: "Upload 141 files".to_string(),
-                date: "2023-11-17T23:50:28.000Z".to_string(),
-            }),
-            security: Some(HfSecurity {
-                blob_id: "45fa7c3d85ee7dd4139adbc056da25ae136a65f2".to_string(),
-                safe: true,
-                av_scan: Some(HfAvScan {
-                    virus_found: false,
-                    virus_names: None,
-                }),
-                pickle_import_scan: Some(HfPickleImportScan {
-                    highest_safety_level: "innocuous".to_string(),
-                    imports: vec![
-                        HfImport {
-                            module: "torch".to_string(),
-                            name: "FloatStorage".to_string(),
-                            safety: "innocuous".to_string(),
-                        },
-                        HfImport {
-                            module: "collections".to_string(),
-                            name: "OrderedDict".to_string(),
-                            safety: "innocuous".to_string(),
-                        },
-                        HfImport {
-                            module: "torch".to_string(),
-                            name: "LongStorage".to_string(),
-                            safety: "innocuous".to_string(),
-                        },
-                        HfImport {
-                            module: "torch._utils".to_string(),
-                            name: "_rebuild_tensor_v2".to_string(),
-                            safety: "innocuous".to_string(),
-                        },
-                    ],
-                }),
-            }),
-        };
-
-        assert_eq!(decoded_response[0], file_info);
-
-        Ok(())
-    }
+fn build_reqwest(policy: reqwest::redirect::Policy) -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .redirect(policy)
+        .build()
+        .map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "failed to build http client").set_source(err)
+        })
 }

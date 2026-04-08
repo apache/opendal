@@ -20,7 +20,7 @@ dotnet test
 ## Quickstart
 
 ```csharp
-using DotOpenDAL;
+using OpenDAL;
 using System.Text;
 
 using var executor = new Executor(2);
@@ -44,7 +44,7 @@ If you don't pass an `Executor`, OpenDAL uses the default executor.
 ### With scheme + dictionary options
 
 ```csharp
-using DotOpenDAL;
+using OpenDAL;
 
 using var fs = new Operator("fs", new Dictionary<string, string>
 {
@@ -55,8 +55,8 @@ using var fs = new Operator("fs", new Dictionary<string, string>
 ### With typed service config
 
 ```csharp
-using DotOpenDAL;
-using DotOpenDAL.ServiceConfig;
+using OpenDAL;
+using OpenDAL.ServiceConfig;
 
 using var fs = new Operator(new FsServiceConfig
 {
@@ -84,8 +84,8 @@ using var fs = new Operator(new FsServiceConfig
 - `Duplicate()` to create a new handle to the same backend configuration
 
 ```csharp
-using DotOpenDAL;
-using DotOpenDAL.Options;
+using OpenDAL;
+using OpenDAL.Options;
 using System.Text;
 
 using var op = new Operator("memory");
@@ -103,7 +103,7 @@ op.RemoveAll("logs/");
 
 ## Options
 
-Use options types in `DotOpenDAL.Options` to pass operation-specific parameters.
+Use options types in `OpenDAL.Options` to pass operation-specific parameters.
 
 - `ReadOptions`: range, conditions, concurrency, response-header overrides.
 - `WriteOptions`: append, content headers, conditions, concurrency/chunk, user metadata.
@@ -111,7 +111,7 @@ Use options types in `DotOpenDAL.Options` to pass operation-specific parameters.
 - `ListOptions`: recursive, limit, start-after, versions, deleted.
 
 ```csharp
-using DotOpenDAL.Options;
+using OpenDAL.Options;
 
 var writeOptions = new WriteOptions
 {
@@ -139,7 +139,7 @@ OpenDAL exposes .NET `Stream` wrappers:
 - `OpenWriteStream(path, writeOptions, bufferSize, executor)` returns `OperatorOutputStream`.
 
 ```csharp
-using DotOpenDAL;
+using OpenDAL;
 using System.Text;
 
 using var op = new Operator("memory");
@@ -166,7 +166,7 @@ Notes:
 Generate presigned HTTP requests with expiration:
 
 ```csharp
-using DotOpenDAL;
+using OpenDAL;
 
 using var op = new Operator("s3", new Dictionary<string, string>
 {
@@ -198,8 +198,8 @@ Available APIs:
 Apply middleware-like behavior with `WithLayer`:
 
 ```csharp
-using DotOpenDAL;
-using DotOpenDAL.Layer;
+using OpenDAL;
+using OpenDAL.Layer;
 
 using var baseOp = new Operator("memory");
 

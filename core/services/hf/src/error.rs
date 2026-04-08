@@ -53,7 +53,7 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     };
 
     let message = match serde_json::from_slice::<HfError>(&bs) {
-        Ok(hf_error) => format!("{:?}", hf_error.error),
+        Ok(hf_error) => hf_error.error,
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 

@@ -202,13 +202,28 @@ pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
 }
 
-/// Remove all under a prefix, while the prefix itself is also an object
+/// Remove all under a prefix, while the prefix itself is also an object.
+///
+/// This test requires flat key storage where a path can be both a file
+/// and a directory prefix simultaneously (e.g., S3). Services with real
+/// directory semantics (e.g., git-based repos) cannot support this
+/// because a path cannot be both a file and a directory.
 pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
     let (content, _) = gen_bytes(op.info().full_capability());
     op.write(&parent, content)
         .await
         .expect("write must succeed");
+
+    // Probe: write a file under the same path used as a prefix. This
+    // fails on services with real directory semantics.
+    let (content, _) = gen_bytes(op.info().full_capability());
+    if op.write(&format!("{parent}/probe"), content).await.is_err() {
+        let _ = op.delete(&parent).await;
+        return Ok(());
+    }
+    let _ = op.delete(&format!("{parent}/probe")).await;
+
     test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
 }
 

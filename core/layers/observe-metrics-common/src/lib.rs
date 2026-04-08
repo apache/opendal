@@ -1004,12 +1004,20 @@ pub struct MetricsWrapper<R, I: MetricsIntercept> {
 
     start: Instant,
     size: u64,
+    completed: bool,
 }
 
 impl<R, I: MetricsIntercept> Drop for MetricsWrapper<R, I> {
     fn drop(&mut self) {
         let size = self.size;
         let duration = self.start.elapsed();
+
+        if !self.completed {
+            self.interceptor.observe(
+                self.labels.clone().with_error(ErrorKind::Unexpected),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
 
         if self.labels.operation == Operation::Read.into_static()
             || self.labels.operation == Operation::Write.into_static()
@@ -1048,7 +1056,16 @@ impl<R, I: MetricsIntercept> MetricsWrapper<R, I> {
             labels,
             start,
             size: 0,
+            completed: false,
         }
+    }
+
+    fn record_error(&mut self, err: &Error) {
+        self.completed = true;
+        self.interceptor.observe(
+            self.labels.clone().with_error(err.kind()),
+            MetricValue::OperationErrorsTotal,
+        );
     }
 }
 
@@ -1058,14 +1075,12 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
             .read()
             .await
             .inspect(|bs| {
+                if bs.is_empty() {
+                    self.completed = true;
+                }
                 self.size += bs.len() as u64;
             })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
+            .inspect_err(|err| self.record_error(err))
     }
 }
 
@@ -1079,30 +1094,27 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             .inspect(|_| {
                 self.size += size as u64;
             })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
+            .inspect_err(|err| self.record_error(err))
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.inner.close().await.inspect_err(|err| {
-            self.interceptor.observe(
-                self.labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })
+        let result = self
+            .inner
+            .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await.inspect_err(|err| {
-            self.interceptor.observe(
-                self.labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })
+        let result = self
+            .inner
+            .abort()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
     }
 }
 
@@ -1114,14 +1126,11 @@ impl<R: oio::List, I: MetricsIntercept> oio::List for MetricsWrapper<R, I> {
             .inspect(|entry| {
                 if entry.is_some() {
                     self.size += 1;
+                } else {
+                    self.completed = true;
                 }
             })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
+            .inspect_err(|err| self.record_error(err))
     }
 }
 
@@ -1133,21 +1142,17 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
             .inspect(|_| {
                 self.size += 1;
             })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    self.labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            })
+            .inspect_err(|err| self.record_error(err))
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.inner.close().await.inspect_err(|err| {
-            self.interceptor.observe(
-                self.labels.clone().with_error(err.kind()),
-                MetricValue::OperationErrorsTotal,
-            );
-        })
+        let result = self
+            .inner
+            .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
     }
 }
 

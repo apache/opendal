@@ -27,7 +27,12 @@ runs:
         export-env: true
       env:
         OPENDAL_HF_TOKEN: op://services/hf/token
-        OPENDAL_HF_REPO_ID: op://services/hf/dataset_repo_id
+    - name: Create temp dataset repo
+      uses: ./.github/actions/hf-temp-repo
+      with:
+        repo_id: opendal/test-dataset-${{ github.run_id }}-${{ github.job }}
+        repo_type: dataset
+        token: ${{ env.OPENDAL_HF_TOKEN }}
     - name: Setup env
       shell: bash
       run: |

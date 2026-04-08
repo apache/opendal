@@ -1587,6 +1587,7 @@ mod tests {
             labels,
             start: Instant::now(),
             size: 0,
+            completed: true,
         };
         wrapper.size = 42;
         drop(wrapper);
@@ -1609,6 +1610,7 @@ mod tests {
             labels,
             start: Instant::now(),
             size: 0,
+            completed: false,
         };
         drop(wrapper);
 

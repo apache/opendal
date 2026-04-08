@@ -1598,7 +1598,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires fix from PR #7357: MetricsWrapper should emit OperationErrorsTotal on cancellation"]
     fn test_wrapper_cancelled_records_operation_error() {
         let mock = MockInterceptor::default();
         let labels = MetricLabels::new(test_info(), Operation::Read.into_static());

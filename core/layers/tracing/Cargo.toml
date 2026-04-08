@@ -43,7 +43,9 @@ opendal-core = { path = "../../core", version = "0.55.0" }
 opentelemetry = { version = "0.31.0", default-features = false, features = [
   "trace",
 ] }
-opentelemetry-otlp = { version = "0.31.0", default-features = false, features = ["grpc-tonic"] }
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = [
+  "grpc-tonic",
+] }
 opentelemetry_sdk = { version = "0.31.0", features = ["rt-tokio"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing-opentelemetry = "0.32.0"

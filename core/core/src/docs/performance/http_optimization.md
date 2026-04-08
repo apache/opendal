@@ -122,5 +122,5 @@ By default, the connection pool is unlimited, allowing `reqwest` to open as many
 
 You can tune those settings via:
 
-- [pool_idle_timeout](https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout): Set an optional timeout for idle sockets being kept-alive.
-- [pool_max_idle_per_host](https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_max_idle_per_host): Sets the maximum idle connection per host allowed in the pool.
+- [pool_idle_timeout](https://docs.rs/reqwest/0.13.2/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout): Set an optional timeout for idle sockets being kept-alive.
+- [pool_max_idle_per_host](https://docs.rs/reqwest/0.13.2/reqwest/struct.ClientBuilder.html#method.pool_max_idle_per_host): Sets the maximum idle connection per host allowed in the pool.

@@ -40,7 +40,7 @@ all-features = true
 default = ["reqwest-rustls-tls", "executors-tokio"]
 
 # Enable reqwest rustls tls support.
-reqwest-rustls-tls = ["reqwest/rustls-tls"]
+reqwest-rustls-tls = ["reqwest/rustls"]
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
@@ -76,7 +76,7 @@ mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-core = { version = "3.0.0", default-features = false }
-reqwest = { version = "0.12.24", features = [
+reqwest = { version = "0.13.2", features = [
   "stream",
 ], default-features = false }
 serde = { workspace = true, features = ["derive"] }

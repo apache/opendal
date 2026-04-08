@@ -26,9 +26,7 @@ async function run() {
   const [organization, repoName] = repoId.split("/");
 
   if (repoType === "bucket") {
-    await hfRequest("POST", "/api/buckets", token, {
-      name: repoName,
-      organization,
+    await hfRequest("POST", `/api/buckets/${organization}/${repoName}`, token, {
       private: true,
     });
   } else {

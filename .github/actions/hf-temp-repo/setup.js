@@ -17,12 +17,15 @@
  * under the License.
  */
 
+const { randomUUID } = require("crypto");
+
 const { hfRequest, getInput, saveState, exportVariable } = require("./common");
 
 async function run() {
-  const repoId = getInput("repo_id");
+  const repoPrefix = getInput("repo_id");
   const repoType = getInput("repo_type");
   const token = getInput("token");
+  const repoId = `${repoPrefix}-${randomUUID().slice(0, 8)}`;
   const [organization, repoName] = repoId.split("/");
 
   if (repoType === "bucket") {

@@ -211,9 +211,11 @@ impl HfCore {
         token: Option<String>,
         endpoint: String,
     ) -> Result<Self> {
-        let standard = HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
-        let no_redirect = HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
-        info.update_http_client(|_| standard);
+        let standard_client =
+            HttpClient::with(build_reqwest(reqwest::redirect::Policy::default())?);
+        let no_redirect_client =
+            HttpClient::with(build_reqwest(reqwest::redirect::Policy::none())?);
+        info.update_http_client(|_| standard_client);
 
         let xet_session = XetSessionBuilder::new().build().map_err(|err| {
             Error::new(ErrorKind::Unexpected, "failed to create xet session").set_source(err)
@@ -225,7 +227,7 @@ impl HfCore {
             root,
             token,
             endpoint,
-            no_redirect,
+            no_redirect_client,
             xet_session,
         ))
     }
@@ -242,7 +244,7 @@ impl HfCore {
 
     /// Create a new XET upload commit with token refresh configured.
     ///
-    /// Each call creates a fresh XET session to avoid concurrent interference.
+    /// Each call creates a fresh upload commit from the shared XET session.
     pub(super) async fn xet_upload_commit(&self) -> Result<XetUploadCommit> {
         let refresh_url = self.repo.xet_token_url(&self.endpoint, "write");
         let refresh_headers = self.xet_token_refresh_headers();
@@ -263,7 +265,7 @@ impl HfCore {
 
     /// Create a new XET download stream group with token refresh configured.
     ///
-    /// Each call creates a fresh XET session to avoid concurrent interference.
+    /// Each call creates a fresh download group from the shared XET session.
     pub(super) async fn xet_download_group(&self) -> Result<XetDownloadStreamGroup> {
         let refresh_url = self.repo.xet_token_url(&self.endpoint, "read");
         let refresh_headers = self.xet_token_refresh_headers();

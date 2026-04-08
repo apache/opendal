@@ -233,30 +233,9 @@ impl<A: Access> SimulateAccessor<A> {
         }
 
         let non_recursive = args.clone().with_recursive(false);
-        let list_path = if path.ends_with('/') {
-            path.to_string()
-        } else {
-            let meta = match self.simulate_stat(path, OpStat::default()).await {
-                Ok(rp) => Some(rp.into_metadata()),
-                Err(err) if err.kind() == ErrorKind::NotFound => None,
-                Err(err) => return Err(err),
-            };
-
-            if let Some(meta) = meta {
-                if meta.is_file() {
-                    let mut entry_args = non_recursive.clone();
-                    if let Some(version) = meta.version() {
-                        entry_args = entry_args.with_version(version);
-                    }
-                    deleter.delete(path, entry_args).await?;
-                }
-            }
-
-            format!("{path}/")
-        };
 
         let (_rp, mut lister) = self
-            .simulate_list(&list_path, OpList::new().with_recursive(true))
+            .simulate_list(path, OpList::new().with_recursive(true))
             .await?;
 
         while let Some(entry) = lister.next().await? {

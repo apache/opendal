@@ -308,6 +308,15 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
+            return Ok(());
+        }
+    }
+
     let base = format!("delete_recursive_{}/", uuid::Uuid::new_v4());
 
     let files = [

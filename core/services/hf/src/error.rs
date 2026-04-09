@@ -41,20 +41,25 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
+    let message = match serde_json::from_slice::<HfError>(&bs) {
+        Ok(hf_error) => hf_error.error,
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let branch_updated_conflict = parts.status == StatusCode::PRECONDITION_FAILED
+        && message
+            .to_ascii_lowercase()
+            .contains("branch was updated since you opened this page");
+
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, branch_updated_conflict),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
         | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
-    };
-
-    let message = match serde_json::from_slice::<HfError>(&bs) {
-        Ok(hf_error) => hf_error.error,
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
     let mut err = Error::new(kind, message);
@@ -70,6 +75,8 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod test {
+    use http::StatusCode;
+
     use super::*;
 
     #[test]
@@ -85,5 +92,35 @@ mod test {
         assert_eq!(decoded_response.error, "Invalid username or password.");
 
         Ok(())
+    }
+
+    #[test]
+    fn test_parse_error_branch_update_conflict_is_temporary() {
+        let body = Buffer::from(bytes::Bytes::from(
+            r#"{"error":"The branch was updated since you opened this page. Please refresh and try again."}"#,
+        ));
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(body)
+            .unwrap();
+
+        let err = parse_error(resp);
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_error_other_precondition_failed_is_not_temporary() {
+        let body = Buffer::from(bytes::Bytes::from(r#"{"error":"etag mismatch"}"#));
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(body)
+            .unwrap();
+
+        let err = parse_error(resp);
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
     }
 }

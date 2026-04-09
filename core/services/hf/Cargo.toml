@@ -42,7 +42,6 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["time"] }
 
 [dev-dependencies]
 futures = { workspace = true }
@@ -50,4 +49,4 @@ opendal-core = { path = "../../core", version = "0.55.0", features = [
   "reqwest-rustls-tls",
 ] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

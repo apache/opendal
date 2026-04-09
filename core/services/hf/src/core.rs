@@ -17,7 +17,6 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::Duration;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -437,28 +436,17 @@ impl HfCore {
             deleted_folders,
         };
 
-        for attempt in 0..=HF_GIT_COMMIT_MAX_RETRIES {
-            let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
+        let json_body = serde_json::to_vec(&payload).map_err(new_json_serialize_error)?;
 
-            let req = self
-                .request(http::Method::POST, &url, Operation::Write)?
-                .header(header::CONTENT_TYPE, "application/json")
-                .header(header::CONTENT_LENGTH, json_body.len())
-                .body(Buffer::from(json_body))
-                .map_err(new_request_build_error)?;
+        let req = self
+            .request(http::Method::POST, &url, Operation::Write)?
+            .header(header::CONTENT_TYPE, "application/json")
+            .header(header::CONTENT_LENGTH, json_body.len())
+            .body(Buffer::from(json_body))
+            .map_err(new_request_build_error)?;
 
-            match self.send_parse::<CommitResponse>(req).await {
-                Ok((_, resp)) => return Ok(resp),
-                Err(err)
-                    if attempt < HF_GIT_COMMIT_MAX_RETRIES && is_branch_updated_conflict(&err) =>
-                {
-                    tokio::time::sleep(git_commit_retry_backoff(attempt)).await;
-                }
-                Err(err) => return Err(err),
-            }
-        }
-
-        unreachable!("git commit retry loop must return on success or terminal error")
+        let (_, resp) = self.send_parse::<CommitResponse>(req).await?;
+        Ok(resp)
     }
 
     /// Commit file changes to a bucket repo via the NDJSON batch API.
@@ -493,24 +481,9 @@ impl HfCore {
     }
 }
 
-const HF_GIT_COMMIT_MAX_RETRIES: usize = 6;
-
-fn is_branch_updated_conflict(err: &Error) -> bool {
-    err.kind() == ErrorKind::ConditionNotMatch
-        && err
-            .message()
-            .to_ascii_lowercase()
-            .contains("branch was updated")
-}
-
-fn git_commit_retry_backoff(attempt: usize) -> Duration {
-    Duration::from_millis(200 * (attempt as u64 + 1))
-}
-
 #[cfg(test)]
 pub(crate) mod test_utils {
     use http::{Request, Response, StatusCode};
-    use std::collections::VecDeque;
     use std::sync::{Arc, Mutex};
 
     use super::super::uri::HfRepoType;
@@ -557,60 +530,6 @@ pub(crate) mod test_utils {
         }
     }
 
-    #[derive(Clone)]
-    pub(crate) struct SequenceMockHttpClient {
-        urls: Arc<Mutex<Vec<String>>>,
-        responses: Arc<Mutex<VecDeque<MockResponse>>>,
-    }
-
-    #[derive(Clone)]
-    pub(crate) enum MockResponse {
-        Ok(&'static str),
-        Err(StatusCode, &'static str),
-    }
-
-    impl SequenceMockHttpClient {
-        pub(crate) fn new(responses: Vec<MockResponse>) -> Self {
-            Self {
-                urls: Arc::new(Mutex::new(Vec::new())),
-                responses: Arc::new(Mutex::new(responses.into())),
-            }
-        }
-
-        pub(crate) fn urls(&self) -> Vec<String> {
-            self.urls.lock().unwrap().clone()
-        }
-    }
-
-    impl HttpFetch for SequenceMockHttpClient {
-        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            self.urls.lock().unwrap().push(req.uri().to_string());
-
-            let response = self
-                .responses
-                .lock()
-                .unwrap()
-                .pop_front()
-                .expect("mock response must be configured");
-
-            let (status, body) = match response {
-                MockResponse::Ok(body) => (StatusCode::OK, body),
-                MockResponse::Err(status, body) => (status, body),
-            };
-
-            let data = Bytes::from(body);
-            let size = data.len() as u64;
-            let buffer = Buffer::from(data);
-            let body = HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size));
-
-            Ok(Response::builder()
-                .status(status)
-                .header(http::header::CONTENT_TYPE, "application/json")
-                .body(body)
-                .unwrap())
-        }
-    }
-
     pub(crate) fn create_test_core(
         repo_type: HfRepoType,
         repo_id: &str,
@@ -645,7 +564,7 @@ pub(crate) mod test_utils {
 #[cfg(test)]
 mod tests {
     use super::super::uri::HfRepoType;
-    use super::test_utils::{MockResponse, SequenceMockHttpClient, create_test_core};
+    use super::test_utils::create_test_core;
     use super::*;
 
     #[tokio::test]
@@ -724,47 +643,6 @@ mod tests {
             url,
             "https://huggingface.co/api/spaces/test-user/test-space/paths-info/main"
         );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hf_commit_git_retries_branch_update_conflict() -> Result<()> {
-        let mock_client = SequenceMockHttpClient::new(vec![
-            MockResponse::Err(
-                http::StatusCode::PRECONDITION_FAILED,
-                r#"{"error":"The branch was updated since you opened this page. Please refresh and try again."}"#,
-            ),
-            MockResponse::Ok(r#"{"commitOid":"abc123"}"#),
-        ]);
-        let http_client = HttpClient::with(mock_client.clone());
-
-        let info = AccessorInfo::default();
-        info.set_scheme("hf")
-            .set_native_capability(Capability::default());
-        info.update_http_client(|_| http_client);
-
-        let xet_session = XetSessionBuilder::new()
-            .build()
-            .expect("failed to create xet session");
-        let core = HfCore::new(
-            Arc::new(info),
-            HfRepo::new(
-                HfRepoType::Dataset,
-                "test-org/test-dataset".to_string(),
-                Some("main".to_string()),
-            ),
-            "/".to_string(),
-            Some("test-token".to_string()),
-            "https://huggingface.co".to_string(),
-            HttpClient::with(mock_client.clone()),
-            xet_session,
-        );
-
-        let resp = core.commit_git(vec![], vec![], vec![], vec![]).await?;
-
-        assert_eq!(resp.commit_oid.as_deref(), Some("abc123"));
-        assert_eq!(mock_client.urls().len(), 2);
 
         Ok(())
     }

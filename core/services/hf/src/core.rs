@@ -492,23 +492,33 @@ pub(crate) mod test_utils {
     #[derive(Clone)]
     pub(crate) struct MockHttpClient {
         url: Arc<Mutex<Option<String>>>,
+        body: Arc<Mutex<Option<String>>>,
     }
 
     impl MockHttpClient {
         pub(crate) fn new() -> Self {
             Self {
                 url: Arc::new(Mutex::new(None)),
+                body: Arc::new(Mutex::new(None)),
             }
         }
 
         pub(crate) fn get_captured_url(&self) -> String {
             self.url.lock().unwrap().clone().unwrap()
         }
+
+        pub(crate) fn get_captured_body(&self) -> String {
+            self.body.lock().unwrap().clone().unwrap_or_default()
+        }
     }
 
     impl HttpFetch for MockHttpClient {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
             *self.url.lock().unwrap() = Some(req.uri().to_string());
+            *self.body.lock().unwrap() = Some(
+                String::from_utf8(req.body().to_bytes().to_vec())
+                    .expect("request body must be utf-8 for test payloads"),
+            );
 
             // Return a minimal valid JSON response for API requests
             let body = if req.uri().to_string().contains("/paths-info/")
@@ -516,6 +526,11 @@ pub(crate) mod test_utils {
             {
                 let data =
                     Bytes::from(r#"[{"type":"file","oid":"abc123","size":100,"path":"test.txt"}]"#);
+                let size = data.len() as u64;
+                let buffer = Buffer::from(data);
+                HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))
+            } else if req.uri().to_string().contains("/commit/") {
+                let data = Bytes::from(r#"{}"#);
                 let size = data.len() as u64;
                 let buffer = Buffer::from(data);
                 HttpBody::new(futures::stream::iter(vec![Ok(buffer)]), Some(size))

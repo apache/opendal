@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::{BucketOperation, DeletedFile, DeletedFolder, HfCore};
+use super::core::{BucketOperation, DeletedFile, HfCore};
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -43,18 +43,20 @@ impl HfDeleter {
                 .collect();
             self.core.commit_bucket(ops).await.map(|_| ())
         } else {
-            // Git commit API distinguishes file and folder deletions.
+            // Git-based HF repos only track files. Directory entries yielded by
+            // recursive listing are virtual and should disappear once nested
+            // files are removed.
             let mut deleted_files = Vec::new();
-            let mut deleted_folders = Vec::new();
             for path in paths {
-                if path.ends_with('/') {
-                    deleted_folders.push(DeletedFolder { path });
-                } else {
+                if !path.ends_with('/') {
                     deleted_files.push(DeletedFile { path });
                 }
             }
+            if deleted_files.is_empty() {
+                return Ok(());
+            }
             self.core
-                .commit_git(vec![], vec![], deleted_files, deleted_folders)
+                .commit_git(vec![], vec![], deleted_files, vec![])
                 .await
                 .map(|_| ())
         };
@@ -84,5 +86,45 @@ impl oio::BatchDelete for HfDeleter {
             succeeded: batch,
             failed: vec![],
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::Value;
+
+    use super::super::core::test_utils::create_test_core;
+    use super::super::uri::HfRepoType;
+    use super::*;
+    use opendal_core::raw::oio::BatchDelete;
+
+    #[tokio::test]
+    async fn test_git_delete_ignores_directory_entries() -> Result<()> {
+        let (mut core, mock_client) = create_test_core(
+            HfRepoType::Dataset,
+            "test-org/test-dataset",
+            "main",
+            "https://huggingface.co",
+        );
+        core.token = Some("test-token".to_string());
+
+        let deleter = HfDeleter::new(Arc::new(core));
+        let batch = vec![
+            ("dir/".to_string(), OpDelete::default()),
+            ("dir/a".to_string(), OpDelete::default()),
+            ("dir/b/".to_string(), OpDelete::default()),
+            ("dir/b/c".to_string(), OpDelete::default()),
+        ];
+
+        deleter.delete_batch(batch).await?;
+
+        let body: Value = serde_json::from_str(&mock_client.get_captured_body())
+            .expect("commit payload must be valid json");
+        assert_eq!(body["deletedFolders"], Value::Null);
+        assert_eq!(body["deletedFiles"].as_array().map(Vec::len), Some(2));
+        assert_eq!(body["deletedFiles"][0]["path"], "dir/a");
+        assert_eq!(body["deletedFiles"][1]["path"], "dir/b/c");
+
+        Ok(())
     }
 }

@@ -153,9 +153,9 @@ impl Operator {
         F: std::future::Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.handle
-            .block_on(self.handle.spawn(f))
-            .map_err(|err| Error::new(ErrorKind::Unexpected, "blocking task failed").set_source(err))
+        self.handle.block_on(self.handle.spawn(f)).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "blocking task failed").set_source(err)
+        })
     }
 
     /// Create a blocking operator from URI based configuration.

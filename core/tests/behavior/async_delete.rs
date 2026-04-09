@@ -198,10 +198,13 @@ async fn test_blocking_remove_all_with_objects(
 
 /// Remove all under a prefix
 pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
-    if op.info().scheme() == services::HF_SCHEME {
-        // Hugging Face only guarantees recursive listing for repository trees,
-        // while this case expects prefix-recursive semantics for a non-directory path.
-        return Ok(());
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face only guarantees recursive listing for repository trees,
+            // while this case expects prefix-recursive semantics for a non-directory path.
+            return Ok(());
+        }
     }
 
     let parent = uuid::Uuid::new_v4().to_string();

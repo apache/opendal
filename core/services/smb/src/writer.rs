@@ -39,6 +39,27 @@ impl SmbWriter {
             offset: 0,
         }
     }
+
+    async fn close_file(&mut self) -> Result<()> {
+        let Some(file) = self.file.as_ref() else {
+            return Ok(());
+        };
+
+        file.flush().await.map_err(new_std_io_error)?;
+        file.close().await.map_err(super::error::parse_smb_error)?;
+        self.file.take();
+        Ok(())
+    }
+
+    async fn discard_file(&mut self) -> Result<()> {
+        let Some(file) = self.file.as_ref() else {
+            return Ok(());
+        };
+
+        file.close().await.map_err(super::error::parse_smb_error)?;
+        self.file.take();
+        Ok(())
+    }
 }
 
 impl oio::Write for SmbWriter {
@@ -66,17 +87,12 @@ impl oio::Write for SmbWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        if let Some(file) = self.file.take() {
-            file.flush().await.map_err(new_std_io_error)?;
-            file.close().await.map_err(super::error::parse_smb_error)?;
-        }
+        self.close_file().await?;
         Ok(Metadata::default())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        if let Some(file) = self.file.take() {
-            file.close().await.map_err(super::error::parse_smb_error)?;
-        }
+        self.discard_file().await?;
         Err(Error::new(
             ErrorKind::Unsupported,
             "SmbWriter doesn't support abort",

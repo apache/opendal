@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use fastpool::{ManageObject, ObjectStatus, bounded};
+use log::debug;
 use smb::{
     Client, ClientConfig, CreateDisposition, CreateOptions, DirAccessMask, FileAccessMask,
     FileAttributes, FileCreateArgs, GetLen, Resource, UncPath,
@@ -164,7 +165,17 @@ impl SmbCore {
         match resource {
             Resource::File(file) => {
                 let mut meta = Metadata::new(EntryMode::FILE);
-                meta.set_content_length(file.get_len().await.map_err(parse_smb_error)?);
+                let len = match file.get_len().await {
+                    Ok(len) => len,
+                    Err(err) => {
+                        return Err(close_resource_after_error(
+                            Resource::File(file),
+                            parse_smb_error(err),
+                        )
+                        .await);
+                    }
+                };
+                meta.set_content_length(len);
                 set_last_modified(&mut meta, file.modified().assume_utc().unix_timestamp());
                 file.close().await.map_err(parse_smb_error)?;
                 Ok(meta)
@@ -202,9 +213,16 @@ impl SmbCore {
 
         match resource {
             Resource::File(file) if !is_dir => {
-                file.set_info(smb::FileDispositionInformation::default())
+                if let Err(err) = file
+                    .set_info(smb::FileDispositionInformation::default())
                     .await
-                    .map_err(parse_smb_error)?;
+                {
+                    return Err(close_resource_after_error(
+                        Resource::File(file),
+                        parse_smb_error(err),
+                    )
+                    .await);
+                }
                 match file.close().await {
                     Ok(_) => {}
                     Err(err) if super::error::is_not_found(&err) => {}
@@ -212,9 +230,16 @@ impl SmbCore {
                 }
             }
             Resource::Directory(dir) if is_dir => {
-                dir.set_info(smb::FileDispositionInformation::default())
+                if let Err(err) = dir
+                    .set_info(smb::FileDispositionInformation::default())
                     .await
-                    .map_err(parse_smb_error)?;
+                {
+                    return Err(close_resource_after_error(
+                        Resource::Directory(dir),
+                        parse_smb_error(err),
+                    )
+                    .await);
+                }
                 match dir.close().await {
                     Ok(_) => {}
                     Err(err) if super::error::is_not_found(&err) => {}
@@ -335,12 +360,20 @@ fn build_smb_path(path: &str) -> String {
     path.trim_matches('/').replace('/', "\\")
 }
 
-async fn close_resource(resource: Resource) -> Result<()> {
+pub(super) async fn close_resource(resource: Resource) -> Result<()> {
     match resource {
         Resource::File(file) => file.close().await.map_err(parse_smb_error),
         Resource::Directory(dir) => dir.close().await.map_err(parse_smb_error),
         Resource::Pipe(pipe) => pipe.close().await.map_err(parse_smb_error),
     }
+}
+
+async fn close_resource_after_error(resource: Resource, err: Error) -> Error {
+    if let Err(close_err) = close_resource(resource).await {
+        debug!("failed to close smb resource after error: {close_err:?}");
+    }
+
+    err
 }
 
 fn set_last_modified(meta: &mut Metadata, modified: i64) {

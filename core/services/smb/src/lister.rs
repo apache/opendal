@@ -19,10 +19,12 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use futures::TryStreamExt;
+use log::debug;
 use smb::{Directory, FileFullDirectoryInformation};
 
 use super::core::SmbCore;
 use opendal_core::EntryMode;
+use opendal_core::Error;
 use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::oio;
@@ -30,6 +32,14 @@ use opendal_core::raw::oio::Entry;
 
 pub struct SmbLister {
     entries: VecDeque<Entry>,
+}
+
+async fn close_dir_after_error(dir: &Directory, err: Error) -> Error {
+    if let Err(close_err) = dir.close().await.map_err(super::error::parse_smb_error) {
+        debug!("failed to close smb directory after error: {close_err:?}");
+    }
+
+    err
 }
 
 impl SmbLister {
@@ -52,15 +62,31 @@ impl SmbLister {
         ));
 
         let dir = Arc::new(dir);
-        let mut stream = Directory::query::<FileFullDirectoryInformation>(&dir, "*")
-            .await
-            .map_err(super::error::parse_smb_error)?;
+        let mut stream = match Directory::query::<FileFullDirectoryInformation>(&dir, "*").await {
+            Ok(stream) => stream,
+            Err(err) => {
+                return Err(close_dir_after_error(
+                    dir.as_ref(),
+                    super::error::parse_smb_error(err),
+                )
+                .await);
+            }
+        };
 
-        while let Some(entry) = stream
-            .try_next()
-            .await
-            .map_err(super::error::parse_smb_error)?
-        {
+        loop {
+            let entry = match stream.try_next().await {
+                Ok(Some(entry)) => entry,
+                Ok(None) => break,
+                Err(err) => {
+                    drop(stream);
+                    return Err(close_dir_after_error(
+                        dir.as_ref(),
+                        super::error::parse_smb_error(err),
+                    )
+                    .await);
+                }
+            };
+
             let name = entry.file_name.to_string();
             if name == "." || name == ".." {
                 continue;
@@ -82,7 +108,10 @@ impl SmbLister {
             let meta = match core.stat_path(&client, &child_abs_path).await {
                 Ok(meta) => meta,
                 Err(err) if err.kind() == opendal_core::ErrorKind::NotFound => continue,
-                Err(err) => return Err(err),
+                Err(err) => {
+                    drop(stream);
+                    return Err(close_dir_after_error(dir.as_ref(), err).await);
+                }
             };
             let entry_path = if meta.mode().is_dir() {
                 format!("{}/", child_path.trim_end_matches('/'))
@@ -92,6 +121,7 @@ impl SmbLister {
             entries.push_back(Entry::new(entry_path.as_str(), meta));
         }
 
+        drop(stream);
         dir.close().await.map_err(super::error::parse_smb_error)?;
         drop(client);
 

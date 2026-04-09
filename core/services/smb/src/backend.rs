@@ -26,6 +26,7 @@ use smb::{
 use super::SMB_SCHEME;
 use super::config::SmbConfig;
 use super::core::SmbCore;
+use super::core::close_resource;
 use super::deleter::SmbDeleter;
 use super::error::is_already_exists;
 use super::error::is_not_found;
@@ -199,7 +200,8 @@ impl Access for SmbBackend {
 
         let file = match resource {
             Resource::File(file) => file,
-            _ => {
+            other => {
+                close_resource(other).await?;
                 return Err(Error::new(
                     ErrorKind::IsADirectory,
                     "read path is a directory",
@@ -249,7 +251,8 @@ impl Access for SmbBackend {
 
         let file = match resource {
             Resource::File(file) => file,
-            _ => {
+            other => {
+                close_resource(other).await?;
                 return Err(Error::new(
                     ErrorKind::IsADirectory,
                     "write path is a directory",
@@ -300,7 +303,10 @@ impl Access for SmbBackend {
 
         let dir = match resource {
             Resource::Directory(dir) => dir,
-            _ => return Ok((RpList::default(), None)),
+            other => {
+                close_resource(other).await?;
+                return Ok((RpList::default(), None));
+            }
         };
 
         Ok((

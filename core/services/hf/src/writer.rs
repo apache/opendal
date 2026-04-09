@@ -29,6 +29,8 @@ pub struct HfWriter {
     path: String,
     xet_commit: XetUploadCommit,
     xet_stream: XetStreamUpload,
+    // RetryLayer can replay Writer::close after a temporary commit failure,
+    // so writer finalization must be re-entrant and reuse the first finish result.
     finished_info: Option<XetFileInfo>,
 }
 
@@ -120,6 +122,8 @@ impl oio::Write for HfWriter {
             Some(file_info) => file_info,
             None => match self.xet_stream.finish().await {
                 Ok(file_meta) => {
+                    // Cache the finalized metadata so a retried close can skip
+                    // finish() and only replay the registration step.
                     let file_info = file_meta.xet_info;
                     self.finished_info = Some(file_info.clone());
                     file_info

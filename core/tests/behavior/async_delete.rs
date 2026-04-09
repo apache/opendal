@@ -198,6 +198,15 @@ async fn test_blocking_remove_all_with_objects(
 
 /// Remove all under a prefix
 pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face only guarantees recursive listing for repository trees,
+            // while this case expects prefix-recursive semantics for a non-directory path.
+            return Ok(());
+        }
+    }
+
     let parent = uuid::Uuid::new_v4().to_string();
     test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
 }
@@ -297,6 +306,15 @@ pub async fn test_delete_with_not_existing_version(op: Operator) -> Result<()> {
 pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
     if !op.info().full_capability().delete_with_recursive {
         return Ok(());
+    }
+
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
+            return Ok(());
+        }
     }
 
     let base = format!("delete_recursive_{}/", uuid::Uuid::new_v4());

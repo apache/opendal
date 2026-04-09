@@ -59,6 +59,10 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertTrue(result["components"]["binding_java"])
         self.assertTrue(len(result["binding_java"]) > 0)
 
+    def test_binding_java_excludes_hf(self):
+        result = plan(["bindings/java/pom.xml"])
+        cases = [v["service"] for target in result["binding_java"] for v in target["cases"]]
+        self.assertFalse("hf" in cases)
 
     def test_integration_object_store(self):
         result = plan(["integrations/object_store/Cargo.toml"])

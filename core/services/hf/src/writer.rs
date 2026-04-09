@@ -29,6 +29,9 @@ pub struct HfWriter {
     path: String,
     xet_commit: XetUploadCommit,
     xet_stream: XetStreamUpload,
+    // RetryLayer can replay Writer::close after a temporary commit failure,
+    // so writer finalization must be re-entrant and reuse the first finish result.
+    finished_info: Option<XetFileInfo>,
 }
 
 impl HfWriter {
@@ -52,6 +55,7 @@ impl HfWriter {
             path,
             xet_commit: commit,
             xet_stream: stream,
+            finished_info: None,
         })
     }
 
@@ -114,11 +118,32 @@ impl oio::Write for HfWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let file_meta = self.xet_stream.finish().await.map_err(|err| {
-            Error::new(ErrorKind::Unexpected, "failed to finish xet upload").set_source(err)
-        })?;
+        let file_info = match self.finished_info.clone() {
+            Some(file_info) => file_info,
+            None => match self.xet_stream.finish().await {
+                Ok(file_meta) => {
+                    // Cache the finalized metadata so a retried close can skip
+                    // finish() and only replay the registration step.
+                    let file_info = file_meta.xet_info;
+                    self.finished_info = Some(file_info.clone());
+                    file_info
+                }
+                Err(XetError::AlreadyCompleted) => {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "xet upload finished before metadata was cached",
+                    ));
+                }
+                Err(err) => {
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "failed to finish xet upload")
+                            .set_source(err),
+                    );
+                }
+            },
+        };
 
-        self.commit(&file_meta.xet_info).await
+        self.commit(&file_info).await
     }
 
     async fn abort(&mut self) -> Result<()> {

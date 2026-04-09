@@ -46,6 +46,9 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
         Err(_) => String::from_utf8_lossy(&bs).into_owned(),
     };
 
+    // HF git-style commit APIs reject stale branch snapshots with 412.
+    // Treat this specific conflict as temporary so RetryLayer can replay
+    // the whole write/delete close sequence on a fresh branch head.
     let branch_updated_conflict = parts.status == StatusCode::PRECONDITION_FAILED
         && message
             .to_ascii_lowercase()

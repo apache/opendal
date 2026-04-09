@@ -15,19 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-name: huggingface
-description: "Behavior test for Huggingface File System"
+name: "HF Temp Repo"
+description: "Create a temporary HuggingFace repo or bucket for testing, automatically deleted after the job"
+inputs:
+  repo_id:
+    description: "Full repo/bucket ID (e.g. org/repo-name)"
+    required: true
+  repo_type:
+    description: "Repository type (dataset, model, space, bucket)"
+    required: true
+  token:
+    description: "HuggingFace API token"
+    required: true
 
 runs:
-  using: "composite"
-  steps:
-    - name: Setup
-      shell: bash
-      run: |
-        cat << EOF >> $GITHUB_ENV
-        OPENDAL_HUGGINGFACE_REPO_TYPE=dataset
-        OPENDAL_HUGGINGFACE_REPO_ID=opendal/huggingface-testdata
-        OPENDAL_HUGGINGFACE_REVISION=main
-        OPENDAL_HUGGINGFACE_ROOT=/testdata/
-        OPENDAL_DISABLE_RANDOM_ROOT=true
-        EOF
+  using: "node24"
+  main: "setup.js"
+  post: "cleanup.js"
+  post-if: "always()"

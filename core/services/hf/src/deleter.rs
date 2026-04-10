@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::{BucketOperation, DeletedFile, HfCore};
+use super::core::{BucketOperation, DeletedFile, DeletedFolder, HfCore};
 use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -43,20 +43,17 @@ impl HfDeleter {
                 .collect();
             self.core.commit_bucket(ops).await.map(|_| ())
         } else {
-            // Git-based HF repos only track files. Directory entries yielded by
-            // recursive listing are virtual and should disappear once nested
-            // files are removed.
             let mut deleted_files = Vec::new();
+            let mut deleted_folders = Vec::new();
             for path in paths {
-                if !path.ends_with('/') {
+                if path.ends_with('/') {
+                    deleted_folders.push(DeletedFolder { path });
+                } else {
                     deleted_files.push(DeletedFile { path });
                 }
             }
-            if deleted_files.is_empty() {
-                return Ok(());
-            }
             self.core
-                .commit_git(vec![], vec![], deleted_files, vec![])
+                .commit_git(vec![], vec![], deleted_files, deleted_folders)
                 .await
                 .map(|_| ())
         };
@@ -99,7 +96,7 @@ mod tests {
     use opendal_core::raw::oio::BatchDelete;
 
     #[tokio::test]
-    async fn test_git_delete_ignores_directory_entries() -> Result<()> {
+    async fn test_git_delete_separates_files_and_folders() -> Result<()> {
         let (mut core, mock_client) = create_test_core(
             HfRepoType::Dataset,
             "test-org/test-dataset",
@@ -120,10 +117,23 @@ mod tests {
 
         let body: Value = serde_json::from_str(&mock_client.get_captured_body())
             .expect("commit payload must be valid json");
-        assert_eq!(body["deletedFolders"], Value::Null);
-        assert_eq!(body["deletedFiles"].as_array().map(Vec::len), Some(2));
-        assert_eq!(body["deletedFiles"][0]["path"], "dir/a");
-        assert_eq!(body["deletedFiles"][1]["path"], "dir/b/c");
+        let folders: Vec<&str> = body["deletedFolders"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["path"].as_str().unwrap())
+            .collect();
+        assert!(folders.contains(&"dir/"));
+        assert!(folders.contains(&"dir/b/"));
+
+        let files: Vec<&str> = body["deletedFiles"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v["path"].as_str().unwrap())
+            .collect();
+        assert!(files.contains(&"dir/a"));
+        assert!(files.contains(&"dir/b/c"));
 
         Ok(())
     }

@@ -99,10 +99,14 @@ use std::collections::HashMap;
 ///     assert_eq!(content, bytes);
 /// }
 /// ```
+/// Default concurrency for range fetches in `get_ranges`.
+const DEFAULT_GET_RANGES_CONCURRENT: usize = 10;
+
 #[derive(Clone)]
 pub struct OpendalStore {
     info: Arc<OperatorInfo>,
     inner: Operator,
+    get_ranges_concurrent: usize,
 }
 
 impl OpendalStore {
@@ -111,7 +115,18 @@ impl OpendalStore {
         Self {
             info: op.info().into(),
             inner: op,
+            get_ranges_concurrent: DEFAULT_GET_RANGES_CONCURRENT,
         }
+    }
+
+    /// Set the concurrency level for `get_ranges` fetches.
+    ///
+    /// This controls how many coalesced range reads are performed in
+    /// parallel when [`ObjectStore::get_ranges`] is called.
+    /// Defaults to 10.
+    pub fn with_get_ranges_concurrent(mut self, concurrent: usize) -> Self {
+        self.get_ranges_concurrent = concurrent.max(1);
+        self
     }
 
     /// Get the Operator info.
@@ -427,21 +442,18 @@ impl ObjectStore for OpendalStore {
         let reader = self
             .inner
             .reader_with(&raw_location)
+            .concurrent(self.get_ranges_concurrent)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let mut results = Vec::with_capacity(ranges.len());
-        for range in ranges {
-            let data = reader
-                .read(range.start..range.end)
-                .into_send()
-                .await
-                .map(|buf| buf.to_bytes())
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-            results.push(data);
-        }
-        Ok(results)
+        let bufs = reader
+            .fetch(ranges.to_vec())
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        Ok(bufs.into_iter().map(|buf| buf.to_bytes()).collect())
     }
 
     fn delete_stream(

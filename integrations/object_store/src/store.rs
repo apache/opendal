@@ -442,18 +442,33 @@ impl ObjectStore for OpendalStore {
         let reader = self
             .inner
             .reader_with(&raw_location)
-            .concurrent(self.get_ranges_concurrent)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let bufs = reader
-            .fetch(ranges.to_vec())
-            .into_send()
+        // Use read_into() instead of fetch() + to_bytes() to avoid 2x peak memory:
+        // fetch() collects non-contiguous chunks, then to_bytes() copies them into
+        // a contiguous allocation while the originals are still alive.
+        let location_str = location.as_ref().to_string();
+        futures::stream::iter(ranges.iter().cloned())
+            .map(|range| {
+                let reader = reader.clone();
+                let location = location_str.clone();
+                async move {
+                    let len = (range.end - range.start) as usize;
+                    let mut buf = bytes::BytesMut::with_capacity(len);
+                    reader
+                        .read_into(&mut buf, range)
+                        .into_send()
+                        .await
+                        .map_err(|err| format_object_store_error(err, &location))?;
+                    Ok(buf.freeze())
+                }
+                .into_send()
+            })
+            .buffered(self.get_ranges_concurrent)
+            .try_collect()
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        Ok(bufs.into_iter().map(|buf| buf.to_bytes()).collect())
     }
 
     fn delete_stream(

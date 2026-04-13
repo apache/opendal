@@ -31,19 +31,17 @@ use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use mea::mutex::Mutex;
 use mea::oneshot;
-use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
 use object_store::ListResult;
 use object_store::MultipartUpload;
-use object_store::OBJECT_STORE_COALESCE_DEFAULT;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
-use object_store::coalesce_ranges;
 use object_store::path::Path;
+use object_store::{CopyMode as ObjectStoreCopyMode};
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
@@ -119,133 +117,6 @@ impl OpendalStore {
     /// Get the Operator info.
     pub fn info(&self) -> &OperatorInfo {
         self.info.as_ref()
-    }
-
-    /// Internal helper for `get_opts` that retrieves full object metadata
-    /// via `stat_with()` before reading.
-    async fn get_opts_stat(
-        &self,
-        location: &Path,
-        options: GetOptions,
-    ) -> object_store::Result<GetResult> {
-        let raw_location = percent_decode_path(location.as_ref());
-
-        let mut s = self.inner.stat_with(&raw_location);
-        if let Some(version) = &options.version {
-            s = s.version(version.as_str())
-        }
-        if let Some(if_match) = &options.if_match {
-            s = s.if_match(if_match.as_str());
-        }
-        if let Some(if_none_match) = &options.if_none_match {
-            s = s.if_none_match(if_none_match.as_str());
-        }
-        if let Some(if_modified_since) = options.if_modified_since.and_then(datetime_to_timestamp) {
-            s = s.if_modified_since(if_modified_since);
-        }
-        if let Some(if_unmodified_since) =
-            options.if_unmodified_since.and_then(datetime_to_timestamp)
-        {
-            s = s.if_unmodified_since(if_unmodified_since);
-        }
-        let opendal_meta = s
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-
-        let mut attributes = object_store::Attributes::new();
-        if let Some(user_meta) = opendal_meta.user_metadata() {
-            for (key, value) in user_meta {
-                attributes.insert(
-                    object_store::Attribute::Metadata(key.clone().into()),
-                    value.clone().into(),
-                );
-            }
-        }
-
-        let meta = ObjectMeta {
-            location: location.clone(),
-            last_modified: opendal_meta
-                .last_modified()
-                .and_then(timestamp_to_datetime)
-                .unwrap_or_default(),
-            size: opendal_meta.content_length(),
-            e_tag: opendal_meta.etag().map(|x| x.to_string()),
-            version: opendal_meta.version().map(|x| x.to_string()),
-        };
-
-        if options.head {
-            return Ok(GetResult {
-                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
-                range: 0..0,
-                meta,
-                attributes,
-            });
-        }
-
-        let reader = {
-            let mut r = self.inner.reader_with(raw_location.as_ref());
-            if let Some(version) = options.version {
-                r = r.version(version.as_str());
-            }
-            if let Some(if_match) = options.if_match {
-                r = r.if_match(if_match.as_str());
-            }
-            if let Some(if_none_match) = options.if_none_match {
-                r = r.if_none_match(if_none_match.as_str());
-            }
-            if let Some(if_modified_since) =
-                options.if_modified_since.and_then(datetime_to_timestamp)
-            {
-                r = r.if_modified_since(if_modified_since);
-            }
-            if let Some(if_unmodified_since) =
-                options.if_unmodified_since.and_then(datetime_to_timestamp)
-            {
-                r = r.if_unmodified_since(if_unmodified_since);
-            }
-            r.into_send()
-                .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?
-        };
-
-        let read_range = match options.range {
-            Some(GetRange::Bounded(r)) => {
-                if r.start >= r.end || r.start >= meta.size {
-                    0..0
-                } else {
-                    let end = r.end.min(meta.size);
-                    r.start..end
-                }
-            }
-            Some(GetRange::Offset(r)) => {
-                if r < meta.size {
-                    r..meta.size
-                } else {
-                    0..0
-                }
-            }
-            Some(GetRange::Suffix(r)) if r < meta.size => (meta.size - r)..meta.size,
-            _ => 0..meta.size,
-        };
-
-        let stream = reader
-            .into_bytes_stream(read_range.start..read_range.end)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?
-            .into_send()
-            .map_err(|err: io::Error| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            });
-
-        Ok(GetResult {
-            payload: GetResultPayload::Stream(Box::pin(stream)),
-            range: read_range.start..read_range.end,
-            meta,
-            attributes,
-        })
     }
 
     /// Copy a file from one location to another
@@ -424,7 +295,127 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         options: GetOptions,
     ) -> object_store::Result<GetResult> {
-        self.get_opts_stat(location, options).await
+        let raw_location = percent_decode_path(location.as_ref());
+        let meta = {
+            let mut s = self.inner.stat_with(&raw_location);
+            if let Some(version) = &options.version {
+                s = s.version(version.as_str())
+            }
+            if let Some(if_match) = &options.if_match {
+                s = s.if_match(if_match.as_str());
+            }
+            if let Some(if_none_match) = &options.if_none_match {
+                s = s.if_none_match(if_none_match.as_str());
+            }
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
+                s = s.if_modified_since(if_modified_since);
+            }
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
+                s = s.if_unmodified_since(if_unmodified_since);
+            }
+            s.into_send()
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?
+        };
+
+        // Convert user defined metadata from OpenDAL to object_store attributes
+        let mut attributes = object_store::Attributes::new();
+        if let Some(user_meta) = meta.user_metadata() {
+            for (key, value) in user_meta {
+                attributes.insert(
+                    object_store::Attribute::Metadata(key.clone().into()),
+                    value.clone().into(),
+                );
+            }
+        }
+
+        let meta = ObjectMeta {
+            location: location.clone(),
+            last_modified: meta
+                .last_modified()
+                .and_then(timestamp_to_datetime)
+                .unwrap_or_default(),
+            size: meta.content_length(),
+            e_tag: meta.etag().map(|x| x.to_string()),
+            version: meta.version().map(|x| x.to_string()),
+        };
+
+        if options.head {
+            return Ok(GetResult {
+                payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
+                range: 0..0,
+                meta,
+                attributes,
+            });
+        }
+
+        let reader = {
+            let mut r = self.inner.reader_with(raw_location.as_ref());
+            if let Some(version) = options.version {
+                r = r.version(version.as_str());
+            }
+            if let Some(if_match) = options.if_match {
+                r = r.if_match(if_match.as_str());
+            }
+            if let Some(if_none_match) = options.if_none_match {
+                r = r.if_none_match(if_none_match.as_str());
+            }
+            if let Some(if_modified_since) =
+                options.if_modified_since.and_then(datetime_to_timestamp)
+            {
+                r = r.if_modified_since(if_modified_since);
+            }
+            if let Some(if_unmodified_since) =
+                options.if_unmodified_since.and_then(datetime_to_timestamp)
+            {
+                r = r.if_unmodified_since(if_unmodified_since);
+            }
+            r.into_send()
+                .await
+                .map_err(|err| format_object_store_error(err, location.as_ref()))?
+        };
+
+        let read_range = match options.range {
+            Some(GetRange::Bounded(r)) => {
+                if r.start >= r.end || r.start >= meta.size {
+                    0..0
+                } else {
+                    let end = r.end.min(meta.size);
+                    r.start..end
+                }
+            }
+            Some(GetRange::Offset(r)) => {
+                if r < meta.size {
+                    r..meta.size
+                } else {
+                    0..0
+                }
+            }
+            Some(GetRange::Suffix(r)) if r < meta.size => (meta.size - r)..meta.size,
+            _ => 0..meta.size,
+        };
+
+        let stream = reader
+            .into_bytes_stream(read_range.start..read_range.end)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?
+            .into_send()
+            .map_err(|err: io::Error| object_store::Error::Generic {
+                store: "IoError",
+                source: Box::new(err),
+            });
+
+        Ok(GetResult {
+            payload: GetResultPayload::Stream(Box::pin(stream)),
+            range: read_range.start..read_range.end,
+            meta,
+            attributes,
+        })
     }
 
     async fn get_ranges(
@@ -435,31 +426,28 @@ impl ObjectStore for OpendalStore {
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
-            .reader_with(&raw_location)
+            .reader(&raw_location)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
         let location_ref = location.as_ref().to_string();
-        coalesce_ranges(
-            ranges,
-            |range| {
+        futures::stream::iter(ranges.iter().cloned())
+            .map(|range| {
                 let reader = reader.clone();
                 let location_ref = location_ref.clone();
                 async move {
-                    let len = (range.end - range.start) as usize;
-                    let mut buf = bytes::BytesMut::with_capacity(len);
                     reader
-                        .read_into(&mut buf, range)
+                        .read(range)
                         .into_send()
                         .await
-                        .map_err(|err| format_object_store_error(err, &location_ref))?;
-                    Ok(buf.freeze())
+                        .map(|buf| buf.to_bytes())
+                        .map_err(|err| format_object_store_error(err, &location_ref))
                 }
-            },
-            OBJECT_STORE_COALESCE_DEFAULT,
-        )
-        .await
+            })
+            .buffered(10)
+            .try_collect()
+            .await
     }
 
     fn delete_stream(

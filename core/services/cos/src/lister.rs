@@ -90,7 +90,13 @@ impl oio::PageList for CosLister {
                 path = "/".to_string();
             }
 
-            let meta = Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);
+            let mut meta =
+                Metadata::new(EntryMode::from_path(&path)).with_content_length(object.size);
+            meta.set_last_modified(object.last_modified.parse::<Timestamp>()?);
+            if let Some(etag) = object.etag {
+                meta.set_etag(&etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);

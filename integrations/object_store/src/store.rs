@@ -446,9 +446,6 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        // Use read_into() instead of fetch() + to_bytes() to avoid 2x peak memory:
-        // fetch() collects non-contiguous chunks, then to_bytes() copies them into
-        // a contiguous allocation while the originals are still alive.
         let location_str = location.as_ref().to_string();
         futures::stream::iter(ranges.iter().cloned())
             .map(|range| {

@@ -101,14 +101,10 @@ use std::collections::HashMap;
 ///     assert_eq!(content, bytes);
 /// }
 /// ```
-/// Default concurrency for range fetches in `get_ranges`.
-const DEFAULT_GET_RANGES_CONCURRENT: usize = 10;
-
 #[derive(Clone)]
 pub struct OpendalStore {
     info: Arc<OperatorInfo>,
     inner: Operator,
-    get_ranges_concurrent: usize,
 }
 
 impl OpendalStore {
@@ -117,18 +113,7 @@ impl OpendalStore {
         Self {
             info: op.info().into(),
             inner: op,
-            get_ranges_concurrent: DEFAULT_GET_RANGES_CONCURRENT,
         }
-    }
-
-    /// Set the concurrency level for `get_ranges` fetches.
-    ///
-    /// This controls how many coalesced range reads are performed in
-    /// parallel when [`ObjectStore::get_ranges`] is called.
-    /// Defaults to 10.
-    pub fn with_get_ranges_concurrent(mut self, concurrent: usize) -> Self {
-        self.get_ranges_concurrent = concurrent.max(1);
-        self
     }
 
     /// Get the Operator info.

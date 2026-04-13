@@ -140,9 +140,7 @@ impl OpendalStore {
         if let Some(if_none_match) = &options.if_none_match {
             s = s.if_none_match(if_none_match.as_str());
         }
-        if let Some(if_modified_since) =
-            options.if_modified_since.and_then(datetime_to_timestamp)
-        {
+        if let Some(if_modified_since) = options.if_modified_since.and_then(datetime_to_timestamp) {
             s = s.if_modified_since(if_modified_since);
         }
         if let Some(if_unmodified_since) =

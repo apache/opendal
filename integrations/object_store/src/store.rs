@@ -461,20 +461,29 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
-        let this = self.clone();
-        let location = location.clone();
+        let raw_location = percent_decode_path(location.as_ref());
+        let reader = self
+            .inner
+            .reader_with(&raw_location)
+            .into_send()
+            .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
+        let location_ref = location.as_ref().to_string();
         coalesce_ranges(
             ranges,
             |range| {
-                let this = this.clone();
-                let location = location.clone();
+                let reader = reader.clone();
+                let location_ref = location_ref.clone();
                 async move {
-                    let options = GetOptions::new().with_range(Some(range));
-                    this.get_opts_stat(&location, options, false)
-                        .await?
-                        .bytes()
+                    let len = (range.end - range.start) as usize;
+                    let mut buf = bytes::BytesMut::with_capacity(len);
+                    reader
+                        .read_into(&mut buf, range)
+                        .into_send()
                         .await
+                        .map_err(|err| format_object_store_error(err, &location_ref))?;
+                    Ok(buf.freeze())
                 }
             },
             OBJECT_STORE_COALESCE_DEFAULT,

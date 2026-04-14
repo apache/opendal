@@ -35,14 +35,12 @@ use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
 use object_store::ListResult;
 use object_store::MultipartUpload;
-use object_store::OBJECT_STORE_COALESCE_DEFAULT;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
 use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
-use object_store::coalesce_ranges;
 use object_store::path::Path;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
@@ -434,9 +432,8 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
         let location_ref: Arc<str> = Arc::from(location.as_ref());
-        let fetched = coalesce_ranges(
-            ranges,
-            |range| {
+        futures::stream::iter(ranges.iter().cloned())
+            .map(|range| {
                 let reader = reader.clone();
                 let location_ref = location_ref.clone();
                 async move {
@@ -447,17 +444,10 @@ impl ObjectStore for OpendalStore {
                         .map(|buf| buf.to_bytes())
                         .map_err(|err| format_object_store_error(err, &location_ref))
                 }
-            },
-            OBJECT_STORE_COALESCE_DEFAULT,
-        )
-        .await?;
-
-        // coalesce_ranges returns Bytes::slice() which retains the full
-        // backing buffer. Copy each slice so the large buffer can be freed.
-        Ok(fetched
-            .into_iter()
-            .map(|b| Bytes::copy_from_slice(&b))
-            .collect())
+            })
+            .buffered(DEFAULT_CONCURRENT)
+            .try_collect()
+            .await
     }
 
     fn delete_stream(

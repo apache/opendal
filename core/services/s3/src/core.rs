@@ -646,12 +646,11 @@ impl S3Core {
         self.send(ctx, req).await
     }
 
-    pub async fn s3_delete_object(
+    pub async fn s3_delete_object_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         args: &OpDelete,
-    ) -> Result<Response<Buffer>> {
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -682,7 +681,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req).await
+        Ok(req)
     }
 
     pub async fn s3_copy_object(

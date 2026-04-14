@@ -52,6 +52,8 @@ use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
+const DEFAULT_CONCURRENT: usize = 8;
+
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
 /// This allows users to use opendal as an object store without extra cost.
@@ -237,8 +239,6 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        const DEFAULT_CONCURRENT: usize = 8;
-
         let mut options = opendal::options::WriteOptions {
             concurrent: DEFAULT_CONCURRENT,
             ..Default::default()
@@ -431,7 +431,7 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let location_ref = location.as_ref().to_string();
+        let location_ref: Arc<str> = Arc::from(location.as_ref());
         futures::stream::iter(ranges.iter().cloned())
             .map(|range| {
                 let reader = reader.clone();
@@ -445,7 +445,7 @@ impl ObjectStore for OpendalStore {
                         .map_err(|err| format_object_store_error(err, &location_ref))
                 }
             })
-            .buffered(10)
+            .buffered(DEFAULT_CONCURRENT)
             .try_collect()
             .await
     }

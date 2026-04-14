@@ -50,7 +50,13 @@ impl oio::OneShotDelete for GdriveDeleter {
             return Err(parse_error(resp));
         }
 
-        self.core.path_cache.remove(&path).await;
+        if path.ends_with('/') {
+            self.core.invalidate_dir_id(&path).await;
+            self.core.record_recent_delete(&path, EntryMode::DIR).await;
+        } else {
+            self.core.invalidate_file_id(&path).await;
+            self.core.record_recent_delete(&path, EntryMode::FILE).await;
+        }
 
         Ok(())
     }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -41,6 +42,10 @@ pub struct GdriveCore {
 
     /// Cache the mapping from path to file id
     pub path_cache: PathCacher<GdrivePathQuery>,
+
+    /// Keep a short-lived local view of recent mutations so list operations stay
+    /// read-after-write consistent within the current operator session.
+    pub recent_entries: Mutex<HashMap<String, GdriveRecentEntry>>,
 }
 
 impl Debug for GdriveCore {
@@ -52,6 +57,94 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
+    pub async fn cache_file_id(&self, path: &str, file_id: &str) {
+        self.path_cache.insert(path, file_id).await;
+    }
+
+    pub async fn cache_dir_id(&self, path: &str, file_id: &str) {
+        let dir_path = normalize_dir_path(path);
+
+        self.path_cache.insert(&dir_path, file_id).await;
+
+        let alias = dir_path.trim_end_matches('/');
+        if !alias.is_empty() {
+            self.path_cache.insert(alias, file_id).await;
+        }
+    }
+
+    pub async fn invalidate_file_id(&self, path: &str) {
+        self.path_cache.remove(path).await;
+    }
+
+    pub async fn invalidate_dir_id(&self, path: &str) {
+        let dir_path = normalize_dir_path(path);
+
+        self.path_cache.remove(&dir_path).await;
+
+        let alias = dir_path.trim_end_matches('/');
+        if !alias.is_empty() {
+            self.path_cache.remove(alias).await;
+        }
+    }
+
+    pub async fn record_recent_upsert(&self, path: &str, metadata: Metadata) {
+        let mut recent_entries = self.recent_entries.lock().await;
+        prune_recent_entries(&mut recent_entries);
+
+        let path = canonical_recent_path(path, metadata.mode());
+        recent_entries.insert(
+            path,
+            GdriveRecentEntry {
+                metadata: Some(metadata),
+                expires_at: Timestamp::now() + Duration::from_secs(15),
+            },
+        );
+    }
+
+    pub async fn record_recent_delete(&self, path: &str, mode: EntryMode) {
+        let mut recent_entries = self.recent_entries.lock().await;
+        prune_recent_entries(&mut recent_entries);
+
+        recent_entries.insert(
+            canonical_recent_path(path, mode),
+            GdriveRecentEntry {
+                metadata: None,
+                expires_at: Timestamp::now() + Duration::from_secs(15),
+            },
+        );
+    }
+
+    pub async fn recent_entry_for_path(&self, path: &str) -> Option<Option<Metadata>> {
+        let mut recent_entries = self.recent_entries.lock().await;
+        prune_recent_entries(&mut recent_entries);
+
+        recent_entries.get(path).map(|entry| entry.metadata.clone())
+    }
+
+    pub async fn recent_entries_for_list(
+        &self,
+        scope_path: &str,
+        recursive: bool,
+    ) -> Vec<(String, Metadata)> {
+        let mut recent_entries = self.recent_entries.lock().await;
+        prune_recent_entries(&mut recent_entries);
+
+        let mut entries = recent_entries
+            .iter()
+            .filter_map(|(path, entry)| {
+                let metadata = entry.metadata.clone()?;
+                if recent_entry_in_scope(scope_path, path, metadata.mode(), recursive) {
+                    Some((path.clone(), metadata))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
+        entries
+    }
+
     pub async fn gdrive_stat_by_id(&self, file_id: &str) -> Result<Response<Buffer>> {
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
@@ -324,7 +417,8 @@ impl GdriveCore {
                 return Err(parse_error(resp));
             }
 
-            self.path_cache.remove(&to_path).await;
+            self.invalidate_file_id(&to_path).await;
+            self.invalidate_dir_id(&to_path).await;
         }
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
@@ -342,6 +436,54 @@ impl GdriveCore {
         self.sign(&mut req).await?;
 
         self.info.http_client().send(req).await
+    }
+}
+
+#[derive(Clone)]
+pub struct GdriveRecentEntry {
+    metadata: Option<Metadata>,
+    expires_at: Timestamp,
+}
+
+pub(crate) fn normalize_dir_path(path: &str) -> String {
+    if path.is_empty() || path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{path}/")
+    }
+}
+
+fn canonical_recent_path(path: &str, mode: EntryMode) -> String {
+    if mode.is_dir() {
+        normalize_dir_path(path)
+    } else {
+        path.to_string()
+    }
+}
+
+fn prune_recent_entries(entries: &mut HashMap<String, GdriveRecentEntry>) {
+    let now = Timestamp::now();
+    entries.retain(|_, entry| entry.expires_at > now);
+}
+
+fn recent_entry_in_scope(scope_path: &str, path: &str, mode: EntryMode, recursive: bool) -> bool {
+    if recursive {
+        if scope_path.is_empty() {
+            return true;
+        }
+
+        if scope_path.ends_with('/') {
+            return path.starts_with(scope_path) && path != scope_path;
+        }
+
+        return path == canonical_recent_path(scope_path, mode) || path.starts_with(scope_path);
+    }
+
+    let parent = get_parent(path);
+    if scope_path.is_empty() {
+        parent == "/"
+    } else {
+        parent == scope_path
     }
 }
 
@@ -548,4 +690,103 @@ pub struct GdriveFile {
 pub(crate) struct GdriveFileList {
     pub(crate) files: Vec<GdriveFile>,
     pub(crate) next_page_token: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_gdrive_core() -> GdriveCore {
+        let info = Arc::new(AccessorInfo::default());
+        let signer = Arc::new(Mutex::new(GdriveSigner::new(info.clone())));
+
+        GdriveCore {
+            info: info.clone(),
+            root: "/".to_string(),
+            signer: signer.clone(),
+            path_cache: PathCacher::new(GdrivePathQuery::new(info, signer)).with_lock(),
+            recent_entries: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cache_dir_id_adds_trailing_slash_alias() {
+        let core = mock_gdrive_core();
+
+        core.cache_dir_id("parent/dir/", "dir-id").await;
+
+        assert_eq!(
+            core.path_cache.get("parent/dir").await.unwrap().as_deref(),
+            Some("dir-id")
+        );
+        assert_eq!(
+            core.path_cache.get("parent/dir/").await.unwrap().as_deref(),
+            Some("dir-id")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_recent_entries_for_direct_list() {
+        let core = mock_gdrive_core();
+
+        core.record_recent_upsert(
+            "parent/file.txt",
+            Metadata::new(EntryMode::FILE).with_content_length(5),
+        )
+        .await;
+        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+            .await;
+        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+            .await;
+        core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
+            .await;
+
+        let entries = core.recent_entries_for_list("parent/", false).await;
+        let paths = entries
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            paths,
+            vec!["parent/dir/".to_string(), "parent/file.txt".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_recent_entries_for_recursive_prefix_list() {
+        let core = mock_gdrive_core();
+
+        core.record_recent_upsert("parent/file.txt", Metadata::new(EntryMode::FILE))
+            .await;
+        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+            .await;
+        core.record_recent_upsert("prefix", Metadata::new(EntryMode::FILE))
+            .await;
+        core.record_recent_upsert("prefix-child", Metadata::new(EntryMode::FILE))
+            .await;
+
+        let parent_entries = core.recent_entries_for_list("parent/", true).await;
+        let parent_paths = parent_entries
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            parent_paths,
+            vec![
+                "parent/file.txt".to_string(),
+                "parent/nested/file.txt".to_string()
+            ]
+        );
+
+        let prefix_entries = core.recent_entries_for_list("prefix", true).await;
+        let prefix_paths = prefix_entries
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            prefix_paths,
+            vec!["prefix".to_string(), "prefix-child".to_string()]
+        );
+    }
 }

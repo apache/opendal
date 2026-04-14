@@ -24,6 +24,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::core::normalize_dir_path;
 use super::deleter::GdriveDeleter;
 use super::error::parse_error;
 use super::lister::GdriveFlatLister;
@@ -52,7 +53,11 @@ impl Access for GdriveBackend {
 
     async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
         let path = build_abs_path(&self.core.root, path);
-        let _ = self.core.path_cache.ensure_dir(&path).await?;
+        let dir_id = self.core.path_cache.ensure_dir(&path).await?;
+        let metadata = Metadata::new(EntryMode::DIR);
+
+        self.core.cache_dir_id(&path, &dir_id).await;
+        self.core.record_recent_upsert(&path, metadata).await;
 
         Ok(RpCreateDir::default())
     }
@@ -139,7 +144,32 @@ impl Access for GdriveBackend {
         let resp = self.core.gdrive_copy(from, to).await?;
 
         match resp.status() {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => {
+                let body = resp.into_body();
+                let meta: GdriveFile =
+                    serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
+
+                let to_path = build_abs_path(&self.core.root, to);
+                let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
+                    Metadata::new(EntryMode::DIR)
+                } else {
+                    Metadata::new(EntryMode::FILE)
+                };
+                if let Some(size) = meta.size {
+                    metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                    })?);
+                }
+
+                if metadata.mode().is_dir() {
+                    self.core.cache_dir_id(&to_path, &meta.id).await;
+                } else {
+                    self.core.cache_file_id(&to_path, &meta.id).await;
+                }
+                self.core.record_recent_upsert(&to_path, metadata).await;
+
+                Ok(RpCopy::default())
+            }
             _ => Err(parse_error(resp)),
         }
     }
@@ -156,7 +186,8 @@ impl Access for GdriveBackend {
                 return Err(parse_error(resp));
             }
 
-            self.core.path_cache.remove(&target).await;
+            self.core.invalidate_file_id(&target).await;
+            self.core.invalidate_dir_id(&target).await;
         }
 
         let resp = self
@@ -173,11 +204,38 @@ impl Access for GdriveBackend {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
 
                 let cache = &self.core.path_cache;
+                let source_path = if meta.mime_type == "application/vnd.google-apps.folder" {
+                    normalize_dir_path(&build_abs_path(&self.core.root, from))
+                } else {
+                    build_abs_path(&self.core.root, from)
+                };
+                let target_path = if meta.mime_type == "application/vnd.google-apps.folder" {
+                    normalize_dir_path(&build_abs_path(&self.core.root, to))
+                } else {
+                    build_abs_path(&self.core.root, to)
+                };
+                let mut metadata = if meta.mime_type == "application/vnd.google-apps.folder" {
+                    Metadata::new(EntryMode::DIR)
+                } else {
+                    Metadata::new(EntryMode::FILE)
+                };
+                if let Some(size) = meta.size {
+                    metadata = metadata.with_content_length(size.parse::<u64>().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                    })?);
+                }
 
-                cache.remove(&build_abs_path(&self.core.root, from)).await;
-                cache
-                    .insert(&build_abs_path(&self.core.root, to), &meta.id)
+                if metadata.mode().is_dir() {
+                    self.core.invalidate_dir_id(&source_path).await;
+                    self.core.cache_dir_id(&target_path, &meta.id).await;
+                } else {
+                    cache.remove(&source_path).await;
+                    self.core.cache_file_id(&target_path, &meta.id).await;
+                }
+                self.core
+                    .record_recent_delete(&source_path, metadata.mode())
                     .await;
+                self.core.record_recent_upsert(&target_path, metadata).await;
 
                 Ok(RpRename::default())
             }

@@ -44,13 +44,27 @@ impl oio::OneShotDelete for GdriveDeleter {
             return Ok(());
         };
 
+        let is_dir = if path.ends_with('/') {
+            true
+        } else {
+            let resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            let bs = resp.into_body().to_bytes();
+            let file: GdriveFile =
+                serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
+            file.mime_type == "application/vnd.google-apps.folder"
+        };
+
         let resp = self.core.gdrive_trash(&file_id).await?;
         let status = resp.status();
         if status != StatusCode::OK {
             return Err(parse_error(resp));
         }
 
-        if path.ends_with('/') {
+        if is_dir {
             self.core.invalidate_dir_id(&path).await;
             self.core.record_recent_delete(&path, EntryMode::DIR).await;
         } else {

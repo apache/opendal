@@ -121,6 +121,7 @@ impl Builder for GdriveBuilder {
 
                 create_dir: true,
                 delete: true,
+                delete_with_recursive: true,
                 rename: true,
                 copy: true,
 

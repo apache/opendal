@@ -24,6 +24,7 @@ use http::StatusCode;
 
 use super::core::GdriveCore;
 use super::core::GdriveFile;
+use super::core::GdriveRecentPathState;
 use super::core::normalize_dir_path;
 use super::deleter::GdriveDeleter;
 use super::error::parse_error;
@@ -63,7 +64,28 @@ impl Access for GdriveBackend {
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gdrive_stat(path).await?;
+        let path = build_abs_path(&self.core.root, path);
+
+        match self.core.recent_entry_for_path(&path).await {
+            GdriveRecentPathState::Present(metadata) => {
+                if metadata.mode().is_dir() && path.ends_with('/') {
+                    return Ok(RpStat::new(*metadata));
+                }
+            }
+            GdriveRecentPathState::Deleted => {
+                return Err(Error::new(
+                    ErrorKind::NotFound,
+                    format!("path not found: {path}"),
+                ));
+            }
+            GdriveRecentPathState::Missing => {}
+        }
+
+        let file_id = self.core.path_cache.get(&path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            format!("path not found: {path}"),
+        ))?;
+        let resp = self.core.gdrive_stat_by_id(&file_id).await?;
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));

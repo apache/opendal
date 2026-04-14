@@ -26,6 +26,7 @@ use mea::mutex::Mutex;
 use super::core::GdriveCore;
 use super::core::GdriveFile;
 use super::core::GdriveFileList;
+use super::core::GdriveRecentPathState;
 use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -67,12 +68,12 @@ impl GdriveLister {
         metadata: Metadata,
     ) -> Result<()> {
         match self.core.recent_entry_for_path(&abs_path).await {
-            Some(Some(recent_metadata)) => {
+            GdriveRecentPathState::Present(recent_metadata) => {
                 let path = build_rel_path(&self.core.root, &abs_path);
-                self.push_entry(ctx, path, recent_metadata).await
+                self.push_entry(ctx, path, *recent_metadata).await
             }
-            Some(None) => Ok(()),
-            None => {
+            GdriveRecentPathState::Deleted => Ok(()),
+            GdriveRecentPathState::Missing => {
                 let path = build_rel_path(&self.core.root, &abs_path);
                 self.push_entry(ctx, path, metadata).await
             }
@@ -122,6 +123,11 @@ fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
 
 impl oio::PageList for GdriveLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        if let GdriveRecentPathState::Deleted = self.core.recent_entry_for_path(&self.path).await {
+            ctx.done = true;
+            return Ok(());
+        }
+
         let file_id = self.core.path_cache.get(&self.path).await?;
 
         let file_id = match file_id {
@@ -299,12 +305,12 @@ impl GdriveFlatLister {
 
     async fn apply_recent_entry(&mut self, abs_path: String, metadata: Metadata) -> Result<()> {
         match self.core.recent_entry_for_path(&abs_path).await {
-            Some(Some(recent_metadata)) => {
+            GdriveRecentPathState::Present(recent_metadata) => {
                 let rel_path = build_rel_path(&self.core.root, &abs_path);
-                self.push_entry(rel_path, recent_metadata);
+                self.push_entry(rel_path, *recent_metadata);
             }
-            Some(None) => {}
-            None => {
+            GdriveRecentPathState::Deleted => {}
+            GdriveRecentPathState::Missing => {
                 let rel_path = build_rel_path(&self.core.root, &abs_path);
                 self.push_entry(rel_path, metadata);
             }
@@ -334,6 +340,13 @@ impl GdriveFlatLister {
             "GdriveFlatLister: initializing with root path: {:?}",
             &self.root_path
         );
+
+        if let GdriveRecentPathState::Deleted =
+            self.core.recent_entry_for_path(&self.root_path).await
+        {
+            self.done = true;
+            return Ok(());
+        }
 
         let root_id = self.core.path_cache.get(&self.root_path).await?;
 

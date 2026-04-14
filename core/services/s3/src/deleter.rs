@@ -44,7 +44,9 @@ impl oio::BatchDelete for S3Deleter {
             return Ok(());
         }
 
-        let resp = self.core.s3_delete_object(&path, &args).await?;
+        let req = self.core.s3_delete_object_request(&path, &args).await?;
+
+        let resp = self.core.send(req).await?;
 
         let status = resp.status();
 

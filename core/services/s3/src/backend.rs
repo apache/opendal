@@ -942,6 +942,7 @@ impl Builder for S3Builder {
                             presign_stat: true,
                             presign_read: true,
                             presign_write: true,
+                            presign_delete: true,
 
                             shared: true,
 
@@ -1123,10 +1124,7 @@ impl Access for S3Backend {
                 self.core
                     .s3_put_object_request(path, None, &v, Buffer::new())
             }
-            PresignOperation::Delete(_) => Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            )),
+            PresignOperation::Delete(v) => self.core.s3_delete_object_request(path, &v),
             _ => Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",

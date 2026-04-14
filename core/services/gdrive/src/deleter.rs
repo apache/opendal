@@ -37,17 +37,29 @@ impl GdriveDeleter {
 impl oio::OneShotDelete for GdriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         let path = build_abs_path(&self.core.root, &path);
-        let file_id = self.core.path_cache.get(&path).await?;
-        let file_id = if let Some(id) = file_id {
-            id
-        } else {
-            return Ok(());
+        let mut file_id = match self.core.resolve_path(&path).await? {
+            Some(id) => id,
+            None => match self.core.resolve_path_after_refresh(&path).await? {
+                Some(id) => id,
+                None => return Ok(()),
+            },
         };
 
         let is_dir = if path.ends_with('/') {
             true
         } else {
-            let resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            let mut resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            if resp.status() == StatusCode::NOT_FOUND {
+                file_id = match self.core.resolve_path_after_refresh(&path).await? {
+                    Some(id) => id,
+                    None => return Ok(()),
+                };
+                resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            }
+
+            if resp.status() == StatusCode::NOT_FOUND {
+                return Ok(());
+            }
             if resp.status() != StatusCode::OK {
                 return Err(parse_error(resp));
             }
@@ -58,9 +70,26 @@ impl oio::OneShotDelete for GdriveDeleter {
             file.mime_type == "application/vnd.google-apps.folder"
         };
 
-        let resp = self.core.gdrive_trash(&file_id).await?;
-        let status = resp.status();
-        if status != StatusCode::OK {
+        let mut resp = self.core.gdrive_trash(&file_id).await?;
+        if resp.status() == StatusCode::NOT_FOUND {
+            if is_dir {
+                self.core.refresh_dir_path(&path).await;
+            } else {
+                self.core.refresh_path(&path).await;
+            }
+
+            file_id = match self.core.resolve_path(&path).await? {
+                Some(id) => id,
+                None => return Ok(()),
+            };
+
+            resp = self.core.gdrive_trash(&file_id).await?;
+        }
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+        if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
         }
 

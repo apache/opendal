@@ -30,6 +30,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::error::parse_error;
+use super::path_index::GdrivePathIndex;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -40,8 +41,8 @@ pub struct GdriveCore {
 
     pub signer: Arc<Mutex<GdriveSigner>>,
 
-    /// Cache the mapping from path to file id
-    pub path_cache: PathCacher<GdrivePathQuery>,
+    /// Service-local path index for resolving path -> file id mappings.
+    pub path_index: GdrivePathIndex<GdrivePathQuery>,
 
     /// Keep a short-lived local view of recent mutations so list and stat
     /// operations stay read-after-write consistent within the current operator
@@ -59,33 +60,73 @@ impl Debug for GdriveCore {
 
 impl GdriveCore {
     pub async fn cache_file_id(&self, path: &str, file_id: &str) {
-        self.path_cache.insert(path, file_id).await;
+        self.path_index.upsert_file(path, file_id).await;
     }
 
     pub async fn cache_dir_id(&self, path: &str, file_id: &str) {
-        let dir_path = normalize_dir_path(path);
-
-        self.path_cache.insert(&dir_path, file_id).await;
-
-        let alias = dir_path.trim_end_matches('/');
-        if !alias.is_empty() {
-            self.path_cache.insert(alias, file_id).await;
-        }
+        self.path_index.upsert_dir(path, file_id).await;
     }
 
     pub async fn invalidate_file_id(&self, path: &str) {
-        self.path_cache.remove(path).await;
+        self.path_index.invalidate_file(path).await;
     }
 
     pub async fn invalidate_dir_id(&self, path: &str) {
-        let dir_path = normalize_dir_path(path);
+        self.path_index.invalidate_dir(path).await;
+    }
 
-        self.path_cache.remove(&dir_path).await;
+    pub async fn refresh_path(&self, path: &str) {
+        self.path_index.refresh_path(path).await;
+    }
 
-        let alias = dir_path.trim_end_matches('/');
-        if !alias.is_empty() {
-            self.path_cache.remove(alias).await;
+    pub async fn refresh_dir_path(&self, path: &str) {
+        self.invalidate_dir_id(path).await;
+        self.refresh_path(path).await;
+    }
+
+    pub async fn resolve_path(&self, path: &str) -> Result<Option<String>> {
+        self.path_index.get(path).await
+    }
+
+    pub async fn resolve_path_after_refresh(&self, path: &str) -> Result<Option<String>> {
+        self.refresh_path(path).await;
+        self.resolve_path(path).await
+    }
+
+    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
+        self.path_index.ensure_dir(path).await
+    }
+
+    pub async fn trash_path_if_exists(&self, path: &str) -> Result<()> {
+        let mut target_id = match self.resolve_path(path).await? {
+            Some(id) => Some(id),
+            None => self.resolve_path_after_refresh(path).await?,
+        };
+
+        if let Some(id) = target_id.take() {
+            let mut resp = self.gdrive_trash(&id).await?;
+            if resp.status() == StatusCode::NOT_FOUND {
+                self.refresh_path(path).await;
+                target_id = self.resolve_path(path).await?;
+                if let Some(id) = target_id {
+                    resp = self.gdrive_trash(&id).await?;
+                } else {
+                    return Ok(());
+                }
+            }
+
+            if resp.status() == StatusCode::NOT_FOUND {
+                return Ok(());
+            }
+            if resp.status() != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            self.invalidate_file_id(path).await;
+            self.invalidate_dir_id(path).await;
         }
+
+        Ok(())
     }
 
     pub async fn record_recent_upsert(&self, path: &str, metadata: Metadata) {
@@ -214,10 +255,18 @@ impl GdriveCore {
             }
             GdriveRecentPathState::Present(_) | GdriveRecentPathState::Missing => {}
         }
-        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            format!("path not found: {path}"),
-        ))?;
+        let path_id = match self.resolve_path(&path).await? {
+            Some(id) => id,
+            None => match self.resolve_path_after_refresh(&path).await? {
+                Some(id) => id,
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        format!("path not found: {path}"),
+                    ));
+                }
+            },
+        };
 
         let url: String = format!("https://www.googleapis.com/drive/v3/files/{path_id}?alt=media");
 
@@ -311,18 +360,26 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<Buffer>> {
-        let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            format!("source path not found: {source}"),
-        ))?;
+        let source_file_id = match self.resolve_path(source).await? {
+            Some(id) => id,
+            None => self
+                .resolve_path_after_refresh(source)
+                .await?
+                .ok_or(Error::new(
+                    ErrorKind::NotFound,
+                    format!("source path not found: {source}"),
+                ))?,
+        };
         let source_parent = get_parent(source);
-        let source_parent_id = self
-            .path_cache
-            .get(source_parent)
-            .await?
-            .expect("old parent must exist");
+        let source_parent_id = match self.resolve_path(source_parent).await? {
+            Some(id) => id,
+            None => self
+                .resolve_path_after_refresh(source_parent)
+                .await?
+                .expect("old parent must exist"),
+        };
 
-        let target_parent_id = self.path_cache.ensure_dir(get_parent(target)).await?;
+        let target_parent_id = self.path_index.ensure_dir(get_parent(target)).await?;
         let target_file_name = get_basename(target);
 
         let metadata = &json!({
@@ -367,7 +424,7 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
+        let parent = self.path_index.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -443,26 +500,24 @@ impl GdriveCore {
     pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let from_file_id = self.path_cache.get(&from).await?.ok_or(Error::new(
-            ErrorKind::NotFound,
-            "the file to copy does not exist",
-        ))?;
+        let from_file_id = match self.resolve_path(&from).await? {
+            Some(id) => id,
+            None => match self.resolve_path_after_refresh(&from).await? {
+                Some(id) => id,
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::NotFound,
+                        "the file to copy does not exist",
+                    ));
+                }
+            },
+        };
 
         let to_name = get_basename(to);
         let to_path = build_abs_path(&self.root, to);
-        let to_parent_id = self.path_cache.ensure_dir(get_parent(&to_path)).await?;
+        let to_parent_id = self.path_index.ensure_dir(get_parent(&to_path)).await?;
 
-        // copy will overwrite `to`, delete it if exist
-        if let Some(id) = self.path_cache.get(&to_path).await? {
-            let resp = self.gdrive_trash(&id).await?;
-            let status = resp.status();
-            if status != StatusCode::OK {
-                return Err(parse_error(resp));
-            }
-
-            self.invalidate_file_id(&to_path).await;
-            self.invalidate_dir_id(&to_path).await;
-        }
+        self.trash_path_if_exists(&to_path).await?;
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
 
@@ -833,25 +888,9 @@ mod tests {
             info: info.clone(),
             root: "/".to_string(),
             signer: signer.clone(),
-            path_cache: PathCacher::new(GdrivePathQuery::new(info, signer)).with_lock(),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(info, signer)),
             recent_entries: Mutex::new(GdriveRecentState::default()),
         }
-    }
-
-    #[tokio::test]
-    async fn test_cache_dir_id_adds_trailing_slash_alias() {
-        let core = mock_gdrive_core();
-
-        core.cache_dir_id("parent/dir/", "dir-id").await;
-
-        assert_eq!(
-            core.path_cache.get("parent/dir").await.unwrap().as_deref(),
-            Some("dir-id")
-        );
-        assert_eq!(
-            core.path_cache.get("parent/dir/").await.unwrap().as_deref(),
-            Some("dir-id")
-        );
     }
 
     #[tokio::test]

@@ -128,7 +128,10 @@ impl oio::PageList for GdriveLister {
             return Ok(());
         }
 
-        let file_id = self.core.path_cache.get(&self.path).await?;
+        let file_id = match self.core.resolve_path(&self.path).await? {
+            Some(file_id) => Some(file_id),
+            None => self.core.resolve_path_after_refresh(&self.path).await?,
+        };
 
         let file_id = match file_id {
             Some(file_id) => file_id,
@@ -147,7 +150,18 @@ impl oio::PageList for GdriveLister {
         // - `list("dir")` returns `dir/` (but does NOT list its children)
         // - list children requires a trailing slash, like `list("dir/")`
         if !is_dir_path {
-            let resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            let mut resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            if resp.status() == StatusCode::NOT_FOUND {
+                let file_id = match self.core.resolve_path_after_refresh(&self.path).await? {
+                    Some(file_id) => file_id,
+                    None => {
+                        ctx.done = true;
+                        return Ok(());
+                    }
+                };
+
+                resp = self.core.gdrive_stat_by_id(&file_id).await?;
+            }
             if resp.status() != StatusCode::OK {
                 return Err(parse_error(resp));
             }
@@ -169,10 +183,25 @@ impl oio::PageList for GdriveLister {
             return Ok(());
         }
 
-        let resp = self
+        let mut resp = self
             .core
             .gdrive_list(file_id.as_str(), 1000, &ctx.token)
             .await?;
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            self.core.refresh_dir_path(&self.path).await;
+            let file_id = match self.core.resolve_path(&self.path).await? {
+                Some(file_id) => file_id,
+                None => {
+                    ctx.done = true;
+                    return Ok(());
+                }
+            };
+            resp = self
+                .core
+                .gdrive_list(file_id.as_str(), 1000, &ctx.token)
+                .await?;
+        }
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),
@@ -348,59 +377,115 @@ impl GdriveFlatLister {
             return Ok(());
         }
 
-        let root_id = self.core.path_cache.get(&self.root_path).await?;
-
-        let root_id = match root_id {
+        let root_id = match self.core.resolve_path(&self.root_path).await? {
             Some(id) => {
                 log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", &id);
                 id
             }
-            None => {
-                log::debug!(
-                    "GdriveFlatLister: root path not found: {:?}",
-                    &self.root_path
-                );
-                // Directory listing on a non-existent directory should return empty.
-                if self.root_path.ends_with('/') {
-                    self.done = true;
-                    return Ok(());
+            None => match self
+                .core
+                .resolve_path_after_refresh(&self.root_path)
+                .await?
+            {
+                Some(id) => {
+                    log::debug!("GdriveFlatLister: root path resolved to ID: {:?}", &id);
+                    id
                 }
-
-                // Prefix listing can still return matches even if the exact path doesn't exist.
-                let prefix = self.root_path.clone();
-                self.prefix = Some(prefix.clone());
-
-                let mut parent_path = get_parent(&prefix).to_string();
-                if parent_path == "/" {
-                    parent_path.clear();
-                }
-
-                let parent_id = self.core.path_cache.get(&parent_path).await?;
-                let parent_id = match parent_id {
-                    Some(id) => id,
-                    None => {
+                None => {
+                    log::debug!(
+                        "GdriveFlatLister: root path not found: {:?}",
+                        &self.root_path
+                    );
+                    if self.root_path.ends_with('/') {
                         self.done = true;
                         return Ok(());
                     }
-                };
 
-                self.root_path = parent_path.clone();
-                self.pending_dirs.push_back(PendingDir {
-                    id: parent_id,
-                    path: parent_path,
-                });
+                    let prefix = self.root_path.clone();
+                    self.prefix = Some(prefix.clone());
 
-                self.inject_recent_entries().await?;
-                self.started = true;
-                return Ok(());
-            }
+                    let mut parent_path = get_parent(&prefix).to_string();
+                    if parent_path == "/" {
+                        parent_path.clear();
+                    }
+
+                    let parent_id = match self.core.resolve_path(&parent_path).await? {
+                        Some(id) => id,
+                        None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                            Some(id) => id,
+                            None => {
+                                self.done = true;
+                                return Ok(());
+                            }
+                        },
+                    };
+
+                    self.root_path = parent_path.clone();
+                    self.pending_dirs.push_back(PendingDir {
+                        id: parent_id,
+                        path: parent_path,
+                    });
+
+                    self.inject_recent_entries().await?;
+                    self.started = true;
+                    return Ok(());
+                }
+            },
         };
 
         // Resolve the entry type for root path so we can handle:
         //
         // - `list("dir", recursive=true)` where `dir` is a folder but without trailing slash.
         // - `list("prefix", recursive=true)` where `prefix` points to a file or a file prefix.
-        let resp = self.core.gdrive_stat_by_id(&root_id).await?;
+        let mut resp = self.core.gdrive_stat_by_id(&root_id).await?;
+        if resp.status() == StatusCode::NOT_FOUND {
+            if self.root_path.ends_with('/') {
+                self.core.refresh_dir_path(&self.root_path).await;
+            } else {
+                self.core.refresh_path(&self.root_path).await;
+            }
+
+            let root_id = match self.core.resolve_path(&self.root_path).await? {
+                Some(id) => id,
+                None => {
+                    if self.root_path.ends_with('/') {
+                        self.done = true;
+                        return Ok(());
+                    }
+
+                    let prefix = self.root_path.clone();
+                    self.prefix = Some(prefix.clone());
+
+                    let mut parent_path = get_parent(&prefix).to_string();
+                    if parent_path == "/" {
+                        parent_path.clear();
+                    }
+
+                    let parent_id = match self.core.resolve_path(&parent_path).await? {
+                        Some(id) => id,
+                        None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                            Some(id) => id,
+                            None => {
+                                self.done = true;
+                                return Ok(());
+                            }
+                        },
+                    };
+
+                    self.root_path = parent_path.clone();
+                    self.pending_dirs.push_back(PendingDir {
+                        id: parent_id,
+                        path: parent_path,
+                    });
+
+                    self.inject_recent_entries().await?;
+                    self.started = true;
+                    return Ok(());
+                }
+            };
+
+            resp = self.core.gdrive_stat_by_id(&root_id).await?;
+        }
         if resp.status() != StatusCode::OK {
             return Err(parse_error(resp));
         }
@@ -440,13 +525,15 @@ impl GdriveFlatLister {
                 parent_path.clear();
             }
 
-            let parent_id = self.core.path_cache.get(&parent_path).await?;
-            let parent_id = match parent_id {
+            let parent_id = match self.core.resolve_path(&parent_path).await? {
                 Some(id) => id,
-                None => {
-                    self.done = true;
-                    return Ok(());
-                }
+                None => match self.core.resolve_path_after_refresh(&parent_path).await? {
+                    Some(id) => id,
+                    None => {
+                        self.done = true;
+                        return Ok(());
+                    }
+                },
             };
 
             self.root_path = parent_path.clone();
@@ -487,10 +574,34 @@ impl GdriveFlatLister {
             &self.current_batch
         );
 
-        let resp = self
+        let mut resp = self
             .core
             .gdrive_list_batch(&self.current_batch, PAGE_SIZE, &self.page_token)
             .await?;
+
+        if resp.status() == StatusCode::NOT_FOUND {
+            let mut refreshed_batch = Vec::new();
+            for dir_id in &self.current_batch {
+                if let Some(path) = self.dir_id_to_path.get(dir_id).cloned() {
+                    self.core.refresh_dir_path(&path).await;
+                    if let Some(new_id) = self.core.resolve_path(&path).await? {
+                        self.dir_id_to_path.insert(new_id.clone(), path);
+                        refreshed_batch.push(new_id);
+                    }
+                }
+            }
+
+            if refreshed_batch.is_empty() {
+                self.done = true;
+                return Ok(());
+            }
+
+            self.current_batch = refreshed_batch;
+            resp = self
+                .core
+                .gdrive_list_batch(&self.current_batch, PAGE_SIZE, &self.page_token)
+                .await?;
+        }
 
         let bytes = match resp.status() {
             StatusCode::OK => resp.into_body().to_bytes(),

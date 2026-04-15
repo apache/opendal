@@ -12,6 +12,12 @@ This service can be used to:
 - [x] rename
 - [ ] presign
 
+## Behavior Notes
+
+Google Drive allows duplicate file or directory names under the same parent.
+When multiple entries match the same path, OpenDAL resolves the most recently
+modified match, falling back to the newer creation time if needed.
+
 # Configuration
 
 - `root`: Set the work directory for backend

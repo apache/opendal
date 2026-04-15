@@ -332,8 +332,25 @@ impl GdriveFlatLister {
         }
     }
 
-    async fn apply_recent_entry(&mut self, abs_path: String, metadata: Metadata) -> Result<()> {
-        match self.core.recent_entry_for_path(&abs_path).await {
+    fn apply_refreshed_batch(&mut self, refreshed_dirs: Vec<(String, String)>) -> bool {
+        self.page_token.clear();
+        self.current_batch.clear();
+
+        for (dir_id, path) in refreshed_dirs {
+            self.dir_id_to_path.insert(dir_id.clone(), path);
+            self.current_batch.push(dir_id);
+        }
+
+        !self.current_batch.is_empty()
+    }
+
+    async fn apply_recent_entry(
+        &mut self,
+        abs_path: String,
+        metadata: Metadata,
+        recent_state: GdriveRecentPathState,
+    ) -> Result<()> {
+        match recent_state {
             GdriveRecentPathState::Present(recent_metadata) => {
                 let rel_path = build_rel_path(&self.core.root, &abs_path);
                 self.push_entry(rel_path, *recent_metadata);
@@ -580,23 +597,22 @@ impl GdriveFlatLister {
             .await?;
 
         if resp.status() == StatusCode::NOT_FOUND {
+            let current_batch = self.current_batch.clone();
             let mut refreshed_batch = Vec::new();
-            for dir_id in &self.current_batch {
-                if let Some(path) = self.dir_id_to_path.get(dir_id).cloned() {
+            for dir_id in current_batch {
+                if let Some(path) = self.dir_id_to_path.get(&dir_id).cloned() {
                     self.core.refresh_dir_path(&path).await;
                     if let Some(new_id) = self.core.resolve_path(&path).await? {
-                        self.dir_id_to_path.insert(new_id.clone(), path);
-                        refreshed_batch.push(new_id);
+                        refreshed_batch.push((new_id, path));
                     }
                 }
             }
 
-            if refreshed_batch.is_empty() {
+            if !self.apply_refreshed_batch(refreshed_batch) {
                 self.done = true;
                 return Ok(());
             }
 
-            self.current_batch = refreshed_batch;
             resp = self
                 .core
                 .gdrive_list_batch(&self.current_batch, PAGE_SIZE, &self.page_token)
@@ -663,6 +679,7 @@ impl GdriveFlatLister {
 
         let abs_path = format!("{}{}", parent_path, file.name);
         let metadata = metadata_from_gdrive_file(&file)?;
+        let recent_state = self.core.recent_entry_for_path(&abs_path).await;
 
         let matches_prefix = self
             .prefix
@@ -671,11 +688,13 @@ impl GdriveFlatLister {
             .unwrap_or(true);
 
         if matches_prefix {
-            self.apply_recent_entry(abs_path.clone(), metadata).await?;
+            self.apply_recent_entry(abs_path.clone(), metadata, recent_state.clone())
+                .await?;
         }
 
         // If it's a directory, queue it for recursive listing if it can contain matching entries.
         let should_traverse = is_dir
+            && !matches!(recent_state, GdriveRecentPathState::Deleted)
             && self
                 .prefix
                 .as_ref()
@@ -724,5 +743,81 @@ impl oio::List for GdriveFlatLister {
                 self.done = true;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use mea::mutex::Mutex;
+
+    use super::*;
+    use crate::core::GdrivePathQuery;
+    use crate::core::GdriveRecentState;
+    use crate::core::GdriveSigner;
+    use crate::path_index::GdrivePathIndex;
+
+    fn mock_gdrive_core() -> Arc<GdriveCore> {
+        let info = Arc::new(AccessorInfo::default());
+        let signer = Arc::new(Mutex::new(GdriveSigner::new(info.clone())));
+
+        Arc::new(GdriveCore {
+            info: info.clone(),
+            root: "/".to_string(),
+            signer: signer.clone(),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(info, signer)),
+            recent_entries: Mutex::new(GdriveRecentState::default()),
+        })
+    }
+
+    #[tokio::test]
+    async fn test_process_file_skips_deleted_dirs_for_traversal() {
+        let core = mock_gdrive_core();
+        core.record_recent_delete("parent/dir/", EntryMode::DIR)
+            .await;
+
+        let mut lister = GdriveFlatLister::new("parent/".to_string(), core);
+        lister
+            .dir_id_to_path
+            .insert("parent-id".to_string(), "parent/".to_string());
+
+        lister
+            .process_file(GdriveFile {
+                mime_type: "application/vnd.google-apps.folder".to_string(),
+                id: "dir-id".to_string(),
+                name: "dir".to_string(),
+                size: None,
+                modified_time: None,
+                parents: vec!["parent-id".to_string()],
+            })
+            .await
+            .unwrap();
+
+        assert!(lister.pending_dirs.is_empty());
+        assert!(!lister.dir_id_to_path.contains_key("dir-id"));
+        assert!(lister.entry_buffer.is_empty());
+    }
+
+    #[test]
+    fn test_apply_refreshed_batch_clears_page_token() {
+        let core = mock_gdrive_core();
+        let mut lister = GdriveFlatLister::new("parent/".to_string(), core);
+        lister.page_token = "stale-page-token".to_string();
+        lister.current_batch = vec!["old-id".to_string()];
+        lister
+            .dir_id_to_path
+            .insert("old-id".to_string(), "parent/".to_string());
+
+        assert!(lister.apply_refreshed_batch(vec![(
+            "new-id".to_string(),
+            "parent/".to_string(),
+        )]));
+        assert!(lister.page_token.is_empty());
+        assert_eq!(lister.current_batch, vec!["new-id".to_string()]);
+        assert_eq!(
+            lister.dir_id_to_path.get("new-id").map(String::as_str),
+            Some("parent/")
+        );
     }
 }

@@ -35,14 +35,6 @@ LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
-TEMPORARILY_DISABLED_CORE_SERVICES = {
-    # FIXME: Re-enable gdrive behavior tests after #7384 is fixed.
-    # Gdrive is currently not reliable enough for CI: #6684 tracks missing
-    # freshly-created entries in listings, and existing behavior tests already
-    # document redirect loops caused by Google Drive abuse detection.
-    "gdrive",
-}
-
 
 def provided_cases() -> list[dict[str, str]]:
     root_dir = f"{GITHUB_DIR}/services"
@@ -66,10 +58,6 @@ def provided_cases() -> list[dict[str, str]]:
     # We will check if pattern `op://services` exist in content.
     if not os.getenv("GITHUB_HAS_SECRETS") == "true":
         cases[:] = [v for v in cases if "op://services" not in v["content"]]
-
-    cases[:] = [
-        v for v in cases if v["service"] not in TEMPORARILY_DISABLED_CORE_SERVICES
-    ]
 
     # Remove content from cases.
     cases = [

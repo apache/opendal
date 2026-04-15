@@ -809,10 +809,7 @@ mod tests {
             .dir_id_to_path
             .insert("old-id".to_string(), "parent/".to_string());
 
-        assert!(lister.apply_refreshed_batch(vec![(
-            "new-id".to_string(),
-            "parent/".to_string(),
-        )]));
+        assert!(lister.apply_refreshed_batch(vec![("new-id".to_string(), "parent/".to_string(),)]));
         assert!(lister.page_token.is_empty());
         assert_eq!(lister.current_batch, vec!["new-id".to_string()]);
         assert_eq!(

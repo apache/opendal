@@ -777,10 +777,12 @@ impl PathQuery for GdrivePathQuery {
             queries.push("mimeType = 'application/vnd.google-apps.folder'".to_string());
         }
         let query = queries.join(" and ");
+        let order_by = "modifiedTime desc,createdTime desc";
 
         let url = format!(
-            "https://www.googleapis.com/drive/v3/files?q={}",
-            percent_encode_path(query.as_str())
+            "https://www.googleapis.com/drive/v3/files?q={}&orderBy={}&pageSize=1",
+            percent_encode_path(query.as_str()),
+            percent_encode_path(order_by)
         );
 
         let mut req = Request::get(&url)

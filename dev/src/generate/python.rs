@@ -25,9 +25,9 @@ use std::path::PathBuf;
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github"
-        | "cloudflare_kv" | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs"
-        | "lakefs" | "pcloud" | "vercel_blob" => false,
+        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
+        | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
+        | "vercel_blob" => false,
         _ => true,
     }
 }
@@ -184,7 +184,11 @@ pub fn format_text(text: &str, indent: usize, max_line_length: usize) -> String 
 }
 
 // Compose first line: param_name : type[, optional]
-pub fn make_pydoc_param_header(name: &str, ty: ViaDeserialize<ConfigType>, optional: bool) -> Result<String, minijinja::Error> {
+pub fn make_pydoc_param_header(
+    name: &str,
+    ty: ViaDeserialize<ConfigType>,
+    optional: bool,
+) -> Result<String, minijinja::Error> {
     let py_type = make_python_type(ty)?;
     let optional_str = if optional { ", optional" } else { "" };
     let first_line = format!("{} : {}{}", name, py_type, optional_str);
@@ -193,7 +197,10 @@ pub fn make_pydoc_param_header(name: &str, ty: ViaDeserialize<ConfigType>, optio
 }
 
 /// Generate a properly indented NumPy-style docstring line for a parameter
-pub fn make_pydoc_param(comments: &str, ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {
+pub fn make_pydoc_param(
+    comments: &str,
+    ty: ViaDeserialize<ConfigType>,
+) -> Result<String, minijinja::Error> {
     // Collect description parts
     let mut desc_parts = Vec::new();
     let comments = comments.trim();
@@ -215,7 +222,9 @@ pub fn make_pydoc_param(comments: &str, ty: ViaDeserialize<ConfigType>) -> Resul
         _ => {}
     }
 
-    Ok(format_text(&desc_parts.join(". "), 20, 72).trim_end().to_string())
+    Ok(format_text(&desc_parts.join(". "), 20, 72)
+        .trim_end()
+        .to_string())
 }
 
 fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja::Error> {

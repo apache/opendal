@@ -1,4 +1,4 @@
-# Upgrade to v0.55
+# Upgrade to v0.56
 
 ## Public API
 
@@ -18,6 +18,14 @@ All public metadata APIs that previously exposed `chrono::DateTime<Utc>` now use
 
 `S3Builder` no longer exposes the deprecated `security_token()` helper. Use `session_token()` exclusively when configuring temporary credentials.
 
+### Deprecated HTTP client builder hooks removed
+
+The long-deprecated `http_client` customization hooks on service builders have been removed. Configure custom HTTP behavior with the layered HTTP client APIs instead of mutating service builders directly.
+
+### `TimeoutLayer::with_speed` removed
+
+`TimeoutLayer::with_speed` has been removed after a deprecation cycle. Use `with_io_timeout` to enforce per-IO deadlines instead.
+
 ### KV-style services no longer pretend to support `list`
 
 Services that never returned meaningful results for `Operator::list` (such as D1, FoundationDB, GridFS, Memcached, MongoDB, MySQL, Persy, PostgreSQL, Redb, Redis, SurrealDB, TiKV, etc.) now rely on the default `Unsupported` implementation. Those features will be implemented later.
@@ -27,6 +35,10 @@ Services that never returned meaningful results for `Operator::list` (such as D1
 ### Deprecated KV adapters removed
 
 The legacy `opendal::raw::adapters::{kv, typed_kv}` modules have been deleted. Services should directly implement `Access` instead of depending on the adapters. Remove the corresponding imports and shim layers from any out-of-tree services.
+
+### Test helpers moved to `opendal_testkit`
+
+The old `opendal::raw::tests` module has been split into the standalone `opendal-testkit` crate. If you maintain out-of-tree services or integrations, replace imports from `opendal::raw::tests` with `opendal::tests` or depend on `opendal-testkit` directly.
 
 # Upgrade to v0.54
 

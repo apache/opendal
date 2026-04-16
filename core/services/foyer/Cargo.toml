@@ -33,12 +33,12 @@ all-features = true
 [dependencies]
 foyer = { version = "0.18", features = ["serde"] }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-opendal = { path = "../..", version = "0.55.0", features = ["services-memory"] }
-opendal-core = { path = "../../core", version = "0.55.0", features = [
+opendal = { path = "../..", version = "0.56.0", features = ["services-memory"] }
+opendal-core = { path = "../../core", version = "0.56.0", features = [
   "services-memory",
 ] }
 size = "0.5"

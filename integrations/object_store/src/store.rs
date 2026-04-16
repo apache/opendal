@@ -656,7 +656,7 @@ impl MultipartUpload for OpendalMultipartUpload {
 
             let mut writer = writer.lock().await;
             let result = writer
-                .write(Buffer::from_iter(data.into_iter()))
+                .write(Buffer::from_iter(data))
                 .await
                 .map_err(|err| format_object_store_error(err, location.as_ref()));
 

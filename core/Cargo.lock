@@ -7047,7 +7047,6 @@ name = "opendal-service-onedrive"
 version = "0.55.0"
 dependencies = [
  "bytes",
- "futures",
  "http 1.4.0",
  "log",
  "mea",

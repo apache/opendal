@@ -2747,6 +2747,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_test_opfs_wasm32"
+version = "0.55.0"
+dependencies = [
+ "opendal",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
 name = "edge_test_s3_read_on_wasm"
 version = "0.55.0"
 dependencies = [
@@ -7077,6 +7088,7 @@ version = "0.55.0"
 dependencies = [
  "js-sys",
  "opendal-core",
+ "send_wrapper",
  "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -9773,6 +9785,12 @@ dependencies = [
  "serde",
  "serde_core",
 ]
+
+[[package]]
+name = "send_wrapper"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
 
 [[package]]
 name = "serde"

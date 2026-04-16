@@ -37,7 +37,7 @@ crc32c = "0.6.6"
 http = { workspace = true }
 log = { workspace = true }
 md-5 = "0.10"
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-aws-v4 = { version = "3.0.0", default-features = false }
 reqsign-core = { version = "3.0.0", default-features = false }

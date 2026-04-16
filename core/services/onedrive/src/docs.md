@@ -47,7 +47,10 @@ You should consider [`RetryLayer`] and monitor your operations carefully.
 - `client_id`: Set the client ID for a Microsoft Graph API application (available though Azure's registration portal)
 - `client_secret`: Set the client secret for a Microsoft Graph API application
 - `root`: Set the work directory for OneDrive backend
-- `enable_versioning`: Enable versioning support for OneDrive items
+- `enable_versioning`: Enable version listing support for OneDrive items
+
+Historical OneDrive versions don't preserve the full item metadata surface, so OpenDAL only
+advertises `list_with_versions` when versioning is enabled.
 
 The configuration for tokens is one of the following:
 

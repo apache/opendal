@@ -72,20 +72,7 @@ impl OneDriveWriter {
             .await?;
 
         match response.status() {
-            StatusCode::CREATED | StatusCode::OK => {
-                let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
-                    .map_err(new_json_deserialize_error)?;
-
-                let mut meta = Metadata::new(EntryMode::FILE)
-                    .with_etag(item.e_tag)
-                    .with_content_length(item.size.max(0) as u64);
-
-                let last_modified = item.last_modified_date_time;
-                let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
-                meta.set_last_modified(date_utc_last_modified);
-
-                Ok(meta)
-            }
+            StatusCode::CREATED | StatusCode::OK => Self::parse_uploaded_item(response),
             _ => Err(parse_error(response)),
         }
     }
@@ -125,30 +112,18 @@ impl OneDriveWriter {
             match response.status() {
                 // Typical response code: 202 Accepted
                 // Reference: https://learn.microsoft.com/en-us/onedrive/developer/rest-api/api/driveitem_put_content?view=odsp-graph-online#response
-                StatusCode::ACCEPTED | StatusCode::OK => {} // skip, in the middle of upload
-                StatusCode::CREATED => {
-                    // last trunk
-                    let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
-                        .map_err(new_json_deserialize_error)?;
-
-                    let mut meta = Metadata::new(EntryMode::FILE)
-                        .with_etag(item.e_tag)
-                        .with_content_length(item.size.max(0) as u64);
-
-                    let last_modified = item.last_modified_date_time;
-                    let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
-                    meta.set_last_modified(date_utc_last_modified);
-                    return Ok(meta);
-                }
+                StatusCode::ACCEPTED => {} // still uploading
+                StatusCode::CREATED | StatusCode::OK => return Self::parse_uploaded_item(response),
                 _ => return Err(parse_error(response)),
             }
 
             offset += OneDriveWriter::CHUNK_SIZE_FACTOR;
         }
 
-        debug_assert!(false, "should have returned");
-
-        Ok(Metadata::default()) // should not happen, but start with handling this gracefully - do nothing, but return the default metadata
+        Err(Error::new(
+            ErrorKind::Unexpected,
+            "OneDrive upload session finished without a terminal response",
+        ))
     }
 
     async fn create_upload_session(&self) -> Result<OneDriveUploadSessionCreationResponseBody> {
@@ -165,5 +140,20 @@ impl OneDriveWriter {
             }
             _ => Err(parse_error(response)),
         }
+    }
+
+    fn parse_uploaded_item(response: http::Response<Buffer>) -> Result<Metadata> {
+        let item: OneDriveItem = serde_json::from_reader(response.into_body().reader())
+            .map_err(new_json_deserialize_error)?;
+
+        let mut meta = Metadata::new(EntryMode::FILE)
+            .with_etag(item.e_tag)
+            .with_content_length(item.size.max(0) as u64);
+
+        let last_modified = item.last_modified_date_time;
+        let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
+        meta.set_last_modified(date_utc_last_modified);
+
+        Ok(meta)
     }
 }

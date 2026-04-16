@@ -242,6 +242,10 @@ impl OneDriveCore {
         self.sign(&mut request).await?;
 
         let response = self.info.http_client().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
+
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -528,20 +532,29 @@ impl OneDriveCore {
 
     pub(crate) async fn wait_until_complete(&self, monitor_url: String) -> Result<()> {
         for _attempt in 0..MAX_MONITOR_ATTEMPT {
-            let mut request = Request::get(monitor_url.to_string())
+            let request = Request::get(monitor_url.as_str())
                 .header(header::CONTENT_TYPE, "application/json")
                 .extension(Operation::Copy)
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            self.sign(&mut request).await?;
-
             let response = self.info.http_client().send(request).await?;
+            if !response.status().is_success() {
+                return Err(parse_error(response));
+            }
+
             let status: OneDriveMonitorStatus =
                 serde_json::from_reader(response.into_body().reader())
                     .map_err(new_json_deserialize_error)?;
-            if status.status == "completed" {
-                return Ok(());
+            match status.status.as_str() {
+                "completed" => return Ok(()),
+                "notStarted" | "inProgress" => {}
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("OneDrive copy operation returned status {}", status.status),
+                    ));
+                }
             }
 
             tokio::time::sleep(Duration::from_secs(MONITOR_WAIT_SECOND)).await;

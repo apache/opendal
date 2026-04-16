@@ -38,7 +38,14 @@ impl OneDriveDeleter {
 }
 
 impl oio::OneShotDelete for OneDriveDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        if args.version().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "delete with version is not supported by OneDrive",
+            ));
+        }
+
         let response = self.core.onedrive_delete(&path).await?;
         match response.status() {
             StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(()),

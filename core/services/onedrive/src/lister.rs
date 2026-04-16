@@ -135,25 +135,18 @@ impl oio::PageList for OneDriveLister {
             // N+1 is horrendous but we can't do any better without OneDrive's API support.
             // When OneDrive supports listing with versions API, remove this.
             if list_with_versions && entry_mode == EntryMode::FILE {
-                let versions = self.core.onedrive_list_versions(&path).await?;
-                if versions.is_empty() {
-                    let entry = oio::Entry::new(&normalized_path, meta);
-                    ctx.entries.push_back(entry);
-                    continue;
-                }
+                meta.set_is_current(true);
+                let current_entry = oio::Entry::new(&normalized_path, meta);
+                ctx.entries.push_back(current_entry);
 
-                for (idx, version) in versions.into_iter().enumerate() {
+                let versions = self.core.onedrive_list_versions(&path).await?;
+                for version in versions {
                     let mut version_meta =
                         Metadata::new(entry_mode).with_content_length(version.size.max(0) as u64);
                     version_meta
                         .set_last_modified(version.last_modified_date_time.parse::<Timestamp>()?);
                     version_meta.set_version(&version.id);
-                    version_meta.set_is_current(idx == 0);
-
-                    // OneDrive only exposes the current item's etag from the children API.
-                    if idx == 0 {
-                        version_meta.set_etag(meta.etag().unwrap_or_default());
-                    }
+                    version_meta.set_is_current(false);
 
                     let entry = oio::Entry::new(&normalized_path, version_meta);
                     ctx.entries.push_back(entry);

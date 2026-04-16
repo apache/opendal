@@ -52,6 +52,13 @@ impl OneDriveWriter {
 // use `OneShotWrite` instead of `MultipartWrite`.
 impl oio::OneShotWrite for OneDriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        if self.op.if_none_match().is_some() || self.op.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "write with if_none_match/if_not_exists is not supported by OneDrive",
+            ));
+        }
+
         let size = bs.len();
 
         let meta = if size <= Self::MAX_SIMPLE_SIZE {

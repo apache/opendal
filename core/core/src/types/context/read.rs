@@ -78,12 +78,22 @@ impl ReadContext {
     ) -> Result<Range<u64>> {
         let start = match range.start_bound() {
             Bound::Included(v) => *v,
-            Bound::Excluded(v) => v + 1,
+            Bound::Excluded(v) => v.checked_add(1).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range start overflow: excluded bound at u64::MAX cannot be incremented",
+                )
+            })?,
             Bound::Unbounded => 0,
         };
 
         let end = match range.end_bound() {
-            Bound::Included(v) => v + 1,
+            Bound::Included(v) => v.checked_add(1).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range end overflow: inclusive bound at u64::MAX cannot be incremented",
+                )
+            })?,
             Bound::Excluded(v) => *v,
             Bound::Unbounded => {
                 let mut op_stat = OpStat::new();
@@ -225,6 +235,39 @@ mod tests {
         }
 
         pretty_assertions::assert_eq!(readers.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_into_range_inclusive_end_u64_max() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from(Bytes::new())).await?;
+
+        let acc = op.into_inner();
+        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+
+        let result = ctx.parse_into_range(..=u64::MAX).await;
+        assert!(result.is_err(), "..=u64::MAX should return error, not overflow");
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_into_range_excluded_start_u64_max() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        op.write("test", Buffer::from(Bytes::new())).await?;
+
+        let acc = op.into_inner();
+        let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
+
+        let result = ctx
+            .parse_into_range((Bound::Excluded(u64::MAX), Bound::Unbounded))
+            .await;
+        assert!(
+            result.is_err(),
+            "Excluded(u64::MAX) start should return error, not overflow"
+        );
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
         Ok(())
     }
 }

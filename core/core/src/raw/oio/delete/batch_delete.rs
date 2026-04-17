@@ -93,7 +93,14 @@ impl<D: BatchDelete> BatchDeleter<D> {
         }
 
         let batch: Vec<_> = self.buffer.drain(..).collect();
-        let result = self.inner.delete_batch(batch.clone()).await?;
+        let result = match self.inner.delete_batch(batch.clone()).await {
+            Ok(result) => result,
+            Err(err) => {
+                // Restore all items back to buffer since the entire call failed.
+                self.buffer = batch;
+                return Err(err);
+            }
+        };
 
         if result.succeeded.is_empty() {
             // Restore all items back to buffer since nothing was deleted.
@@ -251,6 +258,52 @@ mod tests {
         deleter.delete("b", OpDelete::new()).await?;
         deleter.delete("c", OpDelete::new()).await?;
 
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// A mock that fails the entire delete_batch call on the first attempt,
+    /// then succeeds on retry.
+    struct MockTransportFailBatchDelete {
+        call_count: std::sync::atomic::AtomicUsize,
+    }
+
+    impl BatchDelete for MockTransportFailBatchDelete {
+        async fn delete_once(&self, _path: String, _args: OpDelete) -> Result<()> {
+            Ok(())
+        }
+
+        async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+            let count = self
+                .call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if count == 0 {
+                Err(Error::new(ErrorKind::Unexpected, "transport error").set_temporary())
+            } else {
+                Ok(BatchDeleteResult {
+                    succeeded: (0..batch.len()).collect(),
+                    failed: vec![],
+                })
+            }
+        }
+    }
+
+    /// Regression test: when delete_batch() itself returns Err (e.g., transport
+    /// failure), the buffer must be restored so close() can retry successfully.
+    #[tokio::test]
+    async fn test_batch_deleter_transport_error_restores_buffer() -> Result<()> {
+        let mock = MockTransportFailBatchDelete {
+            call_count: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let mut deleter = BatchDeleter::new(mock, Some(3));
+
+        deleter.delete("a", OpDelete::new()).await?;
+        deleter.delete("b", OpDelete::new()).await?;
+        // Third delete triggers flush, which fails. Buffer should be restored.
+        let err = deleter.delete("c", OpDelete::new()).await;
+        assert!(err.is_err());
+
+        // close() retries: the batch is still in buffer, now succeeds.
         deleter.close().await?;
         Ok(())
     }

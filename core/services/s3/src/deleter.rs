@@ -71,12 +71,16 @@ impl oio::BatchDelete for S3Deleter {
         let result: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
-        // Build a lookup from (rel_path, version) to input index for matching
-        // response entries back to input batch items.
-        let mut lookup: std::collections::HashMap<(String, Option<String>), usize> =
+        // Build a lookup from (rel_path, version) to input indices for matching
+        // response entries back to input batch items. Use Vec<usize> to handle
+        // duplicate entries in the same batch.
+        let mut lookup: std::collections::HashMap<(String, Option<String>), Vec<usize>> =
             std::collections::HashMap::with_capacity(batch.len());
         for (idx, (path, op)) in batch.iter().enumerate() {
-            lookup.insert((path.clone(), op.version().map(|v| v.to_string())), idx);
+            lookup
+                .entry((path.clone(), op.version().map(|v| v.to_string())))
+                .or_default()
+                .push(idx);
         }
 
         let mut batched_result = BatchDeleteResult {
@@ -86,17 +90,21 @@ impl oio::BatchDelete for S3Deleter {
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
             let version = i.version_id;
-            if let Some(&idx) = lookup.get(&(path, version)) {
-                batched_result.succeeded.push(idx);
+            if let Some(indices) = lookup.get_mut(&(path, version)) {
+                if let Some(idx) = indices.pop() {
+                    batched_result.succeeded.push(idx);
+                }
             }
         }
         for i in result.error {
             let path = build_rel_path(&self.core.root, &i.key);
             let version = i.version_id.clone();
-            if let Some(&idx) = lookup.get(&(path, version)) {
-                batched_result
-                    .failed
-                    .push((idx, parse_delete_objects_result_error(i)));
+            if let Some(indices) = lookup.get_mut(&(path, version)) {
+                if let Some(idx) = indices.pop() {
+                    batched_result
+                        .failed
+                        .push((idx, parse_delete_objects_result_error(i)));
+                }
             }
         }
 

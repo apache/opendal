@@ -40,7 +40,7 @@ monoio = { version = "0.2.4", features = [
   "unlinkat",
   "renameat",
 ] }
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

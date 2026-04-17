@@ -35,17 +35,17 @@ bytes = { workspace = true }
 hf-xet = "1.5.0"
 http = { workspace = true }
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 percent-encoding = "2"
-reqwest = { version = "0.12", default-features = false, features = [
-  "rustls-tls",
+reqwest = { version = "0.13.2", default-features = false, features = [
+  "rustls",
 ] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
 futures = { workspace = true }
-opendal-core = { path = "../../core", version = "0.55.0", features = [
+opendal-core = { path = "../../core", version = "0.56.0", features = [
   "reqwest-rustls-tls",
 ] }
 serde_json = { workspace = true }

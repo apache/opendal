@@ -1,3 +1,21 @@
+# Upgrade to v0.56
+
+## Public API
+
+### Deprecated HTTP client builder hooks removed
+
+The long-deprecated `http_client` customization hooks on service builders have been removed. Configure custom HTTP behavior with the layered HTTP client APIs instead of mutating service builders directly.
+
+### `TimeoutLayer::with_speed` removed
+
+`TimeoutLayer::with_speed` has been removed after a deprecation cycle. Use `with_io_timeout` to enforce per-IO deadlines instead.
+
+## Raw API
+
+### Test helpers moved to `opendal_testkit`
+
+The old `opendal::raw::tests` module has been split into the standalone `opendal-testkit` crate. If you maintain out-of-tree services or integrations, replace imports from `opendal::raw::tests` with `opendal::tests` or depend on `opendal-testkit` directly.
+
 # Upgrade to v0.55
 
 ## Public API

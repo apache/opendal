@@ -52,6 +52,8 @@ use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
+const DEFAULT_CONCURRENT: usize = 8;
+
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
 /// This allows users to use opendal as an object store without extra cost.
@@ -237,8 +239,6 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        const DEFAULT_CONCURRENT: usize = 8;
-
         let mut options = opendal::options::WriteOptions {
             concurrent: DEFAULT_CONCURRENT,
             ..Default::default()
@@ -426,22 +426,28 @@ impl ObjectStore for OpendalStore {
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
-            .reader_with(&raw_location)
+            .reader(&raw_location)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let mut results = Vec::with_capacity(ranges.len());
-        for range in ranges {
-            let data = reader
-                .read(range.start..range.end)
-                .into_send()
-                .await
-                .map(|buf| buf.to_bytes())
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-            results.push(data);
-        }
-        Ok(results)
+        let location_ref: Arc<str> = Arc::from(location.as_ref());
+        futures::stream::iter(ranges.iter().cloned())
+            .map(|range| {
+                let reader = reader.clone();
+                let location_ref = location_ref.clone();
+                async move {
+                    reader
+                        .read(range)
+                        .into_send()
+                        .await
+                        .map(|buf| buf.to_bytes())
+                        .map_err(|err| format_object_store_error(err, &location_ref))
+                }
+            })
+            .buffered(DEFAULT_CONCURRENT)
+            .try_collect()
+            .await
     }
 
     fn delete_stream(
@@ -656,7 +662,7 @@ impl MultipartUpload for OpendalMultipartUpload {
 
             let mut writer = writer.lock().await;
             let result = writer
-                .write(Buffer::from_iter(data.into_iter()))
+                .write(Buffer::from_iter(data))
                 .await
                 .map_err(|err| format_object_store_error(err, location.as_ref()));
 

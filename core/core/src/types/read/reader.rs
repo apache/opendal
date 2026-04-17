@@ -194,7 +194,7 @@ impl Reader {
         let gap = self.ctx.options().gap().unwrap_or(1024 * 1024) as u64;
         // We don't care about the order of range with same start, they
         // will be merged in the next step.
-        ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
+        ranges.sort_unstable_by_key(|a| a.start);
 
         // We know that this vector will have at most element
         let mut merged = Vec::with_capacity(ranges.len());

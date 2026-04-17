@@ -18,6 +18,7 @@
 use crate::raw::*;
 use crate::*;
 use std::collections::HashMap;
+use std::fmt;
 
 /// Metadata contains all the information related to a specific path.
 ///
@@ -44,7 +45,7 @@ use std::collections::HashMap;
 /// | `Some(false)` | `true`       | **The metadata's associated version is not the latest version and is deleted.** This represents a historical version that has been marked for deletion. Users will need to specify the version ID to access it, and accessing it may be subject to specific delete marker behavior (e.g., in S3, it might not return actual data but a specific delete marker response).             |
 /// | `None`        | `false`      | **The metadata's associated file is not deleted, but its version status is either unknown or it is not the latest version.** This likely indicates that versioning is not enabled for this file, or versioning information is unavailable.                                                                                                                                           |
 /// | `None`        | `true`       | **The metadata's associated file is deleted, but its version status is either unknown or it is not the latest version.** This typically means the file was deleted without versioning enabled, or its versioning information is unavailable. This may represent an actual data deletion operation rather than an S3 delete marker.                                                   |
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Clone, Eq, PartialEq, Default)]
 pub struct Metadata {
     mode: EntryMode,
 
@@ -63,6 +64,55 @@ pub struct Metadata {
     version: Option<String>,
 
     user_metadata: Option<HashMap<String, String>>,
+}
+
+impl fmt::Debug for Metadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut ds = f.debug_struct("Metadata");
+        ds.field("mode", &self.mode);
+
+        if let Some(is_current) = self.is_current {
+            ds.field("is_current", &is_current);
+        }
+        if self.is_deleted {
+            ds.field("is_deleted", &self.is_deleted);
+        }
+        if let Some(cache_control) = &self.cache_control {
+            ds.field("cache_control", cache_control);
+        }
+        if let Some(content_disposition) = &self.content_disposition {
+            ds.field("content_disposition", content_disposition);
+        }
+        if let Some(content_length) = self.content_length {
+            ds.field("content_length", &content_length);
+        }
+        if let Some(content_md5) = &self.content_md5 {
+            ds.field("content_md5", content_md5);
+        }
+        if let Some(content_range) = self.content_range {
+            ds.field("content_range", &content_range);
+        }
+        if let Some(content_type) = &self.content_type {
+            ds.field("content_type", content_type);
+        }
+        if let Some(content_encoding) = &self.content_encoding {
+            ds.field("content_encoding", content_encoding);
+        }
+        if let Some(etag) = &self.etag {
+            ds.field("etag", etag);
+        }
+        if let Some(last_modified) = self.last_modified {
+            ds.field("last_modified", &last_modified);
+        }
+        if let Some(version) = &self.version {
+            ds.field("version", version);
+        }
+        if let Some(user_metadata) = &self.user_metadata {
+            ds.field("user_metadata", user_metadata);
+        }
+
+        ds.finish()
+    }
 }
 
 impl Metadata {
@@ -434,5 +484,31 @@ impl Metadata {
     pub fn with_user_metadata(mut self, data: HashMap<String, String>) -> Self {
         self.user_metadata = Some(data);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_metadata_omits_default_values() {
+        let metadata = Metadata::new(EntryMode::FILE);
+
+        assert_eq!(format!("{metadata:?}"), "Metadata { mode: FILE }");
+    }
+
+    #[test]
+    fn debug_metadata_keeps_meaningful_values() {
+        let metadata = Metadata::new(EntryMode::FILE)
+            .with_is_current(Some(false))
+            .with_is_deleted(true)
+            .with_content_length(42)
+            .with_version("v1".to_string());
+
+        assert_eq!(
+            format!("{metadata:?}"),
+            "Metadata { mode: FILE, is_current: false, is_deleted: true, content_length: 42, version: \"v1\" }"
+        );
     }
 }

@@ -615,6 +615,9 @@ pub struct CommonPrefix {
 #[serde(default, rename_all = "PascalCase")]
 pub struct ListObjectsOutputContent {
     pub key: String,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
     pub size: u64,
 }
 
@@ -718,6 +721,23 @@ mod tests {
         assert_eq!(
             out.contents.iter().map(|v| v.size).collect::<Vec<u64>>(),
             [9, 10],
+        );
+        assert_eq!(
+            out.contents
+                .iter()
+                .map(|v| v.last_modified.clone())
+                .collect::<Vec<String>>(),
+            ["2015-07-01T02:11:19.775Z", "2015-07-01T02:11:19.775Z"],
+        );
+        assert_eq!(
+            out.contents
+                .iter()
+                .map(|v| v.etag.clone())
+                .collect::<Vec<Option<String>>>(),
+            [
+                Some("\"a72e382246ac83e86bd203389849e71d\"".to_string()),
+                Some("\"a72e382246ac83e86bd203389849e71d\"".to_string()),
+            ],
         );
         assert_eq!(
             out.common_prefixes

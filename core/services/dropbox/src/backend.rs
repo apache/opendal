@@ -29,27 +29,6 @@ use super::writer::DropboxWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-fn parent_list_path(path: &str) -> String {
-    let parent = get_parent(path);
-    if parent == "/" {
-        String::new()
-    } else {
-        parent.to_string()
-    }
-}
-
-fn dir_entry(path: &str) -> oio::Entry {
-    let path = if path.is_empty() || path == "/" {
-        "/".to_string()
-    } else if path.ends_with('/') {
-        path.to_string()
-    } else {
-        format!("{path}/")
-    };
-
-    oio::Entry::new(&path, Metadata::new(EntryMode::DIR))
-}
-
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
@@ -245,4 +224,25 @@ impl Access for DropboxBackend {
             }
         }
     }
+}
+
+fn parent_list_path(path: &str) -> String {
+    let parent = get_parent(path);
+    if parent == "/" {
+        String::new()
+    } else {
+        parent.to_string()
+    }
+}
+
+fn dir_entry(path: &str) -> oio::Entry {
+    let path = if path.is_empty() || path == "/" {
+        "/".to_string()
+    } else if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{path}/")
+    };
+
+    oio::Entry::new(&path, Metadata::new(EntryMode::DIR))
 }

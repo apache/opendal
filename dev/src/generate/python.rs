@@ -121,12 +121,10 @@ pub fn format_text(text: &str, indent: usize, max_line_length: usize) -> String 
 
     for (i, &ch) in chars.iter().enumerate() {
         match ch {
-            '.' | '!' | '?' => {
+            '.' | '!' | '?' if i + 1 < chars.len() && chars[i + 1].is_whitespace() => {
                 // Sentence end
-                if i + 1 < chars.len() && chars[i + 1].is_whitespace() {
-                    segments.push(&text[start..=i]);
-                    start = i + 1;
-                }
+                segments.push(&text[start..=i]);
+                start = i + 1;
             }
             '\n' => {
                 if i > start {

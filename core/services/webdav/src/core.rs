@@ -609,27 +609,23 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                     }
                 }
             }
-            Ok(Event::Text(ref e)) => {
-                if current_prop_key.is_some() {
-                    // Text content - add directly (no escaping needed)
-                    let text_str = String::from_utf8_lossy(e.as_ref());
-                    current_prop_value.push_str(&text_str);
-                }
+            Ok(Event::Text(ref e)) if current_prop_key.is_some() => {
+                // Text content - add directly (no escaping needed)
+                let text_str = String::from_utf8_lossy(e.as_ref());
+                current_prop_value.push_str(&text_str);
             }
-            Ok(Event::GeneralRef(ref e)) => {
-                if current_prop_key.is_some() {
-                    // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
-                    let entity_name = String::from_utf8_lossy(e.as_ref());
-                    let decoded = match entity_name.as_ref() {
-                        "lt" => "<",
-                        "gt" => ">",
-                        "amp" => "&",
-                        "quot" => "\"",
-                        "apos" => "'",
-                        _ => "", // Unknown entity, skip
-                    };
-                    current_prop_value.push_str(decoded);
-                }
+            Ok(Event::GeneralRef(ref e)) if current_prop_key.is_some() => {
+                // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
+                let entity_name = String::from_utf8_lossy(e.as_ref());
+                let decoded = match entity_name.as_ref() {
+                    "lt" => "<",
+                    "gt" => ">",
+                    "amp" => "&",
+                    "quot" => "\"",
+                    "apos" => "'",
+                    _ => "", // Unknown entity, skip
+                };
+                current_prop_value.push_str(decoded);
             }
             Ok(Event::End(ref e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
@@ -682,11 +678,9 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                     status_text.clear();
                 }
             }
-            Ok(Event::Text(ref e)) => {
-                if in_status {
-                    let text_str = String::from_utf8_lossy(e.as_ref());
-                    status_text.push_str(&text_str);
-                }
+            Ok(Event::Text(ref e)) if in_status => {
+                let text_str = String::from_utf8_lossy(e.as_ref());
+                status_text.push_str(&text_str);
             }
             Ok(Event::End(ref e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();

@@ -69,7 +69,7 @@ void test_list_basic(opendal_test_context* ctx)
         OPENDAL_ASSERT_NOT_NULL(path, "Entry path should not be null");
         found_paths.insert(std::string(path));
 
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -124,7 +124,7 @@ void test_list_empty_dir(opendal_test_context* ctx)
 
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -191,7 +191,7 @@ void test_list_nested(opendal_test_context* ctx)
 
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -269,8 +269,8 @@ void test_entry_name_path(opendal_test_context* ctx)
                 "Entry path should be the full path");
         }
 
-        free(path);
-        free(name);
+        opendal_string_free(path);
+        opendal_string_free(name);
         opendal_entry_free(next_result.entry);
     }
 

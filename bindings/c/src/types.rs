@@ -16,10 +16,20 @@
 // under the License.
 
 use std::collections::HashMap;
-use std::ffi::c_void;
+use std::ffi::{c_void, CString};
 use std::os::raw::c_char;
 
 use opendal::Buffer;
+
+/// \brief Frees a heap-allocated string returned by OpenDAL C APIs.
+///
+/// \note Only pass pointers returned from OpenDAL APIs that transfer string ownership.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
+    if !ptr.is_null() {
+        drop(unsafe { CString::from_raw(ptr) });
+    }
+}
 
 /// \brief opendal_bytes carries raw-bytes with its length
 ///

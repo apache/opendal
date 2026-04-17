@@ -366,32 +366,38 @@ var ffiEntryFree = newFFI(ffiOpts{
 	}
 })
 
-var ffiEntryName = newFFI(ffiOpts{
-	sym:    "opendal_entry_name",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-	return func(e *opendalEntry) string {
-		var bytePtr *byte
-		ffiCall(
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&e),
-		)
-		return BytePtrToString(bytePtr)
-	}
-})
+var ffiEntryName = func() *FFI[func(e *opendalEntry) string] {
+	_ = ffiStringFree
+	return newFFI(ffiOpts{
+		sym:    "opendal_entry_name",
+		rType:  &ffi.TypePointer,
+		aTypes: []*ffi.Type{&ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
+		return func(e *opendalEntry) string {
+			var bytePtr *byte
+			ffiCall(
+				unsafe.Pointer(&bytePtr),
+				unsafe.Pointer(&e),
+			)
+			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+		}
+	})
+}()
 
-var ffiEntryPath = newFFI(ffiOpts{
-	sym:    "opendal_entry_path",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-	return func(e *opendalEntry) string {
-		var bytePtr *byte
-		ffiCall(
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&e),
-		)
-		return BytePtrToString(bytePtr)
-	}
-})
+var ffiEntryPath = func() *FFI[func(e *opendalEntry) string] {
+	_ = ffiStringFree
+	return newFFI(ffiOpts{
+		sym:    "opendal_entry_path",
+		rType:  &ffi.TypePointer,
+		aTypes: []*ffi.Type{&ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
+		return func(e *opendalEntry) string {
+			var bytePtr *byte
+			ffiCall(
+				unsafe.Pointer(&bytePtr),
+				unsafe.Pointer(&e),
+			)
+			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+		}
+	})
+}()

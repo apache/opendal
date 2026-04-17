@@ -92,7 +92,7 @@ Run `just update-version` to bump the version in the project.
 ### Update docs
 
 - Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
-- Update `core/src/docs/upgrade.md` if there are breaking changes in `core`
+- Update `core/core/src/docs/upgrade.md` if there are breaking changes in `core`
 - Make sure every released bindings' `upgrade.md` has been updated.
     - java: `bindings/java/upgrade.md`
     - node.js: `bindings/nodejs/upgrade.md`
@@ -123,6 +123,7 @@ Pushing an RC tag to GitHub will trigger the tag-based release workflows. In the
 After pushing the tag, check the GitHub action status to make sure the RC workflows finished successfully.
 
 - Rust packages: [Release Rust Packages](https://github.com/apache/opendal/actions/workflows/release_rust.yml)
+- Python: [Release Python Binding](https://github.com/apache/opendal/actions/workflows/release_python.yml)
 - Java: [Bindings Java CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_java.yml) and [Bindings Java Release](https://github.com/apache/opendal/actions/workflows/release_java.yml)
 - Node.js: [Bindings Node.js CI](https://github.com/apache/opendal/actions/workflows/ci_bindings_nodejs.yml) and [Release NodeJS Binding](https://github.com/apache/opendal/actions/workflows/release_nodejs.yml)
 - Docs: [Docs](https://github.com/apache/opendal/actions/workflows/docs.yml)

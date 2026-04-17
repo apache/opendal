@@ -18,6 +18,7 @@
  */
 
 using System.Collections;
+using OpenDAL.Layer;
 
 namespace OpenDAL.Tests;
 
@@ -47,7 +48,7 @@ public sealed class BehaviorOperatorFixture : IDisposable
             options["root"] = BuildRandomRoot(baseRoot);
         }
 
-        op = new Operator(scheme, options);
+        op = new Operator(scheme, options).WithLayer(new RetryLayer());
     }
 
     public bool IsEnabled => op is not null;

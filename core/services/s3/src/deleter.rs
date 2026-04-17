@@ -59,7 +59,7 @@ impl oio::BatchDelete for S3Deleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let resp = self.core.s3_delete_objects(batch).await?;
+        let resp = self.core.s3_delete_objects(batch.clone()).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {
@@ -71,27 +71,33 @@ impl oio::BatchDelete for S3Deleter {
         let result: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).map_err(new_xml_deserialize_error)?;
 
+        // Build a lookup from (rel_path, version) to input index for matching
+        // response entries back to input batch items.
+        let mut lookup: std::collections::HashMap<(String, Option<String>), usize> =
+            std::collections::HashMap::with_capacity(batch.len());
+        for (idx, (path, op)) in batch.iter().enumerate() {
+            lookup.insert((path.clone(), op.version().map(|v| v.to_string())), idx);
+        }
+
         let mut batched_result = BatchDeleteResult {
             succeeded: Vec::with_capacity(result.deleted.len()),
             failed: Vec::with_capacity(result.error.len()),
         };
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::new();
-            if let Some(version_id) = i.version_id {
-                op = op.with_version(version_id.as_str());
+            let version = i.version_id;
+            if let Some(&idx) = lookup.get(&(path, version)) {
+                batched_result.succeeded.push(idx);
             }
-            batched_result.succeeded.push((path, op));
         }
         for i in result.error {
             let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::new();
-            if let Some(version_id) = &i.version_id {
-                op = op.with_version(version_id.as_str());
+            let version = i.version_id.clone();
+            if let Some(&idx) = lookup.get(&(path, version)) {
+                batched_result
+                    .failed
+                    .push((idx, parse_delete_objects_result_error(i)));
             }
-            batched_result
-                .failed
-                .push((path, op, parse_delete_objects_result_error(i)));
         }
 
         Ok(batched_result)

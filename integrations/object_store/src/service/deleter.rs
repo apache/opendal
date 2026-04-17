@@ -54,14 +54,8 @@ impl oio::BatchDelete for ObjectStoreDeleter {
         let mut result_batch = BatchDeleteResult::default();
         for (idx, result) in results.into_iter().enumerate() {
             match result {
-                Ok(_) => result_batch
-                    .succeeded
-                    .push((paths[idx].0.clone(), paths[idx].1.clone())),
-                Err(e) => result_batch.failed.push((
-                    paths[idx].0.clone(),
-                    paths[idx].1.clone(),
-                    parse_error(e),
-                )),
+                Ok(_) => result_batch.succeeded.push(idx),
+                Err(e) => result_batch.failed.push((idx, parse_error(e))),
             }
         }
 

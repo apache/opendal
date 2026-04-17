@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
 use std::future::Future;
 
 use crate::raw::*;
@@ -38,8 +37,8 @@ pub trait BatchDelete: Send + Sync + Unpin + 'static {
 
     /// delete_batch delete multiple paths at once.
     ///
-    /// - Implementations should make sure that the length of `batch` equals to the return result's length.
-    /// - Implementations should return error no path is deleted.
+    /// - Implementations should report success/failure using indices into the input `batch` Vec.
+    /// - Implementations should return error if no path is deleted.
     fn delete_batch(
         &self,
         batch: Vec<(String, OpDelete)>,
@@ -47,18 +46,22 @@ pub trait BatchDelete: Send + Sync + Unpin + 'static {
 }
 
 /// BatchDeleteResult is the result of batch delete operation.
+///
+/// Results are tracked by index into the input batch Vec, avoiding reliance on
+/// `OpDelete` equality which can fail when services reconstruct `OpDelete` from
+/// responses without preserving all fields.
 #[derive(Default)]
 pub struct BatchDeleteResult {
-    /// Collection of successful deletions, containing tuples of (path, args)
-    pub succeeded: Vec<(String, OpDelete)>,
-    /// Collection of failed deletions, containing tuples of (path, args, error)
-    pub failed: Vec<(String, OpDelete, Error)>,
+    /// Indices of successfully deleted items in the input batch.
+    pub succeeded: Vec<usize>,
+    /// Indices of failed deletions with their errors.
+    pub failed: Vec<(usize, Error)>,
 }
 
 /// BatchDeleter is used to implement [`oio::Delete`] based on batch delete.
 pub struct BatchDeleter<D: BatchDelete> {
     inner: D,
-    buffer: HashSet<(String, OpDelete)>,
+    buffer: Vec<(String, OpDelete)>,
     max_batch_size: usize,
 }
 
@@ -73,7 +76,7 @@ impl<D: BatchDelete> BatchDeleter<D> {
 
         Self {
             inner,
-            buffer: HashSet::default(),
+            buffer: Vec::new(),
             max_batch_size,
         }
     }
@@ -84,45 +87,42 @@ impl<D: BatchDelete> BatchDeleter<D> {
         }
 
         if self.buffer.len() == 1 {
-            let (path, args) = self
-                .buffer
-                .iter()
-                .next()
-                .expect("the delete buffer size must be 1")
-                .clone();
+            let (path, args) = self.buffer.remove(0);
             self.inner.delete_once(path, args).await?;
-            self.buffer.clear();
             return Ok(1);
         }
 
-        let batch = self.buffer.iter().cloned().collect();
-        let result = self.inner.delete_batch(batch).await?;
+        let batch: Vec<_> = self.buffer.drain(..).collect();
+        let result = self.inner.delete_batch(batch.clone()).await?;
 
         if result.succeeded.is_empty() {
+            // Restore all items back to buffer since nothing was deleted.
+            self.buffer = batch;
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "batch delete returned zero successes",
             ));
         }
-        if result.succeeded.len() + result.failed.len() != self.buffer.len() {
+        if result.succeeded.len() + result.failed.len() != batch.len() {
+            // Restore all items back to buffer since result is inconsistent.
+            self.buffer = batch;
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "batch delete result size mismatch",
             ));
         }
 
-        let mut deleted = 0;
-        for i in result.succeeded {
-            self.buffer.remove(&i);
-            deleted += 1;
-        }
+        let deleted = result.succeeded.len();
 
-        for (path, op, err) in result.failed {
+        // Put failed items back into the buffer for retry.
+        for (idx, err) in result.failed {
             if !err.is_temporary() {
+                let (path, op) = &batch[idx];
                 return Err(err
                     .with_context("path", path)
                     .with_context("version", op.version().unwrap_or("<latest>")));
             }
+            self.buffer.push(batch[idx].clone());
         }
 
         Ok(deleted)
@@ -131,7 +131,7 @@ impl<D: BatchDelete> BatchDeleter<D> {
 
 impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.buffer.insert((path.to_string(), args));
+        self.buffer.push((path.to_string(), args));
         if self.buffer.len() >= self.max_batch_size {
             let _ = self.flush_buffer().await?;
             return Ok(());
@@ -156,6 +156,102 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
             }
         }
 
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::Delete;
+
+    /// A mock BatchDelete implementation that reports all items as successfully
+    /// deleted by index.
+    struct MockBatchDelete;
+
+    impl BatchDelete for MockBatchDelete {
+        async fn delete_once(&self, _path: String, _args: OpDelete) -> Result<()> {
+            Ok(())
+        }
+
+        async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+            Ok(BatchDeleteResult {
+                succeeded: (0..batch.len()).collect(),
+                failed: vec![],
+            })
+        }
+    }
+
+    /// Regression test: previously, BatchDeleter used a HashSet with
+    /// `(String, OpDelete)` equality to track progress. If a service
+    /// reconstructed `OpDelete` from responses without preserving all fields
+    /// (e.g., missing `recursive`), `buffer.remove()` would silently fail,
+    /// leaving items stuck in the buffer forever and triggering a "no progress"
+    /// error. With index-based tracking, this is no longer possible.
+    #[tokio::test]
+    async fn test_batch_deleter_index_based_progress() -> Result<()> {
+        let mut deleter = BatchDeleter::new(MockBatchDelete, Some(3));
+
+        deleter
+            .delete("a", OpDelete::new().with_recursive(true))
+            .await?;
+        deleter
+            .delete("b", OpDelete::new().with_recursive(true))
+            .await?;
+        deleter
+            .delete("c", OpDelete::new().with_recursive(true))
+            .await?;
+
+        deleter.close().await?;
+        Ok(())
+    }
+
+    /// A mock that fails one item with a temporary error on the first call,
+    /// then succeeds on retry.
+    struct MockPartialFailBatchDelete {
+        call_count: std::sync::atomic::AtomicUsize,
+    }
+
+    impl BatchDelete for MockPartialFailBatchDelete {
+        async fn delete_once(&self, _path: String, _args: OpDelete) -> Result<()> {
+            Ok(())
+        }
+
+        async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+            let count = self
+                .call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if count == 0 {
+                let last = batch.len() - 1;
+                Ok(BatchDeleteResult {
+                    succeeded: (0..last).collect(),
+                    failed: vec![(
+                        last,
+                        Error::new(ErrorKind::Unexpected, "temporary failure").set_temporary(),
+                    )],
+                })
+            } else {
+                Ok(BatchDeleteResult {
+                    succeeded: (0..batch.len()).collect(),
+                    failed: vec![],
+                })
+            }
+        }
+    }
+
+    /// Test that failed items are properly retained and retried.
+    #[tokio::test]
+    async fn test_batch_deleter_partial_failure_retry() -> Result<()> {
+        let mock = MockPartialFailBatchDelete {
+            call_count: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let mut deleter = BatchDeleter::new(mock, Some(3));
+
+        deleter.delete("a", OpDelete::new()).await?;
+        deleter.delete("b", OpDelete::new()).await?;
+        deleter.delete("c", OpDelete::new()).await?;
+
+        deleter.close().await?;
         Ok(())
     }
 }

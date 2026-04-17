@@ -85,21 +85,18 @@ impl oio::BatchDelete for AzblobDeleter {
 
         for (i, part) in parts.into_iter().enumerate() {
             let resp = part.into_response();
-            let path = paths[i].clone();
 
             // deleting not existing objects is ok
             if resp.status() == StatusCode::ACCEPTED || resp.status() == StatusCode::NOT_FOUND {
-                batched_result.succeeded.push((path, OpDelete::default()));
+                batched_result.succeeded.push(i);
             } else {
-                batched_result
-                    .failed
-                    .push((path, OpDelete::default(), parse_error(resp)));
+                batched_result.failed.push((i, parse_error(resp)));
             }
         }
 
         // If no object is deleted, return directly.
         if batched_result.succeeded.is_empty() {
-            let err = batched_result.failed.remove(0).2;
+            let err = batched_result.failed.remove(0).1;
             return Err(err);
         }
 

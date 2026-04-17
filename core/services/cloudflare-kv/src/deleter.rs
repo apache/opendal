@@ -99,18 +99,17 @@ impl oio::BatchDelete for CloudflareKvDeleter {
             failed: Vec::with_capacity(result.unsuccessful_keys.len()),
         };
 
-        for item in batch {
+        for (idx, item) in batch.iter().enumerate() {
             if result.unsuccessful_keys.contains(&item.0) {
                 batched_result.failed.push((
-                    item.0,
-                    item.1,
+                    idx,
                     Error::new(
                         ErrorKind::Unexpected,
                         "cloudflare_kv delete this key failed for reason we don't know",
                     ),
                 ));
             } else {
-                batched_result.succeeded.push(item);
+                batched_result.succeeded.push(idx);
             }
         }
 

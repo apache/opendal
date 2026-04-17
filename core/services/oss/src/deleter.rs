@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -50,14 +49,7 @@ impl oio::BatchDelete for OssDeleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        // Sadly, OSS will not return failed keys, so we will build
-        // a set to calculate the failed keys.
-        let mut keys: HashSet<(String, OpDelete)> = batch
-            .iter()
-            .map(|path| (path.0.to_owned(), path.1.clone()))
-            .collect();
-
-        let resp = self.core.oss_delete_objects(batch).await?;
+        let resp = self.core.oss_delete_objects(batch.clone()).await?;
 
         let status = resp.status();
 
@@ -77,31 +69,48 @@ impl oio::BatchDelete for OssDeleter {
             ));
         }
 
+        // Build a lookup from (rel_path, version) to input indices.
+        // Use Vec<usize> to handle duplicate entries in the same batch.
+        let mut lookup: std::collections::HashMap<(String, Option<String>), Vec<usize>> =
+            std::collections::HashMap::with_capacity(batch.len());
+        for (idx, (path, op)) in batch.iter().enumerate() {
+            lookup
+                .entry((path.clone(), op.version().map(|v| v.to_string())))
+                .or_default()
+                .push(idx);
+        }
+
+        // Track which indices have been accounted for.
+        let mut accounted: std::collections::HashSet<usize> =
+            std::collections::HashSet::with_capacity(batch.len());
+
         let mut batched_result = BatchDeleteResult {
             succeeded: Vec::with_capacity(result.deleted.len()),
-            failed: Vec::with_capacity(keys.len() - result.deleted.len()),
+            failed: Vec::with_capacity(batch.len() - result.deleted.len()),
         };
 
         for i in result.deleted {
             let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::default();
-            if let Some(version) = &i.version_id {
-                op = op.with_version(version);
+            let version = i.version_id;
+            if let Some(indices) = lookup.get_mut(&(path, version)) {
+                if let Some(idx) = indices.pop() {
+                    batched_result.succeeded.push(idx);
+                    accounted.insert(idx);
+                }
             }
-            let object = (path, op);
-            keys.remove(&object);
-            batched_result.succeeded.push(object);
         }
-        // TODO: we should handle those errors with code.
-        for (path, op) in keys {
-            batched_result.failed.push((
-                path,
-                op,
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "oss delete this key failed for reason we don't know",
-                ),
-            ));
+
+        // Any items not accounted for are considered failed.
+        for idx in 0..batch.len() {
+            if !accounted.contains(&idx) {
+                batched_result.failed.push((
+                    idx,
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "oss delete this key failed for reason we don't know",
+                    ),
+                ));
+            }
         }
 
         Ok(batched_result)

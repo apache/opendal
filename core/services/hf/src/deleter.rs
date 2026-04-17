@@ -80,7 +80,7 @@ impl oio::BatchDelete for HfDeleter {
 
         self.delete_paths(paths).await?;
         Ok(BatchDeleteResult {
-            succeeded: batch,
+            succeeded: (0..batch.len()).collect(),
             failed: vec![],
         })
     }

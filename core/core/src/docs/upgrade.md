@@ -10,6 +10,10 @@ The long-deprecated `http_client` customization hooks on service builders have b
 
 `TimeoutLayer::with_speed` has been removed after a deprecation cycle. Use `with_io_timeout` to enforce per-IO deadlines instead.
 
+### `RetryInterceptor::intercept` takes `RetryEvent`
+
+`RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
+
 ## Raw API
 
 ### Test helpers moved to `opendal_testkit`

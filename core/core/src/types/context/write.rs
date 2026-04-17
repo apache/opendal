@@ -154,13 +154,15 @@ impl WriteGenerator<oio::Writer> {
         // - write buffer + bs directly.
         if !self.exact {
             let fill_size = bs.len();
+            // Save old buffer before pushing bs, so we can restore only the old
+            // buffer on failure. The caller will retry with the same bs.
+            let old_buffer = self.buffer.clone();
             self.buffer.push(bs);
-            let taken = self.buffer.take();
-            let buf = taken.clone().collect();
+            let buf = self.buffer.take().collect();
             match self.w.write_dyn(buf).await {
                 Ok(()) => return Ok(fill_size),
                 Err(err) => {
-                    self.buffer = taken;
+                    self.buffer = old_buffer;
                     return Err(err);
                 }
             }
@@ -595,8 +597,8 @@ mod tests {
         }
     }
 
-    /// Test that in inexact mode, a write failure retains the buffered data
-    /// so that a subsequent write/close succeeds without data loss.
+    /// Test that in inexact mode, a write failure retains only the old buffered data
+    /// (not the current bs), so the caller can safely retry without data duplication.
     #[tokio::test]
     async fn test_inexact_write_failure_retains_buffer() -> Result<()> {
         setup();
@@ -623,11 +625,14 @@ mod tests {
         let err = writer.write(data2.clone().into()).await;
         assert!(err.is_err(), "first flush should fail");
 
-        // The failed write already pushed data2 into the buffer and restored it on failure.
-        // So the buffer now has 15 bytes (data1 + data2). Just close to flush.
+        // On failure, only old buffer (data1) is retained; data2 is NOT absorbed.
+        // Caller retries with the same data2 — now the mock writer succeeds.
+        let n = writer.write(data2.into()).await?;
+        assert_eq!(n, 10);
+
         writer.close().await?;
 
-        // Verify no data was lost: all 15 bytes should be present.
+        // Verify no data was lost and no data was duplicated: exactly 15 bytes.
         let buf = buf.lock().await;
         assert_eq!(buf.len(), 15);
         assert_eq!(

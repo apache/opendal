@@ -247,7 +247,10 @@ mod tests {
         let ctx = ReadContext::new(acc, "test".to_string(), OpRead::new(), OpReader::new());
 
         let result = ctx.parse_into_range(..=u64::MAX).await;
-        assert!(result.is_err(), "..=u64::MAX should return error, not overflow");
+        assert!(
+            result.is_err(),
+            "..=u64::MAX should return error, not overflow"
+        );
         assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
         Ok(())
     }

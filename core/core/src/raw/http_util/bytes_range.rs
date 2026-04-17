@@ -153,9 +153,7 @@ impl Display for BytesRange {
                 f,
                 "{}-{}",
                 self.0,
-                self.0
-                    .checked_add(size - 1)
-                    .ok_or(std::fmt::Error)?
+                self.0.checked_add(size - 1).ok_or(std::fmt::Error)?
             ),
         }
     }

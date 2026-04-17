@@ -26,29 +26,55 @@ use opendal_core::*;
 
 pub struct DropboxLister {
     core: Arc<DropboxCore>,
-    path: String,
+    list_path: String,
     recursive: bool,
     limit: Option<usize>,
+    self_entry: Option<oio::Entry>,
+    filter_prefix: Option<String>,
+    fetch_entries: bool,
 }
 
 impl DropboxLister {
     pub fn new(
         core: Arc<DropboxCore>,
-        path: String,
+        list_path: String,
         recursive: bool,
         limit: Option<usize>,
+        self_entry: Option<oio::Entry>,
+        filter_prefix: Option<String>,
+        fetch_entries: bool,
     ) -> Self {
         Self {
             core,
-            path,
+            list_path,
             recursive,
             limit,
+            self_entry,
+            filter_prefix,
+            fetch_entries,
         }
+    }
+
+    fn build_entry(&self, entry: DropboxMetadataResponse) -> Result<oio::Entry> {
+        let path = entry.entry_path(self.core.root.as_str());
+        let metadata = entry.parse_metadata()?;
+        Ok(oio::Entry::new(&path, metadata))
     }
 }
 
 impl oio::PageList for DropboxLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        if ctx.token.is_empty() {
+            if let Some(entry) = self.self_entry.clone() {
+                ctx.entries.push_back(entry);
+            }
+
+            if !self.fetch_entries {
+                ctx.done = true;
+                return Ok(());
+            }
+        }
+
         // The token is set when obtaining entries and returning `has_more` flag.
         // When the token exists, we should retrieve more entries using the Dropbox continue API.
         // Refer: https://www.dropbox.com/developers/documentation/http/documentation#files-list_folder-continue
@@ -56,7 +82,7 @@ impl oio::PageList for DropboxLister {
             self.core.dropbox_list_continue(&ctx.token).await?
         } else {
             self.core
-                .dropbox_list(&self.path, self.recursive, self.limit)
+                .dropbox_list(&self.list_path, self.recursive, self.limit)
                 .await?
         };
 
@@ -79,31 +105,20 @@ impl oio::PageList for DropboxLister {
             serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
 
         for entry in decoded_response.entries {
-            let entry_mode = match entry.tag.as_str() {
-                "file" => EntryMode::FILE,
-                "folder" => EntryMode::DIR,
-                _ => EntryMode::Unknown,
-            };
+            let entry = self.build_entry(entry)?;
 
-            let mut name = entry.name;
-            let mut meta = Metadata::new(entry_mode);
-
-            // Dropbox will return folder names that do not end with '/'.
-            if entry_mode == EntryMode::DIR && !name.ends_with('/') {
-                name.push('/');
+            if let Some(prefix) = self.filter_prefix.as_deref() {
+                if !entry.path().starts_with(prefix) {
+                    continue;
+                }
             }
-
-            // The behavior here aligns with Dropbox's stat function.
-            if entry_mode == EntryMode::FILE {
-                let date_utc_last_modified = entry.client_modified.parse::<Timestamp>()?;
-                meta.set_last_modified(date_utc_last_modified);
-
-                if let Some(size) = entry.size {
-                    meta.set_content_length(size);
+            if let Some(self_entry) = self.self_entry.as_ref() {
+                if self_entry.path() == entry.path() {
+                    continue;
                 }
             }
 
-            ctx.entries.push_back(oio::Entry::with(name, meta));
+            ctx.entries.push_back(entry);
         }
 
         if decoded_response.has_more {
@@ -113,5 +128,52 @@ impl oio::PageList for DropboxLister {
             ctx.done = true;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_entry_uses_full_relative_path_and_metadata() {
+        let entry = DropboxMetadataResponse {
+            tag: "file".to_string(),
+            client_modified: "2024-01-01T00:00:00Z".to_string(),
+            content_hash: Some("etag".to_string()),
+            path_display: "/workspace/nested/file.txt".to_string(),
+            rev: Some("version".to_string()),
+            server_modified: Some("2024-01-02T00:00:00Z".to_string()),
+            size: Some(7),
+            ..Default::default()
+        };
+
+        let path = entry.entry_path("/workspace/");
+        let metadata = entry.parse_metadata().expect("metadata must parse");
+
+        assert_eq!(path, "nested/file.txt");
+        assert_eq!(metadata.mode(), EntryMode::FILE);
+        assert_eq!(metadata.content_length(), 7);
+        assert_eq!(metadata.etag(), Some("etag"));
+        assert_eq!(metadata.version(), Some("version"));
+        assert_eq!(
+            metadata.last_modified(),
+            Some("2024-01-02T00:00:00Z".parse::<Timestamp>().unwrap())
+        );
+    }
+
+    #[test]
+    fn build_entry_preserves_directory_hierarchy() {
+        let entry = DropboxMetadataResponse {
+            tag: "folder".to_string(),
+            path_display: "/workspace/a/b".to_string(),
+            ..Default::default()
+        };
+
+        assert_eq!(entry.entry_path("/workspace/"), "a/b/");
+        assert_eq!(
+            entry.parse_metadata().expect("metadata must parse").mode(),
+            EntryMode::DIR
+        );
     }
 }

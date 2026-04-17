@@ -29,6 +29,27 @@ use super::writer::DropboxWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+fn parent_list_path(path: &str) -> String {
+    let parent = get_parent(path);
+    if parent == "/" {
+        String::new()
+    } else {
+        parent.to_string()
+    }
+}
+
+fn dir_entry(path: &str) -> oio::Entry {
+    let path = if path.is_empty() || path == "/" {
+        "/".to_string()
+    } else if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{path}/")
+    };
+
+    oio::Entry::new(&path, Metadata::new(EntryMode::DIR))
+}
+
 #[derive(Clone, Debug)]
 pub struct DropboxBackend {
     pub core: Arc<DropboxCore>,
@@ -74,30 +95,7 @@ impl Access for DropboxBackend {
                 let bytes = resp.into_body();
                 let decoded_response: DropboxMetadataResponse =
                     serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?;
-                let entry_mode: EntryMode = match decoded_response.tag.as_str() {
-                    "file" => EntryMode::FILE,
-                    "folder" => EntryMode::DIR,
-                    _ => EntryMode::Unknown,
-                };
-
-                let mut metadata = Metadata::new(entry_mode);
-                // Only set last_modified and size if entry_mode is FILE, because Dropbox API
-                // returns last_modified and size only for files.
-                // FYI: https://www.dropbox.com/developers/documentation/http/documentation#files-get_metadata
-                if entry_mode == EntryMode::FILE {
-                    let date_utc_last_modified =
-                        decoded_response.client_modified.parse::<Timestamp>()?;
-                    metadata.set_last_modified(date_utc_last_modified);
-
-                    if let Some(size) = decoded_response.size {
-                        metadata.set_content_length(size);
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::Unexpected,
-                            format!("no size found for file {path}"),
-                        ));
-                    }
-                }
+                let metadata = decoded_response.parse_metadata()?;
                 Ok(RpStat::new(metadata))
             }
             _ => Err(parse_error(resp)),
@@ -139,15 +137,79 @@ impl Access for DropboxBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        Ok((
-            RpList::default(),
-            oio::PageLister::new(DropboxLister::new(
+        let recursive = args.recursive();
+        let limit = args.limit();
+
+        let lister = if path.is_empty() || path == "/" || path.ends_with('/') {
+            DropboxLister::new(
                 self.core.clone(),
                 path.to_string(),
-                args.recursive(),
-                args.limit(),
-            )),
-        ))
+                recursive,
+                limit,
+                Some(dir_entry(path)),
+                None,
+                true,
+            )
+        } else {
+            let resp = self.core.dropbox_get_metadata(path).await?;
+            match resp.status() {
+                StatusCode::OK => {
+                    let bytes = resp.into_body();
+                    let decoded_response: DropboxMetadataResponse =
+                        serde_json::from_reader(bytes.reader())
+                            .map_err(new_json_deserialize_error)?;
+
+                    if decoded_response.entry_mode().is_dir() {
+                        DropboxLister::new(
+                            self.core.clone(),
+                            path.to_string(),
+                            recursive,
+                            limit,
+                            Some(dir_entry(path)),
+                            None,
+                            recursive,
+                        )
+                    } else if recursive {
+                        DropboxLister::new(
+                            self.core.clone(),
+                            parent_list_path(path),
+                            true,
+                            limit,
+                            None,
+                            Some(path.to_string()),
+                            true,
+                        )
+                    } else {
+                        DropboxLister::new(
+                            self.core.clone(),
+                            String::new(),
+                            false,
+                            limit,
+                            Some(oio::Entry::new(path, decoded_response.parse_metadata()?)),
+                            None,
+                            false,
+                        )
+                    }
+                }
+                _ => {
+                    let err = parse_error(resp);
+                    match err.kind() {
+                        ErrorKind::NotFound => DropboxLister::new(
+                            self.core.clone(),
+                            parent_list_path(path),
+                            recursive,
+                            limit,
+                            None,
+                            Some(path.to_string()),
+                            true,
+                        ),
+                        _ => return Err(err),
+                    }
+                }
+            }
+        };
+
+        Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 
     async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {

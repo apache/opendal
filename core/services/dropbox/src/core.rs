@@ -448,6 +448,61 @@ pub struct DropboxMetadataResponse {
     pub size: Option<u64>,
 }
 
+impl DropboxMetadataResponse {
+    pub(crate) fn entry_mode(&self) -> EntryMode {
+        match self.tag.as_str() {
+            "file" => EntryMode::FILE,
+            "folder" => EntryMode::DIR,
+            _ => EntryMode::Unknown,
+        }
+    }
+
+    pub(crate) fn parse_metadata(&self) -> Result<Metadata> {
+        let entry_mode = self.entry_mode();
+        let mut metadata = Metadata::new(entry_mode);
+
+        if let Some(content_hash) = self.content_hash.as_deref() {
+            metadata.set_etag(content_hash);
+        }
+        if let Some(rev) = self.rev.as_deref() {
+            metadata.set_version(rev);
+        }
+
+        if entry_mode == EntryMode::FILE {
+            let modified = self
+                .server_modified
+                .as_deref()
+                .unwrap_or(self.client_modified.as_str());
+            metadata.set_last_modified(modified.parse::<Timestamp>()?);
+
+            if let Some(size) = self.size {
+                metadata.set_content_length(size);
+            } else {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    format!("no size found for file {}", self.path_display),
+                ));
+            }
+        }
+
+        Ok(metadata)
+    }
+
+    pub(crate) fn entry_path(&self, root: &str) -> String {
+        let mut path = if self.path_display == root {
+            "/".to_string()
+        } else {
+            build_rel_path(root, &self.path_display)
+        };
+
+        if self.entry_mode().is_dir() && path != "/" && !path.ends_with('/') {
+            path.push('/');
+        }
+
+        path
+    }
+}
+
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
 pub struct DropboxMetadataFileLockInfo {

@@ -87,8 +87,9 @@ impl<D: BatchDelete> BatchDeleter<D> {
         }
 
         if self.buffer.len() == 1 {
-            let (path, args) = self.buffer.remove(0);
+            let (path, args) = self.buffer[0].clone();
             self.inner.delete_once(path, args).await?;
+            self.buffer.clear();
             return Ok(1);
         }
 
@@ -286,6 +287,54 @@ mod tests {
                 })
             }
         }
+    }
+
+    /// A mock that fails delete_once on the first call, then succeeds on retry.
+    struct MockFailOnceDeleteOnce {
+        call_count: std::sync::atomic::AtomicUsize,
+    }
+
+    impl BatchDelete for MockFailOnceDeleteOnce {
+        async fn delete_once(&self, _path: String, _args: OpDelete) -> Result<()> {
+            let count = self
+                .call_count
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if count == 0 {
+                Err(
+                    Error::new(ErrorKind::Unexpected, "temporary delete_once failure")
+                        .set_temporary(),
+                )
+            } else {
+                Ok(())
+            }
+        }
+
+        async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+            Ok(BatchDeleteResult {
+                succeeded: (0..batch.len()).collect(),
+                failed: vec![],
+            })
+        }
+    }
+
+    /// Regression test: when delete_once() fails for a single-item buffer,
+    /// the item must be retained so close() can retry successfully.
+    #[tokio::test]
+    async fn test_batch_deleter_single_item_delete_once_error_retains_buffer() -> Result<()> {
+        let mock = MockFailOnceDeleteOnce {
+            call_count: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let mut deleter = BatchDeleter::new(mock, Some(3));
+
+        deleter.delete("a", OpDelete::new()).await?;
+
+        // First close() fails because delete_once returns error, but item stays in buffer.
+        let err = deleter.close().await;
+        assert!(err.is_err());
+
+        // Second close() succeeds because item was retained and delete_once now succeeds.
+        deleter.close().await?;
+        Ok(())
     }
 
     /// Regression test: when delete_batch() itself returns Err (e.g., transport

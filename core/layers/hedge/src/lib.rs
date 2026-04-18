@@ -27,6 +27,7 @@
 //! Reference: <https://research.google/pubs/the-tail-at-scale/>
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
 
 use std::fmt::Debug;
 use std::pin::Pin;
@@ -62,11 +63,12 @@ where
     }
 }
 
+/// Default [`HedgeInterceptor`] implementation that logs each hedged request.
 pub struct DefaultHedgeInterceptor;
 
 impl HedgeInterceptor for DefaultHedgeInterceptor {
     fn intercept(&self, event: &HedgeEvent) {
-        log::warn!(
+        log::debug!(
             target: "opendal::layers::hedge",
             "hedge #{} fired for {}",
             event.attempt, event.operation
@@ -93,6 +95,34 @@ impl OpDelay {
 }
 
 /// Hedged request layer for read-only operations.
+///
+/// # Notes
+///
+/// `HedgeLayer` fires extra hedged requests and drops the losing futures once
+/// one completes. This means the underlying future must tolerate being dropped
+/// mid-flight; otherwise state held inside may be lost.
+///
+/// `HedgeLayer` has no max attempt count or timeout of its own, so users should
+/// stack a `TimeoutLayer` on top to bound runaway hedging.
+///
+/// # Layer Ordering
+///
+/// When composing with other layers, place `HedgeLayer` before any retry or
+/// timeout layer so retry and timeout wrap the whole hedged operation:
+///
+/// ```ignore
+/// let op = Operator::new(services::Memory::default())?
+///     // HedgeLayer is applied first (innermost), so it sees every retry
+///     // attempt and every per-request timeout individually.
+///     .layer(HedgeLayer::new())
+///     .layer(TimeoutLayer::default())
+///     .layer(RetryLayer::default())
+///     .finish();
+/// ```
+///
+/// Putting `HedgeLayer` after `RetryLayer` is usually wrong: each hedged
+/// attempt would spin up its own retry loop, amplifying request volume instead
+/// of bounding it.
 ///
 /// # Examples
 ///
@@ -148,6 +178,7 @@ impl Default for HedgeLayer {
 }
 
 impl HedgeLayer {
+    /// Create a new [`HedgeLayer`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -156,12 +187,17 @@ impl HedgeLayer {
 impl<I: HedgeInterceptor> HedgeLayer<I> {
     /// Set the default hedge delay. Per-operation delays override this.
     pub fn with_delay(mut self, delay: Duration) -> Self {
+        assert!(!delay.is_zero(), "hedge delay must be greater than zero");
         self.delay = delay;
         self
     }
 
     /// Override the hedge delay for `stat`.
     pub fn with_stat_delay(mut self, delay: Duration) -> Self {
+        assert!(
+            !delay.is_zero(),
+            "hedge stat delay must be greater than zero"
+        );
         self.stat_delay = OpDelay::Custom(delay);
         self
     }
@@ -174,6 +210,10 @@ impl<I: HedgeInterceptor> HedgeLayer<I> {
 
     /// Override the hedge delay for `read` (both initiation and per-chunk streaming).
     pub fn with_read_delay(mut self, delay: Duration) -> Self {
+        assert!(
+            !delay.is_zero(),
+            "hedge read delay must be greater than zero"
+        );
         self.read_delay = OpDelay::Custom(delay);
         self
     }
@@ -281,23 +321,8 @@ impl<A: Access, I: HedgeInterceptor> LayeredAccess for HedgeAccessor<A, I> {
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
         let Some(delay) = self.read_delay else {
-            return self
-                .inner
-                .read(path, args.clone())
-                .await
-                .map(|(rp, reader)| {
-                    (
-                        rp,
-                        HedgeReader::new(
-                            self.inner.clone(),
-                            path.to_string(),
-                            args,
-                            reader,
-                            None,
-                            self.interceptor.clone(),
-                        ),
-                    )
-                });
+            let (rp, reader) = self.inner.read(path, args).await?;
+            return Ok((rp, HedgeReader::passthrough(reader)));
         };
         let inner = self.inner.clone();
         hedged_op(delay, Operation::Read, &*self.interceptor, || {
@@ -309,12 +334,12 @@ impl<A: Access, I: HedgeInterceptor> LayeredAccess for HedgeAccessor<A, I> {
         .map(|(rp, reader)| {
             (
                 rp,
-                HedgeReader::new(
+                HedgeReader::hedging(
                     self.inner.clone(),
                     path.to_string(),
                     args,
                     reader,
-                    Some(delay),
+                    delay,
                     self.interceptor.clone(),
                 ),
             )
@@ -334,51 +359,62 @@ impl<A: Access, I: HedgeInterceptor> LayeredAccess for HedgeAccessor<A, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct HedgeReader<A, R, I: HedgeInterceptor> {
+struct HedgeReaderState<A, I: HedgeInterceptor> {
     inner: Arc<A>,
-    reader: Option<R>,
     path: String,
     args: OpRead,
-    delay: Option<Duration>,
+    delay: Duration,
     interceptor: Arc<I>,
 }
 
+#[doc(hidden)]
+pub struct HedgeReader<A, R, I: HedgeInterceptor> {
+    reader: Option<R>,
+    state: Option<HedgeReaderState<A, I>>,
+}
+
 impl<A, R, I: HedgeInterceptor> HedgeReader<A, R, I> {
-    fn new(
+    fn passthrough(reader: R) -> Self {
+        Self {
+            reader: Some(reader),
+            state: None,
+        }
+    }
+
+    fn hedging(
         inner: Arc<A>,
         path: String,
         args: OpRead,
         reader: R,
-        delay: Option<Duration>,
+        delay: Duration,
         interceptor: Arc<I>,
     ) -> Self {
         Self {
-            inner,
             reader: Some(reader),
-            path,
-            args,
-            delay,
-            interceptor,
+            state: Some(HedgeReaderState {
+                inner,
+                path,
+                args,
+                delay,
+                interceptor,
+            }),
         }
     }
 }
 
 impl<A: Access, I: HedgeInterceptor> oio::Read for HedgeReader<A, A::Reader, I> {
     async fn read(&mut self) -> Result<Buffer> {
-        let Some(delay) = self.delay else {
+        let Some(state) = self.state.as_mut() else {
             let reader = self.reader.as_mut().expect("reader must be present");
-            let buf = reader.read().await?;
-            self.args.range_mut().advance(buf.len() as u64);
-            return Ok(buf);
+            return reader.read().await;
         };
 
         let mut current = self.reader.take();
-        let inner = self.inner.clone();
-        let path = self.path.clone();
-        let args = self.args.clone();
+        let inner = state.inner.clone();
+        let path = state.path.clone();
+        let args = state.args.clone();
 
-        let (reader, buf) = hedged_op(delay, Operation::Read, &*self.interceptor, || {
+        let (reader, buf) = hedged_op(state.delay, Operation::Read, &*state.interceptor, || {
             let existing = current.take();
             let inner = inner.clone();
             let path = path.clone();
@@ -395,7 +431,7 @@ impl<A: Access, I: HedgeInterceptor> oio::Read for HedgeReader<A, A::Reader, I> 
         .await?;
 
         self.reader = Some(reader);
-        self.args.range_mut().advance(buf.len() as u64);
+        state.args.range_mut().advance(buf.len() as u64);
         Ok(buf)
     }
 }

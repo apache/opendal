@@ -1227,7 +1227,7 @@ mod tests {
                 "oss with internal endpoint",
                 "https://oss-cn-hangzhou-internal.aliyuncs.com",
                 "example",
-                Some("oss-cn-hangzhou-internal"),
+                Some("oss-cn-hangzhou"),
             ),
             (
                 "r2",

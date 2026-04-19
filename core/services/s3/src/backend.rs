@@ -636,11 +636,10 @@ impl S3Builder {
         // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
         // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
         if let Some(v) = endpoint.strip_prefix("https://") {
-            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
+            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
                 return Some(region.to_string());
             }
-
-            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
+            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
                 return Some(region.to_string());
             }
         }

@@ -318,6 +318,10 @@ impl S3Core {
             req = req.header(IF_MATCH, if_match);
         }
 
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        }
+
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
@@ -926,6 +930,9 @@ impl S3Core {
         // Set conditional write headers.
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
         }
         if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");

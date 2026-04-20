@@ -607,6 +607,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_id: builtins.str = ...,
                 secret_key: builtins.str = ...,
+                security_token: builtins.str = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `cos` service.
@@ -629,6 +630,21 @@ submit! {
                     Secret ID of this backend.
                 secret_key : builtins.str, optional
                     Secret key of this backend.
+                security_token : builtins.str, optional
+                    Security token (a.k.a.
+                    session token) of this backend.
+                    This is used for temporary credentials issued by
+                    Tencent Cloud STS (e.g.
+                    `GetFederationToken` / `AssumeRole`).
+                    When `security_token` is provided, it will be used
+                    together with `secret_id` and `secret_key` to sign
+                    requests, and the `x-cos-security-token` header will
+                    be attached automatically by the signer.
+                    If this field is not set, OpenDAL will also fall
+                    back to reading the token from environment variables
+                    `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN`
+                    or `QCLOUD_SECRET_TOKEN` (unless
+                    `disable_config_load` is enabled).
                 Returns
                 -------
                 Operator
@@ -3296,6 +3312,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_id: builtins.str = ...,
                 secret_key: builtins.str = ...,
+                security_token: builtins.str = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `cos` service.
@@ -3318,6 +3335,21 @@ submit! {
                     Secret ID of this backend.
                 secret_key : builtins.str, optional
                     Secret key of this backend.
+                security_token : builtins.str, optional
+                    Security token (a.k.a.
+                    session token) of this backend.
+                    This is used for temporary credentials issued by
+                    Tencent Cloud STS (e.g.
+                    `GetFederationToken` / `AssumeRole`).
+                    When `security_token` is provided, it will be used
+                    together with `secret_id` and `secret_key` to sign
+                    requests, and the `x-cos-security-token` header will
+                    be attached automatically by the signer.
+                    If this field is not set, OpenDAL will also fall
+                    back to reading the token from environment variables
+                    `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN`
+                    or `QCLOUD_SECRET_TOKEN` (unless
+                    `disable_config_load` is enabled).
                 Returns
                 -------
                 AsyncOperator

@@ -975,17 +975,18 @@ impl S3Core {
 
     pub async fn s3_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            quiet: true,
             object: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -1144,6 +1145,7 @@ pub struct CopyObjectResult {
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "Delete", rename_all = "PascalCase")]
 pub struct DeleteObjectsRequest {
+    pub quiet: bool,
     pub object: Vec<DeleteObjectsRequestObject>,
 }
 
@@ -1159,15 +1161,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1418,6 +1412,7 @@ mod tests {
     #[test]
     fn test_serialize_delete_objects_request() {
         let req = DeleteObjectsRequest {
+            quiet: true,
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
@@ -1435,6 +1430,7 @@ mod tests {
         pretty_assertions::assert_eq!(
             actual,
             r#"<Delete>
+             <Quiet>true</Quiet>
              <Object>
              <Key>sample1.txt</Key>
              </Object>
@@ -1454,9 +1450,6 @@ mod tests {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
             <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-             <Deleted>
-               <Key>sample1.txt</Key>
-             </Deleted>
              <Error>
               <Key>sample2.txt</Key>
               <Code>AccessDenied</Code>
@@ -1468,36 +1461,10 @@ mod tests {
         let out: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "sample1.txt");
         assert_eq!(out.error.len(), 1);
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
-    }
-
-    #[test]
-    fn test_deserialize_delete_objects_with_version_id() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-                    <Deleted>
-                      <Key>SampleDocument.txt</Key>
-                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
-                    </Deleted>
-                  </DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
-        assert_eq!(
-            out.deleted[0].version_id,
-            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
-        );
-        assert_eq!(out.error.len(), 0);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples

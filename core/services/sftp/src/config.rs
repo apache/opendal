@@ -114,28 +114,19 @@ mod tests {
     }
 
     #[test]
-    fn from_uri_applies_connect_timeout_override() {
+    fn from_uri_applies_timeout_overrides() {
         let uri = OperatorUri::new(
             "sftp://host",
-            vec![("connect_timeout".to_string(), "15s".to_string())],
-        )
-        .unwrap();
-
-        let cfg = SftpConfig::from_uri(&uri).unwrap();
-        assert_eq!(cfg.endpoint.as_deref(), Some("host"));
-        assert_eq!(cfg.connect_timeout.as_deref(), Some("15s"));
-    }
-
-    #[test]
-    fn from_uri_applies_acquire_timeout_override() {
-        let uri = OperatorUri::new(
-            "sftp://host",
-            vec![("acquire_timeout".to_string(), "5s".to_string())],
+            vec![
+                ("acquire_timeout".to_string(), "5s".to_string()),
+                ("connect_timeout".to_string(), "15s".to_string()),
+            ],
         )
         .unwrap();
 
         let cfg = SftpConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoint.as_deref(), Some("host"));
         assert_eq!(cfg.acquire_timeout.as_deref(), Some("5s"));
+        assert_eq!(cfg.connect_timeout.as_deref(), Some("15s"));
     }
 }

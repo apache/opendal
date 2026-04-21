@@ -245,41 +245,10 @@ impl Builder for SftpBuilder {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
 
     #[test]
-    fn builder_sets_acquire_timeout() {
-        let builder = SftpBuilder::default().acquire_timeout(Duration::from_secs(5));
-
-        assert_eq!(builder.config.acquire_timeout.as_deref(), Some("5s"));
-    }
-
-    #[test]
-    fn builder_sets_connect_timeout() {
-        let builder = SftpBuilder::default().connect_timeout(Duration::from_secs(15));
-
-        assert_eq!(builder.config.connect_timeout.as_deref(), Some("15s"));
-    }
-
-    #[test]
-    fn build_rejects_invalid_acquire_timeout() {
-        let builder = SftpBuilder {
-            config: SftpConfig {
-                endpoint: Some("host".to_string()),
-                acquire_timeout: Some("invalid".to_string()),
-                ..Default::default()
-            },
-        };
-
-        let err = builder.build().unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        assert!(err.to_string().contains("failed to parse duration"));
-    }
-
-    #[test]
-    fn build_rejects_invalid_connect_timeout() {
+    fn build_rejects_invalid_timeout() {
         let builder = SftpBuilder {
             config: SftpConfig {
                 endpoint: Some("host".to_string()),

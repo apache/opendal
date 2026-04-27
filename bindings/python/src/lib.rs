@@ -99,7 +99,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
             IsSameFile,
             ConditionNotMatch,
             RateLimited,
-            RangeNotSatisfied
+            RangeNotSatisfied,
         ]
     )?;
     Ok(())

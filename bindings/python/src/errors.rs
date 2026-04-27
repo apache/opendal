@@ -77,12 +77,7 @@ create_exception!(
     PyException,
     "Condition not match"
 );
-create_exception!(
-    opendal.exceptions,
-    RateLimited,
-    PyException,
-    "Rate limited"
-);
+create_exception!(opendal.exceptions, RateLimited, PyException, "Rate limited");
 create_exception!(
     opendal.exceptions,
     RangeNotSatisfied,

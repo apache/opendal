@@ -20,7 +20,7 @@ import opendal
 
 def test_stat_capability_fields_exist():
     op = opendal.Operator("memory")
-    cap = op.capability
+    cap = op.capability()
 
     assert isinstance(cap.stat_with_if_modified_since, bool)
     assert isinstance(cap.stat_with_if_unmodified_since, bool)

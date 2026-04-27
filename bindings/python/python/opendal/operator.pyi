@@ -337,7 +337,10 @@ class AsyncOperator:
             An awaitable that completes when the directory is created.
         """
     def delete(
-        self, path: builtins.str | os.PathLike | pathlib.Path
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
     ) -> collections.abc.Awaitable[None]:
         r"""
         Delete a file at the given path.
@@ -350,6 +353,8 @@ class AsyncOperator:
         ----------
         path : str
             The path to the file.
+        version : str, optional
+            The version of the file to delete.
 
         Returns
         -------
@@ -2710,7 +2715,12 @@ class Operator:
         path : str
             The path to the directory.
         """
-    def delete(self, path: builtins.str | os.PathLike | pathlib.Path) -> None:
+    def delete(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+    ) -> None:
         r"""
         Delete a file at the given path.
 
@@ -2722,6 +2732,8 @@ class Operator:
         ----------
         path : str
             The path to the file.
+        version : str, optional
+            The version of the file to delete.
         """
     def exists(self, path: builtins.str | os.PathLike | pathlib.Path) -> builtins.bool:
         r"""

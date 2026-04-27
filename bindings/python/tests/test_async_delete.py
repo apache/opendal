@@ -24,6 +24,16 @@ from opendal.exceptions import NotFound
 
 
 @pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_delete_with_version_option(service_name, operator, async_operator):
+    path = f"random_file_{str(uuid4())}"
+    await async_operator.write(path, os.urandom(1024))
+    await async_operator.delete(path, version=None)
+    with pytest.raises(NotFound):
+        await async_operator.read(path)
+
+
+@pytest.mark.asyncio
 @pytest.mark.need_capability("read", "write", "delete", "list", "create_dir")
 async def test_async_remove_all(service_name, operator, async_operator):
     parent = f"random_dir_{str(uuid4())}"

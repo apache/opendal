@@ -18,6 +18,8 @@
 import builtins
 import inspect
 
+import pytest
+
 from opendal import exceptions
 
 
@@ -25,3 +27,56 @@ def test_exceptions():
     for _name, obj in inspect.getmembers(exceptions):
         if inspect.isclass(obj):
             assert issubclass(obj, builtins.Exception)
+
+
+def test_all_expected_exceptions_present():
+    """Verify every expected exception class is present in opendal.exceptions."""
+    expected = [
+        "Error",
+        "Unexpected",
+        "Unsupported",
+        "ConfigInvalid",
+        "NotFound",
+        "PermissionDenied",
+        "IsADirectory",
+        "NotADirectory",
+        "AlreadyExists",
+        "IsSameFile",
+        "ConditionNotMatch",
+        "RateLimited",
+        "RangeNotSatisfied",
+    ]
+    for name in expected:
+        assert hasattr(exceptions, name), f"exceptions.{name} is missing"
+        cls = getattr(exceptions, name)
+        assert inspect.isclass(cls), f"exceptions.{name} is not a class"
+        assert issubclass(cls, builtins.Exception), (
+            f"exceptions.{name} does not inherit from Exception"
+        )
+
+
+def test_rate_limited_is_catchable():
+    """RateLimited can be raised and caught like a standard exception."""
+    with pytest.raises(exceptions.RateLimited):
+        raise exceptions.RateLimited("too many requests")
+
+
+def test_range_not_satisfied_is_catchable():
+    """RangeNotSatisfied can be raised and caught like a standard exception."""
+    with pytest.raises(exceptions.RangeNotSatisfied):
+        raise exceptions.RangeNotSatisfied("requested range not satisfiable")
+
+
+def test_exceptions_are_distinct():
+    """RateLimited and RangeNotSatisfied must not accidentally catch each other."""
+    with pytest.raises(exceptions.RateLimited):
+        try:
+            raise exceptions.RateLimited("rate limited")
+        except exceptions.RangeNotSatisfied:
+            pytest.fail("RangeNotSatisfied should not catch RateLimited")
+
+    with pytest.raises(exceptions.RangeNotSatisfied):
+        try:
+            raise exceptions.RangeNotSatisfied("range error")
+        except exceptions.RateLimited:
+            pytest.fail("RateLimited should not catch RangeNotSatisfied")

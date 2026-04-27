@@ -97,7 +97,9 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
             NotADirectory,
             AlreadyExists,
             IsSameFile,
-            ConditionNotMatch
+            ConditionNotMatch,
+            RateLimited,
+            RangeNotSatisfied
         ]
     )?;
     Ok(())

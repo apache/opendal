@@ -1302,13 +1302,31 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[None]",
         imports=("collections.abc")
     ))]
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    /// version : str, optional
+    ///     The version of the file to delete. Only supported on version-aware backends.
+    /// recursive : bool, optional
+    ///     If True, delete the path recursively. Only supported on backends that support recursive delete.
+    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    pub fn delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        version: Option<String>,
+        recursive: Option<bool>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        future_into_py(
-            py,
-            async move { this.delete(&path).await.map_err(format_pyerr) },
-        )
+        future_into_py(py, async move {
+            if version.is_some() || recursive.is_some() {
+                let opts = ocore::options::DeleteOptions {
+                    version,
+                    recursive: recursive.unwrap_or(false),
+                };
+                this.delete_options(&path, opts).await.map_err(format_pyerr)
+            } else {
+                this.delete(&path).await.map_err(format_pyerr)
+            }
+        })
     }
 
     /// Check if a path exists.

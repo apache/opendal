@@ -97,6 +97,9 @@ pub struct Capability {
     /// If operator supports delete.
     pub delete: bool,
 
+    /// If operator supports copy with if_not_exists.
+    pub copy_with_if_not_exists: bool,
+
     /// If operator supports copy.
     pub copy: bool,
 
@@ -160,6 +163,7 @@ impl Capability {
             write_with_user_metadata: capability.write_with_user_metadata,
             create_dir: capability.create_dir,
             delete: capability.delete,
+            copy_with_if_not_exists: capability.copy_with_if_not_exists,
             copy: capability.copy,
             rename: capability.rename,
             list: capability.list,

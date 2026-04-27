@@ -113,3 +113,27 @@ async def test_async_copy_overwrite(service_name, operator, async_operator):
     assert target_content == source_content
     await async_operator.delete(source_path)
     await async_operator.delete(target_path)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "copy")
+async def test_async_copy_if_not_exists(service_name, operator, async_operator):
+    if not async_operator.capability().copy_with_if_not_exists:
+        pytest.skip("copy_with_if_not_exists not supported")
+
+    source_path = f"random_file_{str(uuid4())}"
+    target_path = f"random_file_{str(uuid4())}"
+    content = os.urandom(1024)
+    await async_operator.write(source_path, content)
+    await async_operator.copy(source_path, target_path, if_not_exists=True)
+    read_content = await async_operator.read(target_path)
+    assert read_content == content
+
+    # Second copy with if_not_exists should fail because target exists.
+    from opendal.exceptions import AlreadyExists
+
+    with pytest.raises(AlreadyExists):
+        await async_operator.copy(source_path, target_path, if_not_exists=True)
+
+    await async_operator.delete(source_path)
+    await async_operator.delete(target_path)

@@ -249,6 +249,8 @@ class AsyncOperator:
         self,
         source: builtins.str | os.PathLike | pathlib.Path,
         target: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        if_not_exists: builtins.bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         r"""
         Copy a file from one path to another.
@@ -259,6 +261,8 @@ class AsyncOperator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, the copy will only succeed if the target does not exist.
 
         Returns
         -------
@@ -2661,6 +2665,8 @@ class Operator:
         self,
         source: builtins.str | os.PathLike | pathlib.Path,
         target: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        if_not_exists: builtins.bool | None = None,
     ) -> None:
         r"""
         Copy a file from one path to another.
@@ -2671,6 +2677,8 @@ class Operator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, the copy will only succeed if the target does not exist.
         """
     def rename(
         self,

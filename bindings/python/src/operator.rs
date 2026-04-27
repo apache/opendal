@@ -457,10 +457,27 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn copy(&self, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    /// if_not_exists : bool, optional
+    ///     If True, the copy will only succeed if the target does not exist.
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
+    pub fn copy(
+        &self,
+        source: PathBuf,
+        target: PathBuf,
+        if_not_exists: Option<bool>,
+    ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
-        self.core.copy(&source, &target).map_err(format_pyerr)
+        if let Some(true) = if_not_exists {
+            let opts = ocore::options::CopyOptions {
+                if_not_exists: true,
+            };
+            self.core
+                .copy_options(&source, &target, opts)
+                .map_err(format_pyerr)
+        } else {
+            self.core.copy(&source, &target).map_err(format_pyerr)
+        }
     }
 
     /// Rename (move) a file from one path to another.
@@ -1155,6 +1172,8 @@ impl AsyncOperator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
+    /// if_not_exists : bool, optional
+    ///     If True, the copy will only succeed if the target does not exist.
     ///
     /// Returns
     /// -------
@@ -1164,17 +1183,28 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[None]",
         imports=("collections.abc")
     ))]
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
         source: PathBuf,
         target: PathBuf,
+        if_not_exists: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         future_into_py(py, async move {
-            this.copy(&source, &target).await.map_err(format_pyerr)
+            if let Some(true) = if_not_exists {
+                let opts = ocore::options::CopyOptions {
+                    if_not_exists: true,
+                };
+                this.copy_options(&source, &target, opts)
+                    .await
+                    .map_err(format_pyerr)
+            } else {
+                this.copy(&source, &target).await.map_err(format_pyerr)
+            }
         })
     }
 

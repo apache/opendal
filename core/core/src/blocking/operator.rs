@@ -522,6 +522,21 @@ impl Operator {
         self.spawn_block(async move { op.copy(&from, &to).await })?
     }
 
+    /// Copy a file from `from` to `to` with options.
+    ///
+    /// # Notes
+    ///
+    /// - `from` and `to` must be a file.
+    /// - `to` will be overwritten if it exists.
+    /// - If `from` and `to` are the same, nothing will happen.
+    /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
+    pub fn copy_options(&self, from: &str, to: &str, opts: options::CopyOptions) -> Result<()> {
+        let op = self.op.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        self.spawn_block(async move { op.copy_options(&from, &to, opts).await })?
+    }
+
     /// Rename a file from `from` to `to`.
     ///
     /// # Notes

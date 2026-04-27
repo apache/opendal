@@ -136,6 +136,8 @@ class Capability:
     @property
     def copy(self) -> builtins.bool:
         r"""If operator supports copy."""
+    def copy_with_if_not_exists(self) -> builtins.bool:
+        r"""If operator supports copy with if_not_exists."""
     @property
     def rename(self) -> builtins.bool:
         r"""If operator supports rename."""

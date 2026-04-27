@@ -24,7 +24,11 @@ import pytest
 def test_stat_accepts_if_match_param(service_name, operator, async_operator):
     path = f"test_stat_if_match_{uuid4()}.txt"
     operator.write(path, b"test content")
-    operator.stat(path, if_match="etag123")
+    meta = operator.stat(path)
+    etag = meta.etag
+    if etag is None:
+        pytest.skip("backend does not return etag")
+    operator.stat(path, if_match=etag)
 
 
 @pytest.mark.need_capability("write", "stat", "stat_with_if_none_match")
@@ -58,7 +62,11 @@ async def test_async_stat_accepts_if_match_param(
 ):
     path = f"test_async_stat_if_match_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
-    await async_operator.stat(path, if_match="etag123")
+    meta = await async_operator.stat(path)
+    etag = meta.etag
+    if etag is None:
+        pytest.skip("backend does not return etag")
+    await async_operator.stat(path, if_match=etag)
 
 
 @pytest.mark.need_capability("write", "stat", "stat_with_if_none_match")

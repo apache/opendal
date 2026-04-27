@@ -166,36 +166,39 @@ impl<R> ThrottleWrapper<R> {
     }
 }
 
+async fn wait_for_quota(limiter: &SharedRateLimiter, len: usize) -> Result<()> {
+    if len == 0 {
+        return Ok(());
+    }
+
+    if len > u32::MAX as usize {
+        return Err(Error::new(
+            ErrorKind::RateLimited,
+            "request size exceeds throttle quota capacity",
+        ));
+    }
+
+    let buf_length = NonZeroU32::new(len as u32).expect("len is non-zero so NonZeroU32 must exist");
+
+    limiter.until_n_ready(buf_length).await.map_err(|_| {
+        Error::new(
+            ErrorKind::RateLimited,
+            "burst size is smaller than the request size",
+        )
+    })
+}
+
 impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
-        self.inner.read().await
+        let bs = self.inner.read().await?;
+        wait_for_quota(&self.limiter, bs.len()).await?;
+        Ok(bs)
     }
 }
 
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let len = bs.len();
-        if len == 0 {
-            return self.inner.write(bs).await;
-        }
-
-        if len > u32::MAX as usize {
-            return Err(Error::new(
-                ErrorKind::RateLimited,
-                "request size exceeds throttle quota capacity",
-            ));
-        }
-
-        let buf_length =
-            NonZeroU32::new(len as u32).expect("len is non-zero so NonZeroU32 must exist");
-
-        self.limiter.until_n_ready(buf_length).await.map_err(|_| {
-            Error::new(
-                ErrorKind::RateLimited,
-                "burst size is smaller than the request size",
-            )
-        })?;
-
+        wait_for_quota(&self.limiter, bs.len()).await?;
         self.inner.write(bs).await
     }
 
@@ -205,5 +208,57 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::Read;
+
+    struct SingleRead {
+        data: Option<Buffer>,
+    }
+
+    impl oio::Read for SingleRead {
+        async fn read(&mut self) -> Result<Buffer> {
+            Ok(self.data.take().unwrap_or_default())
+        }
+    }
+
+    fn new_limiter(bandwidth: u32, burst: u32) -> SharedRateLimiter {
+        Arc::new(RateLimiter::direct(
+            Quota::per_second(NonZeroU32::new(bandwidth).unwrap())
+                .allow_burst(NonZeroU32::new(burst).unwrap()),
+        ))
+    }
+
+    #[tokio::test]
+    async fn read_allows_chunks_within_burst() {
+        let mut reader = ThrottleWrapper::new(
+            SingleRead {
+                data: Some(Buffer::from(vec![0; 2])),
+            },
+            new_limiter(2, 2),
+        );
+
+        let bs = reader.read().await.expect("read should pass throttle");
+        assert_eq!(bs.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn read_rejects_chunks_larger_than_burst() {
+        let mut reader = ThrottleWrapper::new(
+            SingleRead {
+                data: Some(Buffer::from(vec![0; 2])),
+            },
+            new_limiter(1, 1),
+        );
+
+        let err = reader
+            .read()
+            .await
+            .expect_err("chunk larger than burst should fail");
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
     }
 }

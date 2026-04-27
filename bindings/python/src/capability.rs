@@ -96,6 +96,10 @@ pub struct Capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// If delete operations with version are supported.
+    pub delete_with_version: bool,
+    /// If recursive delete operations are supported.
+    pub delete_with_recursive: bool,
 
     /// If operator supports copy.
     pub copy: bool,
@@ -160,6 +164,8 @@ impl Capability {
             write_with_user_metadata: capability.write_with_user_metadata,
             create_dir: capability.create_dir,
             delete: capability.delete,
+            delete_with_version: capability.delete_with_version,
+            delete_with_recursive: capability.delete_with_recursive,
             copy: capability.copy,
             rename: capability.rename,
             list: capability.list,

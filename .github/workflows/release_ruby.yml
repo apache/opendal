@@ -112,9 +112,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_target }}
+      - name: Setup Rust toolchain
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.rust_target }}
 
       - name: Setup Ruby and install dependencies
         uses: ruby/setup-ruby@v1
@@ -156,7 +159,7 @@ jobs:
     #     (github.event_name == 'workflow_dispatch' && contains(needs.build.outputs.version, 'rc'))
 
     # Don't start publish until we are ready
-    if: false
+    if: ${{ vars.RUBY_RELEASE_ENABLED == 'true' }}
     needs: [build, build-native]
     runs-on: ubuntu-latest
 
@@ -264,7 +267,34 @@ jobs:
           EOF
 
       - name: Configure trusted publishing credentials
-        uses: rubygems/configure-rubygems-credentials@v1.0.0
+        shell: bash
+        run: |
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=rubygems.org" \
+            | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("value")')"
+          echo "::add-mask::${oidc_token}"
+
+          api_key="$(curl -fsSL \
+            -X POST https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -H "User-Agent: apache-opendal-release" \
+            --data "{\"jwt\":\"${oidc_token}\"}" \
+            | ruby -rjson -e 'puts JSON.parse(STDIN.read).fetch("rubygems_api_key")')"
+          echo "::add-mask::${api_key}"
+
+          mkdir -p "${HOME}/.gem"
+          {
+            echo "---"
+            echo ":rubygems_api_key: ${api_key}"
+          } > "${HOME}/.gem/credentials"
+          chmod 0600 "${HOME}/.gem/credentials"
+          {
+            echo "RUBYGEMS_API_KEY=${api_key}"
+            echo "BUNDLE_GEM__PUSH_KEY=${api_key}"
+            echo "GEM_HOST_API_KEY=${api_key}"
+          } >> "${GITHUB_ENV}"
 
       - name: Release gem
         run: bundle exec rake release

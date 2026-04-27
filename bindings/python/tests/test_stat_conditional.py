@@ -20,21 +20,23 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.need_capability("write", "stat")
+@pytest.mark.need_capability("write", "stat", "stat_with_if_match")
 def test_stat_accepts_if_match_param(service_name, operator, async_operator):
     path = f"test_stat_if_match_{uuid4()}.txt"
     operator.write(path, b"test content")
     operator.stat(path, if_match="etag123")
 
 
-@pytest.mark.need_capability("write", "stat")
-def test_stat_accepts_if_none_match_param(service_name, operator, async_operator):
+@pytest.mark.need_capability("write", "stat", "stat_with_if_none_match")
+def test_stat_accepts_if_none_match_param(
+    service_name, operator, async_operator
+):
     path = f"test_stat_if_none_match_{uuid4()}.txt"
     operator.write(path, b"test content")
     operator.stat(path, if_none_match="etag456")
 
 
-@pytest.mark.need_capability("write", "stat")
+@pytest.mark.need_capability("write", "stat", "stat_with_version")
 def test_stat_accepts_version_param(service_name, operator, async_operator):
     path = f"test_stat_version_{uuid4()}.txt"
     operator.write(path, b"test content")
@@ -49,25 +51,31 @@ def test_stat_default_params_unchanged(service_name, operator, async_operator):
     assert meta.content_length == len(b"test content")
 
 
-@pytest.mark.need_capability("write", "stat")
+@pytest.mark.need_capability("write", "stat", "stat_with_if_match")
 @pytest.mark.asyncio
-async def test_async_stat_accepts_if_match_param(service_name, operator, async_operator):
+async def test_async_stat_accepts_if_match_param(
+    service_name, operator, async_operator
+):
     path = f"test_async_stat_if_match_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     await async_operator.stat(path, if_match="etag123")
 
 
-@pytest.mark.need_capability("write", "stat")
+@pytest.mark.need_capability("write", "stat", "stat_with_if_none_match")
 @pytest.mark.asyncio
-async def test_async_stat_accepts_if_none_match_param(service_name, operator, async_operator):
+async def test_async_stat_accepts_if_none_match_param(
+    service_name, operator, async_operator
+):
     path = f"test_async_stat_if_none_match_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     await async_operator.stat(path, if_none_match="etag456")
 
 
-@pytest.mark.need_capability("write", "stat")
+@pytest.mark.need_capability("write", "stat", "stat_with_version")
 @pytest.mark.asyncio
-async def test_async_stat_accepts_version_param(service_name, operator, async_operator):
+async def test_async_stat_accepts_version_param(
+    service_name, operator, async_operator
+):
     path = f"test_async_stat_version_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     await async_operator.stat(path, version="v1")

@@ -63,24 +63,27 @@ jobs:
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             features: services-all
-            build: pnpm build:ci --use-napi-cross && pnpm build:header
+            build: pnpm build:ci && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: x86_64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             features: services-all
+            zig: true
             build: pnpm build:ci -x && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             features: services-all
-            build: TARGET_CC=clang pnpm build:ci --use-napi-cross && pnpm build:header
+            zig: true
+            build: pnpm build:ci -x && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: aarch64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             features: services-all
+            zig: true
             build: pnpm build:ci -x && pnpm build:header
           - os: windows
             host: windows-latest
@@ -119,14 +122,14 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.settings.target }}
       - name: Setup Zig
-        if: ${{ contains(matrix.settings.target, 'musl') }}
+        if: ${{ matrix.settings.zig }}
         shell: bash
         run: |
           ZIG_VERSION=0.14.0
-          case "$(uname -s)-$(uname -m)" in
-            Linux-x86_64) ZIG_TARGET=x86_64-linux ;;
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Linux-X64) ZIG_TARGET=linux-x86_64 ;;
             *)
-              echo "unsupported host for Zig: $(uname -s)-$(uname -m)" >&2
+              echo "unsupported host for Zig: ${RUNNER_OS}-${RUNNER_ARCH}" >&2
               exit 1
               ;;
           esac
@@ -137,7 +140,7 @@ jobs:
           echo "${ZIG_HOME}" >> "${GITHUB_PATH}"
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@v2
-        if: ${{ contains(matrix.settings.target, 'musl') }}
+        if: ${{ matrix.settings.zig }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:

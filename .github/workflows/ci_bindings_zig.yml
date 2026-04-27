@@ -49,10 +49,10 @@ jobs:
         shell: bash
         run: |
           ZIG_VERSION=0.14.0
-          case "$(uname -s)-$(uname -m)" in
-            Linux-x86_64) ZIG_TARGET=x86_64-linux ;;
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Linux-X64) ZIG_TARGET=linux-x86_64 ;;
             *)
-              echo "unsupported host for Zig: $(uname -s)-$(uname -m)" >&2
+              echo "unsupported host for Zig: ${RUNNER_OS}-${RUNNER_ARCH}" >&2
               exit 1
               ;;
           esac

@@ -111,6 +111,10 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
+    /// If backend supports list with versions.
+    pub list_with_versions: bool,
+    /// If backend supports list with deleted.
+    pub list_with_deleted: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -166,6 +170,8 @@ impl Capability {
             list_with_limit: capability.list_with_limit,
             list_with_start_after: capability.list_with_start_after,
             list_with_recursive: capability.list_with_recursive,
+            list_with_versions: capability.list_with_versions,
+            list_with_deleted: capability.list_with_deleted,
             presign: capability.presign,
             presign_read: capability.presign_read,
             presign_stat: capability.presign_stat,

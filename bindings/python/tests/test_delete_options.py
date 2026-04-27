@@ -43,7 +43,9 @@ def test_delete_default_params_unchanged(service_name, operator, async_operator)
 
 @pytest.mark.need_capability("write", "delete", "delete_with_version")
 @pytest.mark.asyncio
-async def test_async_delete_accepts_version_param(service_name, operator, async_operator):
+async def test_async_delete_accepts_version_param(
+    service_name, operator, async_operator
+):
     path = f"test_async_delete_version_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     await async_operator.delete(path, version="v1")
@@ -51,7 +53,9 @@ async def test_async_delete_accepts_version_param(service_name, operator, async_
 
 @pytest.mark.need_capability("write", "delete", "delete_with_recursive")
 @pytest.mark.asyncio
-async def test_async_delete_accepts_recursive_param(service_name, operator, async_operator):
+async def test_async_delete_accepts_recursive_param(
+    service_name, operator, async_operator
+):
     path = f"test_async_delete_recursive_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     await async_operator.delete(path, recursive=True)

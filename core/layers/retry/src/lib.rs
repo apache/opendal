@@ -312,10 +312,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.create_dir(path, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::CreateDir))
             .notify(|err, dur: Duration| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::CreateDir, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -323,10 +323,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.read(path, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Read))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Read, &res);
         let (rp, reader) = res.map_err(|e| e.set_persistent())?;
 
         let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
@@ -344,10 +344,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.write(path, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map(|(rp, r)| {
             (
                 rp,
@@ -361,10 +361,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.stat(path, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Stat))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Stat, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -372,10 +372,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.delete() }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
         res.map(|(rp, r)| {
             (
                 rp,
@@ -389,10 +389,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.copy(from, to, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Copy))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Copy, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -400,10 +400,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.rename(from, to, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Rename))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Rename, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -411,10 +411,10 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
         let budget = self.budget.clone();
         let res = { || self.inner.list(path, args.clone()) }
             .retry(self.builder)
-            .when(move |e| e.is_temporary() && budget.withdraw())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::List))
             .notify(|err, dur| self.notify.intercept(err, dur))
             .await;
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::List, &res);
         res.map(|(rp, r)| {
             (
                 rp,
@@ -427,9 +427,9 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
 
 /// Deposit one budget token if `res` is `Ok`.
 #[inline]
-fn deposit_if_ok<T>(budget: &Arc<dyn RetryBudget>, res: &Result<T>) {
+fn deposit_if_ok<T>(budget: &Arc<dyn RetryBudget>, op: Operation, res: &Result<T>) {
     if res.is_ok() {
-        budget.deposit();
+        budget.deposit(op);
     }
 }
 
@@ -523,13 +523,13 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Read))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Read, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -549,13 +549,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context((inner, bs))
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 
@@ -573,13 +573,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 
@@ -597,13 +597,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -623,13 +623,13 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::List))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::List, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -654,7 +654,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
         .context(inner)
         .notify(|err, dur| {
             self.notify.intercept(err, dur);
@@ -662,7 +662,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -680,13 +680,13 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(move |e| e.is_temporary() && budget.withdraw())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
-        deposit_if_ok(&self.budget, &res);
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -1052,11 +1052,11 @@ mod tests {
     }
 
     impl RetryBudget for TestBudget {
-        fn deposit(&self) {
+        fn deposit(&self, _op: Operation) {
             *self.tokens.lock().unwrap() += 1;
         }
 
-        fn withdraw(&self) -> bool {
+        fn withdraw(&self, _op: Operation) -> bool {
             let mut t = self.tokens.lock().unwrap();
             if *t > 0 {
                 *t -= 1;

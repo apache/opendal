@@ -22,13 +22,15 @@
 
 use std::fmt::Debug;
 
+use opendal_core::raw::Operation;
+
 /// Controls whether a retry attempt is allowed.
 pub trait RetryBudget: Debug + Send + Sync + 'static {
     /// Record a successful operation. Grows the budget.
-    fn deposit(&self);
+    fn deposit(&self, op: Operation);
 
     /// Try to consume one retry token. Returns `false` if no budget remains.
-    fn withdraw(&self) -> bool;
+    fn withdraw(&self, op: Operation) -> bool;
 }
 
 /// A no-op budget that always allows retries.
@@ -36,9 +38,9 @@ pub trait RetryBudget: Debug + Send + Sync + 'static {
 pub struct UnlimitedBudget;
 
 impl RetryBudget for UnlimitedBudget {
-    fn deposit(&self) {}
+    fn deposit(&self, _op: Operation) {}
 
-    fn withdraw(&self) -> bool {
+    fn withdraw(&self, _op: Operation) -> bool {
         true
     }
 }

@@ -175,6 +175,14 @@ impl FromStr for BytesRange {
             // <range-start>-<range-end>
             let start: u64 = v[0].parse().map_err(parse_int_error)?;
             let end: u64 = v[1].parse().map_err(parse_int_error)?;
+            if end < start {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "header range is invalid: end is less than start",
+                )
+                .with_operation("BytesRange::from_str")
+                .with_context("value", value));
+            }
             Ok(BytesRange::new(start, Some(end - start + 1)))
         }
     }
@@ -187,12 +195,12 @@ where
     fn from(range: T) -> Self {
         let offset = match range.start_bound().cloned() {
             Bound::Included(n) => n,
-            Bound::Excluded(n) => n + 1,
+            Bound::Excluded(n) => n.saturating_add(1),
             Bound::Unbounded => 0,
         };
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n + 1 - offset),
-            Bound::Excluded(n) => Some(n - offset),
+            Bound::Included(n) => Some(n.saturating_add(1).saturating_sub(offset)),
+            Bound::Excluded(n) => Some(n.saturating_sub(offset)),
             Bound::Unbounded => None,
         };
 
@@ -269,5 +277,51 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bytes_range_from_str_invalid_end_less_than_start() {
+        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0"];
+
+        for input in cases {
+            let result: Result<BytesRange> = input.parse();
+            assert!(
+                result.is_err(),
+                "expected error for invalid range {input}, got {result:?}"
+            );
+        }
+    }
+
+    #[allow(clippy::reversed_empty_ranges)]
+    #[test]
+    fn test_bytes_range_from_range_bounds_underflow() {
+        // Invalid ranges where end < start should produce zero-size ranges
+        // rather than underflowing.
+        assert_eq!(BytesRange::new(100, Some(0)), BytesRange::from(100..50));
+        assert_eq!(BytesRange::new(10, Some(0)), BytesRange::from(10..=5));
+        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..0));
+        assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..=0));
+    }
+
+    #[test]
+    fn test_bytes_range_from_range_bounds_u64_max() {
+        // Boundary cases near u64::MAX must not overflow.
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(..=u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(..u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(1, Some(u64::MAX.saturating_sub(1))),
+            BytesRange::from(1..=u64::MAX)
+        );
+        // Excluded start at u64::MAX must not overflow.
+        assert_eq!(
+            BytesRange::new(u64::MAX, None),
+            BytesRange::from((u64::MAX)..)
+        );
     }
 }

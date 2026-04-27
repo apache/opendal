@@ -1736,7 +1736,10 @@ impl AsyncOperator {
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        let opts = DeleteOptions { version };
+        let opts = DeleteOptions {
+            version,
+            ..Default::default()
+        };
         future_into_py(py, async move {
             let res = this
                 .presign_delete_options(&path, Duration::from_secs(expire_second), opts.into())

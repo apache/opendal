@@ -629,16 +629,22 @@ jobs:
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
-        with:
-          switches: -avzr
-          path: website/build/
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-release-${{ github.ref_name }}/
-          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
-          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
-          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
-          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+        shell: bash
+        env:
+          NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+          NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}
+          NIGHTLIES_RSYNC_PORT: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+        run: |
+          mkdir -p "${HOME}/.ssh"
+          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          chmod 0600 "${HOME}/.ssh/nightlies_rsync"
+          rsync -avzr \
+            -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
+            website/build/ \
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ github.ref_name }}/"
 
       - name: Clear build
         run: rm -rf ./website/build
@@ -650,13 +656,19 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        uses: burnett01/rsync-deployments@0dc935cdecc5f5e571865e60d2a6cdc673704823
         if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
-        with:
-          switches: -avzr --delete
-          path: website/build/
-          remote_path: ${{ secrets.NIGHTLIES_RSYNC_PATH }}/opendal/opendal-docs-stable/
-          remote_host: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
-          remote_port: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
-          remote_user: ${{ secrets.NIGHTLIES_RSYNC_USER }}
-          remote_key: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+        shell: bash
+        env:
+          NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
+          NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
+          NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}
+          NIGHTLIES_RSYNC_PORT: ${{ secrets.NIGHTLIES_RSYNC_PORT }}
+          NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
+        run: |
+          mkdir -p "${HOME}/.ssh"
+          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          chmod 0600 "${HOME}/.ssh/nightlies_rsync"
+          rsync -avzr --delete \
+            -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
+            website/build/ \
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-stable/"

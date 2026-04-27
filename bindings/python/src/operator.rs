@@ -523,9 +523,27 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    pub fn delete(&self, path: PathBuf) -> PyResult<()> {
+    /// version : str, optional
+    ///     The version of the file to delete. Only supported on version-aware backends.
+    /// recursive : bool, optional
+    ///     If True, delete the path recursively. Only supported on backends that support recursive delete.
+    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    pub fn delete(
+        &self,
+        path: PathBuf,
+        version: Option<String>,
+        recursive: Option<bool>,
+    ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        self.core.delete(&path).map_err(format_pyerr)
+        if version.is_some() || recursive.is_some() {
+            let opts = ocore::options::DeleteOptions {
+                version,
+                recursive: recursive.unwrap_or(false),
+            };
+            self.core.delete_options(&path, opts).map_err(format_pyerr)
+        } else {
+            self.core.delete(&path).map_err(format_pyerr)
+        }
     }
 
     /// Check if a path exists.

@@ -175,10 +175,27 @@ jobs:
           path: bindings/dotnet/artifacts/package
 
       - name: NuGet login
-        uses: NuGet/login@v1
         id: login
-        with:
-          user: Apache.OpenDAL
+        shell: bash
+        env:
+          NUGET_USERNAME: Apache.OpenDAL
+        run: |
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fwww.nuget.org" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${oidc_token}"
+
+          request_body="$(python3 -c 'import json, os; print(json.dumps({"username": os.environ["NUGET_USERNAME"], "tokenType": "ApiKey"}))')"
+          api_key="$(curl -fsSL \
+            -X POST https://www.nuget.org/api/v2/token \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${oidc_token}" \
+            -H "User-Agent: apache-opendal-release" \
+            --data "${request_body}" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["apiKey"])')"
+          echo "::add-mask::${api_key}"
+          echo "NUGET_API_KEY=${api_key}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish package
         run: dotnet nuget push bindings/dotnet/artifacts/package/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * feat(services/azfile): return write metadata by @spereyra-dev in https://github.com/apache/opendal/pull/7381
 * feat: `get_ranges` 2x performance degradation  by @comphead in https://github.com/apache/opendal/pull/7380
 * feat: Add foyer service by @flaneur2020 in https://github.com/apache/opendal/pull/7160
+* feat(s3): by default quiet batch delete s3 objects by @dentiny in https://github.com/apache/opendal/pull/7415
 
 ### Changed
 * refactor!: Migrate service s3 to reqsign-core 2.0 by @Xuanwo in https://github.com/apache/opendal/pull/6656
@@ -215,6 +216,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * fix(core): spawn blocking ops onto worker pool to avoid stack overflow by @kszucs in https://github.com/apache/opendal/pull/7371
 * fix(hf): include folder deletions in git commit payload by @kszucs in https://github.com/apache/opendal/pull/7375
 * fix(services/cos): preserve list metadata etag and last_modified by @suyanhanx in https://github.com/apache/opendal/pull/7331
+* fix(chaos): fix cases when error ratio = 1 by @dentiny in https://github.com/apache/opendal/pull/7412
+* fix(s3): fix dead code to strip suffix by @dentiny in https://github.com/apache/opendal/pull/7411
 
 ### Docs
 * docs: add 1password self-registration link for committers by @PsiACE in https://github.com/apache/opendal/pull/6804
@@ -293,6 +296,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 * chore(bindings/dotnet): update framework and use LibraryImport by @Fatorin in https://github.com/apache/opendal/pull/7222
 * chore(layer/fastmetrics): upgrade fastmetrics to v0.7.0 by @koushiro in https://github.com/apache/opendal/pull/7227
 * chore(deps-dev): bump the others group in /website with 2 updates by @dependabot[bot] in https://github.com/apache/opendal/pull/7232
+* chore(license): add licensing comments to stub_gen.rs by @PsiACE in https://github.com/apache/opendal/pull/7426
 
 ## New Contributors
 * @kszucs made their first contribution in https://github.com/apache/opendal/pull/6801

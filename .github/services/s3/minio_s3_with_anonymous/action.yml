@@ -35,7 +35,7 @@ runs:
       run: |
         aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
 
-        curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+        curl -fL --retry 3 -o mc https://dl.min.io/client/mc/release/linux-amd64/mc
         chmod +x mc
         ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
         ./mc anonymous set public local/test

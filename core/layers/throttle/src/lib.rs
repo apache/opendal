@@ -115,7 +115,7 @@ pub struct ThrottleAccessor<A: Access> {
 
 impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     type Inner = A;
-    type Reader = ThrottleWrapper<A::Reader>;
+    type Reader = A::Reader;
     type Writer = ThrottleWrapper<A::Writer>;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
@@ -125,12 +125,11 @@ impl<A: Access> LayeredAccess for ThrottleAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let limiter = self.rate_limiter.clone();
+        if let Some(size) = args.range().size() {
+            wait_for_quota(&self.rate_limiter, size).await?;
+        }
 
-        self.inner
-            .read(path, args)
-            .await
-            .map(|(rp, r)| (rp, ThrottleWrapper::new(r, limiter)))
+        self.inner.read(path, args).await
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -166,12 +165,12 @@ impl<R> ThrottleWrapper<R> {
     }
 }
 
-async fn wait_for_quota(limiter: &SharedRateLimiter, len: usize) -> Result<()> {
+async fn wait_for_quota(limiter: &SharedRateLimiter, len: u64) -> Result<()> {
     if len == 0 {
         return Ok(());
     }
 
-    if len > u32::MAX as usize {
+    if len > u32::MAX as u64 {
         return Err(Error::new(
             ErrorKind::RateLimited,
             "request size exceeds throttle quota capacity",
@@ -188,17 +187,9 @@ async fn wait_for_quota(limiter: &SharedRateLimiter, len: usize) -> Result<()> {
     })
 }
 
-impl<R: oio::Read> oio::Read for ThrottleWrapper<R> {
-    async fn read(&mut self) -> Result<Buffer> {
-        let bs = self.inner.read().await?;
-        wait_for_quota(&self.limiter, bs.len()).await?;
-        Ok(bs)
-    }
-}
-
 impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        wait_for_quota(&self.limiter, bs.len()).await?;
+        wait_for_quota(&self.limiter, bs.len() as u64).await?;
         self.inner.write(bs).await
     }
 
@@ -214,7 +205,8 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::raw::oio::Read;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
     struct SingleRead {
         data: Option<Buffer>,
@@ -226,39 +218,87 @@ mod tests {
         }
     }
 
-    fn new_limiter(bandwidth: u32, burst: u32) -> SharedRateLimiter {
-        Arc::new(RateLimiter::direct(
-            Quota::per_second(NonZeroU32::new(bandwidth).unwrap())
-                .allow_burst(NonZeroU32::new(burst).unwrap()),
-        ))
+    #[derive(Debug)]
+    struct MockService {
+        read_count: Arc<AtomicUsize>,
+    }
+
+    impl Access for MockService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+
+        fn info(&self) -> Arc<AccessorInfo> {
+            let info = AccessorInfo::default();
+            info.set_native_capability(Capability {
+                read: true,
+                ..Default::default()
+            });
+
+            info.into()
+        }
+
+        async fn read(&self, _: &str, _: OpRead) -> Result<(RpRead, Self::Reader)> {
+            self.read_count.fetch_add(1, Ordering::SeqCst);
+            Ok((RpRead::new(), Box::new(SingleRead { data: None })))
+        }
+    }
+
+    fn new_throttle_accessor(
+        bandwidth: u32,
+        burst: u32,
+    ) -> (ThrottleAccessor<MockService>, Arc<AtomicUsize>) {
+        let read_count = Arc::new(AtomicUsize::new(0));
+        let accessor = ThrottleLayer::new(bandwidth, burst).layer(MockService {
+            read_count: read_count.clone(),
+        });
+
+        (accessor, read_count)
     }
 
     #[tokio::test]
-    async fn read_allows_chunks_within_burst() {
-        let mut reader = ThrottleWrapper::new(
-            SingleRead {
-                data: Some(Buffer::from(vec![0; 2])),
-            },
-            new_limiter(2, 2),
-        );
+    async fn bounded_read_allows_request_within_burst() {
+        let (accessor, read_count) = new_throttle_accessor(2, 2);
 
-        let bs = reader.read().await.expect("read should pass throttle");
-        assert_eq!(bs.len(), 2);
+        LayeredAccess::read(
+            &accessor,
+            "path",
+            OpRead::new().with_range(BytesRange::new(0, Some(2))),
+        )
+        .await
+        .expect("bounded read within burst should pass throttle");
+
+        assert_eq!(read_count.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]
-    async fn read_rejects_chunks_larger_than_burst() {
-        let mut reader = ThrottleWrapper::new(
-            SingleRead {
-                data: Some(Buffer::from(vec![0; 2])),
-            },
-            new_limiter(1, 1),
-        );
+    async fn bounded_read_rejects_before_sending_request() {
+        let (accessor, read_count) = new_throttle_accessor(1, 1);
 
-        let err = reader
-            .read()
-            .await
-            .expect_err("chunk larger than burst should fail");
+        let err = match LayeredAccess::read(
+            &accessor,
+            "path",
+            OpRead::new().with_range(BytesRange::new(0, Some(2))),
+        )
+        .await
+        {
+            Ok(_) => panic!("bounded read larger than burst should fail"),
+            Err(err) => err,
+        };
+
         assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert_eq!(read_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn unbounded_read_is_forwarded_without_precheck() {
+        let (accessor, read_count) = new_throttle_accessor(1, 1);
+
+        LayeredAccess::read(&accessor, "path", OpRead::new())
+            .await
+            .expect("unbounded read size is unknown before request");
+
+        assert_eq!(read_count.load(Ordering::SeqCst), 1);
     }
 }

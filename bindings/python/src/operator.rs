@@ -523,9 +523,15 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    pub fn delete(&self, path: PathBuf) -> PyResult<()> {
+    /// version : str, optional
+    ///     The version of the file to delete.
+    #[pyo3(signature = (path, *, version=None))]
+    pub fn delete(&self, path: PathBuf, version: Option<String>) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        self.core.delete(&path).map_err(format_pyerr)
+        let opts = DeleteOptions { version };
+        self.core
+            .delete_options(&path, opts.into())
+            .map_err(format_pyerr)
     }
 
     /// Check if a path exists.
@@ -1293,6 +1299,8 @@ impl AsyncOperator {
     /// ----------
     /// path : str
     ///     The path to the file.
+    /// version : str, optional
+    ///     The version of the file to delete.
     ///
     /// Returns
     /// -------
@@ -1302,13 +1310,21 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[None]",
         imports=("collections.abc")
     ))]
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    #[pyo3(signature = (path, *, version=None))]
+    pub fn delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        version: Option<String>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        future_into_py(
-            py,
-            async move { this.delete(&path).await.map_err(format_pyerr) },
-        )
+        let opts = DeleteOptions { version };
+        future_into_py(py, async move {
+            this.delete_options(&path, opts.into())
+                .await
+                .map_err(format_pyerr)
+        })
     }
 
     /// Check if a path exists.

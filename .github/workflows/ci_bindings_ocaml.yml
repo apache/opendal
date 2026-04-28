@@ -29,6 +29,7 @@ on:
     paths:
       - "bindings/ocaml/**"
       - "core/**"
+      - ".github/actions/setup-ocaml/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
   workflow_dispatch:
 

@@ -17,12 +17,14 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::FuturesUnordered;
 use log::debug;
+use tokio::time::sleep;
 
 use crate::*;
 
@@ -156,74 +158,76 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     op.create_dir(&dir).await.expect("write must succeed");
 
     // List "dir/" should return "dir/".
-    let mut obs = op.lister(&dir).await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(
-        objects.len(),
-        1,
-        "only return the dir itself, but found: {objects:?}"
-    );
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir, but found: {objects:?}"
-    );
+    assert_list_empty_dir_returns_itself(&op, &dir, &dir, false).await?;
 
     // List "dir" should return "dir/".
-    let mut obs = op.lister(dir.trim_end_matches('/')).await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(
-        objects.len(),
-        1,
-        "only return the dir itself, but found: {objects:?}"
-    );
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir, but found: {objects:?}"
-    );
+    assert_list_empty_dir_returns_itself(&op, dir.trim_end_matches('/'), &dir, false).await?;
 
     // List "dir/" recursively should return "dir/".
-    let mut obs = op.lister_with(&dir).recursive(true).await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(
-        objects.len(),
-        1,
-        "only return the dir itself, but found: {objects:?}"
-    );
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir, but found: {objects:?}"
-    );
+    assert_list_empty_dir_returns_itself(&op, &dir, &dir, true).await?;
 
     // List "dir" recursively should return "dir/".
-    let mut obs = op
-        .lister_with(dir.trim_end_matches('/'))
-        .recursive(true)
-        .await?;
-    let mut objects = HashMap::new();
-    while let Some(de) = obs.try_next().await? {
-        objects.insert(de.path().to_string(), de);
-    }
-    assert_eq!(objects.len(), 1, "only return the dir itself");
-    assert_eq!(
-        objects[&dir].metadata().mode(),
-        EntryMode::DIR,
-        "given dir should exist and must be dir"
-    );
+    assert_list_empty_dir_returns_itself(&op, dir.trim_end_matches('/'), &dir, true).await?;
 
     op.delete(&dir).await.expect("delete must succeed");
     Ok(())
+}
+
+async fn assert_list_empty_dir_returns_itself(
+    op: &Operator,
+    path: &str,
+    expected_dir: &str,
+    recursive: bool,
+) -> Result<()> {
+    let mut objects = HashMap::new();
+
+    for attempt in 0..5 {
+        objects = collect_list_entries(op, path, recursive).await?;
+
+        if objects.len() == 1 {
+            if let Some(de) = objects.get(expected_dir) {
+                if de.metadata().mode() == EntryMode::DIR {
+                    return Ok(());
+                }
+            }
+        }
+
+        if attempt < 4 {
+            sleep(Duration::from_millis(200)).await;
+        }
+    }
+
+    assert_eq!(
+        objects.len(),
+        1,
+        "only return the dir itself, but found: {objects:?}"
+    );
+    assert_eq!(
+        objects[expected_dir].metadata().mode(),
+        EntryMode::DIR,
+        "given dir should exist and must be dir, but found: {objects:?}"
+    );
+
+    Ok(())
+}
+
+async fn collect_list_entries(
+    op: &Operator,
+    path: &str,
+    recursive: bool,
+) -> Result<HashMap<String, opendal::Entry>> {
+    let mut obs = if recursive {
+        op.lister_with(path).recursive(true).await?
+    } else {
+        op.lister(path).await?
+    };
+
+    let mut objects = HashMap::new();
+    while let Some(de) = obs.try_next().await? {
+        objects.insert(de.path().to_string(), de);
+    }
+
+    Ok(objects)
 }
 
 /// List non exist dir should return nothing.

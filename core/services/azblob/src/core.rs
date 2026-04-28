@@ -554,6 +554,19 @@ impl AzblobCore {
         self.send(req).await
     }
 
+    pub async fn azblob_undelete_blob(&self, path: &str) -> Result<Response<Buffer>> {
+        let url = format!("{}?comp=undelete", self.build_path_url(path));
+
+        let mut req = Request::put(&url)
+            .header(CONTENT_LENGTH, 0)
+            .extension(Operation::Undelete)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.sign(&mut req).await?;
+        self.send(req).await
+    }
+
     pub async fn azblob_copy_blob(
         &self,
         from: &str,

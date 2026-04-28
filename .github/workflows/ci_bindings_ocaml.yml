@@ -51,7 +51,6 @@ jobs:
           cargo clippy -- -D warnings
 
   test:
-    # Wait for https://github.com/ocaml/setup-ocaml/issues/872 fixes
     runs-on: ubuntu-22.04
 
     steps:

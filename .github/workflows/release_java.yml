@@ -169,7 +169,6 @@ jobs:
         run: |
           ./mvnw org.sonatype.plugins:nexus-staging-maven-plugin:deploy-staged \
             -DaltStagingDirectory=$LOCAL_STAGING_DIR \
-            -DskipStagingRepositoryClose=true \
             -DserverId=apache.releases.https \
             -DnexusUrl=https://repository.apache.org
         env:

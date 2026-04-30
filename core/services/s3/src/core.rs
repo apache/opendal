@@ -318,9 +318,7 @@ impl S3Core {
             req = req.header(IF_MATCH, if_match);
         }
 
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        } else if args.if_not_exists() {
+        if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
@@ -904,18 +902,6 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let req = self.s3_complete_multipart_upload_request(path, upload_id, parts, args)?;
-
-        self.send(req).await
-    }
-
-    fn s3_complete_multipart_upload_request(
-        &self,
-        path: &str,
-        upload_id: &str,
-        parts: Vec<CompleteMultipartUploadRequestPart>,
-        args: &OpWrite,
-    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -941,9 +927,7 @@ impl S3Core {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if let Some(if_none_match) = args.if_none_match() {
-            req = req.header(IF_NONE_MATCH, if_none_match);
-        } else if args.if_not_exists() {
+        if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
@@ -957,7 +941,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        Ok(req)
+        self.send(req).await
     }
 
     /// Abort an on-going multipart upload.
@@ -1303,107 +1287,10 @@ impl Display for ChecksumAlgorithm {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use bytes::Buf;
     use bytes::Bytes;
-    use reqsign_aws_v4::RequestSigner as AwsV4Signer;
-    use reqsign_aws_v4::StaticCredentialProvider;
-    use reqsign_core::Context;
-    use reqsign_core::ProvideCredentialChain;
-    use reqsign_core::Signer;
 
     use super::*;
-
-    fn test_core() -> S3Core {
-        let provider =
-            ProvideCredentialChain::new().push(StaticCredentialProvider::new("ak", "sk"));
-
-        S3Core {
-            info: Arc::new(AccessorInfo::default()),
-            bucket: "bucket".to_string(),
-            endpoint: "https://s3.amazonaws.com".to_string(),
-            root: "/root/".to_string(),
-            server_side_encryption: None,
-            server_side_encryption_aws_kms_key_id: None,
-            server_side_encryption_customer_algorithm: None,
-            server_side_encryption_customer_key: None,
-            server_side_encryption_customer_key_md5: None,
-            default_storage_class: None,
-            allow_anonymous: true,
-            disable_list_objects_v2: false,
-            enable_request_payer: false,
-            default_acl: None,
-            signer: Signer::new(
-                Context::new(),
-                provider,
-                AwsV4Signer::new("s3", "us-east-1"),
-            ),
-            checksum_algorithm: None,
-        }
-    }
-
-    #[test]
-    fn test_put_object_request_sets_if_none_match() {
-        let core = test_core();
-        let op = OpWrite::default().with_if_none_match("\"etag\"");
-
-        let req = core
-            .s3_put_object_request("path/to/file", Some(0), &op, Buffer::new())
-            .expect("request must build");
-
-        assert_eq!(
-            req.headers()
-                .get(IF_NONE_MATCH)
-                .expect("If-None-Match must be set")
-                .to_str()
-                .expect("header must be valid"),
-            "\"etag\""
-        );
-    }
-
-    #[test]
-    fn test_put_object_request_keeps_if_not_exists_header() {
-        let core = test_core();
-        let op = OpWrite::default().with_if_not_exists(true);
-
-        let req = core
-            .s3_put_object_request("path/to/file", Some(0), &op, Buffer::new())
-            .expect("request must build");
-
-        assert_eq!(
-            req.headers()
-                .get(IF_NONE_MATCH)
-                .expect("If-None-Match must be set")
-                .to_str()
-                .expect("header must be valid"),
-            "*"
-        );
-    }
-
-    #[test]
-    fn test_complete_multipart_upload_request_sets_if_none_match() {
-        let core = test_core();
-        let op = OpWrite::default().with_if_none_match("\"etag\"");
-        let parts = vec![CompleteMultipartUploadRequestPart {
-            part_number: 1,
-            etag: "\"part-etag\"".to_string(),
-            ..Default::default()
-        }];
-
-        let req = core
-            .s3_complete_multipart_upload_request("path/to/file", "upload-id", parts, &op)
-            .expect("request must build");
-
-        assert_eq!(
-            req.headers()
-                .get(IF_NONE_MATCH)
-                .expect("If-None-Match must be set")
-                .to_str()
-                .expect("header must be valid"),
-            "\"etag\""
-        );
-    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

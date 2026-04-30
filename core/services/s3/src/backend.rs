@@ -908,7 +908,6 @@ impl Builder for S3Builder {
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
                             write_with_if_match: !config.disable_write_with_if_match,
-                            write_with_if_none_match: true,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 

@@ -426,7 +426,7 @@ pub struct WriteOptions {
     pub if_match: Option<String>,
     /// Sets If-None-Match header for this write request.
     ///
-    /// Note: Certain services support `if_not_exists` but not `if_none_match`.
+    /// Note: Certain services, like `s3`, support `if_not_exists` but not `if_none_match`.
     /// Use `if_not_exists` if you only want to check whether a file exists.
     ///
     /// ### Capability

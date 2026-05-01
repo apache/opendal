@@ -28,6 +28,8 @@ on:
       - main
     paths:
       - ".github/workflows/release_rust.yml"
+      - ".github/scripts/release_rust/**"
+      - "core/testkit/Cargo.toml"
   workflow_dispatch:
 
 permissions:
@@ -69,23 +71,8 @@ jobs:
       - uses: rust-lang/crates-io-auth-action@b7e9a28eded4986ec6b1fa40eeee8f8f165559ec
         id: auth
       - name: Publish Rust crates
-        shell: python
         env:
           PACKAGES: ${{ needs.plan.outputs.packages }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: |
-          import json
-          import os
-          import subprocess
-
-          packages = json.loads(os.environ["PACKAGES"])
-
-          for package in packages:
-              print(f"Publishing {package}")
-              subprocess.run(
-                  ["cargo", "publish", "--no-verify"],
-                  cwd=package,
-                  check=True,
-                  env=os.environ,
-              )
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+        run: python3 .github/scripts/release_rust/publish.py

@@ -44,7 +44,10 @@ def test_stat_accepts_if_none_match_param(
 def test_stat_accepts_version_param(service_name, operator, async_operator):
     path = f"test_stat_version_{uuid4()}.txt"
     operator.write(path, b"test content")
-    operator.stat(path, version="v1")
+    meta = operator.stat(path)
+    if meta.version is None:
+        pytest.skip("backend does not return version")
+    operator.stat(path, version=meta.version)
 
 
 @pytest.mark.need_capability("write", "stat")
@@ -86,4 +89,7 @@ async def test_async_stat_accepts_version_param(
 ):
     path = f"test_async_stat_version_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
-    await async_operator.stat(path, version="v1")
+    meta = await async_operator.stat(path)
+    if meta.version is None:
+        pytest.skip("backend does not return version")
+    await async_operator.stat(path, version=meta.version)

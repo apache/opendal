@@ -841,6 +841,22 @@ export declare class Operator {
    * ```
    */
   presignStat(path: string, expires: number): Promise<PresignedRequest>
+  /**
+   * Get a presigned request for delete.
+   *
+   * Unit of `expires` is seconds.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const req = await op.presignDelete(path, parseInt(expires));
+   *
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
+   * ```
+   */
+  presignDelete(path: string, expires: number): Promise<PresignedRequest>
   /** Add a layer to this operator. */
   layer(layer: ExternalObject<Layer>): Operator
 }

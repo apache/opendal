@@ -56,6 +56,10 @@ abstract class Operator implements RustOpaqueInterface {
       RustLib.instance.api
           .crateApiOpendalApiOperatorNew(scheme: scheme, map: map);
 
+  Future<Uint8List> read({required String path});
+
+  Uint8List readSync({required String path});
+
   Future<void> rename({required String from, required String to});
 
   void renameSync({required String from, required String to});
@@ -63,4 +67,8 @@ abstract class Operator implements RustOpaqueInterface {
   Future<Metadata> stat({required String path});
 
   Metadata statSync({required String path});
+
+  Future<void> write({required String path, required List<int> data});
+
+  void writeSync({required String path, required List<int> data});
 }

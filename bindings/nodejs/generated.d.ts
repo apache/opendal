@@ -201,6 +201,8 @@ export declare class Capability {
   get presignStat(): boolean
   /** If operator supports presign write. */
   get presignWrite(): boolean
+  /** If operator supports presign delete. */
+  get presignDelete(): boolean
   /** If operator supports shared. */
   get shared(): boolean
 }

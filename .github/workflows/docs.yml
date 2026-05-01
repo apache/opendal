@@ -317,15 +317,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Cache OPAM dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.opam
-          key: ${{ runner.os }}-opam-doc-${{ hashFiles('bindings/ocaml/dune-project') }}
-          restore-keys: |
-            ${{ runner.os }}-opam-doc-
-            ${{ runner.os }}-opam-
-
       - name: Cache Dune build artifacts
         uses: actions/cache@v5
         with:

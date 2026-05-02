@@ -130,6 +130,34 @@ After pushing the tag, check the GitHub action status to make sure the RC workfl
 
 In the most cases, it would be great to rerun the failed workflow directly when you find some failures. But if a new code patch is needed to fix the failure, you should create a new release candidate tag, increase the rc number and push it to GitHub.
 
+### Check Rust crates.io readiness
+
+Before the official release tag is pushed, check the Rust package publish plan:
+
+```shell
+python3 .github/scripts/release_rust/plan.py
+```
+
+The plan must include every Rust package that is referenced by released crates.
+For example, `opendal-testkit` is referenced by the `opendal` crate's `tests`
+feature, so it must be publishable and appear before `opendal` in the plan.
+
+The Rust release workflow uses `.github/scripts/release_rust/publish.py` instead
+of calling `cargo publish` directly. The helper temporarily removes repo-local
+`dev-dependencies` while packaging crates, because crates.io resolves
+`dev-dependencies` even when `cargo publish --no-verify` is used. Without this
+step, same-version dev dependencies and dev-only cycles can block the release
+even though they are not needed by downstream users.
+
+:::caution
+
+crates.io trusted publishing tokens cannot create new crates. If this release
+introduces a new crate name, make sure a crates.io token that is allowed to
+create crates is available as `CARGO_REGISTRY_TOKEN`, or publish the new crate
+manually before relying on trusted publishing.
+
+:::
+
 ## ASF Side
 
 If any step in the ASF Release process fails and requires code changes,
@@ -418,9 +446,14 @@ If the vote failed, click "Drop" to drop the staging Maven artifacts.
 
 We need to check the language binding artifacts in the language package repo to make sure they are released successfully.
 
+- Rust: <https://crates.io/crates/opendal>
 - Python: <https://pypi.org/project/opendal/>
 - Java: <https://repository.apache.org/#nexus-search;quick~opendal>
 - Node.js: <https://www.npmjs.com/package/opendal>
+
+For Rust crates, check both the top-level `opendal` crate and split crates that
+were added or changed in the release, such as `opendal-service-*`,
+`opendal-layer-*`, and integration crates.
 
 For Java binding, if we cannot find the latest version of artifacts in the repo,
 we need to check the `orgapacheopendal-${maven_artifact_number}` artifact status in staging repo.

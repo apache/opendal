@@ -378,6 +378,23 @@ export declare class Operator {
    * Note that the current options key is snake_case.
    */
   constructor(scheme: string, options?: Record<string, string> | undefined | null)
+  /**
+   * Create a new operator from a URI string.
+   *
+   * The URI encodes the scheme and configuration in a single string, e.g.
+   * `memory://localhost/` or `s3://bucket/path?region=us-east-1`.
+   *
+   * Optional extra key-value options can be passed to override or supplement
+   * the values encoded in the URI.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const op = Operator.fromUri("memory://localhost/");
+   * const op2 = Operator.fromUri("s3://my-bucket/", { region: "us-east-1" });
+   * ```
+   */
+  static fromUri(uri: string, options?: Record<string, string> | undefined | null): Operator
   /** Get current operator(service)'s full capability. */
   capability(): Capability
   /**

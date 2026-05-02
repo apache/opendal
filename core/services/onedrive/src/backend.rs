@@ -50,11 +50,9 @@ impl Access for OnedriveBackend {
             return Ok(RpCreateDir::default());
         }
 
-        let response = self.core.onedrive_create_dir(path).await?;
-        match response.status() {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(response)),
-        }
+        self.core.ensure_directory(path).await?;
+
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
@@ -96,6 +94,13 @@ impl Access for OnedriveBackend {
     }
 
     async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+        if _args.if_not_exists() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "copy with if_not_exists is not supported by OneDrive",
+            ));
+        }
+
         let monitor_url = self.core.initialize_copy(from, to).await?;
         self.core.wait_until_complete(monitor_url).await?;
         Ok(RpCopy::default())

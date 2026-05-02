@@ -77,6 +77,13 @@ create_exception!(
     PyException,
     "Condition not match"
 );
+create_exception!(opendal.exceptions, RateLimited, PyException, "Rate limited");
+create_exception!(
+    opendal.exceptions,
+    RangeNotSatisfied,
+    PyException,
+    "Range not satisfied"
+);
 
 fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
     let e = format!("{err:?}");
@@ -91,6 +98,8 @@ fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
         ocore::ErrorKind::AlreadyExists => AlreadyExists::new_err(e),
         ocore::ErrorKind::IsSameFile => IsSameFile::new_err(e),
         ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(e),
+        ocore::ErrorKind::RateLimited => RateLimited::new_err(e),
+        ocore::ErrorKind::RangeNotSatisfied => RangeNotSatisfied::new_err(e),
         _ => Unexpected::new_err(e),
     }
 }

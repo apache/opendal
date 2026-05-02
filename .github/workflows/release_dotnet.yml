@@ -18,9 +18,6 @@
 name: Release Dotnet Binding
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
     branches:
       - main
@@ -30,11 +27,15 @@ on:
       - "bindings/dotnet/OpenDAL/OpenDAL.csproj"
   workflow_dispatch:
     inputs:
-      dotnet_publish:
-        description: "Publish OpenDAL .NET package to nuget.org"
+      release_type:
+        description: "Release type"
         required: true
-        type: boolean
-        default: false
+        type: choice
+        default: none
+        options:
+          - none
+          - preview
+          - rc
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -121,28 +122,22 @@ jobs:
           cp target/release-assets/libopendal_dotnet.so OpenDAL/runtimes/linux-x64/native/
           cp target/release-assets/libopendal_dotnet.dylib OpenDAL/runtimes/osx-arm64/native/
 
-      - name: Determine package version
+      - name: Determine version suffix
         id: version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-            if [[ "${VERSION}" != *-* ]]; then
-              VERSION="${VERSION}-rc"
-            fi
-            echo "PACKAGE_VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
-          fi
+          case "${{ inputs.release_type }}" in
+            rc)
+              SUFFIX="rc"
+              ;;
+            *)
+              SUFFIX="preview.${GITHUB_RUN_NUMBER}"
+              ;;
+          esac
+          echo "VERSION_SUFFIX=${SUFFIX}" >> "$GITHUB_OUTPUT"
 
       - name: Pack OpenDAL
-        shell: bash
-        env:
-          PKG_VERSION: ${{ steps.version.outputs.PACKAGE_VERSION }}
-        run: |
-          PACK_CMD="dotnet pack OpenDAL/OpenDAL.csproj -c Release -o artifacts/package"
-          if [[ -n "${PKG_VERSION}" ]]; then
-            PACK_CMD="${PACK_CMD} /p:PackageVersion=${PKG_VERSION}"
-          fi
-          ${PACK_CMD}
+        run: dotnet pack OpenDAL/OpenDAL.csproj -c Release -o artifacts/package --version-suffix "${{ steps.version.outputs.VERSION_SUFFIX }}"
 
       - name: Upload NuGet package
         uses: actions/upload-artifact@v6
@@ -153,7 +148,7 @@ jobs:
 
   publish:
     name: Publish
-    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.dotnet_publish) }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_type != 'none' }}
     runs-on: ubuntu-latest
     needs:
       - package
@@ -175,10 +170,27 @@ jobs:
           path: bindings/dotnet/artifacts/package
 
       - name: NuGet login
-        uses: NuGet/login@v1
         id: login
-        with:
-          user: Apache.OpenDAL
+        shell: bash
+        env:
+          NUGET_USERNAME: Apache.OpenDAL
+        run: |
+          oidc_token="$(curl -fsSL \
+            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fwww.nuget.org" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"])')"
+          echo "::add-mask::${oidc_token}"
+
+          request_body="$(python3 -c 'import json, os; print(json.dumps({"username": os.environ["NUGET_USERNAME"], "tokenType": "ApiKey"}))')"
+          api_key="$(curl -fsSL \
+            -X POST https://www.nuget.org/api/v2/token \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${oidc_token}" \
+            -H "User-Agent: apache-opendal-release" \
+            --data "${request_body}" \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["apiKey"])')"
+          echo "::add-mask::${api_key}"
+          echo "NUGET_API_KEY=${api_key}" >> "${GITHUB_OUTPUT}"
 
       - name: Publish package
         run: dotnet nuget push bindings/dotnet/artifacts/package/*.nupkg --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

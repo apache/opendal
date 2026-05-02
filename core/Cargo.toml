@@ -43,17 +43,17 @@ version = "0.56.0"
 [workspace.dependencies]
 base64 = "0.22"
 bytes = "1.10"
-ctor = "0.6"
+ctor = "0.12"
 futures = { version = "0.3", default-features = false }
 http = "1.1"
 log = { version = "0.4.29" }
 logforth = { version = "0.29.1", features = ["starter-log"] }
 mea = "0.6"
-quick-xml = { version = "0.38", default-features = false }
+quick-xml = { version = "0.39", default-features = false }
 rand = "0.8"
 serde = { version = "1", default-features = false }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tokio = { version = "1.48", default-features = false }
 url = "2.5"
 uuid = { version = "1", default-features = false }

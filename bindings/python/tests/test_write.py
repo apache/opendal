@@ -151,6 +151,21 @@ async def test_async_writer(service_name, operator, async_operator):
 
 
 @pytest.mark.asyncio
+@pytest.mark.need_capability("write", "delete")
+async def test_async_writer_tell_tracks_written_bytes(
+    service_name, operator, async_operator
+):
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = b"hello"
+    f = await async_operator.open(filename, "wb")
+    assert await f.tell() == 0
+    assert await f.write(content) == len(content)
+    assert await f.tell() == len(content)
+    await f.close()
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")
 async def test_async_writer_options(service_name, operator, async_operator):
     size = randint(1, 1024)
@@ -179,6 +194,18 @@ def test_sync_writer(service_name, operator, async_operator):
     operator.delete(filename)
     with pytest.raises(NotFound):
         operator.stat(filename)
+
+
+@pytest.mark.need_capability("write", "delete")
+def test_sync_writer_tell_tracks_written_bytes(service_name, operator, async_operator):
+    filename = f"test_file_{str(uuid4())}.txt"
+    content = b"hello"
+    f = operator.open(filename, "wb")
+    assert f.tell() == 0
+    assert f.write(content) == len(content)
+    assert f.tell() == len(content)
+    f.close()
+    operator.delete(filename)
 
 
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")

@@ -63,6 +63,38 @@ impl Operator {
         })
     }
 
+    /// Create a new operator from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// `memory://localhost/` or `s3://bucket/path?region=us-east-1`.
+    ///
+    /// Optional extra key-value options can be passed to override or supplement
+    /// the values encoded in the URI.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const op = Operator.fromUri("memory://localhost/");
+    /// const op2 = Operator.fromUri("s3://my-bucket/", { region: "us-east-1" });
+    /// ```
+    #[napi(factory, async_runtime)]
+    pub fn from_uri(uri: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+        let options = options.unwrap_or_default();
+        let async_op = if options.is_empty() {
+            opendal::Operator::from_uri(uri).map_err(format_napi_error)?
+        } else {
+            opendal::Operator::from_uri((uri.as_str(), options)).map_err(format_napi_error)?
+        };
+
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
+
+        Ok(Operator {
+            async_op,
+            blocking_op,
+        })
+    }
+
     /// Get current operator(service)'s full capability.
     #[napi]
     pub fn capability(&self) -> Result<capability::Capability> {

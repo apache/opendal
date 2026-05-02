@@ -1160,3 +1160,466 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+    use std::time::Instant;
+
+    use futures::StreamExt;
+    use futures::stream;
+
+    use super::*;
+
+    #[derive(Debug, Clone, Default)]
+    struct MockInterceptor {
+        observations: Arc<Mutex<Vec<(MetricLabels, MetricValue)>>>,
+    }
+
+    impl MetricsIntercept for MockInterceptor {
+        fn observe(&self, labels: MetricLabels, value: MetricValue) {
+            self.observations.lock().unwrap().push((labels, value));
+        }
+    }
+
+    impl MockInterceptor {
+        fn has_metric(&self, name: &str) -> bool {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(_, v)| v.name() == name)
+        }
+
+        fn count_metric(&self, name: &str) -> usize {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(_, v)| v.name() == name)
+                .count()
+        }
+
+        fn count_metric_with_status(&self, name: &str, code: StatusCode) -> usize {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(l, v)| v.name() == name && l.status_code == Some(code))
+                .count()
+        }
+
+        fn gauge_value(&self, name: &str) -> isize {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter_map(|(_, v)| match v {
+                    MetricValue::HttpExecuting(n) if v.name() == name => Some(*n),
+                    MetricValue::OperationExecuting(n) if v.name() == name => Some(*n),
+                    _ => None,
+                })
+                .sum()
+        }
+
+        fn get_duration_seconds(&self, name: &str) -> Option<Duration> {
+            self.observations.lock().unwrap().iter().find_map(|(_, v)| {
+                if v.name() != name {
+                    return None;
+                }
+                match v {
+                    MetricValue::HttpRequestDurationSeconds(d)
+                    | MetricValue::HttpResponseDurationSeconds(d)
+                    | MetricValue::OperationDurationSeconds(d)
+                    | MetricValue::OperationTtfbSeconds(d) => Some(*d),
+                    _ => None,
+                }
+            })
+        }
+
+        fn get_value_u64(&self, name: &str) -> Option<u64> {
+            self.observations.lock().unwrap().iter().find_map(|(_, v)| {
+                if v.name() != name {
+                    return None;
+                }
+                match v {
+                    MetricValue::HttpResponseBytes(n)
+                    | MetricValue::HttpRequestBytes(n)
+                    | MetricValue::OperationBytes(n)
+                    | MetricValue::OperationEntries(n) => Some(*n),
+                    _ => None,
+                }
+            })
+        }
+    }
+
+    fn test_info() -> Arc<AccessorInfo> {
+        Arc::new(AccessorInfo::default())
+    }
+
+    fn test_labels() -> MetricLabels {
+        MetricLabels::new(test_info(), Operation::Read.into_static())
+    }
+
+    enum MockFetchBehavior {
+        /// Return a response with the given status code and an empty body.
+        Respond(StatusCode),
+        /// Fail before receiving a response.
+        ConnectionError,
+        /// Return HTTP 200 with a body stream that yields the given items.
+        StreamBody(Vec<Result<Buffer>>),
+    }
+
+    struct MockHttpFetch {
+        behavior: Mutex<MockFetchBehavior>,
+    }
+
+    impl HttpFetch for MockHttpFetch {
+        async fn fetch(&self, _req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+            let behavior = std::mem::replace(
+                &mut *self.behavior.lock().unwrap(),
+                MockFetchBehavior::ConnectionError,
+            );
+            match behavior {
+                MockFetchBehavior::Respond(status) => {
+                    let body = HttpBody::new(stream::empty(), None);
+                    let resp = http::Response::builder().status(status).body(body).unwrap();
+                    Ok(resp)
+                }
+                MockFetchBehavior::ConnectionError => {
+                    Err(Error::new(ErrorKind::Unexpected, "mock connection refused"))
+                }
+                MockFetchBehavior::StreamBody(items) => {
+                    let body = HttpBody::new(stream::iter(items), None);
+                    let resp = http::Response::builder()
+                        .status(StatusCode::OK)
+                        .body(body)
+                        .unwrap();
+                    Ok(resp)
+                }
+            }
+        }
+    }
+
+    fn build_metrics_http_fetcher(
+        mock: MockInterceptor,
+        behavior: MockFetchBehavior,
+    ) -> MetricsHttpFetcher<MockInterceptor> {
+        let inner_fetch = MockHttpFetch {
+            behavior: Mutex::new(behavior),
+        };
+        MetricsHttpFetcher {
+            inner: Arc::new(inner_fetch) as HttpFetcher,
+            info: test_info(),
+            interceptor: mock,
+        }
+    }
+
+    fn build_http_request() -> http::Request<Buffer> {
+        let mut req = http::Request::new(Buffer::new());
+        *req.uri_mut() = "https://example.com/test".parse().unwrap();
+        req.extensions_mut().insert(Operation::Read);
+        req
+    }
+
+    #[tokio::test]
+    async fn test_http_client_error_records_status_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(StatusCode::NOT_FOUND),
+        );
+
+        let _ = fetcher.fetch(build_http_request()).await;
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::NOT_FOUND
+            ),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_server_error_records_status_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(StatusCode::INTERNAL_SERVER_ERROR),
+        );
+
+        let _ = fetcher.fetch(build_http_request()).await;
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_success_records_full_metrics() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::StreamBody(vec![
+                Ok(Buffer::from("hello")),
+                Ok(Buffer::from(" world")),
+            ]),
+        );
+
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let (_, mut body) = resp.into_parts();
+        let buf = body.to_buffer().await.unwrap();
+        assert_eq!(buf.len(), 11);
+        drop(body);
+
+        assert_eq!(mock.count_metric("opendal_http_status_errors_total"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_http_request_bytes"), Some(0));
+        assert!(
+            mock.get_duration_seconds("opendal_http_request_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(11));
+        assert!(
+            mock.get_duration_seconds("opendal_http_response_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_connection_error_records_connection_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(mock.clone(), MockFetchBehavior::ConnectionError);
+
+        let res = fetcher.fetch(build_http_request()).await;
+        assert!(res.is_err());
+
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+        assert_eq!(mock.count_metric("opendal_http_status_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_body_read_failure_records_metrics() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::StreamBody(vec![
+                Ok(Buffer::from("partial")),
+                Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+            ]),
+        );
+
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let (_, mut body) = resp.into_parts();
+        let res = body.to_buffer().await;
+        assert!(res.is_err());
+        drop(body);
+
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(7));
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_stream_completed_records_response_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let inner = stream::iter(vec![Ok(Buffer::from("hello"))]);
+
+        let mut s = MetricsStream {
+            inner,
+            interceptor: mock.clone(),
+            labels,
+            size: 0,
+            start: Instant::now(),
+            succeeded: false,
+        };
+
+        while s.next().await.is_some() {}
+        drop(s);
+
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(5));
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_stream_dropped_early_records_response_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let inner = stream::iter(vec![Ok(Buffer::from("chunk1")), Ok(Buffer::from("chunk2"))]);
+
+        let mut s = MetricsStream {
+            inner,
+            interceptor: mock.clone(),
+            labels,
+            size: 0,
+            start: Instant::now(),
+            succeeded: false,
+        };
+
+        let _ = s.next().await;
+        drop(s);
+
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(6));
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+    }
+
+    #[tokio::test]
+    async fn test_stream_error_records_response_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let inner = stream::iter(vec![
+            Ok(Buffer::from("data")),
+            Err(Error::new(ErrorKind::Unexpected, "read error")),
+        ]);
+
+        let mut s = MetricsStream {
+            inner,
+            interceptor: mock.clone(),
+            labels,
+            size: 0,
+            start: Instant::now(),
+            succeeded: false,
+        };
+
+        while let Some(res) = s.next().await {
+            if res.is_err() {
+                break;
+            }
+        }
+        drop(s);
+
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(4));
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+    }
+
+    #[test]
+    fn test_http_guard_cancelled_records_connection_error() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let guard = ExecutingGuard::new_http(mock.clone(), labels, Instant::now());
+        drop(guard);
+
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+        assert!(mock.has_metric("opendal_http_request_duration_seconds"));
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[test]
+    fn test_http_guard_completed_only_decrements_executing() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let mut guard = ExecutingGuard::new_http(mock.clone(), labels, Instant::now());
+        guard.complete();
+        drop(guard);
+
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[test]
+    fn test_http_guard_defused_records_nothing() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::HttpExecuting(1));
+        let mut guard = ExecutingGuard::new_http(mock.clone(), labels, Instant::now());
+        guard.complete();
+        guard.defuse();
+        drop(guard);
+
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+    }
+
+    #[test]
+    fn test_operation_guard_cancelled_records_operation_error() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let guard = ExecutingGuard::new_operation(mock.clone(), labels, Instant::now());
+        drop(guard);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 1);
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[test]
+    fn test_operation_guard_completed_only_decrements_executing() {
+        let mock = MockInterceptor::default();
+        let labels = test_labels();
+        mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard = ExecutingGuard::new_operation(mock.clone(), labels, Instant::now());
+        guard.complete();
+        drop(guard);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[test]
+    fn test_list_wrapper_drop_records_operation_entries() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::List.into_static());
+        mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+        let mut wrapper = MetricsWrapper {
+            inner: (),
+            interceptor: mock.clone(),
+            labels,
+            start: Instant::now(),
+            size: 0,
+            completed: true,
+        };
+        wrapper.size = 42;
+        drop(wrapper);
+
+        assert_eq!(mock.get_value_u64("opendal_operation_entries"), Some(42));
+        assert!(mock.has_metric("opendal_operation_entries_rate"));
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), None);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[test]
+    fn test_wrapper_cancelled_records_operation_error() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+        let wrapper = MetricsWrapper {
+            inner: (),
+            interceptor: mock.clone(),
+            labels,
+            start: Instant::now(),
+            size: 0,
+            completed: false,
+        };
+        drop(wrapper);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 1);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+}

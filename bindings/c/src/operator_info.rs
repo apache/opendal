@@ -146,7 +146,7 @@ impl opendal_operator_info {
     /// assert(!strcmp(scheme, "memory"));
     ///
     /// /// free the heap memory
-    /// free(scheme);
+    /// opendal_string_free(scheme);
     /// opendal_operator_info_free(info);
     /// ```
     #[no_mangle]
@@ -170,7 +170,7 @@ impl opendal_operator_info {
 
     /// \brief Return the nul-terminated operator's scheme, i.e. service
     ///
-    /// \note: The string is on heap, remember to free it
+    /// \note: The string is on heap, free it with opendal_string_free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_scheme(&self) -> *mut c_char {
         let scheme = self.deref().scheme().to_string();
@@ -181,7 +181,7 @@ impl opendal_operator_info {
 
     /// \brief Return the nul-terminated operator's working root path
     ///
-    /// \note: The string is on heap, remember to free it
+    /// \note: The string is on heap, free it with opendal_string_free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_root(&self) -> *mut c_char {
         let root = self.deref().root();
@@ -193,7 +193,7 @@ impl opendal_operator_info {
     /// \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
     /// namespace concept.
     ///
-    /// \note: The string is on heap, remember to free it
+    /// \note: The string is on heap, free it with opendal_string_free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_info_get_name(&self) -> *mut c_char {
         let name = self.deref().name();

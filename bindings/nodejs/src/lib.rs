@@ -840,6 +840,12 @@ impl Entry {
         self.0.path().to_string()
     }
 
+    /// Return the name of this entry.
+    #[napi]
+    pub fn name(&self) -> String {
+        self.0.name().to_string()
+    }
+
     /// Return the metadata of this entry.
     #[napi]
     pub fn metadata(&self) -> Metadata {

@@ -268,6 +268,8 @@ export declare class ConcurrentLimitLayer {
 export declare class Entry {
   /** Return the path of this entry. */
   path(): string
+  /** Return the name of this entry. */
+  name(): string
   /** Return the metadata of this entry. */
   metadata(): Metadata
 }

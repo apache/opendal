@@ -19,6 +19,8 @@ This service can be used to:
 - `user`: Set the login user
 - `key`: Set the public key for login
 - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
+- `acquire_timeout`: Set how long to wait for an already-saturated SFTP connection pool, default to `10s`
+- `connect_timeout`: Set the SSH connect timeout, default to `10s`
 - `enable_copy`: Set whether the remote server has copy-file extension
 
 For security reasons, it doesn't support password login, you can use public key or ssh-copy-id instead.

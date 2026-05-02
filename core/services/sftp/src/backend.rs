@@ -19,6 +19,7 @@ use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use log::debug;
 use openssh::KnownHosts;
@@ -26,6 +27,7 @@ use tokio::io::AsyncSeekExt;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
+use super::core::SftpConnectionOptions;
 use super::core::SftpCore;
 use super::deleter::SftpDeleter;
 use super::error::is_not_found;
@@ -55,6 +57,28 @@ pub struct SftpBuilder {
 }
 
 impl SftpBuilder {
+    /// set acquire timeout for pooled sftp connections.
+    pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
+        self.config.acquire_timeout = if timeout.is_zero() {
+            None
+        } else {
+            Some(format!("{}s", timeout.as_secs()))
+        };
+
+        self
+    }
+
+    /// set connect timeout for sftp backend.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.config.connect_timeout = if timeout.is_zero() {
+            None
+        } else {
+            Some(format!("{}s", timeout.as_secs()))
+        };
+
+        self
+    }
+
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
     pub fn endpoint(mut self, endpoint: &str) -> Self {
@@ -130,6 +154,9 @@ impl Builder for SftpBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("sftp backend build started: {:?}", &self);
+        const DEFAULT_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
+        const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -163,6 +190,15 @@ impl Builder for SftpBuilder {
             None => KnownHosts::Strict,
         };
 
+        let acquire_timeout = match self.config.acquire_timeout.as_deref() {
+            Some(value) => signed_to_duration(value)?,
+            None => DEFAULT_ACQUIRE_TIMEOUT,
+        };
+        let connect_timeout = match self.config.connect_timeout.as_deref() {
+            Some(value) => signed_to_duration(value)?,
+            None => DEFAULT_CONNECT_TIMEOUT,
+        };
+
         let info = AccessorInfo::default();
         info.set_root(root.as_str())
             .set_scheme(SFTP_SCHEME)
@@ -193,13 +229,37 @@ impl Builder for SftpBuilder {
             Arc::new(info),
             endpoint,
             root,
-            user,
-            self.config.key.clone(),
-            known_hosts_strategy,
+            SftpConnectionOptions {
+                user,
+                key: self.config.key.clone(),
+                known_hosts_strategy,
+                acquire_timeout,
+                connect_timeout,
+            },
         ));
 
         debug!("sftp backend finished: {:?}", &self);
         Ok(SftpBackend { core })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_rejects_invalid_timeout() {
+        let builder = SftpBuilder {
+            config: SftpConfig {
+                endpoint: Some("host".to_string()),
+                connect_timeout: Some("invalid".to_string()),
+                ..Default::default()
+            },
+        };
+
+        let err = builder.build().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.to_string().contains("failed to parse duration"));
     }
 }
 

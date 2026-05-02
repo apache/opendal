@@ -278,7 +278,7 @@ impl Access for FtpBackend {
             }
         }
 
-        let tmp_path = (!op.append()).then_some(build_tmp_path_of(path));
+        let tmp_path = (!op.append()).then_some(build_ftp_tmp_path(path));
         let w = FtpWriter::new(ftp_stream, path.to_string(), tmp_path);
 
         Ok((RpWrite::new(), w))
@@ -332,9 +332,20 @@ impl FtpBackend {
     }
 }
 
+fn build_ftp_tmp_path(path: &str) -> String {
+    let parent = get_parent(path);
+    let tmp_name = build_tmp_path_of(path);
+
+    if parent == "/" {
+        tmp_name
+    } else {
+        format!("{parent}{tmp_name}")
+    }
+}
+
 #[cfg(test)]
 mod build_test {
-    use super::FtpBuilder;
+    use super::{FtpBuilder, build_ftp_tmp_path};
     use crate::FtpConfig;
     use opendal_core::*;
 
@@ -395,5 +406,31 @@ mod build_test {
         assert_eq!(cfg.endpoint.as_deref(), Some("ftp://example.com"));
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.password.as_deref(), Some("secret"));
+    }
+
+    #[test]
+    fn test_build_ftp_tmp_path() {
+        let cases = vec![
+            ("root file", "example.txt", "example.txt."),
+            ("nested file", "folder/example.txt", "folder/example.txt."),
+            (
+                "deep nested file",
+                "folder/sub/example.txt",
+                "folder/sub/example.txt.",
+            ),
+        ];
+
+        for (name, path, expect_starts_with) in cases {
+            let actual = build_ftp_tmp_path(path);
+            assert!(
+                actual.starts_with(expect_starts_with),
+                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
+            );
+            assert_eq!(
+                actual.len(),
+                expect_starts_with.len() + 8,
+                "{name}: got `{actual}`, but expect `{expect_starts_with}`"
+            );
+        }
     }
 }

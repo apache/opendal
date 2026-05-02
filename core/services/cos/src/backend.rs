@@ -110,6 +110,27 @@ impl CosBuilder {
         self
     }
 
+    /// Set security_token (a.k.a. session token) of this backend.
+    ///
+    /// This is used when authenticating via Tencent Cloud STS temporary
+    /// credentials (e.g. obtained from `GetFederationToken` or
+    /// `AssumeRole`). When provided, it will be combined with `secret_id`
+    /// and `secret_key` to sign requests, and the `x-cos-security-token`
+    /// header will be attached automatically.
+    ///
+    /// - If this is set, it takes precedence over the environment variables
+    ///   `TENCENTCLOUD_TOKEN`, `TENCENTCLOUD_SECURITY_TOKEN`, and
+    ///   `QCLOUD_SECRET_TOKEN`.
+    /// - If this is not set, OpenDAL will try to read from those
+    ///   environment variables (unless `disable_config_load` is enabled).
+    pub fn security_token(mut self, security_token: &str) -> Self {
+        if !security_token.is_empty() {
+            self.config.security_token = Some(security_token.to_string());
+        }
+
+        self
+    }
+
     /// Set bucket of this backend.
     /// The param is required.
     pub fn bucket(mut self, bucket: &str) -> Self {
@@ -199,14 +220,21 @@ impl Builder for CosBuilder {
             self.config.secret_id.as_deref(),
             self.config.secret_key.as_deref(),
         ) {
-            let security_token = envs
-                .get("TENCENTCLOUD_TOKEN")
-                .or_else(|| envs.get("TENCENTCLOUD_SECURITY_TOKEN"))
-                .or_else(|| envs.get("QCLOUD_SECRET_TOKEN"));
+            // Precedence:
+            //   1. explicit `config.security_token` set by the user;
+            //   2. environment variables when config load is NOT disabled.
+            let env_token = if self.config.disable_config_load {
+                None
+            } else {
+                envs.get("TENCENTCLOUD_TOKEN")
+                    .or_else(|| envs.get("TENCENTCLOUD_SECURITY_TOKEN"))
+                    .or_else(|| envs.get("QCLOUD_SECRET_TOKEN"))
+                    .map(|s| s.as_str())
+            };
 
-            let static_provider = if self.config.disable_config_load {
-                StaticCredentialProvider::new(secret_id, secret_key)
-            } else if let Some(token) = security_token {
+            let security_token = self.config.security_token.as_deref().or(env_token);
+
+            let static_provider = if let Some(token) = security_token {
                 StaticCredentialProvider::with_security_token(secret_id, secret_key, token)
             } else {
                 StaticCredentialProvider::new(secret_id, secret_key)

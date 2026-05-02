@@ -826,6 +826,29 @@ impl Operator {
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
+
+    /// Get a presigned request for delete.
+    ///
+    /// Unit of `expires` is seconds.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const req = await op.presignDelete(path, parseInt(expires));
+    ///
+    /// console.log("method: ", req.method);
+    /// console.log("url: ", req.url);
+    /// console.log("headers: ", req.headers);
+    /// ```
+    #[napi]
+    pub async fn presign_delete(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .async_op
+            .presign_delete(&path, Duration::from_secs(expires as u64))
+            .await
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest::new(res))
+    }
 }
 
 /// Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata.

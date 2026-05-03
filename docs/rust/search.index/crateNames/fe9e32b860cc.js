@@ -1,0 +1,1 @@
+rd_("gopendallopendal_core")

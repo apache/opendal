@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 775125233;
+  int get rustContentHash => 798133092;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -120,6 +120,12 @@ abstract class RustLibApi extends BaseApi {
   Operator crateApiOpendalApiOperatorNew(
       {required String scheme, required Map<String, String> map});
 
+  Future<Uint8List> crateApiOpendalApiOperatorRead(
+      {required Operator that, required String path});
+
+  Uint8List crateApiOpendalApiOperatorReadSync(
+      {required Operator that, required String path});
+
   Future<void> crateApiOpendalApiOperatorRename(
       {required Operator that, required String from, required String to});
 
@@ -131,6 +137,12 @@ abstract class RustLibApi extends BaseApi {
 
   Metadata crateApiOpendalApiOperatorStatSync(
       {required Operator that, required String path});
+
+  Future<void> crateApiOpendalApiOperatorWrite(
+      {required Operator that, required String path, required List<int> data});
+
+  void crateApiOpendalApiOperatorWriteSync(
+      {required Operator that, required String path, required List<int> data});
 
   RustArcIncrementStrongCountFnType
       get rust_arc_increment_strong_count_Metadata;
@@ -577,6 +589,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<Uint8List> crateApiOpendalApiOperatorRead(
+      {required Operator that, required String path}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 17, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_list_prim_u_8_strict,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorReadConstMeta,
+      argValues: [that, path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorReadConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_read",
+        argNames: ["that", "path"],
+      );
+
+  @override
+  Uint8List crateApiOpendalApiOperatorReadSync(
+      {required Operator that, required String path}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_list_prim_u_8_strict,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorReadSyncConstMeta,
+      argValues: [that, path],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorReadSyncConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_read_sync",
+        argNames: ["that", "path"],
+      );
+
+  @override
   Future<void> crateApiOpendalApiOperatorRename(
       {required Operator that, required String from, required String to}) {
     return handler.executeNormal(NormalTask(
@@ -587,7 +654,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(from, serializer);
         sse_encode_String(to, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 17, port: port_);
+            funcId: 19, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -615,7 +682,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(from, serializer);
         sse_encode_String(to, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 18)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
       },
       codec: SseCodec(
         decodeSuccessData: sse_decode_unit,
@@ -643,7 +710,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that, serializer);
         sse_encode_String(path, serializer);
         pdeCallFfi(generalizedFrbRustBinding, serializer,
-            funcId: 19, port: port_);
+            funcId: 21, port: port_);
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -671,7 +738,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
             that, serializer);
         sse_encode_String(path, serializer);
-        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 20)!;
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 22)!;
       },
       codec: SseCodec(
         decodeSuccessData:
@@ -690,6 +757,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         argNames: ["that", "path"],
       );
 
+  @override
+  Future<void> crateApiOpendalApiOperatorWrite(
+      {required Operator that, required String path, required List<int> data}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        sse_encode_list_prim_u_8_loose(data, serializer);
+        pdeCallFfi(generalizedFrbRustBinding, serializer,
+            funcId: 23, port: port_);
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorWriteConstMeta,
+      argValues: [that, path, data],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorWriteConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_write",
+        argNames: ["that", "path", "data"],
+      );
+
+  @override
+  void crateApiOpendalApiOperatorWriteSync(
+      {required Operator that, required String path, required List<int> data}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        final serializer = SseSerializer(generalizedFrbRustBinding);
+        sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator(
+            that, serializer);
+        sse_encode_String(path, serializer);
+        sse_encode_list_prim_u_8_loose(data, serializer);
+        return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 24)!;
+      },
+      codec: SseCodec(
+        decodeSuccessData: sse_decode_unit,
+        decodeErrorData: sse_decode_AnyhowException,
+      ),
+      constMeta: kCrateApiOpendalApiOperatorWriteSyncConstMeta,
+      argValues: [that, path, data],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiOpendalApiOperatorWriteSyncConstMeta =>
+      const TaskConstMeta(
+        debugName: "Operator_write_sync",
+        argNames: ["that", "path", "data"],
+      );
+
   RustArcIncrementStrongCountFnType
       get rust_arc_increment_strong_count_Metadata => wire
           .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata;
@@ -705,6 +829,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RustArcDecrementStrongCountFnType
       get rust_arc_decrement_strong_count_Operator => wire
           .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerOperator;
+
+  @protected
+  AnyhowException dco_decode_AnyhowException(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return AnyhowException(raw as String);
+  }
 
   @protected
   Metadata
@@ -780,6 +910,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
+  }
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
@@ -838,6 +974,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
+  }
+
+  @protected
+  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_String(deserializer);
+    return AnyhowException(inner);
   }
 
   @protected
@@ -922,6 +1065,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -1002,6 +1152,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_AnyhowException(
+      AnyhowException self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.message, serializer);
+  }
+
+  @protected
   void
       sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMetadata(
           Metadata self, SseSerializer serializer) {
@@ -1079,6 +1236,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(
+      List<int> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer
+        .putUint8List(self is Uint8List ? self : Uint8List.fromList(self));
   }
 
   @protected
@@ -1266,6 +1432,12 @@ class OperatorImpl extends RustOpaque implements Operator {
   bool existsSync({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorExistsSync(that: this, path: path);
 
+  Future<Uint8List> read({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorRead(that: this, path: path);
+
+  Uint8List readSync({required String path}) => RustLib.instance.api
+      .crateApiOpendalApiOperatorReadSync(that: this, path: path);
+
   Future<void> rename({required String from, required String to}) =>
       RustLib.instance.api
           .crateApiOpendalApiOperatorRename(that: this, from: from, to: to);
@@ -1279,4 +1451,12 @@ class OperatorImpl extends RustOpaque implements Operator {
 
   Metadata statSync({required String path}) => RustLib.instance.api
       .crateApiOpendalApiOperatorStatSync(that: this, path: path);
+
+  Future<void> write({required String path, required List<int> data}) =>
+      RustLib.instance.api
+          .crateApiOpendalApiOperatorWrite(that: this, path: path, data: data);
+
+  void writeSync({required String path, required List<int> data}) => RustLib
+      .instance.api
+      .crateApiOpendalApiOperatorWriteSync(that: this, path: path, data: data);
 }

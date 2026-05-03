@@ -278,6 +278,18 @@ where
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let _permit = self.semaphore.acquire().await;
+
+        self.inner.copy(from, to, args).await
+    }
+
+    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+        let _permit = self.semaphore.acquire().await;
+
+        self.inner.rename(from, to, args).await
+    }
+
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
         let _permit = self.semaphore.acquire().await;
 
@@ -396,6 +408,67 @@ mod tests {
             completed.is_ok(),
             "operation should proceed once permit is released"
         );
+    }
+
+    #[tokio::test]
+    async fn operation_semaphore_limits_copy_and_rename() {
+        #[derive(Clone, Debug)]
+        struct CopyRenameBackend {
+            info: Arc<AccessorInfo>,
+        }
+
+        impl Access for CopyRenameBackend {
+            type Reader = ();
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+
+            fn info(&self) -> Arc<AccessorInfo> {
+                self.info.clone()
+            }
+
+            async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
+                Ok(RpCopy::default())
+            }
+
+            async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
+                Ok(RpRename::default())
+            }
+        }
+
+        let semaphore = Arc::new(Semaphore::new(1));
+        let layer = ConcurrentLimitLayer::with_semaphore(semaphore.clone());
+        let info = Arc::new(AccessorInfo::default());
+        info.set_native_capability(Capability {
+            copy: true,
+            rename: true,
+            ..Default::default()
+        });
+        let op = OperatorBuilder::new(CopyRenameBackend { info })
+            .layer(layer)
+            .finish();
+
+        let permit = semaphore.clone().acquire_owned(1).await;
+
+        let copy = timeout(Duration::from_millis(50), op.copy("from", "to")).await;
+        assert!(copy.is_err(), "copy should wait for the operation permit");
+
+        let rename = timeout(Duration::from_millis(50), op.rename("from", "to")).await;
+        assert!(
+            rename.is_err(),
+            "rename should wait for the operation permit"
+        );
+
+        drop(permit);
+
+        timeout(Duration::from_millis(50), op.copy("from", "to"))
+            .await
+            .expect("copy should proceed once permit is released")
+            .expect("copy should succeed");
+        timeout(Duration::from_millis(50), op.rename("from", "to"))
+            .await
+            .expect("rename should proceed once permit is released")
+            .expect("rename should succeed");
     }
 
     #[tokio::test]

@@ -318,7 +318,9 @@ impl S3Core {
             req = req.header(IF_MATCH, if_match);
         }
 
-        if args.if_not_exists() {
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        } else if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
@@ -902,6 +904,18 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
+        let req = self.s3_complete_multipart_upload_request(path, upload_id, parts, args)?;
+
+        self.send(req).await
+    }
+
+    fn s3_complete_multipart_upload_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
+    ) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -927,7 +941,9 @@ impl S3Core {
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
         }
-        if args.if_not_exists() {
+        if let Some(if_none_match) = args.if_none_match() {
+            req = req.header(IF_NONE_MATCH, if_none_match);
+        } else if args.if_not_exists() {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
@@ -941,7 +957,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        Ok(req)
     }
 
     /// Abort an on-going multipart upload.
@@ -975,17 +991,18 @@ impl S3Core {
 
     pub async fn s3_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            quiet: true,
             object: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -1144,6 +1161,7 @@ pub struct CopyObjectResult {
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "Delete", rename_all = "PascalCase")]
 pub struct DeleteObjectsRequest {
+    pub quiet: bool,
     pub object: Vec<DeleteObjectsRequestObject>,
 }
 
@@ -1159,15 +1177,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1293,10 +1303,107 @@ impl Display for ChecksumAlgorithm {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use bytes::Buf;
     use bytes::Bytes;
+    use reqsign_aws_v4::RequestSigner as AwsV4Signer;
+    use reqsign_aws_v4::StaticCredentialProvider;
+    use reqsign_core::Context;
+    use reqsign_core::ProvideCredentialChain;
+    use reqsign_core::Signer;
 
     use super::*;
+
+    fn test_core() -> S3Core {
+        let provider =
+            ProvideCredentialChain::new().push(StaticCredentialProvider::new("ak", "sk"));
+
+        S3Core {
+            info: Arc::new(AccessorInfo::default()),
+            bucket: "bucket".to_string(),
+            endpoint: "https://s3.amazonaws.com".to_string(),
+            root: "/root/".to_string(),
+            server_side_encryption: None,
+            server_side_encryption_aws_kms_key_id: None,
+            server_side_encryption_customer_algorithm: None,
+            server_side_encryption_customer_key: None,
+            server_side_encryption_customer_key_md5: None,
+            default_storage_class: None,
+            allow_anonymous: true,
+            disable_list_objects_v2: false,
+            enable_request_payer: false,
+            default_acl: None,
+            signer: Signer::new(
+                Context::new(),
+                provider,
+                AwsV4Signer::new("s3", "us-east-1"),
+            ),
+            checksum_algorithm: None,
+        }
+    }
+
+    #[test]
+    fn test_put_object_request_sets_if_none_match() {
+        let core = test_core();
+        let op = OpWrite::default().with_if_none_match("\"etag\"");
+
+        let req = core
+            .s3_put_object_request("path/to/file", Some(0), &op, Buffer::new())
+            .expect("request must build");
+
+        assert_eq!(
+            req.headers()
+                .get(IF_NONE_MATCH)
+                .expect("If-None-Match must be set")
+                .to_str()
+                .expect("header must be valid"),
+            "\"etag\""
+        );
+    }
+
+    #[test]
+    fn test_put_object_request_keeps_if_not_exists_header() {
+        let core = test_core();
+        let op = OpWrite::default().with_if_not_exists(true);
+
+        let req = core
+            .s3_put_object_request("path/to/file", Some(0), &op, Buffer::new())
+            .expect("request must build");
+
+        assert_eq!(
+            req.headers()
+                .get(IF_NONE_MATCH)
+                .expect("If-None-Match must be set")
+                .to_str()
+                .expect("header must be valid"),
+            "*"
+        );
+    }
+
+    #[test]
+    fn test_complete_multipart_upload_request_sets_if_none_match() {
+        let core = test_core();
+        let op = OpWrite::default().with_if_none_match("\"etag\"");
+        let parts = vec![CompleteMultipartUploadRequestPart {
+            part_number: 1,
+            etag: "\"part-etag\"".to_string(),
+            ..Default::default()
+        }];
+
+        let req = core
+            .s3_complete_multipart_upload_request("path/to/file", "upload-id", parts, &op)
+            .expect("request must build");
+
+        assert_eq!(
+            req.headers()
+                .get(IF_NONE_MATCH)
+                .expect("If-None-Match must be set")
+                .to_str()
+                .expect("header must be valid"),
+            "\"etag\""
+        );
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]
@@ -1418,6 +1525,7 @@ mod tests {
     #[test]
     fn test_serialize_delete_objects_request() {
         let req = DeleteObjectsRequest {
+            quiet: true,
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
@@ -1435,6 +1543,7 @@ mod tests {
         pretty_assertions::assert_eq!(
             actual,
             r#"<Delete>
+             <Quiet>true</Quiet>
              <Object>
              <Key>sample1.txt</Key>
              </Object>
@@ -1454,9 +1563,6 @@ mod tests {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
             <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-             <Deleted>
-               <Key>sample1.txt</Key>
-             </Deleted>
              <Error>
               <Key>sample2.txt</Key>
               <Code>AccessDenied</Code>
@@ -1468,36 +1574,10 @@ mod tests {
         let out: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "sample1.txt");
         assert_eq!(out.error.len(), 1);
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
-    }
-
-    #[test]
-    fn test_deserialize_delete_objects_with_version_id() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-                    <Deleted>
-                      <Key>SampleDocument.txt</Key>
-                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
-                    </Deleted>
-                  </DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
-        assert_eq!(
-            out.deleted[0].version_id,
-            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
-        );
-        assert_eq!(out.error.len(), 0);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples

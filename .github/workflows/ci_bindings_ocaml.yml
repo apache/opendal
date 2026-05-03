@@ -29,6 +29,7 @@ on:
     paths:
       - "bindings/ocaml/**"
       - "core/**"
+      - ".github/actions/setup-ocaml/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
   workflow_dispatch:
 
@@ -51,7 +52,6 @@ jobs:
           cargo clippy -- -D warnings
 
   test:
-    # Wait for https://github.com/ocaml/setup-ocaml/issues/872 fixes
     runs-on: ubuntu-22.04
 
     steps:

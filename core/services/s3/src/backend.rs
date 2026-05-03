@@ -636,11 +636,10 @@ impl S3Builder {
         // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
         // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
         if let Some(v) = endpoint.strip_prefix("https://") {
-            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
+            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
                 return Some(region.to_string());
             }
-
-            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
+            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
                 return Some(region.to_string());
             }
         }
@@ -909,6 +908,7 @@ impl Builder for S3Builder {
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
                             write_with_if_match: !config.disable_write_with_if_match,
+                            write_with_if_none_match: true,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 
@@ -1228,7 +1228,7 @@ mod tests {
                 "oss with internal endpoint",
                 "https://oss-cn-hangzhou-internal.aliyuncs.com",
                 "example",
-                Some("oss-cn-hangzhou-internal"),
+                Some("oss-cn-hangzhou"),
             ),
             (
                 "r2",

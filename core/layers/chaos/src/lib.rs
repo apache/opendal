@@ -152,7 +152,7 @@ impl<R> ChaosReader<R> {
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
     fn i_feel_lucky(&self) -> bool {
-        let point = self.rng.lock().unwrap().gen_range(0..=100);
+        let point = self.rng.lock().unwrap().gen_range(0..100);
         point >= (self.error_ratio * 100.0) as i32
     }
 

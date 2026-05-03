@@ -104,7 +104,7 @@ use opendal_core::*;
 ///
 /// impl RetryInterceptor for MyRetryInterceptor {
 ///     fn intercept(&self, event: RetryEvent<'_>) {
-///         // do something with event.op, event.err, event.dur, event.attempt
+///         // do something with event.op, event.err, event.retry_after, event.attempt
 ///     }
 /// }
 ///
@@ -229,22 +229,10 @@ pub struct RetryEvent<'a> {
     pub op: Operation,
     /// The error that triggered the retry.
     pub err: &'a Error,
-    /// The duration before the next attempt.
-    pub dur: Duration,
+    /// The duration to wait before the next retry attempt.
+    pub retry_after: Duration,
     /// 1-based retry attempt number.
     pub attempt: u32,
-}
-
-impl<'a> RetryEvent<'a> {
-    /// Build a new `RetryEvent`.
-    pub fn new(op: Operation, err: &'a Error, dur: Duration, attempt: u32) -> Self {
-        Self {
-            op,
-            err,
-            dur,
-            attempt,
-        }
-    }
 }
 
 /// RetryInterceptor is used to intercept while retry happened.
@@ -279,7 +267,7 @@ impl RetryInterceptor for DefaultRetryInterceptor {
         log::warn!(
             target: "opendal::layers::retry",
             "will retry {:?} (attempt {}) after {}s because: {}",
-            event.op, event.attempt, event.dur.as_secs_f64(), event.err
+            event.op, event.attempt, event.retry_after.as_secs_f64(), event.err
         );
     }
 }
@@ -317,8 +305,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::CreateDir, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::CreateDir,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map_err(|e| e.set_persistent())
@@ -331,8 +323,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Read, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Read,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map_err(|e| e.set_persistent())?;
@@ -350,8 +346,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Write, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Write,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
@@ -365,8 +365,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Stat, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Stat,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map_err(|e| e.set_persistent())
@@ -379,8 +383,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Delete, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Delete,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
@@ -394,8 +402,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Copy, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Copy,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map_err(|e| e.set_persistent())
@@ -408,8 +420,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::Rename, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::Rename,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map_err(|e| e.set_persistent())
@@ -422,8 +438,12 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
                 attempt += 1;
-                self.notify
-                    .intercept(RetryEvent::new(Operation::List, err, dur, attempt))
+                self.notify.intercept(RetryEvent {
+                    op: Operation::List,
+                    err,
+                    retry_after: dur,
+                    attempt,
+                })
             })
             .await
             .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
@@ -518,8 +538,12 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Read, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::Read,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 
@@ -547,8 +571,12 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .context((inner, bs))
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Write, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 
@@ -574,8 +602,12 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Write, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 
@@ -601,8 +633,12 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Write, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::Write,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 
@@ -630,8 +666,12 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::List, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::List,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 
@@ -664,8 +704,12 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Delete, err, dur, attempt));
+            self.notify.intercept(RetryEvent {
+                op: Operation::Delete,
+                err,
+                retry_after: dur,
+                attempt,
+            });
         })
         .await;
 
@@ -691,8 +735,12 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .context(inner)
         .notify(|err, dur| {
             attempt += 1;
-            self.notify
-                .intercept(RetryEvent::new(Operation::Delete, err, dur, attempt))
+            self.notify.intercept(RetryEvent {
+                op: Operation::Delete,
+                err,
+                retry_after: dur,
+                attempt,
+            })
         })
         .await;
 

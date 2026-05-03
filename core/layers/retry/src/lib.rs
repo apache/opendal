@@ -266,7 +266,7 @@ impl RetryInterceptor for DefaultRetryInterceptor {
     fn intercept(&self, event: RetryEvent<'_>) {
         log::warn!(
             target: "opendal::layers::retry",
-            "will retry {:?} (attempt {}) after {}s because: {}",
+            "will retry {:?} (attempt {}) after {}s because: {:?}",
             event.op, event.attempt, event.retry_after.as_secs_f64(), event.err
         );
     }

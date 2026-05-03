@@ -191,6 +191,13 @@ impl OperationLabels {
             ));
         }
 
+        if let Some(service_operation) = self.0.service_operation {
+            labels.push(Label::new(
+                observe::LABEL_SERVICE_OPERATION,
+                service_operation,
+            ));
+        }
+
         labels
     }
 }

@@ -417,7 +417,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -499,7 +501,9 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -544,7 +548,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -587,7 +593,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -627,6 +635,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -687,6 +696,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -726,6 +736,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -776,6 +787,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -845,7 +857,9 @@ impl S3Core {
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -887,7 +901,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -935,7 +951,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -967,6 +985,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1004,7 +1023,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObjects"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -1056,6 +1077,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

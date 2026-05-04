@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import 'dart:io';
+import 'dart:io' as io;
 import 'package:system_info2/system_info2.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'src/rust/frb_generated.dart';
@@ -34,7 +34,7 @@ class Storage {
   }) async {
     if (!RustLib.instance.initialized) {
       var path = "rust/target/release/";  // default path
-      final name = Platform.operatingSystem;
+      final name = io.Platform.operatingSystem;
       final arch = SysInfo.kernelArchitecture;
       // Set appropriate binary path based on OS and architecture
       final nameLower = name.toLowerCase();
@@ -79,14 +79,24 @@ class Storage {
           path = "rust/target/x86_64-apple-ios/release/";
         }
       }
-      var config = ExternalLibraryLoaderConfig( // https://github.com/fzyzcjy/flutter_rust_bridge/issues/2460
+      // Fallback to default release dir when cross-compilation target dir
+      // does not exist (e.g. native builds on macOS arm64).
+      final libName = nameLower == "windows"
+          ? "opendal_dart.dll"
+          : nameLower == "linux"
+              ? "libopendal_dart.so"
+              : "libopendal_dart.dylib";
+      if (!io.File("$path$libName").existsSync()) {
+        path = "rust/target/release/";
+      }
+      var config = ExternalLibraryLoaderConfig(
         stem: 'opendal_dart',
         ioDirectory: path,
         webPrefix: 'pkg/',
       );
       await RustLib.init(externalLibrary: await loadExternalLibrary(config));
     }
-    return Storage._(Operator(schemeStr: schemeStr, map: map));
+    return Storage._(Operator(scheme: schemeStr, map: map));
   }
 
   /// Creates a factory function for creating File objects

@@ -34,6 +34,8 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
+    /// If operator supports stat with version.
+    pub stat_with_version: bool,
 
     /// If the operator supports read operations.
     pub read: bool,
@@ -96,6 +98,10 @@ pub struct Capability {
 
     /// If operator supports delete.
     pub delete: bool,
+    /// If delete operations with version are supported.
+    pub delete_with_version: bool,
+    /// If recursive delete operations are supported.
+    pub delete_with_recursive: bool,
 
     /// If operator supports copy.
     pub copy: bool,
@@ -111,6 +117,10 @@ pub struct Capability {
     pub list_with_start_after: bool,
     /// If backend supports list without delimiter.
     pub list_with_recursive: bool,
+    /// If backend supports list with versions.
+    pub list_with_versions: bool,
+    /// If backend supports list with deleted.
+    pub list_with_deleted: bool,
 
     /// If operator supports presign.
     pub presign: bool,
@@ -133,6 +143,7 @@ impl Capability {
             stat: capability.stat,
             stat_with_if_match: capability.stat_with_if_match,
             stat_with_if_none_match: capability.stat_with_if_none_match,
+            stat_with_version: capability.stat_with_version,
             read: capability.read,
             read_with_if_match: capability.read_with_if_match,
             read_with_if_none_match: capability.read_with_if_none_match,
@@ -160,12 +171,16 @@ impl Capability {
             write_with_user_metadata: capability.write_with_user_metadata,
             create_dir: capability.create_dir,
             delete: capability.delete,
+            delete_with_version: capability.delete_with_version,
+            delete_with_recursive: capability.delete_with_recursive,
             copy: capability.copy,
             rename: capability.rename,
             list: capability.list,
             list_with_limit: capability.list_with_limit,
             list_with_start_after: capability.list_with_start_after,
             list_with_recursive: capability.list_with_recursive,
+            list_with_versions: capability.list_with_versions,
+            list_with_deleted: capability.list_with_deleted,
             presign: capability.presign,
             presign_read: capability.presign_read,
             presign_stat: capability.presign_stat,

@@ -152,6 +152,12 @@ class Capability:
     def list_with_recursive(self) -> builtins.bool:
         r"""If backend supports list without delimiter."""
     @property
+    def list_with_versions(self) -> builtins.bool:
+        r"""If backend supports list with versions."""
+    @property
+    def list_with_deleted(self) -> builtins.bool:
+        r"""If backend supports list with deleted."""
+    @property
     def presign(self) -> builtins.bool:
         r"""If operator supports presign."""
     @property

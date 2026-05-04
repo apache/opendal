@@ -201,6 +201,8 @@ export declare class Capability {
   get presignStat(): boolean
   /** If operator supports presign write. */
   get presignWrite(): boolean
+  /** If operator supports presign delete. */
+  get presignDelete(): boolean
   /** If operator supports shared. */
   get shared(): boolean
 }
@@ -268,6 +270,8 @@ export declare class ConcurrentLimitLayer {
 export declare class Entry {
   /** Return the path of this entry. */
   path(): string
+  /** Return the name of this entry. */
+  name(): string
   /** Return the metadata of this entry. */
   metadata(): Metadata
 }
@@ -378,6 +382,23 @@ export declare class Operator {
    * Note that the current options key is snake_case.
    */
   constructor(scheme: string, options?: Record<string, string> | undefined | null)
+  /**
+   * Create a new operator from a URI string.
+   *
+   * The URI encodes the scheme and configuration in a single string, e.g.
+   * `memory://localhost/` or `s3://bucket/path?region=us-east-1`.
+   *
+   * Optional extra key-value options can be passed to override or supplement
+   * the values encoded in the URI.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const op = Operator.fromUri("memory://localhost/");
+   * const op2 = Operator.fromUri("s3://my-bucket/", { region: "us-east-1" });
+   * ```
+   */
+  static fromUri(uri: string, options?: Record<string, string> | undefined | null): Operator
   /** Get current operator(service)'s full capability. */
   capability(): Capability
   /**
@@ -824,6 +845,22 @@ export declare class Operator {
    * ```
    */
   presignStat(path: string, expires: number): Promise<PresignedRequest>
+  /**
+   * Get a presigned request for delete.
+   *
+   * Unit of `expires` is seconds.
+   *
+   * ### Example
+   *
+   * ```javascript
+   * const req = await op.presignDelete(path, parseInt(expires));
+   *
+   * console.log("method: ", req.method);
+   * console.log("url: ", req.url);
+   * console.log("headers: ", req.headers);
+   * ```
+   */
+  presignDelete(path: string, expires: number): Promise<PresignedRequest>
   /** Add a layer to this operator. */
   layer(layer: ExternalObject<Layer>): Operator
 }

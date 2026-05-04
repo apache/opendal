@@ -53,6 +53,13 @@ jobs:
           echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: 25
+          cache: 'maven'
+
       - name: Test Core
         uses: ./.github/actions/test_behavior_binding_java
         with:

@@ -6409,6 +6409,7 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]

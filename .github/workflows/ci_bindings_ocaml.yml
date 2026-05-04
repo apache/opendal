@@ -58,15 +58,6 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@v6
 
-      - name: Cache OPAM dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.opam
-          key: ${{ runner.os }}-opam-${{ hashFiles('bindings/ocaml/dune-project') }}
-          restore-keys: |
-            ${{ runner.os }}-opam-
-            ${{ runner.os }}-opam-doc-
-
       - name: Setup OCaml toolchain
         uses: ./.github/actions/setup-ocaml
         with:

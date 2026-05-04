@@ -75,10 +75,17 @@ impl BytesRange {
     ///
     /// # Panics
     ///
-    /// Panic if input `n` is larger than the size of the range.
+    /// Panic if advancing the offset would overflow or if input `n` is larger
+    /// than the size of the range.
     pub fn advance(&mut self, n: u64) {
-        self.0 += n;
-        self.1 = self.1.map(|size| size - n);
+        self.0 = self
+            .0
+            .checked_add(n)
+            .expect("BytesRange::advance overflow: offset + n exceeds u64::MAX");
+        self.1 = self.1.map(|size| {
+            size.checked_sub(n)
+                .expect("BytesRange::advance underflow: n exceeds range size")
+        });
     }
 
     /// Check if this range is full of this content.
@@ -98,7 +105,11 @@ impl BytesRange {
         (
             Bound::Included(self.0),
             match self.1 {
-                Some(size) => Bound::Excluded(self.0 + size),
+                Some(size) => Bound::Excluded(
+                    self.0
+                        .checked_add(size)
+                        .expect("BytesRange::to_range overflow: offset + size exceeds u64::MAX"),
+                ),
                 None => Bound::Unbounded,
             },
         )
@@ -106,10 +117,26 @@ impl BytesRange {
 
     /// Convert bytes range into rust range with usize.
     pub fn to_range_as_usize(self) -> impl RangeBounds<usize> {
+        let offset: usize = self
+            .0
+            .try_into()
+            .expect("BytesRange::to_range_as_usize: offset exceeds usize::MAX");
         (
-            Bound::Included(self.0 as usize),
+            Bound::Included(offset),
             match self.1 {
-                Some(size) => Bound::Excluded((self.0 + size) as usize),
+                Some(size) => {
+                    let end: usize = self
+                        .0
+                        .checked_add(size)
+                        .expect(
+                            "BytesRange::to_range_as_usize overflow: offset + size exceeds u64::MAX",
+                        )
+                        .try_into()
+                        .expect(
+                            "BytesRange::to_range_as_usize: offset + size exceeds usize::MAX",
+                        );
+                    Bound::Excluded(end)
+                }
                 None => Bound::Unbounded,
             },
         )
@@ -122,7 +149,12 @@ impl Display for BytesRange {
             None => write!(f, "{}-", self.0),
             // A zero-size range can't be represented as a valid HTTP Range.
             Some(0) => Err(std::fmt::Error),
-            Some(size) => write!(f, "{}-{}", self.0, self.0 + size - 1),
+            Some(size) => write!(
+                f,
+                "{}-{}",
+                self.0,
+                self.0.checked_add(size - 1).ok_or(std::fmt::Error)?
+            ),
         }
     }
 }
@@ -323,5 +355,40 @@ mod tests {
             BytesRange::new(u64::MAX, None),
             BytesRange::from((u64::MAX)..)
         );
+    }
+
+    #[test]
+    fn test_bytes_range_display_overflow() {
+        // offset=u64::MAX, size=2 would overflow in Display (u64::MAX + 1)
+        let range = BytesRange::new(u64::MAX, Some(2));
+        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::to_range overflow")]
+    fn test_bytes_range_to_range_overflow() {
+        let range = BytesRange::new(u64::MAX, Some(1));
+        let _ = range.to_range();
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::to_range_as_usize")]
+    fn test_bytes_range_to_range_as_usize_overflow() {
+        let range = BytesRange::new(u64::MAX, Some(1));
+        let _ = range.to_range_as_usize();
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::advance overflow")]
+    fn test_bytes_range_advance_offset_overflow() {
+        let mut range = BytesRange::new(u64::MAX, None);
+        range.advance(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "BytesRange::advance underflow")]
+    fn test_bytes_range_advance_size_underflow() {
+        let mut range = BytesRange::new(0, Some(1));
+        range.advance(2);
     }
 }

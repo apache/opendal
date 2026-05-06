@@ -199,11 +199,11 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         self.inner.write(bs).await
     }
 
-    async fn abort(&mut self) -> Result<()> {
-        self.inner.abort().await
-    }
-
     async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
     }
 }

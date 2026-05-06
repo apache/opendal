@@ -237,7 +237,7 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 }
 
 #[cfg(feature = "auto-register-services")]
-#[ctor::ctor]
+#[ctor::ctor(unsafe)]
 fn register_default_operator_registry() {
     init_default_registry();
 }

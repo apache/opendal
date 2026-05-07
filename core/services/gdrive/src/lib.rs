@@ -30,7 +30,6 @@ mod core;
 mod deleter;
 mod error;
 mod lister;
-mod path_index;
 mod writer;
 
 pub use builder::GdriveBuilder as Gdrive;

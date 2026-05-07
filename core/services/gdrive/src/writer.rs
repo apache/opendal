@@ -49,43 +49,29 @@ impl oio::OneShotWrite for GdriveWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
         let size = bs.len();
 
-        let mut current_file_id = self.file_id.clone();
-        let mut retried = false;
+        let resp = if let Some(file_id) = &self.file_id {
+            self.core
+                .gdrive_upload_overwrite_simple_request(file_id, size as u64, bs)
+                .await
+        } else {
+            self.core
+                .gdrive_upload_simple_request(&self.path, size as u64, bs)
+                .await
+        }?;
 
-        loop {
-            let resp = if let Some(file_id) = &current_file_id {
-                self.core
-                    .gdrive_upload_overwrite_simple_request(file_id, size as u64, bs.clone())
-                    .await
-            } else {
-                self.core
-                    .gdrive_upload_simple_request(&self.path, size as u64, bs.clone())
-                    .await
-            }?;
-
-            match resp.status() {
-                StatusCode::OK | StatusCode::CREATED => {
-                    let mut metadata =
-                        Metadata::new(EntryMode::FILE).with_content_length(size as u64);
-
-                    if current_file_id.is_none() {
-                        let bs = resp.into_body();
-                        let file: GdriveFile = serde_json::from_reader(bs.reader())
-                            .map_err(new_json_deserialize_error)?;
-                        metadata = metadata.with_content_type(file.mime_type);
-                        self.core.cache_file_id(&self.path, &file.id).await;
-                    }
-                    self.core.record_recent_upsert(&self.path, metadata).await;
-                    return Ok(Metadata::default());
+        let status = resp.status();
+        match status {
+            StatusCode::OK | StatusCode::CREATED => {
+                // If we don't have the file id before, let's update the cache to avoid re-fetching.
+                if self.file_id.is_none() {
+                    let bs = resp.into_body();
+                    let file: GdriveFile =
+                        serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+                    self.core.path_cache.insert(&self.path, &file.id).await;
                 }
-                StatusCode::NOT_FOUND if !retried && current_file_id.is_some() => {
-                    retried = true;
-                    self.core.refresh_path(&self.path).await;
-                    current_file_id = self.core.resolve_path(&self.path).await?;
-                    continue;
-                }
-                _ => return Err(parse_error(resp)),
+                Ok(Metadata::default())
             }
+            _ => Err(parse_error(resp)),
         }
     }
 }

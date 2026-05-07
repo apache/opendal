@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -30,7 +29,6 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::error::parse_error;
-use super::path_index::GdrivePathIndex;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -41,13 +39,8 @@ pub struct GdriveCore {
 
     pub signer: Arc<Mutex<GdriveSigner>>,
 
-    /// Service-local path index for resolving path -> file id mappings.
-    pub path_index: GdrivePathIndex<GdrivePathQuery>,
-
-    /// Keep a short-lived local view of recent mutations so list and stat
-    /// operations stay read-after-write consistent within the current operator
-    /// session.
-    pub recent_entries: Mutex<GdriveRecentState>,
+    /// Cache the mapping from path to file id
+    pub path_cache: PathCacher<GdrivePathQuery>,
 }
 
 impl Debug for GdriveCore {
@@ -59,177 +52,6 @@ impl Debug for GdriveCore {
 }
 
 impl GdriveCore {
-    pub async fn cache_file_id(&self, path: &str, file_id: &str) {
-        self.path_index.upsert_file(path, file_id).await;
-    }
-
-    pub async fn cache_dir_id(&self, path: &str, file_id: &str) {
-        self.path_index.upsert_dir(path, file_id).await;
-    }
-
-    pub async fn invalidate_file_id(&self, path: &str) {
-        self.path_index.invalidate_file(path).await;
-    }
-
-    pub async fn invalidate_dir_id(&self, path: &str) {
-        self.path_index.invalidate_dir(path).await;
-    }
-
-    pub async fn refresh_path(&self, path: &str) {
-        self.path_index.refresh_path(path).await;
-    }
-
-    pub async fn refresh_dir_path(&self, path: &str) {
-        self.invalidate_dir_id(path).await;
-        self.refresh_path(path).await;
-    }
-
-    pub async fn resolve_path(&self, path: &str) -> Result<Option<String>> {
-        self.path_index.get(path).await
-    }
-
-    pub async fn resolve_path_after_refresh(&self, path: &str) -> Result<Option<String>> {
-        self.refresh_path(path).await;
-        self.resolve_path(path).await
-    }
-
-    pub async fn ensure_dir(&self, path: &str) -> Result<String> {
-        self.path_index.ensure_dir(path).await
-    }
-
-    pub async fn trash_path_if_exists(&self, path: &str) -> Result<()> {
-        let mut target_id = match self.resolve_path(path).await? {
-            Some(id) => Some(id),
-            None => self.resolve_path_after_refresh(path).await?,
-        };
-
-        if let Some(id) = target_id.take() {
-            let mut resp = self.gdrive_trash(&id).await?;
-            if resp.status() == StatusCode::NOT_FOUND {
-                self.refresh_path(path).await;
-                target_id = self.resolve_path(path).await?;
-                if let Some(id) = target_id {
-                    resp = self.gdrive_trash(&id).await?;
-                } else {
-                    return Ok(());
-                }
-            }
-
-            if resp.status() == StatusCode::NOT_FOUND {
-                return Ok(());
-            }
-            if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp));
-            }
-
-            self.invalidate_file_id(path).await;
-            self.invalidate_dir_id(path).await;
-        }
-
-        Ok(())
-    }
-
-    pub async fn record_recent_upsert(&self, path: &str, metadata: Metadata) {
-        let mut recent_entries = self.recent_entries.lock().await;
-        prune_recent_entries(&mut recent_entries);
-
-        let mode = metadata.mode();
-        let path = canonical_recent_path(path, mode);
-        let expires_at = Timestamp::now() + Duration::from_secs(15);
-        insert_recent_entry(
-            &mut recent_entries.entries,
-            &path,
-            mode,
-            GdriveRecentEntry {
-                metadata: Some(metadata),
-                expires_at,
-            },
-        );
-        revive_recent_parent_dirs(&mut recent_entries, &path, expires_at);
-    }
-
-    pub async fn record_recent_delete(&self, path: &str, mode: EntryMode) {
-        let mut recent_entries = self.recent_entries.lock().await;
-        prune_recent_entries(&mut recent_entries);
-
-        let path = canonical_recent_path(path, mode);
-        let expires_at = Timestamp::now() + Duration::from_secs(15);
-        insert_recent_entry(
-            &mut recent_entries.entries,
-            &path,
-            mode,
-            GdriveRecentEntry {
-                metadata: None,
-                expires_at,
-            },
-        );
-        if mode.is_dir() {
-            recent_entries.tombstones.insert(path, expires_at);
-        }
-    }
-
-    pub async fn recent_entry_for_path(&self, path: &str) -> GdriveRecentPathState {
-        let mut recent_entries = self.recent_entries.lock().await;
-        prune_recent_entries(&mut recent_entries);
-
-        let recent_entry = lookup_recent_entry(&recent_entries.entries, path);
-        let tombstone = lookup_recent_tombstone(&recent_entries.tombstones, path);
-
-        match (recent_entry, tombstone) {
-            (Some(entry), Some(tombstone_expires_at))
-                if tombstone_expires_at > entry.expires_at =>
-            {
-                GdriveRecentPathState::Deleted
-            }
-            (Some(entry), _) => match entry.metadata.clone() {
-                Some(metadata) => GdriveRecentPathState::Present(Box::new(metadata)),
-                None => GdriveRecentPathState::Deleted,
-            },
-            (None, Some(_)) => GdriveRecentPathState::Deleted,
-            (None, None) => GdriveRecentPathState::Missing,
-        }
-    }
-
-    pub async fn recent_entries_for_list(
-        &self,
-        scope_path: &str,
-        recursive: bool,
-    ) -> Vec<(String, Metadata)> {
-        let mut recent_entries = self.recent_entries.lock().await;
-        prune_recent_entries(&mut recent_entries);
-
-        let mut entries = recent_entries
-            .entries
-            .iter()
-            .filter_map(|(path, entry)| {
-                let metadata = entry.metadata.clone()?;
-                if metadata.mode().is_dir() && path != &normalize_dir_path(path) {
-                    return None;
-                }
-                if let Some(tombstone_expires_at) =
-                    lookup_recent_tombstone(&recent_entries.tombstones, path)
-                {
-                    if tombstone_expires_at > entry.expires_at {
-                        return None;
-                    }
-                }
-                if let Some(latest_entry) = lookup_recent_entry(&recent_entries.entries, path) {
-                    if latest_entry.expires_at > entry.expires_at {
-                        return None;
-                    }
-                }
-                if recent_entry_in_scope(scope_path, path, metadata.mode(), recursive) {
-                    Some((path.clone(), metadata))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        entries.sort_by(|left, right| left.0.cmp(&right.0));
-        entries
-    }
-
     pub async fn gdrive_stat_by_id(&self, file_id: &str) -> Result<Response<Buffer>> {
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
@@ -244,29 +66,22 @@ impl GdriveCore {
         self.info.http_client().send(req).await
     }
 
+    pub async fn gdrive_stat(&self, path: &str) -> Result<Response<Buffer>> {
+        let path = build_abs_path(&self.root, path);
+        let file_id = self.path_cache.get(&path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            format!("path not found: {path}"),
+        ))?;
+
+        self.gdrive_stat_by_id(&file_id).await
+    }
+
     pub async fn gdrive_get(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
         let path = build_abs_path(&self.root, path);
-        match self.recent_entry_for_path(&path).await {
-            GdriveRecentPathState::Deleted => {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    format!("path not found: {path}"),
-                ));
-            }
-            GdriveRecentPathState::Present(_) | GdriveRecentPathState::Missing => {}
-        }
-        let path_id = match self.resolve_path(&path).await? {
-            Some(id) => id,
-            None => match self.resolve_path_after_refresh(&path).await? {
-                Some(id) => id,
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::NotFound,
-                        format!("path not found: {path}"),
-                    ));
-                }
-            },
-        };
+        let path_id = self.path_cache.get(&path).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            format!("path not found: {path}"),
+        ))?;
 
         let url: String = format!("https://www.googleapis.com/drive/v3/files/{path_id}?alt=media");
 
@@ -360,26 +175,18 @@ impl GdriveCore {
         source: &str,
         target: &str,
     ) -> Result<Response<Buffer>> {
-        let source_file_id = match self.resolve_path(source).await? {
-            Some(id) => id,
-            None => self
-                .resolve_path_after_refresh(source)
-                .await?
-                .ok_or(Error::new(
-                    ErrorKind::NotFound,
-                    format!("source path not found: {source}"),
-                ))?,
-        };
+        let source_file_id = self.path_cache.get(source).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            format!("source path not found: {source}"),
+        ))?;
         let source_parent = get_parent(source);
-        let source_parent_id = match self.resolve_path(source_parent).await? {
-            Some(id) => id,
-            None => self
-                .resolve_path_after_refresh(source_parent)
-                .await?
-                .expect("old parent must exist"),
-        };
+        let source_parent_id = self
+            .path_cache
+            .get(source_parent)
+            .await?
+            .expect("old parent must exist");
 
-        let target_parent_id = self.path_index.ensure_dir(get_parent(target)).await?;
+        let target_parent_id = self.path_cache.ensure_dir(get_parent(target)).await?;
         let target_file_name = get_basename(target);
 
         let metadata = &json!({
@@ -424,7 +231,7 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let parent = self.path_index.ensure_dir(get_parent(path)).await?;
+        let parent = self.path_cache.ensure_dir(get_parent(path)).await?;
 
         let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 
@@ -500,24 +307,25 @@ impl GdriveCore {
     pub async fn gdrive_copy(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
 
-        let from_file_id = match self.resolve_path(&from).await? {
-            Some(id) => id,
-            None => match self.resolve_path_after_refresh(&from).await? {
-                Some(id) => id,
-                None => {
-                    return Err(Error::new(
-                        ErrorKind::NotFound,
-                        "the file to copy does not exist",
-                    ));
-                }
-            },
-        };
+        let from_file_id = self.path_cache.get(&from).await?.ok_or(Error::new(
+            ErrorKind::NotFound,
+            "the file to copy does not exist",
+        ))?;
 
         let to_name = get_basename(to);
         let to_path = build_abs_path(&self.root, to);
-        let to_parent_id = self.path_index.ensure_dir(get_parent(&to_path)).await?;
+        let to_parent_id = self.path_cache.ensure_dir(get_parent(&to_path)).await?;
 
-        self.trash_path_if_exists(&to_path).await?;
+        // copy will overwrite `to`, delete it if exist
+        if let Some(id) = self.path_cache.get(&to_path).await? {
+            let resp = self.gdrive_trash(&id).await?;
+            let status = resp.status();
+            if status != StatusCode::OK {
+                return Err(parse_error(resp));
+            }
+
+            self.path_cache.remove(&to_path).await;
+        }
 
         let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
 
@@ -534,140 +342,6 @@ impl GdriveCore {
         self.sign(&mut req).await?;
 
         self.info.http_client().send(req).await
-    }
-}
-
-#[derive(Clone)]
-pub struct GdriveRecentEntry {
-    metadata: Option<Metadata>,
-    expires_at: Timestamp,
-}
-
-#[derive(Default)]
-pub struct GdriveRecentState {
-    entries: HashMap<String, GdriveRecentEntry>,
-    tombstones: HashMap<String, Timestamp>,
-}
-
-#[derive(Clone, Debug)]
-pub enum GdriveRecentPathState {
-    Missing,
-    Deleted,
-    Present(Box<Metadata>),
-}
-
-pub(crate) fn normalize_dir_path(path: &str) -> String {
-    if path.is_empty() || path.ends_with('/') {
-        path.to_string()
-    } else {
-        format!("{path}/")
-    }
-}
-
-fn canonical_recent_path(path: &str, mode: EntryMode) -> String {
-    if mode.is_dir() {
-        normalize_dir_path(path)
-    } else {
-        path.to_string()
-    }
-}
-
-fn prune_recent_entries(entries: &mut GdriveRecentState) {
-    let now = Timestamp::now();
-    entries.entries.retain(|_, entry| entry.expires_at > now);
-    entries.tombstones.retain(|_, expires_at| *expires_at > now);
-}
-
-fn lookup_recent_entry<'a>(
-    entries: &'a HashMap<String, GdriveRecentEntry>,
-    path: &str,
-) -> Option<&'a GdriveRecentEntry> {
-    entries.get(path)
-}
-
-fn lookup_recent_tombstone(
-    tombstones: &HashMap<String, Timestamp>,
-    path: &str,
-) -> Option<Timestamp> {
-    let candidates = recent_path_candidates(path);
-    tombstones
-        .iter()
-        .filter(|(tombstone, _)| {
-            candidates
-                .iter()
-                .any(|candidate| path_under_tombstone(candidate, tombstone))
-        })
-        .map(|(_, expires_at)| *expires_at)
-        .max()
-}
-
-fn revive_recent_parent_dirs(entries: &mut GdriveRecentState, path: &str, expires_at: Timestamp) {
-    let mut parent = get_parent(path).to_string();
-
-    while !parent.is_empty() && parent != "/" {
-        if lookup_recent_tombstone(&entries.tombstones, &parent).is_some() {
-            insert_recent_entry(
-                &mut entries.entries,
-                &parent,
-                EntryMode::DIR,
-                GdriveRecentEntry {
-                    metadata: Some(Metadata::new(EntryMode::DIR)),
-                    expires_at,
-                },
-            );
-        }
-
-        parent = get_parent(&parent).to_string();
-    }
-}
-
-fn insert_recent_entry(
-    entries: &mut HashMap<String, GdriveRecentEntry>,
-    path: &str,
-    mode: EntryMode,
-    entry: GdriveRecentEntry,
-) {
-    entries.insert(path.to_string(), entry.clone());
-
-    if mode.is_dir() {
-        let alias = path.trim_end_matches('/');
-        if !alias.is_empty() {
-            entries.insert(alias.to_string(), entry);
-        }
-    }
-}
-
-fn recent_path_candidates(path: &str) -> Vec<String> {
-    let mut candidates = vec![path.to_string()];
-    let dir_path = normalize_dir_path(path);
-    if dir_path != path {
-        candidates.push(dir_path);
-    }
-    candidates
-}
-
-fn path_under_tombstone(path: &str, tombstone: &str) -> bool {
-    tombstone.is_empty() || path == tombstone || path.starts_with(tombstone)
-}
-
-fn recent_entry_in_scope(scope_path: &str, path: &str, mode: EntryMode, recursive: bool) -> bool {
-    if recursive {
-        if scope_path.is_empty() {
-            return true;
-        }
-
-        if scope_path.ends_with('/') {
-            return path.starts_with(scope_path) && path != scope_path;
-        }
-
-        return path == canonical_recent_path(scope_path, mode) || path.starts_with(scope_path);
-    }
-
-    let parent = get_parent(path);
-    if scope_path.is_empty() {
-        parent == "/"
-    } else {
-        parent == scope_path
     }
 }
 
@@ -777,12 +451,10 @@ impl PathQuery for GdrivePathQuery {
             queries.push("mimeType = 'application/vnd.google-apps.folder'".to_string());
         }
         let query = queries.join(" and ");
-        let order_by = "modifiedTime desc,createdTime desc";
 
         let url = format!(
-            "https://www.googleapis.com/drive/v3/files?q={}&orderBy={}&pageSize=1",
-            percent_encode_path(query.as_str()),
-            percent_encode_path(order_by)
+            "https://www.googleapis.com/drive/v3/files?q={}",
+            percent_encode_path(query.as_str())
         );
 
         let mut req = Request::get(&url)
@@ -876,160 +548,4 @@ pub struct GdriveFile {
 pub(crate) struct GdriveFileList {
     pub(crate) files: Vec<GdriveFile>,
     pub(crate) next_page_token: Option<String>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn mock_gdrive_core() -> GdriveCore {
-        let info = Arc::new(AccessorInfo::default());
-        let signer = Arc::new(Mutex::new(GdriveSigner::new(info.clone())));
-
-        GdriveCore {
-            info: info.clone(),
-            root: "/".to_string(),
-            signer: signer.clone(),
-            path_index: GdrivePathIndex::new(GdrivePathQuery::new(info, signer)),
-            recent_entries: Mutex::new(GdriveRecentState::default()),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_recent_entries_for_direct_list() {
-        let core = mock_gdrive_core();
-
-        core.record_recent_upsert(
-            "parent/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(5),
-        )
-        .await;
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
-            .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
-            .await;
-
-        let entries = core.recent_entries_for_list("parent/", false).await;
-        let paths = entries
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            paths,
-            vec!["parent/dir/".to_string(), "parent/file.txt".to_string()]
-        );
-    }
-
-    #[tokio::test]
-    async fn test_recent_entries_for_recursive_prefix_list() {
-        let core = mock_gdrive_core();
-
-        core.record_recent_upsert("parent/file.txt", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_upsert("prefix", Metadata::new(EntryMode::FILE))
-            .await;
-        core.record_recent_upsert("prefix-child", Metadata::new(EntryMode::FILE))
-            .await;
-
-        let parent_entries = core.recent_entries_for_list("parent/", true).await;
-        let parent_paths = parent_entries
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            parent_paths,
-            vec![
-                "parent/file.txt".to_string(),
-                "parent/nested/file.txt".to_string()
-            ]
-        );
-
-        let prefix_entries = core.recent_entries_for_list("prefix", true).await;
-        let prefix_paths = prefix_entries
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect::<Vec<_>>();
-        assert_eq!(
-            prefix_paths,
-            vec!["prefix".to_string(), "prefix-child".to_string()]
-        );
-    }
-
-    #[tokio::test]
-    async fn test_recent_entry_for_dir_alias() {
-        let core = mock_gdrive_core();
-
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
-            .await;
-
-        match core.recent_entry_for_path("parent/dir").await {
-            GdriveRecentPathState::Present(_) => {}
-            other => panic!("unexpected state for dir alias: {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_recent_tombstone_hides_descendants_until_recreated() {
-        let core = mock_gdrive_core();
-
-        core.record_recent_upsert(
-            "parent/dir/stale.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
-        .await;
-        core.record_recent_delete("parent/dir/", EntryMode::DIR)
-            .await;
-
-        match core.recent_entry_for_path("parent/dir").await {
-            GdriveRecentPathState::Deleted => {}
-            other => panic!("unexpected state for deleted dir: {other:?}"),
-        }
-
-        match core.recent_entry_for_path("parent/dir/file.txt").await {
-            GdriveRecentPathState::Deleted => {}
-            other => panic!("unexpected state for deleted child: {other:?}"),
-        }
-
-        match core.recent_entry_for_path("parent/dir/stale.txt").await {
-            GdriveRecentPathState::Deleted => {}
-            other => panic!("unexpected state for stale child: {other:?}"),
-        }
-
-        core.record_recent_upsert(
-            "parent/dir/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
-        .await;
-
-        match core.recent_entry_for_path("parent/dir").await {
-            GdriveRecentPathState::Present(_) => {}
-            other => panic!("unexpected state for revived dir: {other:?}"),
-        }
-
-        match core.recent_entry_for_path("parent/dir/file.txt").await {
-            GdriveRecentPathState::Present(_) => {}
-            other => panic!("unexpected state for revived child: {other:?}"),
-        }
-
-        match core.recent_entry_for_path("parent/dir/stale.txt").await {
-            GdriveRecentPathState::Deleted => {}
-            other => panic!("unexpected state for stale sibling: {other:?}"),
-        }
-
-        let entries = core.recent_entries_for_list("parent/", true).await;
-        let paths = entries
-            .into_iter()
-            .map(|(path, _)| path)
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            paths,
-            vec!["parent/dir/".to_string(), "parent/dir/file.txt".to_string()]
-        );
-    }
 }

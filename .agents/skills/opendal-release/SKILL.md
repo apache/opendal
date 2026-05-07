@@ -17,10 +17,27 @@ The primary repository runbook is `website/community/release/release.md`. The sp
 - Do not use web search for repository state. Query live GitHub, SVN, Nexus, crates.io, PyPI, npm, and Maven URLs directly.
 - Do not claim any step succeeded until the external system confirms it.
 - Do not reuse an RC tag after `main` advances. Preserve the old RC and increment the RC number.
+- Do not assume bindings or integrations share the top-level OpenDAL version. Each released binding or integration can have its own version.
 - Do not start a public vote with broken links, open Maven staging, missing SVN artifacts, or incomplete required workflows.
 - Do not conflate Nexus `Close` before voting with Nexus `Release` after the vote passes.
 - Do not over-block on unrelated/noncritical CI if the release gate is explicitly narrowed.
 - Commit messages and public release text must not include agent attribution.
+
+## Version Scope Rules
+
+OpenDAL releases have multiple version scopes:
+
+- `opendal_version`: the final core OpenDAL release version, for example `0.56.0`.
+- `release_version`: the RC directory and RC tag version, for example `0.56.0-rc.4`.
+- Package versions: the versions of individual core, binding, and integration packages listed in `dev/src/release/package.rs`.
+
+Rules:
+
+- Use `release_version` for RC tags, vote titles, staged website URLs, and ASF SVN `dist/dev/opendal/${release_version}/` directories.
+- Use `opendal_version` for the final release tag and ASF SVN `dist/release/opendal/${opendal_version}/`.
+- Use package-specific versions for generated source archive names, package repository checks, and language binding or integration readiness.
+- When verifying artifacts, build an explicit package-to-version map from `dev/src/release/package.rs`; do not infer binding or integration versions from `opendal_version`.
+- When checking upgrade docs, only check released bindings and integrations that appear in the current package list, and only add upgrade notes for components with breaking changes.
 
 ## Release State Model
 
@@ -162,7 +179,7 @@ Verify:
 
 - Artifacts exist for every package listed in `dev/src/release/package.rs`.
 - Each package group has `.tar.gz`, `.tar.gz.asc`, and `.tar.gz.sha512`.
-- Artifact filenames use package-specific versions, not necessarily `opendal_version`.
+- Artifact filenames use package-specific versions, not necessarily `opendal_version`. For example, Java, Python, Node.js, C/C++, and integrations can all differ from each other and from core.
 - There is no obsolete monolithic `apache-opendal-${opendal_version}-src.tar.gz` assumption.
 
 ## Upload To ASF SVN `dist/dev`
@@ -213,6 +230,7 @@ Run this checklist immediately before creating the vote discussion:
 - RC tag exists and points to the intended commit.
 - Required RC workflows are `completed/success`.
 - `dist/dev/opendal/${release_version}/` exists and contains all generated source artifacts.
+- The artifact filenames in `dist/dev` match the package-specific versions from `dev/src/release/package.rs`.
 - `KEYS` URL is reachable: `https://downloads.apache.org/opendal/KEYS`.
 - Maven staging URL returns success and is not an open/hidden staging repo.
 - TestPyPI project URL is reachable: `https://test.pypi.org/project/opendal/`.
@@ -293,7 +311,7 @@ svn mv https://dist.apache.org/repos/dist/dev/opendal/${release_version} \
    - Java: Maven Central or Nexus search for `opendal`
    - Node.js: `https://www.npmjs.com/package/opendal`
 
-For Rust, verify both top-level `opendal` and any split crates added or changed in the release.
+For Rust, verify both top-level `opendal` and any split crates added or changed in the release. For bindings and integrations, verify the package-specific version from `dev/src/release/package.rs`, not `opendal_version`.
 
 5. Create GitHub Release for `v${opendal_version}`:
    - Target branch is `main`.

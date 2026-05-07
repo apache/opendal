@@ -18,7 +18,6 @@
 [package]
 description = "Test harness and utilities for Apache OpenDAL"
 name = "opendal-testkit"
-publish = false
 
 authors = { workspace = true }
 edition = { workspace = true }

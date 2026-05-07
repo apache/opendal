@@ -1,3 +1,11 @@
+# Upgrade to v0.57
+
+## Public API
+
+### `RetryInterceptor::intercept` takes `RetryEvent`
+
+`RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
+
 # Upgrade to v0.56
 
 ## Public API

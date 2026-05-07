@@ -16,6 +16,7 @@
 // under the License.
 
 import 'dart:io' as io;
+import 'dart:typed_data';
 import 'package:system_info2/system_info2.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'src/rust/frb_generated.dart';
@@ -147,6 +148,22 @@ class File {
 
   void deleteSync() {
     _operator.deleteSync(path: path);
+  }
+
+  Future<Uint8List> read() {
+    return _operator.read(path: path);
+  }
+
+  Uint8List readSync() {
+    return _operator.readSync(path: path);
+  }
+
+  Future<void> write(Uint8List data) {
+    return _operator.write(path: path, data: data);
+  }
+
+  void writeSync(Uint8List data) {
+    _operator.writeSync(path: path, data: data);
   }
 }
 

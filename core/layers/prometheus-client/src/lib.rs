@@ -506,6 +506,9 @@ impl EncodeLabelSet for OperationLabels {
         if let Some(code) = &self.labels.status_code {
             (observe::LABEL_STATUS_CODE, code.as_str()).encode(encoder.encode_label())?;
         }
+        if let Some(service_operation) = self.labels.service_operation {
+            (observe::LABEL_SERVICE_OPERATION, service_operation).encode(encoder.encode_label())?;
+        }
         Ok(())
     }
 }

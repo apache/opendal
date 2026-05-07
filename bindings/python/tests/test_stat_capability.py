@@ -15,38 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-edition = "2024"
-name = "opendal-dart"
-version = "0.1.0"
+import opendal
 
-[dependencies]
-anyhow = "1.0"
-flutter_rust_bridge = "=2.12.0"
-opendal = { path = "../../../core", features = [
-  "blocking",
 
-  # These are default features before v0.46. TODO: change to optional features
-  "services-azblob",
-  "services-azdls",
-  "services-cos",
-  "services-fs",
-  "services-gcs",
-  "services-ghac",
-  "services-http",
-  "services-ipmfs",
-  "services-memory",
-  "services-obs",
-  "services-oss",
-  "services-s3",
-  "services-webdav",
-  "services-webhdfs",
-  "services-azfile",
-] }
-tokio = { version = "1.0", features = ["full"] }
+def test_stat_capability_fields_exist():
+    op = opendal.Operator("memory")
+    cap = op.capability()
 
-[lib]
-crate-type = ["staticlib", "cdylib"]
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+    assert isinstance(cap.stat_with_if_modified_since, bool)
+    assert isinstance(cap.stat_with_if_unmodified_since, bool)
+    assert isinstance(cap.stat_with_version, bool)

@@ -202,6 +202,8 @@ pub static LABEL_OPERATION: &str = "operation";
 pub static LABEL_ERROR: &str = "error";
 /// The metric label for the http code.
 pub static LABEL_STATUS_CODE: &str = "status_code";
+/// The metric label for the service-specific operation (e.g., "GetObject", "UploadPart").
+pub static LABEL_SERVICE_OPERATION: &str = "service_operation";
 
 /// MetricLabels are the labels for the metrics.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -226,6 +228,8 @@ pub struct MetricLabels {
     /// Only populated for `HttpStatusErrorsTotal` metric.
     /// Used to track frequency of specific HTTP error status codes.
     pub status_code: Option<StatusCode>,
+    /// The service-specific operation name as an optional supplement for operation name.
+    pub service_operation: Option<&'static str>,
 }
 
 impl MetricLabels {
@@ -569,7 +573,7 @@ impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
 
 impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
-        let labels = MetricLabels::new(
+        let mut labels = MetricLabels::new(
             self.info.clone(),
             req.extensions()
                 .get::<Operation>()
@@ -577,6 +581,7 @@ impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
                 .map(Operation::into_static)
                 .unwrap_or("unknown"),
         );
+        labels.service_operation = req.extensions().get::<ServiceOperation>().map(|s| s.0);
 
         let start = Instant::now();
         let req_size = req.body().len();

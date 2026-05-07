@@ -243,6 +243,56 @@ impl GooseFsCore {
         let src = self.full_path(from);
         let dst = self.full_path(to);
         let master = self.master().await?;
+
+        // Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's
+        // behavior contract for rename (see `rename_test.go::testRenameNested`
+        // and `testRenameOverwrite`):
+        //
+        //   1. Destination parent directory is created on demand
+        //      (`testRenameNested` writes to `<uuid>/<uuid>/<uuid>` without
+        //      mkdir'ing intermediate levels first; S3-style backends treat
+        //      this as implicit, fs-style backends must emulate it).
+        //   2. If the destination exists as a file, overwrite by deleting
+        //      it first (`testRenameOverwrite`). GooseFS `rename` itself
+        //      would otherwise return AlreadyExists.
+        //   3. If the destination exists as a directory, surface
+        //      IsADirectory — matches the error code the behavior tests
+        //      assert in `testRenameTargetDir`.
+        //
+        // Source NotFound is reported by the underlying `rename` RPC
+        // (`testRenameNonExistingSource` expects `NotFound`), so we don't
+        // pre-stat the source.
+        match master.get_status(&dst).await {
+            Ok(info) => {
+                if info.folder.unwrap_or(false) {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "rename destination is a directory",
+                    )
+                    .with_context("service", super::GOOSEFS_SCHEME)
+                    .with_context("from", from)
+                    .with_context("to", to));
+                }
+                // Destination is an existing file — delete it so the
+                // subsequent rename can overwrite atomically at the
+                // master level.
+                master.delete(&dst, false).await.map_err(parse_error)?;
+            }
+            Err(goosefs_sdk::error::Error::NotFound { .. }) => {
+                // Ensure the destination's parent directory exists.
+                // `create_directory` with recursive=true is idempotent,
+                // so calling it for a parent that already exists is a
+                // cheap metadata no-op on the master.
+                if let Some(parent) = parent_of(&dst) {
+                    master
+                        .create_directory(parent, true)
+                        .await
+                        .map_err(parse_error)?;
+                }
+            }
+            Err(e) => return Err(parse_error(e)),
+        }
+
         master.rename(&src, &dst).await.map_err(parse_error)
     }
 
@@ -389,5 +439,63 @@ impl GooseFsCore {
         };
         let rel = build_rel_path(&self.root, &rel_path);
         Ok((rel, self.file_info_to_metadata(info)))
+    }
+}
+
+/// Return the parent directory of an absolute GooseFS path, or `None`
+/// when the path has no meaningful parent to create (i.e. it already
+/// points at the filesystem root).
+///
+/// Input paths here are always produced by [`GooseFsCore::full_path`],
+/// so they are already normalized, absolute (leading `/`) and do not
+/// contain trailing slashes (OpenDAL's `build_rooted_abs_path` strips
+/// them for non-directory paths). We deliberately do not depend on
+/// `opendal_core::raw::get_parent` because that function's contract is
+/// defined for OpenDAL *relative* paths and treats trailing slashes
+/// specially; here we want fs-like semantics.
+fn parent_of(path: &str) -> Option<&str> {
+    // `path` is expected to be absolute. If it isn't, still behave
+    // sensibly by returning None instead of panicking.
+    let trimmed = path.strip_suffix('/').unwrap_or(path);
+    match trimmed.rfind('/') {
+        // "/foo" → parent is "/" — no need to create the root itself.
+        Some(0) => None,
+        // "/foo/bar" → parent is "/foo"
+        Some(idx) => Some(&trimmed[..idx]),
+        // No slash at all → no parent to create.
+        None => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parent_of;
+
+    #[test]
+    fn parent_of_root_returns_none() {
+        assert_eq!(parent_of("/"), None);
+    }
+
+    #[test]
+    fn parent_of_top_level_entry_returns_none() {
+        // "/foo" has `/` as parent; creating the root is a no-op so we
+        // skip it entirely.
+        assert_eq!(parent_of("/foo"), None);
+        assert_eq!(parent_of("/foo/"), None);
+    }
+
+    #[test]
+    fn parent_of_nested_entry_returns_parent() {
+        assert_eq!(parent_of("/a/b/c"), Some("/a/b"));
+        assert_eq!(parent_of("/a/b/c/"), Some("/a/b"));
+        assert_eq!(parent_of("/a/b/c/d"), Some("/a/b/c"));
+    }
+
+    #[test]
+    fn parent_of_relative_path_returns_none() {
+        // Defensive: we never expect a relative path here, but we
+        // should not panic on one.
+        assert_eq!(parent_of("foo"), None);
+        assert_eq!(parent_of(""), None);
     }
 }

@@ -116,3 +116,102 @@ impl opendal_core::Configurator for GooseFsConfig {
         GooseFsBuilder { config: self }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::Configurator;
+    use opendal_core::OperatorUri;
+
+    /// `goosefs://host:port/path` must map to `master_addr=host:port` and
+    /// `root=<path without surrounding slashes>`. This mirrors the behavior
+    /// OpenDAL's `Operator::from_uri("goosefs://...")` relies on and is
+    /// exercised indirectly by the behavior test matrix through
+    /// `Operator::via_iter("goosefs", ...)`.
+    #[test]
+    fn from_uri_sets_master_addr_and_root() {
+        let uri = OperatorUri::new(
+            "goosefs://10.0.0.1:9200/data/raw",
+            Vec::<(String, String)>::new(),
+        )
+        .expect("valid uri");
+
+        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+
+        assert_eq!(cfg.master_addr.as_deref(), Some("10.0.0.1:9200"));
+        // `OperatorUri::new` trims leading/trailing slashes from the path, so
+        // the root stored here is the *inner* part only. Normalization to an
+        // absolute "/…/…/" form happens inside `GooseFsBuilder::build()`.
+        assert_eq!(cfg.root.as_deref(), Some("data/raw"));
+    }
+
+    /// When the URI path is empty (or just `/`), `root` must stay `None` and
+    /// `build()` is expected to fall back to the builder-level default.
+    #[test]
+    fn from_uri_without_path_leaves_root_none() {
+        let uri = OperatorUri::new("goosefs://master:9200", Vec::<(String, String)>::new())
+            .expect("valid uri");
+
+        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+
+        assert_eq!(cfg.master_addr.as_deref(), Some("master:9200"));
+        assert!(
+            cfg.root.is_none(),
+            "empty path must not produce a root, got: {:?}",
+            cfg.root
+        );
+    }
+
+    /// HA note: since URIs don't allow commas in `host`, HA mode is
+    /// expressed through the extra-option/env-var pathway, not through the
+    /// URI authority. When both are present the URI authority **wins** —
+    /// this is the deliberate contract of `from_uri` (it ensures a user who
+    /// typed `goosefs://host:port/` can't be silently overridden by a stale
+    /// env var). The full HA list therefore reaches `build()` only when the
+    /// caller goes through `from_iter` / `Operator::via_iter` without the
+    /// URI authority, which is covered by [`from_iter_picks_up_every_known_field`].
+    #[test]
+    fn from_uri_authority_overrides_extra_master_addr() {
+        let uri = OperatorUri::new(
+            "goosefs://host1:9200/",
+            vec![(
+                "master_addr".into(),
+                "host1:9200,host2:9200,host3:9200".into(),
+            )],
+        )
+        .expect("valid uri");
+
+        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+
+        assert_eq!(
+            cfg.master_addr.as_deref(),
+            Some("host1:9200"),
+            "URI authority must win over extra-options master_addr to \
+             prevent stale env/option values from silently shadowing the \
+             user-typed URI"
+        );
+    }
+
+    /// `from_iter` is the path taken by `Operator::via_iter(scheme, env_map)`
+    /// — the main entry point used by the behavior test harness (it reads
+    /// `OPENDAL_GOOSEFS_*` env vars into a HashMap).
+    #[test]
+    fn from_iter_picks_up_every_known_field() {
+        use std::collections::HashMap;
+
+        let mut map = HashMap::new();
+        map.insert("root".into(), "/tmp/opendal/".into());
+        map.insert("master_addr".into(), "127.0.0.1:9200".into());
+        map.insert("write_type".into(), "cache_through".into());
+        map.insert("auth_type".into(), "simple".into());
+        map.insert("auth_username".into(), "opendal".into());
+
+        let cfg = GooseFsConfig::from_iter(map).expect("from_iter should succeed");
+
+        assert_eq!(cfg.root.as_deref(), Some("/tmp/opendal/"));
+        assert_eq!(cfg.master_addr.as_deref(), Some("127.0.0.1:9200"));
+        assert_eq!(cfg.write_type.as_deref(), Some("cache_through"));
+        assert_eq!(cfg.auth_type.as_deref(), Some("simple"));
+        assert_eq!(cfg.auth_username.as_deref(), Some("opendal"));
+    }
+}

@@ -132,7 +132,9 @@ impl Builder for OnedriveBuilder {
 
                 stat: true,
                 stat_with_if_none_match: true,
-                stat_with_version: self.config.enable_versioning,
+                // OneDrive's version API doesn't preserve complete metadata for historical versions,
+                // so we only advertise list-based version discovery for now.
+                stat_with_version: false,
 
                 delete: true,
                 create_dir: true,

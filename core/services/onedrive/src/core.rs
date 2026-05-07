@@ -108,28 +108,55 @@ impl OneDriveCore {
     ///
     /// * `path` - a relative folder path
     pub(crate) async fn ensure_directory(&self, path: &str) -> Result<OneDriveItem> {
-        let response = self.onedrive_get_stat_plain(path).await?;
-        let item: OneDriveItem = match response.status() {
-            StatusCode::OK => {
-                let bytes = response.into_body();
-                serde_json::from_reader(bytes.reader()).map_err(new_json_deserialize_error)?
-            }
-            StatusCode::NOT_FOUND => {
-                // We must create directory for the destination
-                let response = self.onedrive_create_dir(path).await?;
-                match response.status() {
-                    StatusCode::CREATED | StatusCode::OK => {
-                        let bytes = response.into_body();
-                        serde_json::from_reader(bytes.reader())
-                            .map_err(new_json_deserialize_error)?
-                    }
-                    _ => return Err(parse_error(response)),
-                }
-            }
-            _ => return Err(parse_error(response)),
-        };
+        let mut pending: Vec<String> = Vec::new();
+        let mut current = path;
 
-        Ok(item)
+        loop {
+            let response = self.onedrive_get_stat_plain(current).await?;
+            match response.status() {
+                StatusCode::OK => {
+                    let bytes = response.into_body();
+                    let item: OneDriveItem = serde_json::from_reader(bytes.reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                    if !matches!(item.item_type, ItemType::Folder { .. }) {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "path exists but is not a directory",
+                        )
+                        .with_context("path", current));
+                    }
+
+                    let mut ensured = item;
+                    for missing in pending.into_iter().rev() {
+                        let response = self.onedrive_create_dir(&missing).await?;
+                        ensured = match response.status() {
+                            StatusCode::CREATED | StatusCode::OK => {
+                                let bytes = response.into_body();
+                                serde_json::from_reader(bytes.reader())
+                                    .map_err(new_json_deserialize_error)?
+                            }
+                            _ => return Err(parse_error(response)),
+                        };
+                    }
+
+                    return Ok(ensured);
+                }
+                StatusCode::NOT_FOUND => {
+                    pending.push(current.to_string());
+                    let parent = get_parent(current);
+                    if parent == current {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to resolve parent while creating directory",
+                        )
+                        .with_context("path", path));
+                    }
+                    current = parent;
+                }
+                _ => return Err(parse_error(response)),
+            }
+        }
     }
 
     pub(crate) async fn sign<T>(&self, request: &mut Request<T>) -> Result<()> {
@@ -158,12 +185,14 @@ impl OneDriveCore {
     ///
     /// See also [`onedrive_get_stat_plain()`].
     pub(crate) async fn onedrive_stat(&self, path: &str, args: OpStat) -> Result<Metadata> {
-        let mut url: String = self.onedrive_item_url(path, true);
         if args.version().is_some() {
-            url += "?$expand=versions(";
-            url += VERSION_SELECT_PARAM;
-            url += ")";
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "stat with version is not supported by OneDrive",
+            ));
         }
+
+        let url: String = self.onedrive_item_url(path, true);
 
         let mut request = Request::get(&url);
         if let Some(etag) = args.if_none_match() {
@@ -194,22 +223,6 @@ impl OneDriveCore {
         let mut meta = Metadata::new(entry_mode)
             .with_etag(decoded_response.e_tag)
             .with_content_length(decoded_response.size.max(0) as u64);
-
-        if let Some(version) = args.version() {
-            for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
-                if item_version.id == version {
-                    meta.set_version(version);
-                    break; // early exit
-                }
-            }
-
-            if meta.version().is_none() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "cannot find this version of the item",
-                ));
-            }
-        }
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
@@ -242,6 +255,10 @@ impl OneDriveCore {
         self.sign(&mut request).await?;
 
         let response = self.info.http_client().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(response));
+        }
+
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -273,6 +290,13 @@ impl OneDriveCore {
         path: &str,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
+        if args.version().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "read with version is not supported by OneDrive",
+            ));
+        }
+
         // We can't "select" the OneDrive API response fields when reading because "select" shadows not found error
         let url: String = format!("{}:/content", self.onedrive_item_url(path, true));
 
@@ -528,20 +552,29 @@ impl OneDriveCore {
 
     pub(crate) async fn wait_until_complete(&self, monitor_url: String) -> Result<()> {
         for _attempt in 0..MAX_MONITOR_ATTEMPT {
-            let mut request = Request::get(monitor_url.to_string())
+            let request = Request::get(monitor_url.as_str())
                 .header(header::CONTENT_TYPE, "application/json")
                 .extension(Operation::Copy)
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
-            self.sign(&mut request).await?;
-
             let response = self.info.http_client().send(request).await?;
+            if !response.status().is_success() {
+                return Err(parse_error(response));
+            }
+
             let status: OneDriveMonitorStatus =
                 serde_json::from_reader(response.into_body().reader())
                     .map_err(new_json_deserialize_error)?;
-            if status.status == "completed" {
-                return Ok(());
+            match status.status.as_str() {
+                "completed" => return Ok(()),
+                "notStarted" | "inProgress" => {}
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        format!("OneDrive copy operation returned status {}", status.status),
+                    ));
+                }
             }
 
             tokio::time::sleep(Duration::from_secs(MONITOR_WAIT_SECOND)).await;

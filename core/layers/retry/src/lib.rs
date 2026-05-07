@@ -20,6 +20,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(missing_docs)]
 
+mod budget;
+
+pub use budget::RetryBudget;
+pub use budget::UnlimitedBudget;
+
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -117,6 +122,7 @@ use opendal_core::*;
 pub struct RetryLayer<I: RetryInterceptor = DefaultRetryInterceptor> {
     builder: ExponentialBuilder,
     notify: Arc<I>,
+    budget: Arc<dyn RetryBudget>,
 }
 
 impl<I: RetryInterceptor> Clone for RetryLayer<I> {
@@ -124,6 +130,7 @@ impl<I: RetryInterceptor> Clone for RetryLayer<I> {
         Self {
             builder: self.builder,
             notify: self.notify.clone(),
+            budget: self.budget.clone(),
         }
     }
 }
@@ -133,6 +140,7 @@ impl Default for RetryLayer {
         Self {
             builder: ExponentialBuilder::default(),
             notify: Arc::new(DefaultRetryInterceptor),
+            budget: Arc::new(UnlimitedBudget),
         }
     }
 }
@@ -163,7 +171,17 @@ impl<I: RetryInterceptor> RetryLayer<I> {
         RetryLayer {
             builder: self.builder,
             notify: Arc::new(notify),
+            budget: self.budget,
         }
+    }
+
+    /// Set a retry budget for this layer.
+    ///
+    /// The default is [`UnlimitedBudget`], which preserves the historical behaviour of always
+    /// retrying up to `max_times`.
+    pub fn with_budget<B: RetryBudget>(mut self, budget: B) -> Self {
+        self.budget = Arc::new(budget);
+        self
     }
 
     /// Set jitter of current backoff.
@@ -216,6 +234,7 @@ impl<A: Access, I: RetryInterceptor> Layer<A> for RetryLayer<I> {
             inner: Arc::new(inner),
             builder: self.builder,
             notify: self.notify.clone(),
+            budget: self.budget.clone(),
         }
     }
 }
@@ -267,6 +286,7 @@ pub struct RetryAccessor<A: Access, I: RetryInterceptor> {
     inner: Arc<A>,
     builder: ExponentialBuilder,
     notify: Arc<I>,
+    budget: Arc<dyn RetryBudget>,
 }
 
 impl<A: Access, I: RetryInterceptor> Debug for RetryAccessor<A, I> {
@@ -289,83 +309,127 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     }
 
     async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
-        { || self.inner.create_dir(path, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.create_dir(path, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::CreateDir))
             .notify(|err, dur: Duration| self.notify.intercept(err, dur))
-            .await
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::CreateDir, &res);
+        res.map_err(|e| e.set_persistent())
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let (rp, reader) = { || self.inner.read(path, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.read(path, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Read))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map_err(|e| e.set_persistent())?;
+            .await;
+        deposit_if_ok(&self.budget, Operation::Read, &res);
+        let (rp, reader) = res.map_err(|e| e.set_persistent())?;
 
         let retry_reader = RetryReader::new(self.inner.clone(), path.to_string(), args, reader);
-        let retry_wrapper = RetryWrapper::new(retry_reader, self.notify.clone(), self.builder);
+        let retry_wrapper = RetryWrapper::new(
+            retry_reader,
+            self.notify.clone(),
+            self.builder,
+            self.budget.clone(),
+        );
 
         Ok((rp, retry_wrapper))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        { || self.inner.write(path, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.write(path, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::Write, &res);
+        res.map(|(rp, r)| {
+            (
+                rp,
+                RetryWrapper::new(r, self.notify.clone(), self.builder, self.budget.clone()),
+            )
+        })
+        .map_err(|e| e.set_persistent())
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        { || self.inner.stat(path, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.stat(path, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Stat))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::Stat, &res);
+        res.map_err(|e| e.set_persistent())
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        { || self.inner.delete() }
+        let budget = self.budget.clone();
+        let res = { || self.inner.delete() }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
+        res.map(|(rp, r)| {
+            (
+                rp,
+                RetryWrapper::new(r, self.notify.clone(), self.builder, self.budget.clone()),
+            )
+        })
+        .map_err(|e| e.set_persistent())
     }
 
     async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        { || self.inner.copy(from, to, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.copy(from, to, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Copy))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::Copy, &res);
+        res.map_err(|e| e.set_persistent())
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
-        { || self.inner.rename(from, to, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.rename(from, to, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::Rename))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::Rename, &res);
+        res.map_err(|e| e.set_persistent())
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        { || self.inner.list(path, args.clone()) }
+        let budget = self.budget.clone();
+        let res = { || self.inner.list(path, args.clone()) }
             .retry(self.builder)
-            .when(|e| e.is_temporary())
+            .when(move |e| e.is_temporary() && budget.withdraw(Operation::List))
             .notify(|err, dur| self.notify.intercept(err, dur))
-            .await
-            .map(|(rp, r)| (rp, RetryWrapper::new(r, self.notify.clone(), self.builder)))
-            .map_err(|e| e.set_persistent())
+            .await;
+        deposit_if_ok(&self.budget, Operation::List, &res);
+        res.map(|(rp, r)| {
+            (
+                rp,
+                RetryWrapper::new(r, self.notify.clone(), self.builder, self.budget.clone()),
+            )
+        })
+        .map_err(|e| e.set_persistent())
+    }
+}
+
+/// Deposit one budget token if `res` is `Ok`.
+#[inline]
+fn deposit_if_ok<T>(budget: &Arc<dyn RetryBudget>, op: Operation, res: &Result<T>) {
+    if res.is_ok() {
+        budget.deposit(op);
     }
 }
 
@@ -416,14 +480,21 @@ pub struct RetryWrapper<R, I> {
     notify: Arc<I>,
 
     builder: ExponentialBuilder,
+    budget: Arc<dyn RetryBudget>,
 }
 
 impl<R, I> RetryWrapper<R, I> {
-    fn new(inner: R, notify: Arc<I>, backoff: ExponentialBuilder) -> Self {
+    fn new(
+        inner: R,
+        notify: Arc<I>,
+        backoff: ExponentialBuilder,
+        budget: Arc<dyn RetryBudget>,
+    ) -> Self {
         Self {
             inner: Some(inner),
             notify,
             builder: backoff,
+            budget,
         }
     }
 
@@ -442,6 +513,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -451,12 +523,13 @@ impl<R: oio::Read, I: RetryInterceptor> oio::Read for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Read))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Read, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -466,6 +539,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let ((inner, _), res) = {
             |(mut r, bs): (R, Buffer)| async move {
@@ -475,12 +549,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context((inner, bs))
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 
@@ -488,6 +563,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -497,12 +573,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 
@@ -510,6 +587,7 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut r: R| async move {
@@ -519,12 +597,13 @@ impl<R: oio::Write, I: RetryInterceptor> oio::Write for RetryWrapper<R, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Write))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Write, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -534,6 +613,7 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut p: P| async move {
@@ -543,12 +623,13 @@ impl<P: oio::List, I: RetryInterceptor> oio::List for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::List))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::List, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -560,6 +641,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         let inner = self.take_inner()?;
         let path = path.to_string();
         let args_cloned = args.clone();
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut p: P| {
@@ -572,7 +654,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
         .context(inner)
         .notify(|err, dur| {
             self.notify.intercept(err, dur);
@@ -580,6 +662,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
         res.map_err(|e| e.set_persistent())
     }
 
@@ -587,6 +670,7 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
         use backon::RetryableWithContext;
 
         let inner = self.take_inner()?;
+        let budget = self.budget.clone();
 
         let (inner, res) = {
             |mut p: P| async move {
@@ -596,12 +680,13 @@ impl<P: oio::Delete, I: RetryInterceptor> oio::Delete for RetryWrapper<P, I> {
             }
         }
         .retry(self.builder)
-        .when(|e| e.is_temporary())
+        .when(move |e| e.is_temporary() && budget.withdraw(Operation::Delete))
         .context(inner)
         .notify(|err, dur| self.notify.intercept(err, dur))
         .await;
 
         self.inner = Some(inner);
+        deposit_if_ok(&self.budget, Operation::Delete, &res);
         res.map_err(|err| err.set_persistent())
     }
 }
@@ -623,6 +708,7 @@ mod tests {
     #[derive(Default, Clone)]
     struct MockBuilder {
         attempt: Arc<Mutex<usize>>,
+        fail_stat: bool,
     }
 
     impl Builder for MockBuilder {
@@ -631,6 +717,7 @@ mod tests {
         fn build(self) -> Result<impl Access> {
             Ok(MockService {
                 attempt: self.attempt,
+                fail_stat: self.fail_stat,
             })
         }
     }
@@ -638,6 +725,7 @@ mod tests {
     #[derive(Debug, Clone, Default)]
     struct MockService {
         attempt: Arc<Mutex<usize>>,
+        fail_stat: bool,
     }
 
     impl Access for MockService {
@@ -664,6 +752,11 @@ mod tests {
         }
 
         async fn stat(&self, _: &str, _: OpStat) -> Result<RpStat> {
+            if self.fail_stat {
+                let mut attempt = self.attempt.lock().unwrap();
+                *attempt += 1;
+                return Err(Error::new(ErrorKind::Unexpected, "stat always fails").set_temporary());
+            }
             Ok(RpStat::new(
                 Metadata::new(EntryMode::FILE).with_content_length(13),
             ))
@@ -940,6 +1033,118 @@ mod tests {
         let paths = vec!["hello", "world", "test", "batch"];
         op.delete_stream(stream::iter(paths)).await?;
         assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        Ok(())
+    }
+
+    /// Minimal token-bucket budget for tests: starts with `initial` tokens  with each `deposit`
+    /// incrementing one, and `withdraw` decrementing when positive.
+    #[derive(Debug, Clone)]
+    struct TestBudget {
+        tokens: Arc<Mutex<i64>>,
+    }
+
+    impl TestBudget {
+        fn new(initial: i64) -> Self {
+            Self {
+                tokens: Arc::new(Mutex::new(initial)),
+            }
+        }
+    }
+
+    impl RetryBudget for TestBudget {
+        fn deposit(&self, _op: Operation) {
+            *self.tokens.lock().unwrap() += 1;
+        }
+
+        fn withdraw(&self, _op: Operation) -> bool {
+            let mut t = self.tokens.lock().unwrap();
+            if *t > 0 {
+                *t -= 1;
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_retry_budget_shared_across_operators() -> Result<()> {
+        setup();
+
+        let a_builder = MockBuilder {
+            fail_stat: true,
+            ..Default::default()
+        };
+        let b_builder = MockBuilder {
+            fail_stat: true,
+            ..Default::default()
+        };
+
+        // 2 tokens total in the shared budget.
+        let budget = TestBudget::new(2);
+
+        let make_op = |builder: MockBuilder, budget: TestBudget| -> Result<Operator> {
+            Ok(Operator::new(builder)?
+                .layer(
+                    RetryLayer::default()
+                        .with_min_delay(Duration::from_millis(1))
+                        .with_max_delay(Duration::from_millis(1))
+                        .with_max_times(10)
+                        .with_budget(budget),
+                )
+                .finish())
+        };
+
+        let op_a = make_op(a_builder.clone(), budget.clone())?;
+        let op_b = make_op(b_builder.clone(), budget.clone())?;
+
+        // First operator drains both tokens: 1 initial + 2 retries = 3.
+        let _ = op_a.stat("x").await.expect_err("stat must fail");
+        assert_eq!(*a_builder.attempt.lock().unwrap(), 3);
+
+        // Second operator has no budget left, so only the initial attempt.
+        let _ = op_b.stat("y").await.expect_err("stat must fail");
+        assert_eq!(*b_builder.attempt.lock().unwrap(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_budget_deposit_on_success_allows_future_retries() -> Result<()> {
+        setup();
+
+        // Start at zero; each successful op deposits one token.
+        let budget = TestBudget::new(0);
+
+        let make_layer = |budget: TestBudget| {
+            RetryLayer::default()
+                .with_min_delay(Duration::from_millis(1))
+                .with_max_delay(Duration::from_millis(1))
+                .with_max_times(5)
+                .with_budget(budget)
+        };
+
+        // A healthy operator deposits 3 successes into the shared budget.
+        let healthy = Operator::new(MockBuilder::default())?
+            .layer(make_layer(budget.clone()))
+            .finish();
+        for _ in 0..3 {
+            healthy.stat("ok").await?;
+        }
+
+        // A failing operator may now use those 3 retry tokens.
+        let failing_builder = MockBuilder {
+            fail_stat: true,
+            ..Default::default()
+        };
+        let failing = Operator::new(failing_builder.clone())?
+            .layer(make_layer(budget.clone()))
+            .finish();
+
+        let _ = failing.stat("fail").await.expect_err("stat must fail");
+        // 1 initial + 3 budget-permitted retries = 4 total.
+        assert_eq!(*failing_builder.attempt.lock().unwrap(), 4);
+
         Ok(())
     }
 }

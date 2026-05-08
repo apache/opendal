@@ -75,23 +75,5 @@ class BehaviorTestPlan(unittest.TestCase):
         # Should contain fs
         self.assertTrue("fs" in cases)
 
-    @patch.dict("os.environ", {"GITHUB_HAS_SECRETS": "true"}, clear=False)
-    def test_gdrive_is_temporarily_disabled(self):
-        result = plan([".github/workflows/test_behavior.yml"])
-
-        self.assertTrue(result["components"]["core"])
-        core_cases = [v["service"] for target in result["core"] for v in target["cases"]]
-        self.assertFalse("gdrive" in core_cases)
-
-        for language in ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]:
-            self.assertTrue(result["components"][f"binding_{language}"])
-            binding_cases = [
-                v["service"]
-                for target in result[f"binding_{language}"]
-                for v in target["cases"]
-            ]
-            self.assertFalse("gdrive" in binding_cases)
-
-
 if __name__ == "__main__":
     unittest.main()

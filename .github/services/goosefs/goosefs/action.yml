@@ -24,10 +24,10 @@ description: "Behavior test for GooseFS (single-container / local profile)"
 # `{service=goosefs, setup=goosefs, feature=services-goosefs}`. No changes
 # to workflow YAMLs are required.
 #
-# The fixture image `docker.io/forwardxu/goosefs:2.1.0` is public (no
-# authentication required), so this action does NOT pull any 1Password
-# secret and therefore runs on every PR (plan.py filters out actions that
-# reference `op:` URLs when GITHUB_HAS_SECRETS is not set).
+# The fixture image `goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0` is
+# public (no authentication required), so this action does NOT pull any
+# 1Password secret and therefore runs on every PR (plan.py filters out
+# actions that reference `op:` URLs when GITHUB_HAS_SECRETS is not set).
 runs:
   using: "composite"
   steps:

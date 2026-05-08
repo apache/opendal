@@ -20,7 +20,7 @@ use std::fmt::Debug;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::backend::GooseFsBuilder;
+use super::backend::GoosefsBuilder;
 
 /// Config for GooseFS service support.
 ///
@@ -29,7 +29,7 @@ use super::backend::GooseFsBuilder;
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
-pub struct GooseFsConfig {
+pub struct GoosefsConfig {
     /// Root path of this backend.
     ///
     /// All operations will happen under this root.
@@ -81,9 +81,9 @@ pub struct GooseFsConfig {
     pub auth_username: Option<String>,
 }
 
-impl Debug for GooseFsConfig {
+impl Debug for GoosefsConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GooseFsConfig")
+        f.debug_struct("GoosefsConfig")
             .field("root", &self.root)
             .field("master_addr", &self.master_addr)
             .field("block_size", &self.block_size)
@@ -95,8 +95,8 @@ impl Debug for GooseFsConfig {
     }
 }
 
-impl opendal_core::Configurator for GooseFsConfig {
-    type Builder = GooseFsBuilder;
+impl opendal_core::Configurator for GoosefsConfig {
+    type Builder = GoosefsBuilder;
 
     fn from_uri(uri: &opendal_core::OperatorUri) -> opendal_core::Result<Self> {
         let mut map = uri.options().clone();
@@ -113,7 +113,7 @@ impl opendal_core::Configurator for GooseFsConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        GooseFsBuilder { config: self }
+        GoosefsBuilder { config: self }
     }
 }
 
@@ -136,12 +136,12 @@ mod tests {
         )
         .expect("valid uri");
 
-        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+        let cfg = GoosefsConfig::from_uri(&uri).expect("from_uri should succeed");
 
         assert_eq!(cfg.master_addr.as_deref(), Some("10.0.0.1:9200"));
         // `OperatorUri::new` trims leading/trailing slashes from the path, so
         // the root stored here is the *inner* part only. Normalization to an
-        // absolute "/…/…/" form happens inside `GooseFsBuilder::build()`.
+        // absolute "/…/…/" form happens inside `GoosefsBuilder::build()`.
         assert_eq!(cfg.root.as_deref(), Some("data/raw"));
     }
 
@@ -152,7 +152,7 @@ mod tests {
         let uri = OperatorUri::new("goosefs://master:9200", Vec::<(String, String)>::new())
             .expect("valid uri");
 
-        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+        let cfg = GoosefsConfig::from_uri(&uri).expect("from_uri should succeed");
 
         assert_eq!(cfg.master_addr.as_deref(), Some("master:9200"));
         assert!(
@@ -181,7 +181,7 @@ mod tests {
         )
         .expect("valid uri");
 
-        let cfg = GooseFsConfig::from_uri(&uri).expect("from_uri should succeed");
+        let cfg = GoosefsConfig::from_uri(&uri).expect("from_uri should succeed");
 
         assert_eq!(
             cfg.master_addr.as_deref(),
@@ -206,7 +206,7 @@ mod tests {
         map.insert("auth_type".into(), "simple".into());
         map.insert("auth_username".into(), "opendal".into());
 
-        let cfg = GooseFsConfig::from_iter(map).expect("from_iter should succeed");
+        let cfg = GoosefsConfig::from_iter(map).expect("from_iter should succeed");
 
         assert_eq!(cfg.root.as_deref(), Some("/tmp/opendal/"));
         assert_eq!(cfg.master_addr.as_deref(), Some("127.0.0.1:9200"));

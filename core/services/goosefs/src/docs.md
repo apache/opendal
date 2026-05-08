@@ -34,7 +34,7 @@ Features:
 - `auth_type`: Authentication type (`nosasl`, `simple`). Default: `simple`
 - `auth_username`: Authentication username for SIMPLE mode. Default: current OS user
 
-You can refer to [`GooseFsBuilder`]'s docs for more information
+You can refer to [`GoosefsBuilder`]'s docs for more information
 
 ## Example
 
@@ -155,7 +155,8 @@ This service is covered by all three OpenDAL test layers:
 3. **GitHub CI** — `.github/services/goosefs/goosefs/action.yml` is picked up
    automatically by `.github/scripts/test_behavior/plan.py::provided_cases()`
    and runs the fixture + behavior suite on every PR. The fixture image
-   (`docker.io/forwardxu/goosefs:2.1.0`) is public so no secrets are needed.
+   (`goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0`) is public so no secrets
+   are needed.
 
 The fixture also exposes a `distributed` compose profile (separate master /
 worker / job_master / job_worker containers) for multi-node diagnostics;

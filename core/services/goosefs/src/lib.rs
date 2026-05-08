@@ -32,5 +32,5 @@ mod lister;
 mod reader;
 mod writer;
 
-pub use backend::GooseFsBuilder as GooseFs;
-pub use config::GooseFsConfig;
+pub use backend::GoosefsBuilder as GooseFs;
+pub use config::GoosefsConfig;

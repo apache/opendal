@@ -20,9 +20,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use goosefs_sdk::client::MasterClient;
-use goosefs_sdk::config::GooseFsConfig as ClientConfig;
+use goosefs_sdk::config::GoosefsConfig as ClientConfig;
 use goosefs_sdk::context::FileSystemContext;
-use goosefs_sdk::io::{GooseFsFileReader, GooseFsFileWriter};
+use goosefs_sdk::io::{GoosefsFileReader, GoosefsFileWriter};
 use goosefs_sdk::proto::grpc::file::FileInfo;
 use tokio::sync::RwLock;
 
@@ -34,14 +34,14 @@ use opendal_core::*;
 ///
 /// # Connection architecture
 ///
-/// Unlike AlluxioCore which directly builds HTTP requests, `GooseFsCore`
+/// Unlike AlluxioCore which directly builds HTTP requests, `GoosefsCore`
 /// delegates to the goosefs-sdk high-level API which handles:
 /// - HA master discovery (`PollingMasterInquireClient`)
 /// - Consistent hash worker routing (`WorkerRouter`)
 /// - Block-level bidirectional streaming I/O (`GrpcBlockReader/Writer`)
 /// - gRPC flow control and ACK management
 ///
-/// `GooseFsCore` holds a lazily-initialised [`FileSystemContext`] shared by all
+/// `GoosefsCore` holds a lazily-initialised [`FileSystemContext`] shared by all
 /// operations on the same backend instance.  The context owns:
 ///
 /// - One persistent gRPC channel to the Master (reused by all metadata RPCs)
@@ -59,16 +59,16 @@ use opendal_core::*;
 ///
 /// When LanceDB (via VectorDBBench) uses Python `multiprocessing.spawn`,
 /// child processes re-import modules and reconstruct Python objects but
-/// **inherit** a stale `GooseFsCore`.  The gRPC channels and SASL streams
+/// **inherit** a stale `GoosefsCore`.  The gRPC channels and SASL streams
 /// from the parent are invalid in the child because they belong to a
 /// different tokio runtime and OS-level TCP connections.
 ///
-/// To handle this, `GooseFsCore` records the **PID** of the process that
+/// To handle this, `GoosefsCore` records the **PID** of the process that
 /// created the `FileSystemContext`.  On each call to [`ctx()`] the current
 /// PID is compared; if it differs the old context is discarded and a
 /// fresh `FileSystemContext::connect` is performed.
 #[derive(Clone)]
-pub struct GooseFsCore {
+pub struct GoosefsCore {
     pub info: Arc<AccessorInfo>,
     /// Normalized root path (e.g. `/data/`)
     pub root: String,
@@ -82,10 +82,10 @@ pub struct GooseFsCore {
     ctx_pid: Arc<AtomicU32>,
 }
 
-impl Debug for GooseFsCore {
+impl Debug for GoosefsCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let pid = self.ctx_pid.load(Ordering::Relaxed);
-        f.debug_struct("GooseFsCore")
+        f.debug_struct("GoosefsCore")
             .field("root", &self.root)
             .field("master_addr", &self.config.master_addr)
             .field("ctx_pid", &pid)
@@ -93,8 +93,8 @@ impl Debug for GooseFsCore {
     }
 }
 
-impl GooseFsCore {
-    /// Create a new `GooseFsCore`.
+impl GoosefsCore {
+    /// Create a new `GoosefsCore`.
     ///
     /// The [`FileSystemContext`] is **not** connected here; it is established
     /// on the first RPC and then reused for the lifetime of this core.
@@ -118,7 +118,7 @@ impl GooseFsCore {
     /// - Initial worker-list fetch
     /// - Spawning the background worker-refresh and config-refresh tasks
     ///
-    /// All of this happens **once per process per `GooseFsCore`**; subsequent
+    /// All of this happens **once per process per `GoosefsCore`**; subsequent
     /// calls within the same process are O(1) `Arc` clones.
     ///
     /// # Cross-process reconnection
@@ -156,7 +156,7 @@ impl GooseFsCore {
         // If we had a stale context from a different process, drop it.
         if pid_now != 0 && pid_now != current_pid {
             log::info!(
-                "GooseFsCore: PID changed {} -> {}, re-establishing FileSystemContext",
+                "GoosefsCore: PID changed {} -> {}, re-establishing FileSystemContext",
                 pid_now,
                 current_pid,
             );
@@ -189,7 +189,7 @@ impl GooseFsCore {
         let mut guard = self.ctx.write().await;
         *guard = None;
         self.ctx_pid.store(0, Ordering::Relaxed);
-        log::info!("GooseFsCore: context reset, will re-establish on next use");
+        log::info!("GoosefsCore: context reset, will re-establish on next use");
     }
 
     /// Build the full GooseFS path from a relative OpenDAL path.
@@ -317,6 +317,18 @@ impl GooseFsCore {
     /// goosefs-sdk layer handles auth reconnection at the `WorkerClientPool`
     /// level, but when the context itself is stale (e.g. after process fork)
     /// this outer retry ensures recovery.
+    /// One-shot read of a file (or a sub-range), buffering the full
+    /// payload in memory.
+    ///
+    /// Historically this was the entry point for the reader, but the
+    /// streaming `GoosefsReader` now pulls data block-by-block directly
+    /// from [`Self::open_range_reader`] / [`Self::open_reader`]. We keep
+    /// `read_file` around (muted with `#[allow(dead_code)]`) because
+    /// (a) it's useful for small reads / internal diagnostics, and
+    /// (b) it carries the canonical `is_authentication_failed` reset
+    ///     recipe that the streaming openers mirror — keeping them
+    ///     side-by-side makes the pattern easier to audit.
+    #[allow(dead_code)]
     pub async fn read_file(
         &self,
         path: &str,
@@ -328,9 +340,9 @@ impl GooseFsCore {
 
         let result = match (offset, length) {
             (Some(off), Some(len)) => {
-                GooseFsFileReader::read_range_with_context(ctx, &full, off, len).await
+                GoosefsFileReader::read_range_with_context(ctx, &full, off, len).await
             }
-            _ => GooseFsFileReader::read_file_with_context(ctx, &full).await,
+            _ => GoosefsFileReader::read_file_with_context(ctx, &full).await,
         };
 
         match result {
@@ -339,7 +351,7 @@ impl GooseFsCore {
                 // Authentication failed — the entire context may be stale.
                 // Reset it and retry once with a fresh FileSystemContext.
                 log::warn!(
-                    "GooseFsCore::read_file: authentication failed for {}, resetting context and retrying: {}",
+                    "GoosefsCore::read_file: authentication failed for {}, resetting context and retrying: {}",
                     full,
                     e
                 );
@@ -347,11 +359,11 @@ impl GooseFsCore {
                 let fresh_ctx = self.ctx().await?;
                 match (offset, length) {
                     (Some(off), Some(len)) => {
-                        GooseFsFileReader::read_range_with_context(fresh_ctx, &full, off, len)
+                        GoosefsFileReader::read_range_with_context(fresh_ctx, &full, off, len)
                             .await
                             .map_err(parse_error)
                     }
-                    _ => GooseFsFileReader::read_file_with_context(fresh_ctx, &full)
+                    _ => GoosefsFileReader::read_file_with_context(fresh_ctx, &full)
                         .await
                         .map_err(parse_error),
                 }
@@ -365,7 +377,7 @@ impl GooseFsCore {
     pub async fn write_file(&self, path: &str, data: &[u8]) -> Result<()> {
         let full = self.full_path(path);
         let ctx = self.ctx().await?;
-        let mut writer = GooseFsFileWriter::create_with_context(ctx, &full, None)
+        let mut writer = GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
             .map_err(parse_error)?;
         writer.write(data).await.map_err(parse_error)?;
@@ -374,37 +386,71 @@ impl GooseFsCore {
     }
 
     /// Create a streaming file writer that reuses the shared context.
-    pub async fn create_writer(&self, path: &str) -> Result<GooseFsFileWriter> {
+    pub async fn create_writer(&self, path: &str) -> Result<GoosefsFileWriter> {
         let full = self.full_path(path);
         let ctx = self.ctx().await?;
-        GooseFsFileWriter::create_with_context(ctx, &full, None)
+        GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
             .map_err(parse_error)
     }
 
     /// Create a streaming file reader (full-file) via the shared context.
-    #[allow(dead_code)]
-    pub async fn open_reader(&self, path: &str) -> Result<GooseFsFileReader> {
+    ///
+    /// Applies the same one-shot authentication-reset retry as
+    /// [`Self::read_file`]: if opening the reader fails with a stale
+    /// SASL/auth error, we drop the cached `FileSystemContext`, rebuild
+    /// it, and try once more. Transient non-auth errors are propagated
+    /// unchanged.
+    pub async fn open_reader(&self, path: &str) -> Result<GoosefsFileReader> {
         let full = self.full_path(path);
         let ctx = self.ctx().await?;
-        GooseFsFileReader::open_with_context(ctx, &full)
-            .await
-            .map_err(parse_error)
+        match GoosefsFileReader::open_with_context(ctx, &full).await {
+            Ok(r) => Ok(r),
+            Err(e) if e.is_authentication_failed() => {
+                log::warn!(
+                    "GoosefsCore::open_reader: authentication failed for {}, resetting context and retrying: {}",
+                    full,
+                    e
+                );
+                self.reset_ctx().await;
+                let fresh_ctx = self.ctx().await?;
+                GoosefsFileReader::open_with_context(fresh_ctx, &full)
+                    .await
+                    .map_err(parse_error)
+            }
+            Err(e) => Err(parse_error(e)),
+        }
     }
 
     /// Open a range reader via the shared context.
-    #[allow(dead_code)]
+    ///
+    /// Same auth-reset-and-retry semantics as [`Self::open_reader`].
     pub async fn open_range_reader(
         &self,
         path: &str,
         offset: u64,
         length: u64,
-    ) -> Result<GooseFsFileReader> {
+    ) -> Result<GoosefsFileReader> {
         let full = self.full_path(path);
         let ctx = self.ctx().await?;
-        GooseFsFileReader::open_range_with_context(ctx, &full, offset, length)
-            .await
-            .map_err(parse_error)
+        match GoosefsFileReader::open_range_with_context(ctx, &full, offset, length).await {
+            Ok(r) => Ok(r),
+            Err(e) if e.is_authentication_failed() => {
+                log::warn!(
+                    "GoosefsCore::open_range_reader: authentication failed for {} [{}..+{}], resetting context and retrying: {}",
+                    full,
+                    offset,
+                    length,
+                    e
+                );
+                self.reset_ctx().await;
+                let fresh_ctx = self.ctx().await?;
+                GoosefsFileReader::open_range_with_context(fresh_ctx, &full, offset, length)
+                    .await
+                    .map_err(parse_error)
+            }
+            Err(e) => Err(parse_error(e)),
+        }
     }
 
     // ── Metadata Conversion ──────────────────────────────────
@@ -446,7 +492,7 @@ impl GooseFsCore {
 /// when the path has no meaningful parent to create (i.e. it already
 /// points at the filesystem root).
 ///
-/// Input paths here are always produced by [`GooseFsCore::full_path`],
+/// Input paths here are always produced by [`GoosefsCore::full_path`],
 /// so they are already normalized, absolute (leading `/`) and do not
 /// contain trailing slashes (OpenDAL's `build_rooted_abs_path` strips
 /// them for non-directory paths). We deliberately do not depend on

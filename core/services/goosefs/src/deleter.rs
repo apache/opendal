@@ -17,21 +17,21 @@
 
 use std::sync::Arc;
 
-use super::core::GooseFsCore;
+use super::core::GoosefsCore;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub struct GooseFsDeleter {
-    core: Arc<GooseFsCore>,
+pub struct GoosefsDeleter {
+    core: Arc<GoosefsCore>,
 }
 
-impl GooseFsDeleter {
-    pub fn new(core: Arc<GooseFsCore>) -> Self {
-        GooseFsDeleter { core }
+impl GoosefsDeleter {
+    pub fn new(core: Arc<GoosefsCore>) -> Self {
+        GoosefsDeleter { core }
     }
 }
 
-impl oio::OneShotDelete for GooseFsDeleter {
+impl oio::OneShotDelete for GoosefsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
         self.core.delete(&path).await
     }

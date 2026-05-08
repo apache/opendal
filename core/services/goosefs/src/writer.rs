@@ -16,177 +16,291 @@
 // under the License.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use goosefs_sdk::io::GooseFsFileWriter as ClientWriter;
+use goosefs_sdk::io::GoosefsFileWriter as ClientWriter;
 
-use super::core::GooseFsCore;
+use super::core::GoosefsCore;
 use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub type GooseFsWriters = GooseFsWriter;
+pub type GoosefsWriters = GoosefsWriter;
 
-/// GooseFsWriter implements `oio::Write` using goosefs-sdk
-/// high-level `GooseFsFileWriter`.
+/// Process-wide monotonic counter used to disambiguate temporary file
+/// names within a single process. Combined with the PID and a
+/// nanosecond timestamp, this gives us a collision-free temporary
+/// suffix without pulling in a UUID dependency.
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// `GoosefsWriter` implements [`oio::Write`] on top of the goosefs-sdk
+/// high-level streaming writer (`GoosefsFileWriter`).
 ///
-/// Key differences from AlluxioWriter:
-/// - Alluxio uses stream_id based REST write: `create_file() → write(stream_id, data) → close(stream_id)`
-/// - GooseFS uses block-level gRPC streaming: `GooseFsFileWriter::create() → write() → close()`
-///   which internally handles block splitting, worker routing, and gRPC bidirectional streams.
-pub struct GooseFsWriter {
-    core: Arc<GooseFsCore>,
+/// # Write-via-temp protocol
+///
+/// To keep in-flight writes from being visible — and to make `abort()`
+/// truly leave no trace — every write first streams into a sibling
+/// temporary path, and is then renamed onto the caller's target in a
+/// single metadata RPC on `close()`:
+///
+/// 1.  **open**: on the very first `write()` / `close()` call, we pick
+///     a temporary path of the form
+///     `"{dir}/.opendal.tmp.{pid}.{counter}.{nanos}.{basename}"`. The
+///     temp name is intentionally produced in the **same parent
+///     directory** as the final target so we stay on the same UFS
+///     mount — this keeps the final `rename` a pure metadata op on
+///     GooseFS and avoids a cross-filesystem data copy.
+/// 2.  **stream**: bytes are written block-by-block into the temp path
+///     via `GoosefsFileWriter`. We iterate over the incoming `Buffer`
+///     chunks directly instead of flattening them with `to_bytes()`,
+///     so multi-segment buffers don't force an extra concat copy.
+/// 3.  **finalize**: `close()` calls `GoosefsFileWriter::close()` (which
+///     commits the temp file on the master), then removes any
+///     pre-existing object at the final path (overwrite) or returns
+///     `ConditionNotMatch` (if-not-exists), and finally
+///     `rename(temp, final)`.
+/// 4.  **abort**: `abort()` cancels the in-flight SDK writer (which
+///     drops any blocks already staged on workers) and removes the
+///     temp inode on the master. The final target is never touched
+///     in the abort path — by construction we haven't published
+///     anything there yet.
+///
+/// This avoids the old failure mode where an interrupted write could
+/// leave a half-written blob at the caller's final path, and it makes
+/// overwrite vs if-not-exists decisions race only against concurrent
+/// *metadata* mutations on the final path (a small, bounded window
+/// around the `rename`).
+///
+/// # Why check if-not-exists twice
+///
+/// We check `if_not_exists` both up front (before opening the SDK
+/// writer, so we don't waste bytes on a temp that will never be
+/// finalized) and again at finalize time (because another writer may
+/// have created the object while we were streaming). The second
+/// check is what actually enforces the contract; the first is a
+/// best-effort fast-path optimisation.
+pub struct GoosefsWriter {
+    core: Arc<GoosefsCore>,
     op: OpWrite,
+    /// Final destination path the caller asked us to write to.
     path: String,
-    /// Lazily initialized GooseFsFileWriter from goosefs-sdk.
-    ///
-    /// Created on first `write()` call, closed in `close()`.
+    /// Sibling temporary path we actually stream into; materialised
+    /// lazily on the first `write()` / `close()` call so that an
+    /// `abort()` on a writer that never wrote anything is free.
+    tmp_path: Option<String>,
+    /// Lazily initialized SDK streaming writer, opened against
+    /// `tmp_path`.
     writer: Option<ClientWriter>,
 }
 
-impl GooseFsWriter {
-    pub fn new(core: Arc<GooseFsCore>, op: OpWrite, path: String) -> Self {
-        GooseFsWriter {
+impl GoosefsWriter {
+    pub fn new(core: Arc<GoosefsCore>, op: OpWrite, path: String) -> Self {
+        GoosefsWriter {
             core,
             op,
             path,
+            tmp_path: None,
             writer: None,
+        }
+    }
+
+    /// Produce a sibling temporary path for `path`.
+    ///
+    /// The temp name is always placed in the parent directory of the
+    /// final target so that the finalising `rename(temp, final)` stays
+    /// on the same UFS mount and therefore resolves to a pure metadata
+    /// operation on the GooseFS master (no data-plane copy across
+    /// mounts). Format:
+    ///
+    /// ```text
+    /// {dir}/.opendal.tmp.{pid}.{counter}.{nanos}.{basename}
+    /// ```
+    ///
+    /// The `.opendal.tmp.` prefix makes leftover temps trivial to
+    /// identify and sweep up; including PID + a monotonic counter +
+    /// nanosecond timestamp guarantees uniqueness even under PID
+    /// reuse or rapid successive writes from the same process.
+    fn make_tmp_path(path: &str) -> String {
+        // Split "dir/base". If there's no '/', dir is empty and base
+        // is the whole path — this matches GooseFS's root-level file
+        // case (e.g. `/foo` under the master's mount root).
+        let (dir, base) = match path.rfind('/') {
+            Some(idx) => (&path[..idx], &path[idx + 1..]),
+            None => ("", path),
+        };
+
+        let pid = std::process::id();
+        let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+
+        if dir.is_empty() {
+            format!(".opendal.tmp.{pid}.{counter}.{nanos}.{base}")
+        } else {
+            format!("{dir}/.opendal.tmp.{pid}.{counter}.{nanos}.{base}")
+        }
+    }
+
+    /// Lazily open the SDK writer against a freshly-allocated temp
+    /// path, and cache both.
+    async fn ensure_writer(&mut self) -> Result<&mut ClientWriter> {
+        if self.writer.is_none() {
+            // Fast-path: reject if-not-exists writes up front so we
+            // don't open a temp that will only be thrown away at
+            // finalize time. The *authoritative* check happens again
+            // at finalize (see `close()` / `finalize_rename()`), which
+            // handles the race where a concurrent writer publishes
+            // the target between here and finalize.
+            if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "target already exists and if_not_exists was set",
+                ));
+            }
+
+            let tmp = Self::make_tmp_path(&self.path);
+            let w = self.core.create_writer(&tmp).await?;
+            self.tmp_path = Some(tmp);
+            self.writer = Some(w);
+        }
+        Ok(self.writer.as_mut().expect("just ensured"))
+    }
+
+    /// Finalize the temp file onto the caller's target path.
+    ///
+    /// Preconditions: `self.writer` has been `close()`d (or was never
+    /// opened), and `self.tmp_path` names the committed temp inode on
+    /// the master. Postconditions: on success, the temp inode has
+    /// been renamed onto `self.path` and `self.tmp_path` is cleared;
+    /// on failure, the temp inode is best-effort removed so we do not
+    /// leak `.opendal.tmp.*` files on the UFS.
+    async fn finalize_rename(&mut self) -> Result<()> {
+        let Some(tmp) = self.tmp_path.take() else {
+            // Nothing was ever written — `close()` handles the
+            // "create an empty object" contract on its own path.
+            return Ok(());
+        };
+
+        // Second if-not-exists check: a concurrent writer may have
+        // published the target while we were streaming.
+        if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
+            // Undo our staged temp before surfacing the error.
+            let _ = self.core.delete(&tmp).await;
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "target already exists and if_not_exists was set",
+            ));
+        }
+
+        // Overwrite semantics: GooseFS rename does not silently replace
+        // an existing target, so we pre-delete the final path. NotFound
+        // is the common (fresh-write) case, so we ignore errors here
+        // and let any real failure (e.g. permission denied) surface
+        // through the rename below.
+        if !self.op.if_not_exists() {
+            let _ = self.core.delete(&self.path).await;
+        }
+
+        match self.core.rename(&tmp, &self.path).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                // Rename failed — sweep the temp so we don't leak a
+                // stray `.opendal.tmp.*` inode. Best-effort: if the
+                // sweep fails, we still surface the original rename
+                // error to the caller.
+                let _ = self.core.delete(&tmp).await;
+                Err(e)
+            }
         }
     }
 }
 
-impl oio::Write for GooseFsWriter {
+impl oio::Write for GoosefsWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let writer = match &mut self.writer {
-            Some(w) => w,
-            None => {
-                // Lazy init: create GooseFsFileWriter on first write.
-                //
-                // GooseFS's `createFile` RPC refuses to create a file
-                // whose path already exists — there is no native
-                // "overwrite" flag like HDFS's `CreateFlag.OVERWRITE`.
-                // OpenDAL's default `write` contract, however, is
-                // overwrite-by-default (see
-                // `async_write::test_writer_write_with_overwrite`). We
-                // emulate that semantics by pre-deleting an existing
-                // target, *unless* the caller explicitly asked for
-                // if-not-exists semantics.
-                //
-                // When `if_not_exists` is set and the file already
-                // exists, `createFile` will surface `AlreadyExists`,
-                // which we translate to `ConditionNotMatch` below so the
-                // OpenDAL contract (see
-                // `async_write::test_write_with_if_not_exists`) is
-                // honoured.
-                if !self.op.if_not_exists() {
-                    // Best-effort pre-delete: ignore the result because
-                    // (a) NotFound is the common case (fresh path), and
-                    // (b) permission / transient errors will be
-                    // reported by the subsequent create_writer call
-                    // with a more informative context. The delete is
-                    // non-recursive so we never stomp on a directory
-                    // with the same name — if the path is a directory,
-                    // the create_writer call will fail with a clear
-                    // error from GooseFS.
-                    let _ = self.core.delete(&self.path).await;
-                }
+        let writer = self.ensure_writer().await?;
 
-                let w = self.core.create_writer(&self.path).await.map_err(|e| {
-                    map_already_exists_for_if_not_exists(e, self.op.if_not_exists())
-                })?;
-                self.writer = Some(w);
-                self.writer.as_mut().unwrap()
-            }
-        };
-
-        writer.write(&bs.to_bytes()).await.map_err(parse_error)?;
-
+        // Iterate chunks directly instead of `bs.to_bytes()` — the
+        // latter concatenates multi-segment buffers into a single
+        // `Bytes`, doubling peak memory for the (common) case where
+        // the caller already handed us a split buffer. `Buffer`'s
+        // Iterator yields one `Bytes` per segment; the SDK writer
+        // takes `&[u8]`, so each chunk flows through without a copy.
+        for chunk in bs {
+            writer.write(&chunk).await.map_err(parse_error)?;
+        }
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let Some(mut writer) = self.writer.take() else {
-            // No data was written yet. OpenDAL's contract for
-            // `write(path, "")` / `writer().close()` is to materialise
-            // an empty object, so we create and immediately close a
-            // zero-byte file here.
-            //
-            // As in the `write()` path above, we honour overwrite vs
-            // if-not-exists semantics: default writes pre-delete any
-            // existing target, if-not-exists writes let GooseFS surface
-            // AlreadyExists which we translate to ConditionNotMatch.
-            if !self.op.if_not_exists() {
-                let _ = self.core.delete(&self.path).await;
+        if let Some(mut writer) = self.writer.take() {
+            // Commit the temp inode on the master, then publish it
+            // onto the caller's final path via `finalize_rename`.
+            if let Err(e) = writer.close().await.map_err(parse_error) {
+                // Close failed — the temp is in an indeterminate state
+                // on the master; best-effort sweep to avoid leaks.
+                if let Some(tmp) = self.tmp_path.take() {
+                    let _ = self.core.delete(&tmp).await;
+                }
+                return Err(e);
             }
-            let mut w =
-                self.core.create_writer(&self.path).await.map_err(|e| {
-                    map_already_exists_for_if_not_exists(e, self.op.if_not_exists())
-                })?;
-            w.close().await.map_err(parse_error)?;
+            self.finalize_rename().await?;
             return Ok(Metadata::default());
-        };
+        }
 
-        writer.close().await.map_err(parse_error)?;
+        // Zero-write path: the caller closed without ever calling
+        // `write()`. OpenDAL's contract for `write(path, "")` is to
+        // materialise an empty object at `path`. We honour it by
+        // opening and immediately closing a writer — still through
+        // the temp-and-rename pipeline, so overwrite / if-not-exists
+        // semantics remain identical to the streaming path.
+        if self.op.if_not_exists() && self.core.get_status(&self.path).await.is_ok() {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "target already exists and if_not_exists was set",
+            ));
+        }
 
+        let tmp = Self::make_tmp_path(&self.path);
+        let mut w = self.core.create_writer(&tmp).await?;
+        if let Err(e) = w.close().await.map_err(parse_error) {
+            let _ = self.core.delete(&tmp).await;
+            return Err(e);
+        }
+        self.tmp_path = Some(tmp);
+        self.finalize_rename().await?;
         Ok(Metadata::default())
     }
 
     async fn abort(&mut self) -> Result<()> {
-        // GooseFS's streaming writer commits blocks to the UFS as they
-        // are flushed, so by the time `abort()` is called the target
-        // filename — and any blocks already staged on workers — are
-        // usually already visible to the master. OpenDAL's contract
-        // (see `async_write::test_writer_abort` /
-        // `test_writer_abort_with_concurrent`) requires that an aborted
-        // write leaves *no* file behind.
-        //
-        // The goosefs-sdk ships a purpose-built `GooseFsFileWriter::cancel()`
-        // for exactly this case: it tears down the in-flight gRPC write
-        // stream, drops the committed block list on the workers via
-        // `remove_blocks`, and then issues a
-        // `DeleteOptions::for_cancel()` (i.e. `unchecked=true`) against
-        // the master so the INCOMPLETE inode is reaped. Using it here
-        // gives us correct "no file, no blocks" semantics and avoids
-        // leaking the orphaned blocks that a plain `delete(path)` on
-        // the master inode would leave behind.
-        //
-        // If the writer was never actually started (no data written),
-        // `self.writer` is `None` — there is nothing on the master for
-        // this path, so there is nothing to clean up. We still fall
-        // through to a best-effort delete to cover the rare case where
-        // the path was pre-created by some other writer between builder
-        // time and abort.
+        // Temp-and-rename makes abort straightforward: the caller's
+        // final path has *never* been touched, so there is nothing to
+        // roll back there. All we need to do is tear down the staged
+        // temp, both on the data plane (in-flight gRPC stream +
+        // blocks on workers) and on the metadata plane (temp inode on
+        // the master).
         if let Some(mut writer) = self.writer.take() {
-            // `cancel()` is documented as idempotent and returns the
-            // underlying master error only when the fallback delete
-            // also fails — in which case we still swallow it because
-            // the caller is abandoning the write and a remaining
-            // orphan is less disruptive than a panic here.
+            // `cancel()` tears down the in-flight bidi gRPC stream,
+            // drops any blocks already committed to workers via
+            // `remove_blocks`, and issues `DeleteOptions::for_cancel`
+            // against the master (i.e. `unchecked=true`) so the
+            // INCOMPLETE inode is reaped. We swallow its error here
+            // because (a) the caller is abandoning the write and a
+            // stray temp block is less disruptive than a panic, and
+            // (b) the follow-up `delete(tmp)` below is our
+            // belt-and-braces guarantee that the temp inode is gone.
             let _ = writer.cancel().await;
         }
 
-        // Belt-and-braces: if `cancel()` above swallowed an error, or
-        // if the writer was never created at all, make one more
-        // best-effort attempt to remove whatever the master may be
-        // holding under `self.path`. NotFound / other residual errors
-        // are intentionally ignored.
-        let _ = self.core.delete(&self.path).await;
+        if let Some(tmp) = self.tmp_path.take() {
+            // Best-effort sweep — NotFound means `cancel()` already
+            // reaped it, which is the expected happy path.
+            let _ = self.core.delete(&tmp).await;
+        }
         Ok(())
-    }
-}
-
-/// When the caller requested `if_not_exists`, GooseFS's `AlreadyExists`
-/// is exactly the condition the caller asked us to guard against — so
-/// we surface it as `ConditionNotMatch` to match OpenDAL's contract
-/// (see `async_write::test_write_with_if_not_exists`). For normal
-/// writes, propagate the error unchanged.
-fn map_already_exists_for_if_not_exists(err: Error, if_not_exists: bool) -> Error {
-    if if_not_exists && err.kind() == ErrorKind::AlreadyExists {
-        Error::new(
-            ErrorKind::ConditionNotMatch,
-            "target already exists and if_not_exists was set",
-        )
-        .set_source(err)
-    } else {
-        err
     }
 }

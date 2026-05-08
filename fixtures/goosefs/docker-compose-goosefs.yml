@@ -42,12 +42,13 @@ services:
   # Ports (host:container) are mapped on 127.0.0.1 so the fixture can
   # coexist with other fixtures on a dev machine.
   #
-  # Image source: docker.io/forwardxu/goosefs:2.1.0
+  # Image source: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
   #
   # The image is built from the official GooseFS 2.1.0 release tarball
-  # (goosefs-2.1.0-SNAPSHOT.tar.gz) and published to Docker Hub so that
-  # GitHub Actions runners can pull it without authentication. The tag is
-  # intentionally pinned to `2.1.0` (never `latest`) so behavior tests stay
+  # (goosefs-2.1.0-SNAPSHOT.tar.gz) and published to Tencent Cloud
+  # Container Registry (public, no auth required) so that GitHub Actions
+  # runners can pull it without credentials. The tag is intentionally
+  # pinned to `v2.1.0` (never `latest`) so behavior tests stay
   # reproducible and cannot silently break when a new image is published.
   #
   # The image is published as a multi-arch manifest list covering both
@@ -78,7 +79,7 @@ services:
   # `--profile local-full`.
   # --------------------------------------------------------------------------
   goosefs:
-    image: docker.io/forwardxu/goosefs:2.1.0
+    image: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
     container_name: opendal-goosefs
     profiles: ["", "local"]
     # Bypass the image's stock `docker-entrypoint.sh` and run the
@@ -204,7 +205,7 @@ services:
   # Opt-in via `--profile distributed`.
   # --------------------------------------------------------------------------
   goosefs-master:
-    image: docker.io/forwardxu/goosefs:2.1.0
+    image: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
     container_name: opendal-goosefs-master
     profiles: ["distributed"]
     command: master
@@ -230,7 +231,7 @@ services:
       start_period: 60s
 
   goosefs-job-master:
-    image: docker.io/forwardxu/goosefs:2.1.0
+    image: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
     container_name: opendal-goosefs-job-master
     profiles: ["distributed"]
     command: job_master
@@ -243,7 +244,7 @@ services:
         condition: service_healthy
 
   goosefs-worker:
-    image: docker.io/forwardxu/goosefs:2.1.0
+    image: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
     container_name: opendal-goosefs-worker
     profiles: ["distributed"]
     command: worker
@@ -261,7 +262,7 @@ services:
         condition: service_healthy
 
   goosefs-job-worker:
-    image: docker.io/forwardxu/goosefs:2.1.0
+    image: goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0
     container_name: opendal-goosefs-job-worker
     profiles: ["distributed"]
     command: job_worker

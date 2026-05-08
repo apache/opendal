@@ -21,32 +21,32 @@ use std::sync::Arc;
 use log::debug;
 
 use super::GOOSEFS_SCHEME;
-use super::config::GooseFsConfig;
-use super::core::GooseFsCore;
-use super::deleter::GooseFsDeleter;
-use super::lister::GooseFsLister;
-use super::reader::GooseFsReader;
-use super::writer::GooseFsWriter;
-use super::writer::GooseFsWriters;
+use super::config::GoosefsConfig;
+use super::core::GoosefsCore;
+use super::deleter::GoosefsDeleter;
+use super::lister::GoosefsLister;
+use super::reader::GoosefsReader;
+use super::writer::GoosefsWriter;
+use super::writer::GoosefsWriters;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// [GooseFS](https://cloud.tencent.com/product/goosefs) services support via native gRPC.
 #[doc = include_str!("docs.md")]
 #[derive(Default)]
-pub struct GooseFsBuilder {
-    pub(super) config: GooseFsConfig,
+pub struct GoosefsBuilder {
+    pub(super) config: GoosefsConfig,
 }
 
-impl Debug for GooseFsBuilder {
+impl Debug for GoosefsBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GooseFsBuilder")
+        f.debug_struct("GoosefsBuilder")
             .field("config", &self.config)
             .finish_non_exhaustive()
     }
 }
 
-impl GooseFsBuilder {
+impl GoosefsBuilder {
     /// Set root of this backend.
     ///
     /// All operations will happen under this root.
@@ -123,15 +123,15 @@ impl GooseFsBuilder {
     }
 }
 
-impl Builder for GooseFsBuilder {
-    type Config = GooseFsConfig;
+impl Builder for GoosefsBuilder {
+    type Config = GoosefsConfig;
 
-    /// Build the backend and return a GooseFsBackend.
+    /// Build the backend and return a GoosefsBackend.
     fn build(self) -> Result<impl Access> {
-        debug!("GooseFsBuilder::build started: {:?}", &self);
+        debug!("GoosefsBuilder::build started: {:?}", &self);
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-        debug!("GooseFsBuilder use root {}", &root);
+        debug!("GoosefsBuilder use root {}", &root);
 
         // ── Step 1: establish the base SDK config ─────────────────────────────
         //
@@ -141,7 +141,7 @@ impl Builder for GooseFsBuilder {
         //
         //   defaults  <  goosefs-site.properties  <  GOOSEFS_* env vars
         //
-        // `GooseFsConfig::from_properties_auto()` already implements this
+        // `GoosefsConfig::from_properties_auto()` already implements this
         // chain and is the *same* function the SDK calls every 60s to refresh
         // the transparent-acceleration switches. Using it here keeps the
         // initial OpenDAL build and the in-process hot-reload semantically
@@ -156,7 +156,7 @@ impl Builder for GooseFsBuilder {
         //
         // Builder-explicit fields (Step 2) have the final say, overriding
         // anything discovered from properties / env.
-        let mut goosefs_config = goosefs_sdk::config::GooseFsConfig::from_properties_auto()
+        let mut goosefs_config = goosefs_sdk::config::GoosefsConfig::from_properties_auto()
             .map_err(|e| {
                 Error::new(
                     ErrorKind::ConfigInvalid,
@@ -201,7 +201,7 @@ impl Builder for GooseFsBuilder {
         if goosefs_config.master_addr.is_empty() && goosefs_config.master_addrs.is_empty() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
-                "master_addr is not configured: set it via GooseFsBuilder::master_addr(...), \
+                "master_addr is not configured: set it via GoosefsBuilder::master_addr(...), \
                  the `master_addr` config key, the GOOSEFS_MASTER_ADDR env var, \
                  or `goosefs.master.hostname`/`goosefs.master.rpc.addresses` in goosefs-site.properties",
             )
@@ -209,7 +209,7 @@ impl Builder for GooseFsBuilder {
             .with_context("service", GOOSEFS_SCHEME));
         }
         debug!(
-            "GooseFsBuilder use master_addr {} (addrs={:?})",
+            "GoosefsBuilder use master_addr {} (addrs={:?})",
             &goosefs_config.master_addr, &goosefs_config.master_addrs
         );
 
@@ -220,14 +220,19 @@ impl Builder for GooseFsBuilder {
             goosefs_config.chunk_size = chunk_size;
         }
 
-        // Parse write_type string → goosefs_sdk::WritePType i32
+        // Parse write_type string → goosefs_sdk::WritePType i32.
+        //
+        // Normalise case once up front so we don't need to enumerate both
+        // `must_cache` and `MUST_CACHE` branches — this mirrors how the
+        // GooseFS server-side config parser (`WritePType::valueOf`) treats
+        // the value as case-insensitive.
         if let Some(ref wt) = self.config.write_type {
-            let wt_i32 = match wt.as_str() {
-                "must_cache" | "MUST_CACHE" => 1,
-                "try_cache" | "TRY_CACHE" => 2,
-                "cache_through" | "CACHE_THROUGH" => 3,
-                "through" | "THROUGH" => 4,
-                "async_through" | "ASYNC_THROUGH" => 5,
+            let wt_i32 = match wt.to_lowercase().as_str() {
+                "must_cache" => 1,
+                "try_cache" => 2,
+                "cache_through" => 3,
+                "through" => 4,
+                "async_through" => 5,
                 _ => 1, // default to MUST_CACHE
             };
             goosefs_config.write_type = Some(wt_i32);
@@ -261,8 +266,8 @@ impl Builder for GooseFsBuilder {
             .with_context("service", GOOSEFS_SCHEME)
         })?;
 
-        Ok(GooseFsBackend {
-            core: Arc::new(GooseFsCore::new(
+        Ok(GoosefsBackend {
+            core: Arc::new(GoosefsCore::new(
                 {
                     let am = AccessorInfo::default();
                     am.set_scheme(GOOSEFS_SCHEME)
@@ -293,15 +298,15 @@ impl Builder for GooseFsBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct GooseFsBackend {
-    core: Arc<GooseFsCore>,
+pub struct GoosefsBackend {
+    core: Arc<GoosefsCore>,
 }
 
-impl Access for GooseFsBackend {
-    type Reader = GooseFsReader;
-    type Writer = GooseFsWriters;
-    type Lister = oio::PageLister<GooseFsLister>;
-    type Deleter = oio::OneShotDeleter<GooseFsDeleter>;
+impl Access for GoosefsBackend {
+    type Reader = GoosefsReader;
+    type Writer = GoosefsWriters;
+    type Lister = oio::PageLister<GoosefsLister>;
+    type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -318,24 +323,24 @@ impl Access for GooseFsBackend {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let reader = GooseFsReader::new(self.core.clone(), path.to_string(), args);
+        let reader = GoosefsReader::new(self.core.clone(), path.to_string(), args);
         Ok((RpRead::new(), reader))
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let w = GooseFsWriter::new(self.core.clone(), args.clone(), path.to_string());
+        let w = GoosefsWriter::new(self.core.clone(), args.clone(), path.to_string());
         Ok((RpWrite::default(), w))
     }
 
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         Ok((
             RpDelete::default(),
-            oio::OneShotDeleter::new(GooseFsDeleter::new(self.core.clone())),
+            oio::OneShotDeleter::new(GoosefsDeleter::new(self.core.clone())),
         ))
     }
 
     async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GooseFsLister::new(self.core.clone(), path);
+        let l = GoosefsLister::new(self.core.clone(), path);
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
@@ -351,7 +356,7 @@ mod tests {
 
     #[test]
     fn test_builder_build() {
-        let builder = GooseFsBuilder::default()
+        let builder = GoosefsBuilder::default()
             .root("/data")
             .master_addr("127.0.0.1:9200")
             .build();
@@ -360,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_builder_ha() {
-        let builder = GooseFsBuilder::default()
+        let builder = GoosefsBuilder::default()
             .root("/data")
             .master_addr("10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200")
             .build();
@@ -374,7 +379,7 @@ mod tests {
     /// before any auto-load value can rescue it.
     #[test]
     fn test_builder_blank_master_addr_fails() {
-        let err = GooseFsBuilder::default()
+        let err = GoosefsBuilder::default()
             .root("/data")
             .master_addr("   ,  , ")
             .build()

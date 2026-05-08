@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use super::core::GooseFsCore;
+use super::core::GoosefsCore;
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
 use opendal_core::Metadata;
@@ -25,21 +25,21 @@ use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
 use opendal_core::raw::*;
 
-pub struct GooseFsLister {
-    core: Arc<GooseFsCore>,
+pub struct GoosefsLister {
+    core: Arc<GoosefsCore>,
     path: String,
 }
 
-impl GooseFsLister {
-    pub(super) fn new(core: Arc<GooseFsCore>, path: &str) -> Self {
-        GooseFsLister {
+impl GoosefsLister {
+    pub(super) fn new(core: Arc<GoosefsCore>, path: &str) -> Self {
+        GoosefsLister {
             core,
             path: path.to_string(),
         }
     }
 }
 
-impl oio::PageList for GooseFsLister {
+impl oio::PageList for GoosefsLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
         // OpenDAL's list contract (see behavior tests `list_empty_dir` /
         // `list_nested_dir`) requires that when a caller lists an

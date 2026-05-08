@@ -19,7 +19,7 @@
 # ---------------------------------------------------------------------------
 # Default GooseFS launcher for OpenDAL CI / local dev.
 #
-# The stock `docker.io/forwardxu/goosefs:2.1.0` entrypoint
+# The stock `goosefs.tencentcloudcr.com/goosefs/repo:v2.1.0` entrypoint
 # (`goosefs-start.sh local`) starts *five* JVMs: master, worker,
 # job_master, job_worker and table_master. On the GitHub Actions
 # ubuntu-latest runner, the three processes OpenDAL does NOT use

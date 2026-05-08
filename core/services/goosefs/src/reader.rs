@@ -17,77 +17,133 @@
 
 use std::sync::Arc;
 
-use super::core::GooseFsCore;
+use goosefs_sdk::io::GoosefsFileReader as SdkReader;
+
+use super::core::GoosefsCore;
+use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// GooseFsReader implements `oio::Read` using goosefs-sdk
-/// high-level `GooseFsFileReader`.
+/// `GoosefsReader` implements [`oio::Read`] on top of the goosefs-sdk
+/// high-level streaming reader (`GoosefsFileReader`).
 ///
-/// Unlike Alluxio which returns `HttpBody` (streaming HTTP response),
-/// GooseFS uses block-level gRPC streaming. The reader lazily opens
-/// a `GooseFsFileReader` on first `read()` call.
-pub struct GooseFsReader {
-    core: Arc<GooseFsCore>,
+/// # Streaming semantics
+///
+/// Unlike the first-cut implementation, which called
+/// `GoosefsCore::read_file()` to fetch the entire requested range into
+/// one `bytes::Bytes` before returning anything to the caller, this
+/// reader pulls the file **one block at a time** via
+/// [`SdkReader::read_next_block`] and hands each block to OpenDAL as a
+/// separate `Buffer`:
+///
+///   - Peak memory is bounded by a single GooseFS block (64 MiB by
+///     default), not by the full object size.
+///   - Large reads start surfacing data to the caller as soon as the
+///     first block lands, rather than stalling until the whole range
+///     is materialised.
+///   - When `read_next_block` returns `None` the reader returns an
+///     empty `Buffer`, which is OpenDAL's `oio::Read` EOF signal.
+///
+/// # Range handling
+///
+/// The underlying SDK exposes two entry points:
+///
+///   - [`SdkReader::open_with_context`] for a full-file stream.
+///   - [`SdkReader::open_range_with_context`] for a bounded
+///     `[offset, offset+length)` stream.
+///
+/// We pick between them based on the incoming [`OpRead`] range. When
+/// only `offset` is specified (unbounded tail read), we resolve the
+/// actual tail length via `get_status` and fall through to the
+/// range-based opener, so the SDK can still use its efficient
+/// per-block streaming code path.
+///
+/// # Authentication retry
+///
+/// The authentication-reset / retry logic lives inside
+/// [`GoosefsCore::open_reader`] and [`GoosefsCore::open_range_reader`],
+/// so the reader stays focused on streaming. Once the stream is open
+/// we do not attempt to rebuild the context mid-read — a mid-stream
+/// auth failure almost always means a transport / worker problem
+/// rather than a stale SASL credential, and transparent mid-stream
+/// recovery would require replaying `bytes_read` bytes, which is
+/// more complexity than the failure mode warrants.
+pub struct GoosefsReader {
+    core: Arc<GoosefsCore>,
     path: String,
     args: OpRead,
-    /// Cached file data — we read all requested data on first call.
-    ///
-    /// This is a simplified implementation. For very large files,
-    /// a future optimization would be to stream block-by-block.
-    data: Option<Buffer>,
+    /// Lazily-opened SDK reader. `None` until the first `read()` call.
+    inner: Option<SdkReader>,
+    /// Terminal flag: once the underlying stream has returned `None`,
+    /// subsequent `read()` calls must keep returning an empty `Buffer`
+    /// without re-entering the SDK (which would try to open a fresh
+    /// stream and re-read the file).
     done: bool,
 }
 
-impl GooseFsReader {
-    pub fn new(core: Arc<GooseFsCore>, path: String, args: OpRead) -> Self {
-        GooseFsReader {
+impl GoosefsReader {
+    pub fn new(core: Arc<GoosefsCore>, path: String, args: OpRead) -> Self {
+        GoosefsReader {
             core,
             path,
             args,
-            data: None,
+            inner: None,
             done: false,
+        }
+    }
+
+    /// Open the underlying SDK reader, picking between the full-file
+    /// and ranged variants based on `self.args`.
+    async fn open(&self) -> Result<SdkReader> {
+        let range = self.args.range();
+        let offset = range.offset();
+        let size = range.size();
+
+        // Three cases:
+        //   1. No offset and no size      → full-file stream.
+        //   2. Offset+size both set       → ranged stream.
+        //   3. Offset set, size unbounded → resolve tail length via
+        //      get_status and fall through to the ranged opener, so we
+        //      still get per-block streaming (rather than buffering the
+        //      whole tail in one call).
+        match (offset, size) {
+            (0, None) => self.core.open_reader(&self.path).await,
+            (off, Some(len)) => self.core.open_range_reader(&self.path, off, len).await,
+            (off, None) => {
+                let info = self.core.get_status(&self.path).await?;
+                let file_len = info.length.unwrap_or(0) as u64;
+                let len = file_len.saturating_sub(off);
+                if len == 0 {
+                    // Empty tail — short-circuit with a zero-length
+                    // ranged open so the very next `read_next_block`
+                    // call returns `None` and we EOF cleanly.
+                    self.core.open_range_reader(&self.path, off, 0).await
+                } else {
+                    self.core.open_range_reader(&self.path, off, len).await
+                }
+            }
         }
     }
 }
 
-impl oio::Read for GooseFsReader {
+impl oio::Read for GoosefsReader {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());
         }
 
-        // If we already have cached data, return it and mark done
-        if let Some(data) = self.data.take() {
-            self.done = true;
-            return Ok(data);
+        // Lazy open on first call.
+        if self.inner.is_none() {
+            self.inner = Some(self.open().await?);
         }
+        let reader = self.inner.as_mut().expect("inner was just set");
 
-        // Lazy initialization: read from GooseFS on first call
-        let range = self.args.range();
-        let offset = range.offset();
-        let size = range.size();
-
-        let bytes = if offset > 0 || size.is_some() {
-            // Range read
-            let len = match size {
-                Some(s) => s,
-                None => {
-                    // Need file length first
-                    let info = self.core.get_status(&self.path).await?;
-                    let file_len = info.length.unwrap_or(0) as u64;
-                    file_len.saturating_sub(offset)
-                }
-            };
-            self.core
-                .read_file(&self.path, Some(offset), Some(len))
-                .await?
-        } else {
-            // Full file read
-            self.core.read_file(&self.path, None, None).await?
-        };
-
-        self.done = true;
-        Ok(Buffer::from(bytes))
+        match reader.read_next_block().await.map_err(parse_error)? {
+            Some(block) => Ok(Buffer::from(block)),
+            None => {
+                self.done = true;
+                Ok(Buffer::new())
+            }
+        }
     }
 }

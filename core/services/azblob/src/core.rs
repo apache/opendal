@@ -215,6 +215,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -280,6 +281,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlob"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -343,6 +345,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -388,6 +391,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("AppendBlock"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -441,6 +445,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlock"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -491,6 +496,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlockList"))
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -524,6 +530,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetBlobProperties"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -544,6 +551,7 @@ impl AzblobCore {
         Request::delete(self.build_path_url(path))
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)
     }
@@ -574,6 +582,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -608,6 +617,7 @@ impl AzblobCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListBlobs"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -632,7 +642,9 @@ impl AzblobCore {
             );
         }
 
-        let req = Request::post(url);
+        let req = Request::post(url)
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("BatchDeleteBlobs"));
         let req = multipart.apply(req)?;
         let req = self.sign(req).await?;
         self.send(req).await

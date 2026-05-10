@@ -110,6 +110,7 @@ impl AzdlsCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("ReadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -163,9 +164,15 @@ impl AzdlsCore {
         } else {
             Operation::Write
         };
+        let service_operation = if resource == DIRECTORY {
+            ServiceOperation("CreateDirectory")
+        } else {
+            ServiceOperation("CreateFile")
+        };
 
         let req = req
             .extension(operation)
+            .extension(service_operation)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -190,6 +197,7 @@ impl AzdlsCore {
             .header(X_MS_RENAME_SOURCE, source_path)
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Rename)
+            .extension(ServiceOperation("RenamePath"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -232,6 +240,7 @@ impl AzdlsCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("AppendData"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -263,6 +272,7 @@ impl AzdlsCore {
         let req = Request::patch(&url)
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Write)
+            .extension(ServiceOperation("FlushData"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -286,6 +296,7 @@ impl AzdlsCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetPathProperties"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -350,6 +361,7 @@ impl AzdlsCore {
 
         let req = Request::delete(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeletePath"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -384,6 +396,7 @@ impl AzdlsCore {
 
             let req = Request::delete(url.finish())
                 .extension(Operation::Delete)
+                .extension(ServiceOperation("RecursiveDeletePath"))
                 .body(Buffer::new())
                 .map_err(new_request_build_error)?;
 
@@ -436,6 +449,7 @@ impl AzdlsCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListPaths"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

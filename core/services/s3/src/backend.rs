@@ -198,6 +198,12 @@ impl S3Builder {
         self
     }
 
+    /// Set assume_role_duration_seconds for this backend.
+    pub fn assume_role_duration_seconds(mut self, v: u32) -> Self {
+        self.config.assume_role_duration_seconds = Some(v);
+        self
+    }
+
     /// Set default storage_class for this backend.
     ///
     /// Available values:
@@ -849,6 +855,9 @@ impl Builder for S3Builder {
             if let Some(role_session_name) = &config.role_session_name {
                 assume_role_provider =
                     assume_role_provider.with_role_session_name(role_session_name.clone());
+            }
+            if let Some(duration_seconds) = config.assume_role_duration_seconds {
+                assume_role_provider = assume_role_provider.with_duration_seconds(duration_seconds);
             }
             provider = ProvideCredentialChain::new().push(assume_role_provider);
         }

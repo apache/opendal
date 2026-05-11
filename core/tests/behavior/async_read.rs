@@ -22,8 +22,6 @@ use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use http::StatusCode;
 use reqwest::Url;
-use sha2::Digest;
-use sha2::Sha256;
 use tokio::time::sleep;
 
 use crate::*;
@@ -82,11 +80,7 @@ pub async fn test_read_full(op: Operator) -> anyhow::Result<()> {
 
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     Ok(())
 }
@@ -107,11 +101,8 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
         .to_bytes();
     assert_eq!(bs.len() as u64, length, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!(
-            "{:x}",
-            Sha256::digest(&content[offset as usize..(offset + length) as usize])
-        ),
+        sha256_digest(&bs),
+        sha256_digest(&content[offset as usize..(offset + length) as usize]),
         "read content"
     );
 
@@ -129,11 +120,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     // Reader.
     let bs = op.reader(&path).await?.read(..).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     // Bytes Stream
     let bs = op
@@ -147,11 +134,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
         })
         .await?;
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     // Futures Reader
     let mut futures_reader = op
@@ -162,11 +145,7 @@ pub async fn test_reader(op: Operator) -> anyhow::Result<()> {
     let mut bs = Vec::new();
     futures_reader.read_to_end(&mut bs).await?;
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     Ok(())
 }
@@ -392,11 +371,7 @@ pub async fn test_read_with_special_chars(op: Operator) -> anyhow::Result<()> {
 
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(size, bs.len(), "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content)),
-        "read content"
-    );
+    assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     Ok(())
 }
@@ -610,7 +585,7 @@ pub async fn test_read_only_read_full(op: Operator) -> anyhow::Result<()> {
     let bs = op.read("normal_file.txt").await?.to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -626,7 +601,7 @@ pub async fn test_read_only_read_full_with_special_chars(op: Operator) -> anyhow
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -643,7 +618,7 @@ pub async fn test_read_only_read_with_range(op: Operator) -> anyhow::Result<()> 
         .to_bytes();
     assert_eq!(bs.len(), 1024, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "330c6d57fdc1119d6021b37714ca5ad0ede12edd484f66be799a5cff59667034",
         "read content"
     );
@@ -697,7 +672,7 @@ pub async fn test_reader_only_read_with_if_match(op: Operator) -> anyhow::Result
 
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -727,7 +702,7 @@ pub async fn test_read_only_read_with_if_match(op: Operator) -> anyhow::Result<(
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -759,7 +734,7 @@ pub async fn test_reader_only_read_with_if_none_match(op: Operator) -> anyhow::R
 
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );
@@ -792,7 +767,7 @@ pub async fn test_read_only_read_with_if_none_match(op: Operator) -> anyhow::Res
         .to_bytes();
     assert_eq!(bs.len(), 30482, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
+        sha256_digest(&bs),
         "943048ba817cdcd786db07d1f42d5500da7d10541c2f9353352cd2d3f66617e5",
         "read content"
     );

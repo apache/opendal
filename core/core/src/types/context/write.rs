@@ -224,6 +224,17 @@ mod tests {
     use super::*;
     use crate::raw::oio::Write;
 
+    fn sha256_digest(data: impl AsRef<[u8]>) -> String {
+        use std::fmt::Write;
+
+        let digest = Sha256::digest(data);
+        let mut output = String::with_capacity(digest.len() * 2);
+        for byte in digest {
+            write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+        }
+        output
+    }
+
     struct MockWriter {
         buf: Arc<Mutex<Vec<u8>>>,
         write_sizes: Arc<Mutex<Vec<usize>>>,
@@ -288,10 +299,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -322,10 +330,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -368,10 +373,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -416,10 +418,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -460,10 +459,7 @@ mod tests {
 
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
         Ok(())
     }
 
@@ -508,10 +504,7 @@ mod tests {
         // Verify all data was written
         let buf = buf.lock().await;
         assert_eq!(buf.len(), expected.len());
-        assert_eq!(
-            format!("{:x}", Sha256::digest(&*buf)),
-            format!("{:x}", Sha256::digest(&expected))
-        );
+        assert_eq!(sha256_digest(&*buf), sha256_digest(&expected));
 
         // Verify that writes were split into chunks (except possibly the last one)
         let write_sizes = write_sizes.lock().await;

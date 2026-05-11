@@ -19,8 +19,8 @@ use bytes::Bytes;
 use opendal_core::*;
 use rand::RngCore;
 use rand::thread_rng;
-use sha2::Digest;
-use sha2::Sha256;
+
+use crate::utils::sha256_digest;
 
 /// ReadAction represents a read action.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -93,8 +93,8 @@ impl ReadChecker {
 
         // Check the read result
         assert_eq!(
-            format!("{:x}", Sha256::digest(output)),
-            format!("{:x}", Sha256::digest(expected)),
+            sha256_digest(output),
+            sha256_digest(expected),
             "check read failed: output bs is different with expected bs",
         );
     }

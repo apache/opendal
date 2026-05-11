@@ -19,8 +19,8 @@ use bytes::Bytes;
 use bytes::BytesMut;
 use rand::RngCore;
 use rand::thread_rng;
-use sha2::Digest;
-use sha2::Sha256;
+
+use crate::utils::sha256_digest;
 
 /// WriteAction represents a read action.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -71,8 +71,8 @@ impl WriteChecker {
     /// Check the correctness of the write process.
     pub fn check(&self, actual: &[u8]) {
         assert_eq!(
-            format!("{:x}", Sha256::digest(actual)),
-            format!("{:x}", Sha256::digest(&self.data)),
+            sha256_digest(actual),
+            sha256_digest(&self.data),
             "check failed: result is not expected"
         )
     }

@@ -20,6 +20,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use ::ghac::v1 as ghac_types;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -37,7 +38,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::error::parse_error;
-use super::v1 as ghac_types;
 use opendal_core::raw::*;
 use opendal_core::*;
 

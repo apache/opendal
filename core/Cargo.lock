@@ -3801,6 +3801,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ghac"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cbd3abb5dcc950e27a8aef9db4a8d966f4df906eee12d186e4064e418ba0038e"
+dependencies = [
+ "prost 0.14.3",
+]
+
+[[package]]
 name = "git-version"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6946,6 +6955,7 @@ name = "opendal-service-ghac"
 version = "0.56.0"
 dependencies = [
  "bytes",
+ "ghac",
  "http 1.4.0",
  "log",
  "opendal-core",

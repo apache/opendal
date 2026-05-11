@@ -59,6 +59,7 @@ services-all = [
   'services-dropbox',
   'services-ftp',
   'services-gdrive',
+  'services-goosefs',
   'services-gridfs',
   'services-hf',
   'services-ipfs',
@@ -117,6 +118,7 @@ services-ghac = ["opendal/services-ghac"]
 services-github = [
   "opendal/services-github",
 ] # FIXME EXCLUDED: Needs tests/ maintenance
+services-goosefs = ["opendal/services-goosefs"]
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = [
   "opendal/services-hdfs",

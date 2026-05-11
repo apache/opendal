@@ -23,6 +23,7 @@ use http::StatusCode;
 use http::Uri;
 use log::debug;
 use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
+use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
 use reqsign_aliyun_oss::EnvCredentialProvider;
 use reqsign_aliyun_oss::RequestSigner;
 use reqsign_aliyun_oss::StaticCredentialProvider;
@@ -485,6 +486,7 @@ impl Builder for OssBuilder {
 
         let mut provider = ProvideCredentialChain::new()
             .push(EnvCredentialProvider::new())
+            .push(EcsRamRoleCredentialProvider::new())
             .push(assume_role);
 
         if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.access_key_secret) {

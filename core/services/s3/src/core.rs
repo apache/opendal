@@ -417,7 +417,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -499,7 +501,9 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -544,7 +548,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -587,7 +593,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -627,6 +635,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -687,6 +696,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -726,6 +736,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -776,6 +787,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -845,7 +857,9 @@ impl S3Core {
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -887,7 +901,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -935,7 +951,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -967,6 +985,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -975,17 +994,18 @@ impl S3Core {
 
     pub async fn s3_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            quiet: true,
             object: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -1003,7 +1023,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObjects"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -1055,6 +1077,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1144,6 +1167,7 @@ pub struct CopyObjectResult {
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "Delete", rename_all = "PascalCase")]
 pub struct DeleteObjectsRequest {
+    pub quiet: bool,
     pub object: Vec<DeleteObjectsRequestObject>,
 }
 
@@ -1159,15 +1183,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1418,6 +1434,7 @@ mod tests {
     #[test]
     fn test_serialize_delete_objects_request() {
         let req = DeleteObjectsRequest {
+            quiet: true,
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
@@ -1435,6 +1452,7 @@ mod tests {
         pretty_assertions::assert_eq!(
             actual,
             r#"<Delete>
+             <Quiet>true</Quiet>
              <Object>
              <Key>sample1.txt</Key>
              </Object>
@@ -1454,9 +1472,6 @@ mod tests {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
             <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-             <Deleted>
-               <Key>sample1.txt</Key>
-             </Deleted>
              <Error>
               <Key>sample2.txt</Key>
               <Code>AccessDenied</Code>
@@ -1468,36 +1483,10 @@ mod tests {
         let out: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "sample1.txt");
         assert_eq!(out.error.len(), 1);
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
-    }
-
-    #[test]
-    fn test_deserialize_delete_objects_with_version_id() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-                    <Deleted>
-                      <Key>SampleDocument.txt</Key>
-                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
-                    </Deleted>
-                  </DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
-        assert_eq!(
-            out.deleted[0].version_id,
-            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
-        );
-        assert_eq!(out.error.len(), 0);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples

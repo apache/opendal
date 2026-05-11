@@ -29,7 +29,7 @@ OpenDAL supports the following storage [services](https://docs.rs/opendal/latest
 | Type                           | Services                                                                                                                                 | 
 |--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------| 
 | Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                                 |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                                  |
+| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [huggingface] [openstack_swift] [upyun] [vercel-blob]                                    |
 | File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                                        |
 | Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                      |
 | Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |

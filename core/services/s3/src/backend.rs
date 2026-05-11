@@ -198,6 +198,12 @@ impl S3Builder {
         self
     }
 
+    /// Set assume_role_duration_seconds for this backend.
+    pub fn assume_role_duration_seconds(mut self, v: u32) -> Self {
+        self.config.assume_role_duration_seconds = Some(v);
+        self
+    }
+
     /// Set default storage_class for this backend.
     ///
     /// Available values:
@@ -636,11 +642,10 @@ impl S3Builder {
         // - `oss-ap-southeast-1.aliyuncs.com` => `oss-ap-southeast-1`
         // - `oss-cn-hangzhou-internal.aliyuncs.com` => `oss-cn-hangzhou`
         if let Some(v) = endpoint.strip_prefix("https://") {
-            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
+            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
                 return Some(region.to_string());
             }
-
-            if let Some(region) = v.strip_suffix("-internal.aliyuncs.com") {
+            if let Some(region) = v.strip_suffix(".aliyuncs.com") {
                 return Some(region.to_string());
             }
         }
@@ -850,6 +855,9 @@ impl Builder for S3Builder {
             if let Some(role_session_name) = &config.role_session_name {
                 assume_role_provider =
                     assume_role_provider.with_role_session_name(role_session_name.clone());
+            }
+            if let Some(duration_seconds) = config.assume_role_duration_seconds {
+                assume_role_provider = assume_role_provider.with_duration_seconds(duration_seconds);
             }
             provider = ProvideCredentialChain::new().push(assume_role_provider);
         }
@@ -1228,7 +1236,7 @@ mod tests {
                 "oss with internal endpoint",
                 "https://oss-cn-hangzhou-internal.aliyuncs.com",
                 "example",
-                Some("oss-cn-hangzhou-internal"),
+                Some("oss-cn-hangzhou"),
             ),
             (
                 "r2",

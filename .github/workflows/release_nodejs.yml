@@ -63,24 +63,27 @@ jobs:
             target: x86_64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian
             features: services-all
-            build: pnpm build:ci --use-napi-cross && pnpm build:header
+            build: pnpm build:ci && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: x86_64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             features: services-all
+            zig: true
             build: pnpm build:ci -x && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64
             features: services-all
-            build: TARGET_CC=clang pnpm build:ci --use-napi-cross && pnpm build:header
+            zig: true
+            build: pnpm build:ci -x && pnpm build:header
           - os: linux
             host: ubuntu-latest
             target: aarch64-unknown-linux-musl
             docker: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
             features: services-all
+            zig: true
             build: pnpm build:ci -x && pnpm build:header
           - os: windows
             host: windows-latest
@@ -113,25 +116,35 @@ jobs:
           cache: pnpm
           cache-dependency-path: "bindings/nodejs/pnpm-lock.yaml"
       - name: Install
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.settings.target }}
-      - uses: mlugg/setup-zig@fa65c4058643678a4e4a9a60513944a7d8d35440 # v2.1.0
-        if: ${{ contains(matrix.settings.target, 'musl') }}
-        with:
-          version: 0.14.0
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.settings.target }}
+      - name: Setup Zig
+        if: ${{ matrix.settings.zig }}
+        shell: bash
+        run: |
+          ZIG_VERSION=0.14.0
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Linux-X64) ZIG_TARGET=linux-x86_64 ;;
+            *)
+              echo "unsupported host for Zig: ${RUNNER_OS}-${RUNNER_ARCH}" >&2
+              exit 1
+              ;;
+          esac
+          ZIG_HOME="${RUNNER_TOOL_CACHE}/zig/${ZIG_VERSION}"
+          mkdir -p "${ZIG_HOME}"
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-${ZIG_TARGET}-${ZIG_VERSION}.tar.xz" \
+            | tar -xJ --strip-components=1 -C "${ZIG_HOME}"
+          echo "${ZIG_HOME}" >> "${GITHUB_PATH}"
       - name: Install cargo-zigbuild
         uses: taiki-e/install-action@v2
-        if: ${{ contains(matrix.settings.target, 'musl') }}
+        if: ${{ matrix.settings.zig }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           tool: cargo-zigbuild
-      - name: Setup toolchain
-        run: ${{ matrix.settings.setup }}
-        if: ${{ matrix.settings.setup }}
-        shell: bash
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Set Build ENV

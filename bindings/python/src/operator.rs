@@ -523,9 +523,27 @@ impl Operator {
     /// ----------
     /// path : str
     ///     The path to the file.
-    pub fn delete(&self, path: PathBuf) -> PyResult<()> {
+    /// version : str, optional
+    ///     The version of the file to delete. Only supported on version-aware backends.
+    /// recursive : bool, optional
+    ///     If True, delete the path recursively. Only supported on backends that support recursive delete.
+    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    pub fn delete(
+        &self,
+        path: PathBuf,
+        version: Option<String>,
+        recursive: Option<bool>,
+    ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
-        self.core.delete(&path).map_err(format_pyerr)
+        if version.is_some() || recursive.is_some() {
+            let opts = ocore::options::DeleteOptions {
+                version,
+                recursive: recursive.unwrap_or(false),
+            };
+            self.core.delete_options(&path, opts).map_err(format_pyerr)
+        } else {
+            self.core.delete(&path).map_err(format_pyerr)
+        }
     }
 
     /// Check if a path exists.
@@ -1302,13 +1320,31 @@ impl AsyncOperator {
         type_repr="collections.abc.Awaitable[None]",
         imports=("collections.abc")
     ))]
-    pub fn delete<'p>(&'p self, py: Python<'p>, path: PathBuf) -> PyResult<Bound<'p, PyAny>> {
+    /// version : str, optional
+    ///     The version of the file to delete. Only supported on version-aware backends.
+    /// recursive : bool, optional
+    ///     If True, delete the path recursively. Only supported on backends that support recursive delete.
+    #[pyo3(signature = (path, *, version=None, recursive=None))]
+    pub fn delete<'p>(
+        &'p self,
+        py: Python<'p>,
+        path: PathBuf,
+        version: Option<String>,
+        recursive: Option<bool>,
+    ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        future_into_py(
-            py,
-            async move { this.delete(&path).await.map_err(format_pyerr) },
-        )
+        future_into_py(py, async move {
+            if version.is_some() || recursive.is_some() {
+                let opts = ocore::options::DeleteOptions {
+                    version,
+                    recursive: recursive.unwrap_or(false),
+                };
+                this.delete_options(&path, opts).await.map_err(format_pyerr)
+            } else {
+                this.delete(&path).await.map_err(format_pyerr)
+            }
+        })
     }
 
     /// Check if a path exists.
@@ -1718,7 +1754,10 @@ impl AsyncOperator {
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
-        let opts = DeleteOptions { version };
+        let opts = DeleteOptions {
+            version,
+            ..Default::default()
+        };
         future_into_py(py, async move {
             let res = this
                 .presign_delete_options(&path, Duration::from_secs(expire_second), opts.into())

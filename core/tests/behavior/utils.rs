@@ -26,6 +26,19 @@ use opendal::tests::TEST_RUNTIME;
 use opendal::*;
 use rand::distributions::uniform::SampleRange;
 use rand::prelude::*;
+use sha2::Digest;
+use sha2::Sha256;
+
+pub fn sha256_digest(data: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = Sha256::digest(data);
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
+}
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
     let mut rng = thread_rng();

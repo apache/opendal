@@ -238,7 +238,7 @@ dependencies = [
  "async-backtrace-attributes",
  "dashmap 5.5.3",
  "futures",
- "loom",
+ "loom 0.5.6",
  "once_cell",
  "pin-project-lite",
  "rustc-hash 1.1.0",
@@ -1711,9 +1711,9 @@ dependencies = [
 
 [[package]]
 name = "compio"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8a7cc183295c36483f1c9616f43c4ac1a9030ce6d9321d6cebb4c4bb21164c4"
+checksum = "9b84ee96a86948d04388f3a0b8c36b9f0a6b40b3528ac0d65737e53632fb37fe"
 dependencies = [
  "compio-buf",
  "compio-dispatcher",
@@ -1721,15 +1721,15 @@ dependencies = [
  "compio-fs",
  "compio-io",
  "compio-log",
- "compio-net",
+ "compio-quic",
  "compio-runtime",
 ]
 
 [[package]]
 name = "compio-buf"
-version = "0.7.2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ebb4036bf394915196c09362e4fd5581ee8bf0f3302ab598bff9d646aea2061"
+checksum = "a00d719dbd8c602ab0d25d219cbc6b517008858de7a8d6c51b4dc95aefff4dce"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1738,45 +1738,49 @@ dependencies = [
 
 [[package]]
 name = "compio-dispatcher"
-version = "0.9.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67b75d07808f922b95bbabf28f3e24d0ed870f4f36a2b4973fc320f9f17c977"
+checksum = "294348deec2e477774bc20a215afbded1cf8eda758d7f81342b42064cdde1da7"
 dependencies = [
  "compio-driver",
  "compio-runtime",
- "flume 0.11.1",
+ "flume 0.12.0",
  "futures-channel",
 ]
 
 [[package]]
 name = "compio-driver"
-version = "0.10.0"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff5c12800e82a01d12046ccc29b014e1cbbb2fbe38c52534e0d40d4fc58881d5"
+checksum = "74d42d98dc890ee4db00c1e68a723391711aab6d67085880d716b72830f7c715"
 dependencies = [
  "cfg-if 1.0.4",
  "cfg_aliases",
  "compio-buf",
  "compio-log",
  "crossbeam-queue",
- "flume 0.11.1",
+ "flume 0.12.0",
  "futures-util",
  "io-uring 0.7.12",
  "io_uring_buf_ring",
  "libc",
  "once_cell",
  "paste",
+ "pin-project-lite",
  "polling",
  "slab",
+ "smallvec",
  "socket2 0.6.3",
+ "synchrony",
+ "thin-cell",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "compio-fs"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c568022f90c2e2e8ea7ff4c4e8fde500753b5b9b6b6d870e25b5e656f9ea2892"
+checksum = "65ee36e1acf2cec4835efe9a986c012b2462c5ef53580e4ee84ae6d5a3d8e3b3"
 dependencies = [
  "cfg-if 1.0.4",
  "cfg_aliases",
@@ -1786,19 +1790,21 @@ dependencies = [
  "compio-runtime",
  "libc",
  "os_pipe",
+ "pin-project-lite",
  "widestring",
  "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "compio-io"
-version = "0.8.4"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1e64c6d723589492a4f5041394301e9903466a606f6d9bcc11e406f9f07e9ec"
+checksum = "637522f28a64fd5f7dcceaa4ddef13fa8d8020025e8c993f7a069e237835580e"
 dependencies = [
  "compio-buf",
  "futures-util",
  "paste",
+ "synchrony",
 ]
 
 [[package]]
@@ -1812,9 +1818,9 @@ dependencies = [
 
 [[package]]
 name = "compio-net"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bffab78b8a876111ca76450912ca6a5a164b0dd93973e342c5f438a6f478c735"
+checksum = "becd7d40522c885113752a3640cba9f9d347f205b646bb3f8ff3967173a228f2"
 dependencies = [
  "cfg-if 1.0.4",
  "compio-buf",
@@ -1830,10 +1836,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "compio-runtime"
-version = "0.10.1"
+name = "compio-quic"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83fd890a129a8086af857bbe18401689c130aa6ccfc7f3c029a7800f7256af3e"
+checksum = "ad9efdad81b920108b9de57148e1b9d73dc408b6d06a59ee64836dde651cf026"
+dependencies = [
+ "cfg_aliases",
+ "compio-buf",
+ "compio-io",
+ "compio-log",
+ "compio-net",
+ "compio-runtime",
+ "flume 0.12.0",
+ "futures-util",
+ "libc",
+ "quinn-proto",
+ "rustc-hash 2.1.2",
+ "rustls 0.23.40",
+ "synchrony",
+ "thiserror 2.0.18",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "compio-runtime"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6c1c71f011bdd9c8f30e97d877b606505ee6d241c7782cfaed172f66acbd9cd"
 dependencies = [
  "async-task",
  "cfg-if 1.0.4",
@@ -3678,6 +3707,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "generator"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52f04ae4152da20c76fe800fa48659201d5cf627c5149ca0b707b69d7eef6cf9"
+dependencies = [
+ "cc",
+ "cfg-if 1.0.4",
+ "libc",
+ "log",
+ "rustversion",
+ "windows-link 0.2.1",
+ "windows-result 0.4.1",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5374,7 +5418,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff50ecb28bb86013e935fb6683ab1f6d3a20016f123c76fd4c27470076ac30f5"
 dependencies = [
  "cfg-if 1.0.4",
- "generator",
+ "generator 0.7.5",
+ "scoped-tls",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "loom"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "419e0dc8046cb947daa77eb95ae174acfbddb7673b4151f56d1eed8e93fbfaca"
+dependencies = [
+ "cfg-if 1.0.4",
+ "generator 0.8.8",
+ "pin-utils",
  "scoped-tls",
  "tracing",
  "tracing-subscriber",
@@ -11084,6 +11142,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "synchrony"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "416090a4d8f6358526df5f9f65dfe28750b8b7bfd1fd8a5620f483fc4a75722c"
+dependencies = [
+ "futures-util",
+ "loom 0.7.2",
+]
+
+[[package]]
 name = "synstructure"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11203,6 +11271,12 @@ dependencies = [
  "rustix 1.1.4",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "thin-cell"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4164c6c316ba9733b0ab021e7f9852c788a4b991b49c25820f1be48e1d41345b"
 
 [[package]]
 name = "thin-vec"

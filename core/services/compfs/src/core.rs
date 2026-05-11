@@ -19,7 +19,7 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use compio::buf::{IoBuf, IoBuffer, IoVectoredBuf};
+use compio::buf::{IoBuf, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
 
 use opendal_core::raw::*;
@@ -27,38 +27,29 @@ use opendal_core::*;
 
 // Wrapper type to avoid orphan rules
 #[derive(Debug, Clone)]
-pub struct CompfsBuffer(pub opendal_core::Buffer);
+pub struct CompfsBuffer(pub Vec<compio::bytes::Bytes>);
 
-unsafe impl IoBuf for CompfsBuffer {
-    fn as_buf_ptr(&self) -> *const u8 {
-        self.0.current().as_ptr()
-    }
-
-    fn buf_len(&self) -> usize {
-        self.0.current().len()
-    }
-
-    fn buf_capacity(&self) -> usize {
-        // `Bytes` doesn't expose uninitialized capacity, so treat it as the same as `len`
-        self.0.current().len()
+impl IoBuf for CompfsBuffer {
+    fn as_init(&self) -> &[u8] {
+        self.0.first().map_or(&[], |b| b.as_ref())
     }
 }
 
 impl From<CompfsBuffer> for opendal_core::Buffer {
     fn from(buf: CompfsBuffer) -> Self {
-        buf.0
+        buf.0.into()
     }
 }
 
 impl From<opendal_core::Buffer> for CompfsBuffer {
-    fn from(buf: opendal_core::Buffer) -> Self {
-        Self(buf)
+    fn from(mut buf: opendal_core::Buffer) -> Self {
+        Self(buf.by_ref().collect())
     }
 }
 
 impl IoVectoredBuf for CompfsBuffer {
-    unsafe fn iter_io_buffer(&self) -> impl Iterator<Item = IoBuffer> {
-        self.0.clone().map(|b| unsafe { b.as_io_buffer() })
+    fn iter_slice(&self) -> impl Iterator<Item = &[u8]> {
+        self.0.iter().map(|b| b.as_ref())
     }
 }
 
@@ -105,7 +96,6 @@ impl CompfsCore {
 
 #[cfg(test)]
 mod tests {
-    use bytes::Buf;
     use bytes::Bytes;
     use rand::Rng;
     use rand::thread_rng;
@@ -128,14 +118,23 @@ mod tests {
         let total_content = bs.iter().flatten().copied().collect::<Bytes>();
         let buf = Buffer::from(bs);
 
-        (CompfsBuffer(buf), total_size, total_content)
+        (CompfsBuffer::from(buf), total_size, total_content)
     }
 
     #[test]
     fn test_io_buf() {
         let (buf, _len, _bytes) = setup_buffer();
-        let slice = IoBuf::as_slice(&buf);
+        let slice = IoBuf::as_init(&buf);
 
-        assert_eq!(slice, buf.0.current().chunk())
+        assert_eq!(slice, buf.0.first().unwrap().as_ref())
+    }
+
+    #[test]
+    fn test_io_vectored_buf() {
+        let (buf, len, bytes) = setup_buffer();
+        let collected = buf.iter_slice().flatten().copied().collect::<Bytes>();
+
+        assert_eq!(buf.total_len(), len);
+        assert_eq!(collected, bytes);
     }
 }

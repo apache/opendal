@@ -55,7 +55,7 @@ runs:
     - name: Setup Linux
       if: runner.os == 'Linux'
       shell: bash
-      run: sudo apt-get install libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+      run: sudo apt-get install libclang-dev libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
 
     - name: Setup Protoc
       if: inputs.need-protoc == 'true'
@@ -162,7 +162,7 @@ runs:
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
-        key: r2-rocksdb-8.1.1
+        key: r3-rocksdb-10.4.2-${{ runner.os }}-${{ runner.arch }}
 
     - name: Build rocksdb if not cached
       if: steps.cache-rocksdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-rocksdb == 'true'
@@ -171,9 +171,9 @@ runs:
         set -e
 
         cd /tmp
-        curl https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz -L -o rocksdb.tar.gz
+        curl https://github.com/facebook/rocksdb/archive/refs/tags/v10.4.2.tar.gz -L -o rocksdb.tar.gz
         tar -xzf rocksdb.tar.gz
-        cd rocksdb-8.1.1
+        cd rocksdb-10.4.2
 
         mkdir /tmp/rocksdb
         cmake -DCMAKE_INSTALL_PREFIX=/tmp/rocksdb -DPORTABLE=1
@@ -181,7 +181,7 @@ runs:
         make install
 
         cd ..
-        rm -rf /tmp/rocksdb-8.1.1
+        rm -rf /tmp/rocksdb-10.4.2
 
     - name: Cache foundationdb
       id: cache-foundationdb

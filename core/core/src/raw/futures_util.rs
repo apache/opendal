@@ -319,7 +319,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use rand::Rng;
+    use rand::RngExt;
     use tokio::time::sleep;
 
     use super::*;
@@ -334,7 +334,7 @@ mod tests {
                 sleep(dur).await;
 
                 // 5% rate to fail.
-                if rand::thread_rng().gen_range(0..100) > 90 {
+                if rand::rng().random_range(0..100) > 90 {
                     return (
                         (i, dur),
                         Err(Error::new(ErrorKind::Unexpected, "I'm lucky").set_temporary()),
@@ -348,7 +348,7 @@ mod tests {
 
         for i in 0..10240 {
             // Sleep up to 10ms
-            let dur = Duration::from_millis(rand::thread_rng().gen_range(0..10));
+            let dur = Duration::from_millis(rand::rng().random_range(0..10));
             loop {
                 let res = tasks.execute((i, dur)).await;
                 if res.is_ok() {

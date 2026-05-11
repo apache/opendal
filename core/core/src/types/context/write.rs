@@ -215,9 +215,7 @@ mod tests {
     use logforth::layout::TextLayout;
     use mea::mutex::Mutex;
     use pretty_assertions::assert_eq;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::thread_rng;
+    use rand::{Rng, RngExt, rng};
     use sha2::Digest;
     use sha2::Sha256;
 
@@ -275,7 +273,7 @@ mod tests {
     async fn test_exact_buf_writer_short_write() -> Result<()> {
         setup();
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; 5];
         rng.fill_bytes(&mut expected);
 
@@ -317,7 +315,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; 15];
         rng.fill_bytes(&mut expected);
 
@@ -348,7 +346,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let mut new_content = |size| {
@@ -391,7 +389,7 @@ mod tests {
             false,
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let mut new_content = |size| {
@@ -426,11 +424,11 @@ mod tests {
     async fn test_fuzz_exact_buf_writer() -> Result<()> {
         setup();
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![];
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let buffer_size = rng.gen_range(1..10);
+        let buffer_size = rng.random_range(1..10);
         let mut writer = WriteGenerator::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
@@ -442,7 +440,7 @@ mod tests {
         debug!("test_fuzz_exact_buf_writer: buffer size: {buffer_size}");
 
         for _ in 0..1000 {
-            let size = rng.gen_range(1..20);
+            let size = rng.random_range(1..20);
             debug!("test_fuzz_exact_buf_writer: write size: {size}");
             let mut content = vec![0; size];
             rng.fill_bytes(&mut content);
@@ -486,7 +484,7 @@ mod tests {
             true, // exact mode
         );
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut expected = vec![0; large_buffer_size];
         rng.fill_bytes(&mut expected);
 

@@ -2814,7 +2814,7 @@ name = "edge_test_file_write_on_full_disk"
 version = "0.56.0"
 dependencies = [
  "opendal",
- "rand 0.8.6",
+ "rand 0.10.1",
  "tokio",
 ]
 
@@ -6308,7 +6308,7 @@ dependencies = [
  "opendal-service-webhdfs",
  "opendal-service-yandex-disk",
  "opendal-testkit",
- "rand 0.8.6",
+ "rand 0.10.1",
  "reqwest",
  "sha2 0.11.0",
  "size",
@@ -6322,7 +6322,7 @@ version = "0.56.0"
 dependencies = [
  "criterion",
  "opendal",
- "rand 0.8.6",
+ "rand 0.10.1",
  "tokio",
  "uuid",
 ]
@@ -6338,7 +6338,7 @@ dependencies = [
  "dotenvy",
  "logforth",
  "opendal",
- "rand 0.8.6",
+ "rand 0.10.1",
  "tokio",
 ]
 
@@ -6361,7 +6361,7 @@ dependencies = [
  "percent-encoding",
  "pretty_assertions",
  "quick-xml",
- "rand 0.8.6",
+ "rand 0.10.1",
  "reqsign-core",
  "reqwest",
  "serde",
@@ -6439,7 +6439,7 @@ name = "opendal-layer-chaos"
 version = "0.56.0"
 dependencies = [
  "opendal-core",
- "rand 0.8.6",
+ "rand 0.10.1",
 ]
 
 [[package]]
@@ -6802,7 +6802,7 @@ dependencies = [
  "bytes",
  "compio",
  "opendal-core",
- "rand 0.8.6",
+ "rand 0.10.1",
  "serde",
 ]
 
@@ -7559,7 +7559,7 @@ dependencies = [
  "opendal-layer-logging",
  "opendal-layer-retry",
  "opendal-layer-timeout",
- "rand 0.8.6",
+ "rand 0.10.1",
  "sha2 0.11.0",
  "tokio",
  "uuid",

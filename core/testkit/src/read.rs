@@ -17,8 +17,8 @@
 
 use bytes::Bytes;
 use opendal_core::*;
-use rand::RngCore;
-use rand::thread_rng;
+use rand::Rng;
+use rand::rng;
 
 use crate::utils::sha256_digest;
 
@@ -45,7 +45,7 @@ impl ReadChecker {
     /// It's by design that we use a random generator to generate the raw data. The content of data
     /// is not important, we only care about the correctness of the read process.
     pub fn new(size: usize) -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut data = vec![0; size];
         rng.fill_bytes(&mut data);
 

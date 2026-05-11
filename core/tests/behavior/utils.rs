@@ -24,8 +24,9 @@ use libtest_mimic::Trial;
 use opendal::raw::*;
 use opendal::tests::TEST_RUNTIME;
 use opendal::*;
-use rand::distributions::uniform::SampleRange;
+use rand::distr::uniform::SampleRange;
 use rand::prelude::*;
+use rand::rng;
 use sha2::Digest;
 use sha2::Sha256;
 
@@ -41,9 +42,9 @@ pub fn sha256_digest(data: impl AsRef<[u8]>) -> String {
 }
 
 pub fn gen_bytes_with_range(range: impl SampleRange<usize>) -> (Vec<u8>, usize) {
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
-    let size = rng.gen_range(range);
+    let size = rng.random_range(range);
     let mut content = vec![0; size];
     rng.fill_bytes(&mut content);
 
@@ -62,11 +63,11 @@ pub fn gen_fixed_bytes(size: usize) -> Vec<u8> {
 }
 
 pub fn gen_offset_length(size: usize) -> (u64, u64) {
-    let mut rng = thread_rng();
+    let mut rng = rng();
 
     // Make sure at least one byte is read.
-    let offset = rng.gen_range(0..size - 1);
-    let length = rng.gen_range(1..(size - offset));
+    let offset = rng.random_range(0..size - 1);
+    let length = rng.random_range(1..(size - offset));
 
     (offset as u64, length as u64)
 }
@@ -171,9 +172,9 @@ impl Fixture {
         let path = path.into();
         self.paths.lock().unwrap().push(path.clone());
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
-        let size = rng.gen_range(range);
+        let size = rng.random_range(range);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
 

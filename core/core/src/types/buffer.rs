@@ -359,10 +359,7 @@ impl Buffer {
     /// ```
     pub fn split_to(&mut self, at: usize) -> Self {
         let len = self.len();
-        assert!(
-            at <= len,
-            "split_to out of bounds: {at:?} <= {len:?}",
-        );
+        assert!(at <= len, "split_to out of bounds: {at:?} <= {len:?}",);
 
         let head = self.slice(..at);
         self.advance(at);
@@ -392,10 +389,7 @@ impl Buffer {
     /// ```
     pub fn split_off(&mut self, at: usize) -> Self {
         let len = self.len();
-        assert!(
-            at <= len,
-            "split_off out of bounds: {at:?} <= {len:?}",
-        );
+        assert!(at <= len, "split_off out of bounds: {at:?} <= {len:?}",);
 
         let tail = self.slice(at..);
         self.truncate(at);
@@ -1167,7 +1161,11 @@ mod tests {
 
     #[test]
     fn test_split_to_non_contiguous() {
-        let mut buf = Buffer::from(vec![Bytes::from("ab"), Bytes::from("cd"), Bytes::from("ef")]);
+        let mut buf = Buffer::from(vec![
+            Bytes::from("ab"),
+            Bytes::from("cd"),
+            Bytes::from("ef"),
+        ]);
         let head = buf.split_to(3);
         assert_eq!(head.to_bytes(), Bytes::from("abc"));
         assert_eq!(buf.to_bytes(), Bytes::from("def"));
@@ -1206,7 +1204,11 @@ mod tests {
 
     #[test]
     fn test_split_off_non_contiguous() {
-        let mut buf = Buffer::from(vec![Bytes::from("ab"), Bytes::from("cd"), Bytes::from("ef")]);
+        let mut buf = Buffer::from(vec![
+            Bytes::from("ab"),
+            Bytes::from("cd"),
+            Bytes::from("ef"),
+        ]);
         let tail = buf.split_off(3);
         assert_eq!(buf.to_bytes(), Bytes::from("abc"));
         assert_eq!(tail.to_bytes(), Bytes::from("def"));

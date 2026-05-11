@@ -319,7 +319,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use rand::{Rng, RngExt};
+    use rand::RngExt;
     use tokio::time::sleep;
 
     use super::*;

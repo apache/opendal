@@ -18,7 +18,7 @@
 use bytes::Bytes;
 use bytes::BytesMut;
 use rand::RngCore;
-use rand::thread_rng;
+use rand::rng;
 
 use crate::utils::sha256_digest;
 
@@ -42,7 +42,7 @@ pub struct WriteChecker {
 impl WriteChecker {
     /// Create a new WriteChecker with given size.
     pub fn new(size: Vec<usize>) -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let mut chunks = Vec::with_capacity(size.len());
 

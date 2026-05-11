@@ -247,9 +247,7 @@ mod tests {
     use std::sync::Mutex;
 
     use pretty_assertions::assert_eq;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::thread_rng;
+    use rand::{Rng, RngExt, rng};
     use tokio::time::sleep;
 
     use super::*;
@@ -277,7 +275,7 @@ mod tests {
         async fn write_once(&self, size: u64, body: Buffer) -> Result<Metadata> {
             sleep(Duration::from_nanos(50)).await;
 
-            if thread_rng().gen_bool(1.0 / 10.0) {
+            if rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -294,7 +292,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
 
             // We will have 10% percent rate for write part to fail.
-            if thread_rng().gen_bool(1.0 / 10.0) {
+            if rng().random_bool(1.0 / 10.0) {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "I'm a crazy monkey!").set_temporary()
                 );
@@ -325,14 +323,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_block_writer_with_concurrent_errors() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let mut w = BlockWriter::new(Arc::default(), TestWrite::new(), 8);
         let mut total_size = 0u64;
         let mut expected_content = Vec::new();
 
         for _ in 0..1000 {
-            let size = rng.gen_range(1..1024);
+            let size = rng.random_range(1..1024);
             total_size += size as u64;
 
             let mut bs = vec![0; size];
@@ -368,12 +366,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_block_writer_with_retry_when_write_once_error() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         for _ in 1..100 {
             let mut w = BlockWriter::new(Arc::default(), TestWrite::new(), 8);
 
-            let size = rng.gen_range(1..1024);
+            let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];
             rng.fill_bytes(&mut bs);
 

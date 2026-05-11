@@ -97,17 +97,16 @@ impl CompfsCore {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use rand::Rng;
-    use rand::thread_rng;
+    use rand::{RngExt, rng};
 
     use super::*;
 
     fn setup_buffer() -> (CompfsBuffer, usize, Bytes) {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let bs = (0..100)
             .map(|_| {
-                let len = rng.gen_range(1..100);
+                let len = rng.random_range(1..100);
                 let mut buf = vec![0; len];
                 rng.fill(&mut buf[..]);
                 Bytes::from(buf)

@@ -17,7 +17,7 @@
 
 use bytes::Bytes;
 use bytes::BytesMut;
-use rand::RngCore;
+use rand::Rng;
 use rand::rng;
 
 use crate::utils::sha256_digest;

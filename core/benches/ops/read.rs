@@ -19,7 +19,6 @@ use divan::Bencher;
 use divan::counter::BytesCount;
 use opendal::tests::TEST_RUNTIME;
 use opendal::tests::init_test_service;
-use rand::prelude::*;
 use rand::rng;
 use size::Size;
 

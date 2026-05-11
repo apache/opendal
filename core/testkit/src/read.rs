@@ -17,7 +17,7 @@
 
 use bytes::Bytes;
 use opendal_core::*;
-use rand::RngCore;
+use rand::Rng;
 use rand::rng;
 
 use crate::utils::sha256_digest;

@@ -98,7 +98,7 @@ Before opening the PR, check whether PR templates exist and use them. Keep the P
 
 Before creating an RC tag:
 
-- Fetch latest `origin/main`.
+- Resolve the remote that points to `apache/opendal`; do not assume it is named `origin`.
 - Confirm the bump PR or required fix PR is merged.
 - Confirm the tag target commit exactly.
 - Confirm no existing tag uses the intended RC version.
@@ -106,10 +106,16 @@ Before creating an RC tag:
 Tag and push:
 
 ```bash
-git fetch origin main --tags
+apache_remote="$(git remote -v | awk '$2 ~ /github.com[:\/]apache\/opendal(\.git)?$/ && $3 == "(fetch)" { print $1; exit }')"
+test -n "${apache_remote}" || {
+  echo "cannot find a git remote for apache/opendal" >&2
+  exit 1
+}
+
+git fetch "${apache_remote}" main --tags
 git tag -s "v${release_version}" "${main_sha}" -m "v${release_version}"
 git tag -v "v${release_version}"
-git push origin "v${release_version}"
+git push "${apache_remote}" "v${release_version}"
 ```
 
 If a new commit lands after an RC tag and before the release is final, do not move the tag. Create the next RC tag.
@@ -126,6 +132,7 @@ Default required gate:
 - `Release Python Binding`
 - `Release NodeJS Binding`
 - `Bindings NodeJS CI`
+- `Docs`
 
 If the release manager explicitly narrows or expands the gate, follow that instruction and state the gate in status updates.
 
@@ -217,7 +224,8 @@ curl -sS -L -o /tmp/opendal-maven-index.html -w '%{http_code} %{url_effective}\n
 
 Stop rules:
 
-- `404` with text like `staging: open` or `not exposed` means the repo is not closed. Do not start vote.
+- Any `404` from the staging URL means the Maven artifacts are not vote-ready. Inspect the response body to distinguish an open or not-exposed staging repo from a wrong repo id, dropped repo, or missing repo.
+- `404` with text like `staging: open` or `not exposed` means the repo exists but is not closed. Close it before voting.
 - `Close` is pre-vote. `Release` is post-vote. Do not click or automate `Release` before the vote passes.
 - If the vote fails, drop the staging repo.
 
@@ -259,7 +267,35 @@ curl -sSL https://github.com/apache/opendal/raw/v${release_version}/scripts/veri
 python verify.py
 ```
 
-Use `gh api graphql` or `gh discussion` if available. Avoid hand-editing multiline bodies through escaped `\n`; use a body file or stdin.
+Use `gh api graphql` by default. Creating the discussion requires the repository id and the `General` category id, not just the category name:
+
+```bash
+gh api graphql -F query='
+query {
+  repository(owner: "apache", name: "opendal") {
+    id
+    discussionCategories(first: 20) {
+      nodes { id name slug }
+    }
+  }
+}'
+```
+
+Then call `createDiscussion` with the resolved repository id, category id, title, and body. Avoid hand-editing multiline bodies through escaped `\n`; use a body file or stdin.
+
+```bash
+gh api graphql \
+  -F repositoryId="${repository_id}" \
+  -F categoryId="${category_id}" \
+  -F title="${vote_title}" \
+  -F body=@/tmp/opendal-vote.md \
+  -F query='
+mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+  createDiscussion(input: {repositoryId: $repositoryId, categoryId: $categoryId, title: $title, body: $body}) {
+    discussion { number url }
+  }
+}'
+```
 
 ## Vote Result
 
@@ -271,7 +307,7 @@ Before claiming the result:
 - Require at least 3 `+1` binding votes.
 - Require more `+1` binding votes than `-1` binding votes.
 - Use voters' real names, public profile names, or Apache IDs in the result.
-- Check that the vote discussion has not already been closed or answered.
+- Check that the vote discussion is not closed and that a result discussion has not already been posted.
 
 Create the result discussion with:
 
@@ -287,9 +323,15 @@ After the vote passes:
 1. Push final release tag:
 
 ```bash
+apache_remote="$(git remote -v | awk '$2 ~ /github.com[:\/]apache\/opendal(\.git)?$/ && $3 == "(fetch)" { print $1; exit }')"
+test -n "${apache_remote}" || {
+  echo "cannot find a git remote for apache/opendal" >&2
+  exit 1
+}
+
 git checkout "v${release_version}"
 git tag -s "v${opendal_version}" -m "v${opendal_version}"
-git push origin "v${opendal_version}"
+git push "${apache_remote}" "v${opendal_version}"
 ```
 
 2. Move SVN artifacts from `dist/dev` to `dist/release`:

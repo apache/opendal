@@ -32,7 +32,7 @@ all-features = true
 
 [dependencies]
 bincode = "1"
-foyer = { version = "0.18", features = ["serde"] }
+foyer = { version = "0.22.3", features = ["serde"] }
 opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 

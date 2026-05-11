@@ -52,8 +52,16 @@ impl<A: Access> oio::Delete for Deleter<A> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        for key in &self.keys {
-            self.inner.cache.remove(key);
+        {
+            let mut deleted_keys = self
+                .inner
+                .deleted_keys
+                .lock()
+                .expect("deleted keys lock poisoned");
+            for key in &self.keys {
+                self.inner.cache.remove(key);
+                deleted_keys.insert(key.clone());
+            }
         }
         self.deleter.close().await
     }

@@ -189,7 +189,7 @@ runs:
       if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       with:
         path: /etc/foundationdb
-        key: r0-foundationdb-7.1.17
+        key: r0-foundationdb-7.3.69
 
     - name: Build foundationdb if not cached
       if: steps.cache-foundationdb.outputs.cache-hit != 'true' && runner.os == 'Linux' && inputs.need-foundationdb == 'true'
@@ -199,10 +199,10 @@ runs:
 
         cd /tmp
 
-        curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-clients_7.1.17-1_amd64.deb -L -o foundationdb-clients_7.1.17-1_amd64.deb
-        curl https://github.com/apple/foundationdb/releases/download/7.1.17/foundationdb-server_7.1.17-1_amd64.deb -L -o foundationdb-server_7.1.17-1_amd64.deb
+        curl https://github.com/apple/foundationdb/releases/download/7.3.69/foundationdb-clients_7.3.69-1_amd64.deb -L -o foundationdb-clients_7.3.69-1_amd64.deb
+        curl https://github.com/apple/foundationdb/releases/download/7.3.69/foundationdb-server_7.3.69-1_amd64.deb -L -o foundationdb-server_7.3.69-1_amd64.deb
 
-        sudo dpkg -i foundationdb-clients_7.1.17-1_amd64.deb foundationdb-server_7.1.17-1_amd64.deb
+        sudo dpkg -i foundationdb-clients_7.3.69-1_amd64.deb foundationdb-server_7.3.69-1_amd64.deb
 
-        rm foundationdb-clients_7.1.17-1_amd64.deb
-        rm foundationdb-server_7.1.17-1_amd64.deb
+        rm foundationdb-clients_7.3.69-1_amd64.deb
+        rm foundationdb-server_7.3.69-1_amd64.deb

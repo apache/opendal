@@ -10761,9 +10761,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "suppaftp"
-version = "6.3.0"
+version = "8.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9d869e942cc5f349ad91645925a9e6b570f62c4c170ad1c7b92b867bd16bd54"
+checksum = "4275c142b5be3af2eeadd70dd368caf3b65546c8af1035839372dd7a1436127d"
 dependencies = [
  "async-std",
  "async-trait",
@@ -10773,7 +10773,6 @@ dependencies = [
  "lazy-regex",
  "log",
  "pin-project",
- "rustls 0.23.40",
  "rustls-pki-types",
  "thiserror 2.0.18",
 ]

@@ -7604,7 +7604,7 @@ dependencies = [
  "bytes",
  "http 1.4.0",
  "opendal-core",
- "quick-xml 0.38.4",
+ "quick-xml",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-volcengine-tos",

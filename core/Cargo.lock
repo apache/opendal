@@ -3801,15 +3801,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ghac"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a10bd5b898cac1a4de4a882a754b2ccaafead449348cfb420b48cd5c00ffd08b"
-dependencies = [
- "prost 0.13.5",
-]
-
-[[package]]
 name = "git-version"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6955,12 +6946,11 @@ name = "opendal-service-ghac"
 version = "0.56.0"
 dependencies = [
  "bytes",
- "ghac",
  "http 1.4.0",
  "log",
  "opendal-core",
  "opendal-service-azblob",
- "prost 0.13.5",
+ "prost 0.14.3",
  "reqsign-azure-storage",
  "reqsign-core",
  "serde",
@@ -7069,7 +7059,7 @@ dependencies = [
  "http 1.4.0",
  "log",
  "opendal-core",
- "prost 0.13.5",
+ "prost 0.14.3",
  "serde",
  "tokio",
 ]

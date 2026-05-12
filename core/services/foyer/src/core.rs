@@ -15,15 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
-use foyer::DirectFsDeviceOptions;
-use foyer::Engine;
+use foyer::BlockEngineConfig;
+use foyer::DeviceBuilder;
+use foyer::FsDeviceBuilder;
 use foyer::HybridCache;
 use foyer::HybridCacheBuilder;
-use foyer::LargeEngineOptions;
 use foyer::RecoverMode;
 
 use opendal_core::Buffer;
@@ -42,6 +43,7 @@ use super::FoyerValue;
 pub struct FoyerCore {
     /// OnceLock for lazy cache initialization.
     cache: std::sync::OnceLock<Arc<HybridCache<FoyerKey, FoyerValue>>>,
+    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
     /// Config
     config: FoyerConfig,
 }
@@ -80,6 +82,7 @@ impl FoyerCore {
     pub fn new(config: FoyerConfig) -> Self {
         Self {
             cache: std::sync::OnceLock::new(),
+            deleted_keys: Arc::new(Mutex::new(HashSet::new())),
             config,
         }
     }
@@ -107,35 +110,41 @@ impl FoyerCore {
         let mut builder = HybridCacheBuilder::new()
             .memory(memory)
             .with_shards(shards)
-            .storage(Engine::Large(LargeEngineOptions::new()))
+            .storage()
             .with_recover_mode(recover_mode);
 
         // Configure disk storage if disk_path is provided
         if let Some(ref disk_path) = self.config.disk_path {
             let path = PathBuf::from(disk_path);
 
-            let mut device_options = DirectFsDeviceOptions::new(path);
+            let mut device = FsDeviceBuilder::new(path);
 
             if let Some(capacity) = self.config.disk_capacity {
-                device_options = device_options.with_capacity(capacity);
+                device = device.with_capacity(capacity);
             }
 
-            let file_size = self
+            let block_size = self
                 .config
                 .disk_file_size
                 .unwrap_or(FOYER_DEFAULT_DISK_FILE_SIZE);
-            device_options = device_options.with_file_size(file_size);
+            let device = device.build().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "failed to build foyer cache device")
+                    .set_source(e)
+            })?;
 
-            builder = builder.with_device_options(device_options);
+            builder = builder
+                .with_engine_config(BlockEngineConfig::new(device).with_block_size(block_size));
         }
 
         let cache = Arc::new(builder.build().await.map_err(|e| {
             Error::new(ErrorKind::Unexpected, "failed to build foyer cache").set_source(e)
         })?);
 
-        self.cache
-            .set(cache.clone())
-            .map_err(|_| Error::new(ErrorKind::Unexpected, "failed to initialize foyer cache"))?;
+        if self.cache.set(cache.clone()).is_err() {
+            return self.cache.get().cloned().ok_or_else(|| {
+                Error::new(ErrorKind::Unexpected, "failed to initialize foyer cache")
+            });
+        }
 
         Ok(cache)
     }
@@ -149,6 +158,14 @@ impl FoyerCore {
         let foyer_key = FoyerKey {
             path: key.to_string(),
         };
+        if self
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .contains(&foyer_key)
+        {
+            return Ok(None);
+        }
 
         match cache.get(&foyer_key).await {
             Ok(Some(entry)) => Ok(Some(entry.value().0.clone())),
@@ -159,20 +176,27 @@ impl FoyerCore {
 
     pub async fn insert(&self, key: &str, value: Buffer) -> Result<()> {
         let cache = self.get_cache().await?;
-        cache.insert(
-            FoyerKey {
-                path: key.to_string(),
-            },
-            FoyerValue(value),
-        );
+        let key = FoyerKey {
+            path: key.to_string(),
+        };
+        cache.insert(key.clone(), FoyerValue(value));
+        self.deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .remove(&key);
         Ok(())
     }
 
     pub async fn remove(&self, key: &str) -> Result<()> {
         let cache = self.get_cache().await?;
-        cache.remove(&FoyerKey {
+        let key = FoyerKey {
             path: key.to_string(),
-        });
+        };
+        cache.remove(&key);
+        self.deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .insert(key);
         Ok(())
     }
 }

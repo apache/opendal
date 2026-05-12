@@ -19,12 +19,13 @@ use std::sync::Arc;
 
 use fastpool::{ManageObject, ObjectStatus, bounded};
 use futures_rustls::TlsConnector;
-use suppaftp::AsyncRustlsConnector;
-use suppaftp::AsyncRustlsFtpStream;
+use futures_rustls::rustls::ClientConfig;
+use futures_rustls::rustls::RootCertStore;
 use suppaftp::FtpError;
-use suppaftp::ImplAsyncFtpStream;
 use suppaftp::Status;
-use suppaftp::rustls::ClientConfig;
+use suppaftp::async_std::AsyncRustlsConnector;
+use suppaftp::async_std::AsyncRustlsFtpStream;
+use suppaftp::async_std::ImplAsyncFtpStream;
 use suppaftp::types::FileType;
 
 use super::err::format_ftp_error;
@@ -78,7 +79,7 @@ impl ManageObject for Manager {
         let stream = ImplAsyncFtpStream::connect(&self.endpoint).await?;
         // switch to secure mode if ssl/tls is on.
         let mut ftp_stream = if self.enable_secure {
-            let mut root_store = suppaftp::rustls::RootCertStore::empty();
+            let mut root_store = RootCertStore::empty();
             for cert in
                 rustls_native_certs::load_native_certs().expect("could not load platform certs")
             {

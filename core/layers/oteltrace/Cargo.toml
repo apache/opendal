@@ -32,7 +32,7 @@ all-features = true
 
 [dependencies]
 opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
-opentelemetry = { version = "0.31.0", default-features = false, features = [
+opentelemetry = { version = "0.32.0", default-features = false, features = [
   "trace",
 ] }
 

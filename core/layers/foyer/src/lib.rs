@@ -21,12 +21,13 @@ mod full;
 mod writer;
 
 use std::{
+    collections::HashSet,
     future::Future,
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
-use foyer::{Code, CodeError, HybridCache};
+use foyer::{Code, HybridCache, Result as FoyerResult};
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -61,14 +62,14 @@ impl Deref for FoyerValue {
 }
 
 impl Code for FoyerValue {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
         let len = self.0.len() as u64;
         writer.write_all(&len.to_le_bytes())?;
         std::io::copy(&mut self.0.clone(), writer)?;
         Ok(())
     }
 
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
     where
         Self: Sized,
     {
@@ -98,13 +99,13 @@ impl Code for FoyerValue {
 /// ```no_run
 /// use opendal_core::{Operator, services::Memory};
 /// use opendal_layer_foyer::FoyerLayer;
-/// use foyer::{HybridCacheBuilder, Engine};
+/// use foyer::HybridCacheBuilder;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let cache = HybridCacheBuilder::new()
 ///     .memory(64 * 1024 * 1024) // 64MB memory cache
 ///     .with_shards(4)
-///     .storage(Engine::Large(Default::default()))
+///     .storage()
 ///     .build()
 ///     .await?;
 ///
@@ -162,6 +163,7 @@ impl<A: Access> Layer<A> for FoyerLayer {
                 accessor,
                 cache,
                 size_limit: self.size_limit.clone(),
+                deleted_keys: Mutex::new(HashSet::new()),
             }),
         }
     }
@@ -172,6 +174,7 @@ pub(crate) struct Inner<A: Access> {
     pub(crate) accessor: A,
     pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
     pub(crate) size_limit: Range<usize>,
+    pub(crate) deleted_keys: Mutex<HashSet<FoyerKey>>,
 }
 
 #[derive(Debug)]
@@ -232,8 +235,8 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder, LargeEngineOptions,
-        RecoverMode,
+        BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
+        FsDeviceBuilder, HybridCacheBuilder, RecoverMode,
     };
     use opendal_core::{Operator, services::Memory};
     use size::consts::MiB;
@@ -258,11 +261,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(10)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -313,11 +320,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(1024 * 1024)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -372,7 +383,7 @@ mod tests {
     #[test]
     fn test_error() {
         let e = Error::new(ErrorKind::NotFound, "not found");
-        let fe = FoyerError::other(e);
+        let fe = FoyerError::new(FoyerErrorKind::External, "external error").with_source(e);
         let oe = extract_err(fe);
         assert_eq!(oe.kind(), ErrorKind::NotFound);
     }

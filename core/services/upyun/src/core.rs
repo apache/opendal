@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use base64::Engine;
 use hmac::Hmac;
+use hmac::KeyInit;
 use hmac::Mac;
 use http::HeaderMap;
 use http::Request;
@@ -499,7 +500,18 @@ pub fn format_md5(bs: &[u8]) -> String {
     let mut hasher = md5::Md5::new();
     hasher.update(bs);
 
-    format!("{:x}", hasher.finalize())
+    format_digest_hex(hasher.finalize())
+}
+
+fn format_digest_hex(digest: impl AsRef<[u8]>) -> String {
+    use std::fmt::Write;
+
+    let digest = digest.as_ref();
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut output, "{byte:02x}").expect("writing to String must succeed");
+    }
+    output
 }
 
 #[derive(Debug, Deserialize)]

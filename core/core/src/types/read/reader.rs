@@ -433,9 +433,7 @@ impl Reader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngExt};
 
     use super::*;
     use crate::Operator;
@@ -460,16 +458,16 @@ mod tests {
     }
 
     fn gen_random_bytes() -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let size = rng.random_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
     }
 
     fn gen_fixed_bytes(size: usize) -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content

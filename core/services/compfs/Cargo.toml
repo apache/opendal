@@ -31,12 +31,14 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-compio = { version = "0.17.0", features = [
+compio = { version = "0.18.0", features = [
   "bytes",
   "dispatcher",
-  "fd-sync",
+  "fs",
+  "io",
   "polling",
   "runtime",
+  "sync",
 ] }
 opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }

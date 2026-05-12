@@ -71,7 +71,7 @@ http = { workspace = true }
 http-body = "1"
 jiff = { version = "0.2.17", features = ["serde"] }
 log = { workspace = true }
-md-5 = "0.10"
+md-5 = "0.11.0"
 mea = { workspace = true }
 percent-encoding = "2"
 quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }

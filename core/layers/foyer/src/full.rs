@@ -17,9 +17,8 @@
 
 use std::sync::Arc;
 
-use foyer::Error as FoyerError;
-
 use opendal_core::Buffer;
+use opendal_core::Error;
 use opendal_core::Result;
 use opendal_core::raw::Access;
 use opendal_core::raw::BytesContentRange;
@@ -32,7 +31,7 @@ use opendal_core::raw::oio::Read;
 use crate::FoyerKey;
 use crate::FoyerValue;
 use crate::Inner;
-use crate::error::{FetchSizeTooLarge, extract_err};
+use crate::error::{FetchError, extract_err};
 
 pub struct FullReader<A: Access> {
     inner: Arc<Inner<A>>,
@@ -59,54 +58,65 @@ impl<A: Access> FullReader<A> {
             (start, end)
         };
 
-        // Use fetch to read data from cache or fallback to remote. fetch() can automatically
+        // Use get_or_fetch to read data from cache or fallback to remote. It can automatically
         // handle the thundering herd problem by ensuring only one request is made for a given
         // key.
         //
         // Please note that we only cache the object if it's smaller than size_limit. And we'll
         // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
         // range.
+        let key = FoyerKey {
+            path: path_str.clone(),
+            version: version.clone(),
+        };
+
+        if self
+            .inner
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .contains(&key)
+        {
+            let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
+            let buffer = reader.read_all().await?;
+            return Ok((rp, buffer));
+        }
+
         let result = self
             .inner
             .cache
-            .fetch(
-                FoyerKey {
-                    path: path_str.clone(),
-                    version: version.clone(),
-                },
-                || {
-                    let inner = self.inner.clone();
-                    let size_limit = self.size_limit.clone();
-                    let path_clone = path_str.clone();
-                    async move {
-                        // read the metadata first, if it's too large, do not cache
-                        let metadata = inner
-                            .accessor
-                            .stat(&path_clone, OpStat::default())
-                            .await
-                            .map_err(FoyerError::other)?
-                            .into_metadata();
+            .get_or_fetch(&key, || {
+                let inner = self.inner.clone();
+                let size_limit = self.size_limit.clone();
+                let path_clone = path_str.clone();
+                async move {
+                    // read the metadata first, if it's too large, do not cache
+                    let metadata = inner
+                        .accessor
+                        .stat(&path_clone, OpStat::default())
+                        .await
+                        .map_err(FetchError::from_error)?
+                        .into_metadata();
 
-                        let size = metadata.content_length() as usize;
-                        if !size_limit.contains(&size) {
-                            return Err(FoyerError::other(FetchSizeTooLarge));
-                        }
-
-                        // fetch the ENTIRE object from remote.
-                        let (_, mut reader) = inner
-                            .accessor
-                            .read(
-                                &path_clone,
-                                OpRead::default().with_range(BytesRange::new(0, None)),
-                            )
-                            .await
-                            .map_err(FoyerError::other)?;
-                        let buffer = reader.read_all().await.map_err(FoyerError::other)?;
-
-                        Ok(FoyerValue(buffer))
+                    let size = metadata.content_length() as usize;
+                    if !size_limit.contains(&size) {
+                        return Err(FetchError::SizeTooLarge);
                     }
-                },
-            )
+
+                    // fetch the ENTIRE object from remote.
+                    let (_, mut reader) = inner
+                        .accessor
+                        .read(
+                            &path_clone,
+                            OpRead::default().with_range(BytesRange::new(0, None)),
+                        )
+                        .await
+                        .map_err(FetchError::from_error)?;
+                    let buffer = reader.read_all().await.map_err(FetchError::from_error)?;
+
+                    Ok(FoyerValue(buffer))
+                }
+            })
             .await;
 
         // If got entry from cache, slice it to the requested range. If it's larger than size_limit,
@@ -123,13 +133,16 @@ impl<A: Access> FullReader<A> {
                     .with_range(Some(range));
                 Ok((rp, buffer))
             }
-            Err(e) => match e.downcast::<FetchSizeTooLarge>() {
-                Ok(_) => {
+            Err(e) => match e.downcast_ref::<FetchError>() {
+                Some(FetchError::SizeTooLarge) => {
                     let (rp, mut reader) = self.inner.accessor.read(path, original_args).await?;
                     let buffer = reader.read_all().await?;
                     Ok((rp, buffer))
                 }
-                Err(e) => Err(extract_err(e)),
+                Some(FetchError::Source { kind, message }) => {
+                    Err(Error::new(*kind, message.clone()))
+                }
+                None => Err(extract_err(e)),
             },
         }
     }

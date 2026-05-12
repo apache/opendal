@@ -44,14 +44,18 @@ use opendal::Operator;
 use opendal_service_foyer::Foyer;
 use opendal_service_foyer::FoyerKey;
 use opendal_service_foyer::FoyerValue;
-use foyer::{HybridCacheBuilder, Engine};
+use foyer::{BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCacheBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a foyer HybridCache with full control
+    let device = FsDeviceBuilder::new("/tmp/foyer")
+        .with_capacity(1024 * 1024 * 1024)
+        .build()?;
     let cache = HybridCacheBuilder::new()
         .memory(64 * 1024 * 1024) // 64MB memory cache
-        .storage(Engine::Large(Default::default()))
+        .storage()
+        .with_engine_config(BlockEngineConfig::new(device))
         .build()
         .await?;
 

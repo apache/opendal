@@ -1375,7 +1375,7 @@ struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
  * assert(!strcmp(scheme, "memory"));
  *
  * /// free the heap memory
- * free(scheme);
+ * opendal_string_free(scheme);
  * opendal_operator_info_free(info);
  * ```
  */
@@ -1389,14 +1389,14 @@ void opendal_operator_info_free(struct opendal_operator_info *ptr);
 /**
  * \brief Return the nul-terminated operator's scheme, i.e. service
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
 
 /**
  * \brief Return the nul-terminated operator's working root path
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 
@@ -1404,7 +1404,7 @@ char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
  * \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
  * namespace concept.
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 
@@ -1472,6 +1472,13 @@ uintptr_t opendal_presigned_request_headers_len(const struct opendal_presigned_r
 void opendal_presigned_request_free(struct opendal_presigned_request *req);
 
 /**
+ * \brief Frees a heap-allocated string returned by OpenDAL C APIs.
+ *
+ * \note Only pass pointers returned from OpenDAL APIs that transfer string ownership.
+ */
+void opendal_string_free(char *ptr);
+
+/**
  * \brief Frees the heap memory used by the opendal_bytes
  */
 void opendal_bytes_free(struct opendal_bytes *ptr);
@@ -1519,7 +1526,7 @@ void opendal_operator_options_free(struct opendal_operator_options *ptr);
  *
  * Path is relative to operator's root. Only valid in current operator.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_path(const struct opendal_entry *self);
 
@@ -1530,7 +1537,7 @@ char *opendal_entry_path(const struct opendal_entry *self);
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_name(const struct opendal_entry *self);
 

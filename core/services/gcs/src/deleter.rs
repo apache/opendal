@@ -51,48 +51,120 @@ impl oio::BatchDelete for GcsDeleter {
         let paths: Vec<String> = batch.into_iter().map(|(p, _)| p).collect();
         let resp = self.core.gcs_delete_objects(paths.clone()).await?;
 
-        let status = resp.status();
+        parse_batch_delete_response(paths, resp)
+    }
+}
 
-        // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
-        // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
-        if status != StatusCode::OK {
-            return Err(parse_error(resp));
+fn parse_batch_delete_response(
+    paths: Vec<String>,
+    resp: http::Response<Buffer>,
+) -> Result<BatchDeleteResult> {
+    let status = resp.status();
+
+    // If the overall request isn't formatted correctly and Cloud Storage is unable to parse it into sub-requests, you receive a 400 error.
+    // Otherwise, Cloud Storage returns a 200 status code, even if some or all of the sub-requests fail.
+    if status != StatusCode::OK {
+        return Err(parse_error(resp));
+    }
+
+    let boundary = parse_multipart_boundary(resp.headers())?.ok_or_else(|| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "gcs batch delete response content type is empty",
+        )
+    })?;
+    let multipart: Multipart<MixedPart> = Multipart::new()
+        .with_boundary(boundary)
+        .parse(resp.into_body().to_bytes())?;
+    let parts = multipart.into_parts();
+
+    if paths.len() != parts.len() {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "invalid batch response, paths and response parts don't match",
+        )
+        .with_context("expected", paths.len())
+        .with_context("actual", parts.len()));
+    }
+
+    let mut batched_result = BatchDeleteResult::default();
+
+    for (i, part) in parts.into_iter().enumerate() {
+        let resp = part.into_response();
+        // TODO: maybe we can take it directly?
+        let path = paths[i].clone();
+
+        // deleting not existing objects is ok
+        if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
+            batched_result.succeeded.push((path, OpDelete::default()));
+        } else {
+            batched_result
+                .failed
+                .push((path, OpDelete::default(), parse_error(resp)));
         }
+    }
 
-        let boundary = parse_multipart_boundary(resp.headers())?.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "gcs batch delete response content type is empty",
+    // If no object is deleted, return directly.
+    if batched_result.succeeded.is_empty() {
+        let err = batched_result.failed.remove(0).2;
+        return Err(err);
+    }
+
+    Ok(batched_result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const BOUNDARY: &str = "batch_test_boundary";
+
+    fn batch_delete_response(part_count: usize) -> http::Response<Buffer> {
+        let mut body = String::new();
+        for _ in 0..part_count {
+            body.push_str(&format!(
+                "--{BOUNDARY}\r\n\
+                 Content-Type: application/http\r\n\
+                 \r\n\
+                 HTTP/1.1 204 No Content\r\n\
+                 \r\n"
+            ));
+        }
+        body.push_str(&format!("--{BOUNDARY}--"));
+
+        http::Response::builder()
+            .status(StatusCode::OK)
+            .header(
+                http::header::CONTENT_TYPE,
+                format!("multipart/mixed; boundary={BOUNDARY}"),
             )
-        })?;
-        let multipart: Multipart<MixedPart> = Multipart::new()
-            .with_boundary(boundary)
-            .parse(resp.into_body().to_bytes())?;
-        let parts = multipart.into_parts();
+            .body(Buffer::from(body))
+            .expect("test response must be valid")
+    }
 
-        let mut batched_result = BatchDeleteResult::default();
+    #[test]
+    fn test_parse_batch_delete_response_rejects_more_parts_than_paths() {
+        let err =
+            match parse_batch_delete_response(vec!["path".to_string()], batch_delete_response(2)) {
+                Ok(_) => panic!("parts count mismatch must fail"),
+                Err(err) => err,
+            };
 
-        for (i, part) in parts.into_iter().enumerate() {
-            let resp = part.into_response();
-            // TODO: maybe we can take it directly?
-            let path = paths[i].clone();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("paths and response parts"));
+    }
 
-            // deleting not existing objects is ok
-            if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
-                batched_result.succeeded.push((path, OpDelete::default()));
-            } else {
-                batched_result
-                    .failed
-                    .push((path, OpDelete::default(), parse_error(resp)));
-            }
-        }
+    #[test]
+    fn test_parse_batch_delete_response_rejects_fewer_parts_than_paths() {
+        let err = match parse_batch_delete_response(
+            vec!["path-0".to_string(), "path-1".to_string()],
+            batch_delete_response(1),
+        ) {
+            Ok(_) => panic!("parts count mismatch must fail"),
+            Err(err) => err,
+        };
 
-        // If no object is deleted, return directly.
-        if batched_result.succeeded.is_empty() {
-            let err = batched_result.failed.remove(0).2;
-            return Err(err);
-        }
-
-        Ok(batched_result)
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("paths and response parts"));
     }
 }

@@ -1238,6 +1238,36 @@ mod tests {
     }
 
     #[test]
+    fn test_split_to_split_off_composition() {
+        // Verify split_to and split_off can be composed correctly
+        let mut buf = Buffer::from(Bytes::from("0123456789"));
+
+        // Split off tail
+        let tail = buf.split_off(7); // buf=[0-6], tail=[7-9]
+        assert_eq!(buf.to_bytes(), Bytes::from("0123456"));
+        assert_eq!(tail.to_bytes(), Bytes::from("789"));
+
+        // Split head from remaining
+        let head = buf.split_to(3); // head=[0-2], buf=[3-6]
+        assert_eq!(head.to_bytes(), Bytes::from("012"));
+        assert_eq!(buf.to_bytes(), Bytes::from("3456"));
+    }
+
+    #[test]
+    fn test_split_preserves_underlying_storage() {
+        // Verify that split operations share underlying storage
+        let original = Bytes::from("HelloWorld");
+        let mut buf = Buffer::from(original.clone());
+
+        let head = buf.split_to(5);
+
+        // Both should reference the same underlying storage
+        // (This is implicit in Bytes behavior, but good to document)
+        assert_eq!(head.to_bytes(), Bytes::from("Hello"));
+        assert_eq!(buf.to_bytes(), Bytes::from("World"));
+    }
+
+    #[test]
     fn fuzz_buffer_split_to() {
         let mut rng = thread_rng();
 

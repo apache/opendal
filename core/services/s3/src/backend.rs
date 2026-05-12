@@ -448,12 +448,10 @@ impl S3Builder {
         self
     }
 
-    /// Deprecated: use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
-    /// or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable versioning capability for specific
-    /// endpoints or test setups.
+    /// Deprecated: S3 versioning capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
-        note = "S3 versioning capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+        note = "S3 versioning capability is enabled by default and this option is no longer needed."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -559,18 +557,19 @@ impl S3Builder {
         self
     }
 
-    /// Disable write with if match so that opendal will not send write request with if match headers.
-    pub fn disable_write_with_if_match(mut self) -> Self {
-        self.config.disable_write_with_if_match = true;
+    /// Deprecated: S3 write with If-Match capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 write with If-Match capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn disable_write_with_if_match(self) -> Self {
         self
     }
 
-    /// Deprecated: use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
-    /// or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable append capability for specific endpoints
-    /// or test setups.
+    /// Deprecated: S3 append capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
-        note = "S3 append capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+        note = "S3 append capability is enabled by default and this option is no longer needed."
     )]
     pub fn enable_write_with_append(self) -> Self {
         self
@@ -925,7 +924,7 @@ impl Builder for S3Builder {
                             write_with_content_type: true,
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
-                            write_with_if_match: !config.disable_write_with_if_match,
+                            write_with_if_match: true,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 
@@ -1290,28 +1289,5 @@ mod tests {
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
-    }
-
-    #[allow(deprecated)]
-    #[test]
-    fn deprecated_capability_toggles_do_not_change_capability() {
-        let backend = S3Builder::default()
-            .bucket("test")
-            .region("us-east-1")
-            .allow_anonymous()
-            .disable_config_load()
-            .disable_ec2_metadata()
-            .enable_versioning(false)
-            .enable_write_with_append()
-            .build()
-            .expect("build");
-
-        let cap = backend.info().full_capability();
-        assert!(cap.stat_with_version);
-        assert!(cap.read_with_version);
-        assert!(cap.delete_with_version);
-        assert!(cap.list_with_versions);
-        assert!(cap.list_with_deleted);
-        assert!(cap.write_can_append);
     }
 }

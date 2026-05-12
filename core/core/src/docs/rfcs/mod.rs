@@ -296,3 +296,7 @@ pub mod rfc_6828_core {}
 /// Route Layer
 #[doc = include_str!("7130_route_layer.md")]
 pub mod rfc_7130_route_layer {}
+
+/// Copier API
+#[doc = include_str!("7517_copier_api.md")]
+pub mod rfc_7517_copier_api {}

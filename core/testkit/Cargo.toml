@@ -38,6 +38,7 @@ opendal-layer-logging = { path = "../layers/logging", version = "0.56.0", defaul
 opendal-layer-retry = { path = "../layers/retry", version = "0.56.0", default-features = false }
 opendal-layer-timeout = { path = "../layers/timeout", version = "0.56.0", default-features = false }
 rand = { workspace = true }
+serde_json = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 uuid = { workspace = true }

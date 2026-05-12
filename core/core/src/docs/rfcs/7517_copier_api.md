@@ -1,6 +1,6 @@
 - Proposal Name: `copier_api`
 - Start Date: 2026-05-12
-- RFC PR: TBD
+- RFC PR: [apache/opendal#7519](https://github.com/apache/opendal/pull/7519)
 - Tracking Issue: TBD
 
 # Summary

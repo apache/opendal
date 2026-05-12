@@ -298,5 +298,5 @@ pub mod rfc_6828_core {}
 pub mod rfc_7130_route_layer {}
 
 /// Copier API
-#[doc = include_str!("7517_copier_api.md")]
-pub mod rfc_7517_copier_api {}
+#[doc = include_str!("7519_copier_api.md")]
+pub mod rfc_7519_copier_api {}

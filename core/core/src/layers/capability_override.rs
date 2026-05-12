@@ -18,6 +18,10 @@
 use std::fmt;
 use std::sync::Arc;
 
+use serde_json::Map;
+use serde_json::Number;
+use serde_json::Value;
+
 use crate::raw::*;
 use crate::*;
 
@@ -67,6 +71,19 @@ impl CapabilityOverrideLayer {
             apply: Arc::new(apply),
         }
     }
+
+    /// Create a new [`CapabilityOverrideLayer`] from capability override entries.
+    ///
+    /// The input is a comma-separated list of capability assignments:
+    ///
+    /// - `+read` sets a boolean capability to `true`
+    /// - `-read` sets a boolean capability to `false`
+    /// - `delete_max_size=1000` sets a numeric capability
+    /// - `delete_max_size=none` unsets an optional capability
+    pub fn from_overrides(input: &str) -> Result<Self> {
+        let overrides = CapabilityOverrides::parse(input)?;
+        Ok(Self::new(move |cap| overrides.apply(cap)))
+    }
 }
 
 impl<A: Access> Layer<A> for CapabilityOverrideLayer {
@@ -77,6 +94,102 @@ impl<A: Access> Layer<A> for CapabilityOverrideLayer {
         let apply = self.apply.clone();
         info.update_full_capability(|cap| apply(cap));
         inner
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct CapabilityOverrides {
+    values: Map<String, Value>,
+}
+
+impl CapabilityOverrides {
+    fn parse(input: &str) -> Result<Self> {
+        let mut overrides = Self::default();
+
+        for token in input.split(',').map(str::trim).filter(|v| !v.is_empty()) {
+            let (name, value) = parse_capability_override(token)?;
+            overrides.values.insert(name.to_string(), value);
+            overrides.try_apply(Capability::default()).map_err(|err| {
+                invalid_capability_override(token, &format!("failed to apply override: {err}"))
+            })?;
+        }
+
+        Ok(overrides)
+    }
+
+    fn apply(&self, cap: Capability) -> Capability {
+        self.try_apply(cap)
+            .expect("capability overrides must be validated before applying")
+    }
+
+    fn try_apply(&self, cap: Capability) -> Result<Capability> {
+        let mut value = serde_json::to_value(cap).map_err(|err| {
+            Error::new(
+                ErrorKind::Unexpected,
+                format!("failed to serialize capability: {err}"),
+            )
+        })?;
+        let object = value.as_object_mut().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "serialized capability must be a JSON object",
+            )
+        })?;
+        object.extend(self.values.clone());
+
+        serde_json::from_value(value).map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("failed to deserialize capability overrides: {err}"),
+            )
+        })
+    }
+}
+
+fn parse_capability_override(token: &str) -> Result<(&str, Value)> {
+    if let Some(name) = token.strip_prefix('+') {
+        return Ok((name.trim(), Value::Bool(true)));
+    }
+
+    if let Some(name) = token.strip_prefix('-') {
+        return Ok((name.trim(), Value::Bool(false)));
+    }
+
+    let Some((name, value)) = token.split_once('=') else {
+        return Err(invalid_capability_override(
+            token,
+            "expected `+capability`, `-capability`, or `capability=value`",
+        ));
+    };
+
+    Ok((
+        name.trim(),
+        parse_capability_value(value.trim())
+            .map_err(|err| invalid_capability_override(token, &err.to_string()))?,
+    ))
+}
+
+fn invalid_capability_override(token: &str, reason: &str) -> Error {
+    Error::new(
+        ErrorKind::ConfigInvalid,
+        format!("invalid capability override entry `{token}`: {reason}"),
+    )
+}
+
+fn parse_capability_value(value: &str) -> Result<Value> {
+    match value {
+        "true" | "on" | "yes" => Ok(Value::Bool(true)),
+        "false" | "off" | "no" => Ok(Value::Bool(false)),
+        "none" | "null" | "unset" => Ok(Value::Null),
+        _ => value
+            .parse::<usize>()
+            .map(|v| Value::Number(Number::from(v)))
+            .map_err(|_| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "expected a boolean, non-negative integer, or `none`",
+                )
+            }),
     }
 }
 
@@ -106,5 +219,47 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn parse_capability_overrides() -> Result<()> {
+        let layer =
+            CapabilityOverrideLayer::from_overrides("-read,+write_can_append,delete_max_size=7")?;
+        let op = Operator::new(services::Memory::default())?
+            .layer(layer)
+            .finish();
+
+        assert!(!op.info().full_capability().read);
+        assert!(op.info().full_capability().write_can_append);
+        assert_eq!(op.info().full_capability().delete_max_size, Some(7));
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_bool_assignments_and_unset_sizes() -> Result<()> {
+        let layer =
+            CapabilityOverrideLayer::from_overrides("read=false,write=true,delete_max_size=none")?;
+        let op = Operator::new(services::Memory::default())?
+            .layer(layer)
+            .finish();
+
+        assert!(!op.info().full_capability().read);
+        assert!(op.info().full_capability().write);
+        assert_eq!(op.info().full_capability().delete_max_size, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn reject_unknown_capability() {
+        let err = CapabilityOverrideLayer::from_overrides("-not_a_capability").unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn reject_invalid_capability_type() {
+        let err = CapabilityOverrideLayer::from_overrides("read=1").unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

@@ -64,7 +64,13 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         m,
         "layers",
-        [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
+        [
+            Layer,
+            CapabilityOverrideLayer,
+            RetryLayer,
+            ConcurrentLimitLayer,
+            MimeGuessLayer
+        ]
     )?;
 
     // Types module

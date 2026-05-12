@@ -410,6 +410,37 @@ fn operator_layer_concurrent_limit_inner(
     Ok(Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as *mut c_void)
 }
 
+/// Create a new operator layered with capability override behavior.
+///
+/// The current operator is not modified. Returned pointer must be released with
+/// `operator_free`.
+/// # Safety
+///
+/// - `op` must be a valid operator pointer from `operator_construct`.
+/// - `overrides` must be a valid null-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_layer_capability_override(
+    op: *const opendal::Operator,
+    overrides: *const c_char,
+) -> OpendalOperatorResult {
+    match operator_layer_capability_override_inner(op, overrides) {
+        Ok(value) => OpendalOperatorResult::ok(value),
+        Err(error) => OpendalOperatorResult::from_error(error),
+    }
+}
+
+fn operator_layer_capability_override_inner(
+    op: *const opendal::Operator,
+    overrides: *const c_char,
+) -> Result<*mut c_void, OpenDALError> {
+    let op = require_operator(op)?;
+    let overrides = require_cstr(overrides, "capability overrides")?;
+    let layer = opendal::layers::CapabilityOverrideLayer::from_overrides(overrides)
+        .map_err(OpenDALError::from_opendal_error)?;
+
+    Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as *mut c_void)
+}
+
 /// Create a new operator layered with timeout behavior.
 ///
 /// The current operator is not modified. Returned pointer must be released with

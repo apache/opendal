@@ -7560,7 +7560,6 @@ dependencies = [
  "opendal-layer-retry",
  "opendal-layer-timeout",
  "rand 0.10.1",
- "serde_json",
  "sha2 0.11.0",
  "tokio",
  "uuid",

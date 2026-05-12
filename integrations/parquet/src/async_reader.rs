@@ -171,7 +171,7 @@ impl AsyncFileReader for AsyncReader {
 mod tests {
     use futures::StreamExt;
     use opendal::{Operator, services};
-    use rand::{Rng, distributions::Alphanumeric};
+    use rand::{RngExt, distr::Alphanumeric};
 
     use crate::{AsyncReader, AsyncWriter, async_reader::PREFETCH_FOOTER_SIZE};
     use std::sync::Arc;
@@ -208,7 +208,7 @@ mod tests {
     }
 
     fn gen_fixed_string(size: usize) -> String {
-        rand::thread_rng()
+        rand::rng()
             .sample_iter(&Alphanumeric)
             .take(size)
             .map(char::from)

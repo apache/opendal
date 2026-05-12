@@ -90,6 +90,8 @@ pub enum PyScheme {
     Gcs,
     #[cfg(feature = "services-gdrive")]
     Gdrive,
+    #[cfg(feature = "services-goosefs")]
+    Goosefs,
     #[cfg(feature = "services-ghac")]
     Ghac,
     #[cfg(feature = "services-gridfs")]
@@ -4894,6 +4896,8 @@ impl_enum_to_str!(
         Gcs => "gcs",
         #[cfg(feature = "services-gdrive")]
         Gdrive => "gdrive",
+        #[cfg(feature = "services-goosefs")]
+        Goosefs => "goosefs",
         #[cfg(feature = "services-ghac")]
         Ghac => "ghac",
         #[cfg(feature = "services-gridfs")]

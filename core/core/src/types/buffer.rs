@@ -750,6 +750,7 @@ mod tests {
 
     use pretty_assertions::assert_eq;
     use rand::prelude::*;
+    use rand::rng;
 
     use super::*;
 
@@ -900,11 +901,11 @@ mod tests {
     /// - Total size of this buffer.
     /// - Total content of this buffer.
     fn setup_buffer() -> (Buffer, usize, Bytes) {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let bs = (0..100)
             .map(|_| {
-                let len = rng.gen_range(1..100);
+                let len = rng.random_range(1..100);
                 let mut buf = vec![0; len];
                 rng.fill(&mut buf[..]);
                 Bytes::from(buf)
@@ -920,7 +921,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_advance() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -932,7 +933,7 @@ mod tests {
         while !buf.is_empty() && times > 0 {
             times -= 1;
 
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -943,7 +944,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_iter() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -951,7 +952,7 @@ mod tests {
 
         let mut cur = 0;
         while buf.is_empty() {
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -972,7 +973,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_truncate() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -980,7 +981,7 @@ mod tests {
 
         let mut cur = 0;
         while buf.is_empty() {
-            let cnt = rng.gen_range(0..total_size - cur);
+            let cnt = rng.random_range(0..total_size - cur);
             cur += cnt;
             buf.advance(cnt);
 
@@ -988,7 +989,7 @@ mod tests {
             assert_eq!(buf.remaining(), total_size - cur);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..));
 
-            let truncate_size = rng.gen_range(0..total_size - cur);
+            let truncate_size = rng.random_range(0..total_size - cur);
             buf.truncate(truncate_size);
 
             // After truncate

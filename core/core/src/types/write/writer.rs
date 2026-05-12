@@ -380,17 +380,15 @@ impl Writer {
 #[cfg(test)]
 mod tests {
     use bytes::{Buf, Bytes};
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngExt};
 
     use crate::Operator;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let size = rng.random_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content

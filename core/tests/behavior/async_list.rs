@@ -60,6 +60,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 }
 
+fn skip_cos_create_dir_list_check(_op: &Operator) -> bool {
+    #[cfg(feature = "services-cos")]
+    if _op.info().scheme() == services::COS_SCHEME {
+        // COS ListObjects is eventually consistent after PUT. See apache/opendal#7502.
+        return true;
+    }
+
+    false
+}
+
 /// Check should be OK.
 pub async fn test_check(op: Operator) -> Result<()> {
     op.check().await.expect("operator check is ok");
@@ -115,6 +125,9 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
         return Ok(());
     }
+    if skip_cos_create_dir_list_check(&op) {
+        return Ok(());
+    }
     // Gdrive think that this test is an abuse of their service and redirect us
     // to an infinite loop. Let's ignore this test for gdrive.
     #[cfg(feature = "services-gdrive")]
@@ -149,6 +162,9 @@ pub async fn test_list_rich_dir(op: Operator) -> Result<()> {
 /// List empty dir should return itself.
 pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
     let dir = format!("{}/", uuid::Uuid::new_v4());
@@ -246,6 +262,9 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
         return Ok(());
     }
+    if skip_cos_create_dir_list_check(&op) {
+        return Ok(());
+    }
     let path = format!("{}/", uuid::Uuid::new_v4());
 
     op.create_dir(&path).await.expect("create must succeed");
@@ -275,6 +294,9 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
 /// List dir should also to list nested dir.
 pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
     let parent = format!("{}/", uuid::Uuid::new_v4());
@@ -433,6 +455,9 @@ pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
         return Ok(());
     }
+    if skip_cos_create_dir_list_check(&op) {
+        return Ok(());
+    }
 
     op.create_dir("/").await?;
 
@@ -452,6 +477,9 @@ pub async fn test_list_root_with_recursive(op: Operator) -> Result<()> {
 // Walk top down should output as expected
 pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
     let parent = uuid::Uuid::new_v4().to_string();
@@ -493,6 +521,9 @@ pub async fn test_list_dir_with_recursive(op: Operator) -> Result<()> {
 // same as test_list_dir_with_recursive except listing 'x' instead of 'x/'
 pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
     let parent = uuid::Uuid::new_v4().to_string();
@@ -565,6 +596,9 @@ pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
 // Remove all should remove all in this path.
 pub async fn test_remove_all(op: Operator) -> Result<()> {
     if !op.info().full_capability().create_dir {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
     let parent = uuid::Uuid::new_v4().to_string();
@@ -685,6 +719,9 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
         return Ok(());
     }
     if !op.info().full_capability().list_with_versions {
+        return Ok(());
+    }
+    if skip_cos_create_dir_list_check(&op) {
         return Ok(());
     }
 

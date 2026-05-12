@@ -50,10 +50,10 @@ log = { version = "0.4.29" }
 logforth = { version = "0.29.1", features = ["starter-log"] }
 mea = "0.6"
 quick-xml = { version = "0.39.3", default-features = false }
-rand = "0.8"
+rand = "0.10.1"
 serde = { version = "1", default-features = false }
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11.0"
 tokio = { version = "1.48", default-features = false }
 url = "2.5"
 uuid = { version = "1", default-features = false }
@@ -143,6 +143,7 @@ services-gcs = ["dep:opendal-service-gcs"]
 services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
+services-goosefs = ["dep:opendal-service-goosefs"]
 services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
@@ -260,6 +261,7 @@ opendal-service-gcs = { path = "services/gcs", version = "0.56.0", optional = tr
 opendal-service-gdrive = { path = "services/gdrive", version = "0.56.0", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.56.0", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.56.0", optional = true, default-features = false }
+opendal-service-goosefs = { path = "services/goosefs", version = "0.56.0", optional = true, default-features = false }
 opendal-service-gridfs = { path = "services/gridfs", version = "0.56.0", optional = true, default-features = false }
 opendal-service-hdfs = { path = "services/hdfs", version = "0.56.0", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.56.0", optional = true, default-features = false }

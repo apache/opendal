@@ -33,7 +33,7 @@ runs:
         OPENDAL_S3_SECRET_ACCESS_KEY: op://services/s3/secret_access_key
         OPENDAL_S3_REGION: op://services/s3/region
 
-    - name: Add extra settings
+    - name: Add capability overrides
       shell: bash
       run: |
-        echo "OPENDAL_S3_ENABLE_VERSIONING=true" >> $GITHUB_ENV
+        echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=-write_can_append" >> $GITHUB_ENV

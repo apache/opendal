@@ -448,10 +448,14 @@ impl S3Builder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
+    /// or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable versioning capability for specific
+    /// endpoints or test setups.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -561,9 +565,14 @@ impl S3Builder {
         self
     }
 
-    /// Enable write with append so that opendal will send write request with append headers.
-    pub fn enable_write_with_append(mut self) -> Self {
-        self.config.enable_write_with_append = true;
+    /// Deprecated: use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
+    /// or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable append capability for specific endpoints
+    /// or test setups.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+    )]
+    pub fn enable_write_with_append(self) -> Self {
         self
     }
 
@@ -895,7 +904,7 @@ impl Builder for S3Builder {
                             stat_with_override_content_disposition: !config
                                 .disable_stat_with_override,
                             stat_with_override_content_type: !config.disable_stat_with_override,
-                            stat_with_version: config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
                             read_with_if_match: true,
@@ -905,12 +914,12 @@ impl Builder for S3Builder {
                             read_with_override_cache_control: true,
                             read_with_override_content_disposition: true,
                             read_with_override_content_type: true,
-                            read_with_version: config.enable_versioning,
+                            read_with_version: true,
 
                             write: true,
                             write_can_empty: true,
                             write_can_multi: true,
-                            write_can_append: config.enable_write_with_append,
+                            write_can_append: true,
 
                             write_with_cache_control: true,
                             write_with_content_type: true,
@@ -935,7 +944,7 @@ impl Builder for S3Builder {
 
                             delete: true,
                             delete_max_size: Some(delete_max_size),
-                            delete_with_version: config.enable_versioning,
+                            delete_with_version: true,
 
                             copy: true,
 
@@ -943,8 +952,8 @@ impl Builder for S3Builder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: config.enable_versioning,
-                            list_with_deleted: config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,
@@ -1281,5 +1290,28 @@ mod tests {
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
         );
+    }
+
+    #[allow(deprecated)]
+    #[test]
+    fn deprecated_capability_toggles_do_not_change_capability() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .allow_anonymous()
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .enable_versioning(false)
+            .enable_write_with_append()
+            .build()
+            .expect("build");
+
+        let cap = backend.info().full_capability();
+        assert!(cap.stat_with_version);
+        assert!(cap.read_with_version);
+        assert!(cap.delete_with_version);
+        assert!(cap.list_with_versions);
+        assert!(cap.list_with_deleted);
+        assert!(cap.write_can_append);
     }
 }

@@ -37,3 +37,4 @@ runs:
       shell: bash
       run: |
         echo "OPENDAL_S3_DISABLE_LIST_OBJECTS_V2=true" >> $GITHUB_ENV
+        echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=-stat_with_version,-read_with_version,-delete_with_version,-list_with_versions,-list_with_deleted,-write_can_append" >> $GITHUB_ENV

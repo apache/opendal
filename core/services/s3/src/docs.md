@@ -31,6 +31,8 @@ This service can be used to:
 - `enable_virtual_host_style`: Enable virtual host style.
 - `disable_write_with_if_match`: Disable write with if match.
 - `enable_request_payer`: Enable the request payer for backend.
+- `enable_versioning`: Deprecated. S3 versioning capability is enabled by default; use `CapabilityOverrideLayer` or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable it for specific endpoints or test setups.
+- `enable_write_with_append`: Deprecated. S3 append capability is enabled by default; use `CapabilityOverrideLayer` or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to disable it for specific endpoints or test setups.
 - `default_acl`: Define the default access control list (ACL) when creating a new object. Note that some s3 services like minio do not support this option.
 
 Refer to [`S3Builder`]'s public API docs for more information.

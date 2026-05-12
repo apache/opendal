@@ -42,7 +42,12 @@ pub struct S3Config {
     /// required.
     #[serde(alias = "aws_bucket", alias = "aws_bucket_name", alias = "bucket_name")]
     pub bucket: String,
-    /// is bucket versioning enabled for this bucket
+    /// Deprecated: use `CapabilityOverrideLayer` or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to
+    /// disable versioning capability for specific endpoints or test setups.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+    )]
     pub enable_versioning: bool,
     /// endpoint of this backend.
     ///
@@ -212,7 +217,12 @@ pub struct S3Config {
     /// For example, Ceph RADOS S3 doesn't support write with if matched.
     pub disable_write_with_if_match: bool,
 
-    /// Enable write with append so that opendal will send write request with append headers.
+    /// Deprecated: use `CapabilityOverrideLayer` or `OPENDAL_TEST_CAPABILITY_OVERRIDES` to
+    /// disable append capability for specific endpoints or test setups.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default. Use CapabilityOverrideLayer or OPENDAL_TEST_CAPABILITY_OVERRIDES to disable it for specific endpoints or test setups."
+    )]
     pub enable_write_with_append: bool,
 
     /// OpenDAL uses List Objects V2 by default to list objects.

@@ -36,4 +36,4 @@ runs:
     - name: Add capability overrides
       shell: bash
       run: |
-        echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=-write_can_append" >> $GITHUB_ENV
+        echo "OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false" >> $GITHUB_ENV

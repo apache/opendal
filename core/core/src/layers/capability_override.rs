@@ -76,8 +76,8 @@ impl CapabilityOverrideLayer {
     ///
     /// The input is a comma-separated list of capability assignments:
     ///
-    /// - `+read` sets a boolean capability to `true`
-    /// - `-read` sets a boolean capability to `false`
+    /// - `read=true` sets a boolean capability to `true`
+    /// - `read=false` sets a boolean capability to `false`
     /// - `delete_max_size=1000` sets a numeric capability
     /// - `delete_max_size=none` unsets an optional capability
     pub fn from_overrides(input: &str) -> Result<Self> {
@@ -147,18 +147,10 @@ impl CapabilityOverrides {
 }
 
 fn parse_capability_override(token: &str) -> Result<(&str, Value)> {
-    if let Some(name) = token.strip_prefix('+') {
-        return Ok((name.trim(), Value::Bool(true)));
-    }
-
-    if let Some(name) = token.strip_prefix('-') {
-        return Ok((name.trim(), Value::Bool(false)));
-    }
-
     let Some((name, value)) = token.split_once('=') else {
         return Err(invalid_capability_override(
             token,
-            "expected `+capability`, `-capability`, or `capability=value`",
+            "expected `capability=value`",
         ));
     };
 
@@ -223,8 +215,9 @@ mod tests {
 
     #[test]
     fn parse_capability_overrides() -> Result<()> {
-        let layer =
-            CapabilityOverrideLayer::from_overrides("-read,+write_can_append,delete_max_size=7")?;
+        let layer = CapabilityOverrideLayer::from_overrides(
+            "read=false,write_can_append=true,delete_max_size=7",
+        )?;
         let op = Operator::new(services::Memory::default())?
             .layer(layer)
             .finish();
@@ -253,7 +246,13 @@ mod tests {
 
     #[test]
     fn reject_unknown_capability() {
-        let err = CapabilityOverrideLayer::from_overrides("-not_a_capability").unwrap_err();
+        let err = CapabilityOverrideLayer::from_overrides("not_a_capability=false").unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn reject_capability_shorthand() {
+        let err = CapabilityOverrideLayer::from_overrides("-read").unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 

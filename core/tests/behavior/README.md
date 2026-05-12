@@ -37,10 +37,10 @@ Notice: If the env variables are not set, all behavior tests will be skipped by 
 Behavior tests are selected by the operator's full capability. Test setups can override capability with `OPENDAL_TEST_CAPABILITY_OVERRIDES`:
 
 ```shell
-OPENDAL_TEST_CAPABILITY_OVERRIDES=-stat_with_version,-read_with_version,delete_max_size=700
+OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_max_size=700
 ```
 
-Use `-capability` to disable a boolean capability, `+capability` to enable one, and `capability=value` to set boolean or numeric capability values.
+Use `capability=false` or `capability=true` to set boolean capabilities, and `capability=value` to set numeric capability values.
 
 ## Run
 

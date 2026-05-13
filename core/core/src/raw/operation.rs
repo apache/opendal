@@ -45,6 +45,8 @@ pub enum Operation {
     Stat,
     /// Operation to delete files.
     Delete,
+    /// Operation to restore soft-deleted files.
+    Undelete,
     /// Operation to get the next file from the list.
     List,
     /// Operation to generate a presigned URL.
@@ -75,6 +77,7 @@ impl From<Operation> for &'static str {
             Operation::Rename => "rename",
             Operation::Stat => "stat",
             Operation::Delete => "delete",
+            Operation::Undelete => "undelete",
             Operation::List => "list",
             Operation::Presign => "presign",
         }

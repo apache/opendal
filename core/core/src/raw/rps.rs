@@ -28,6 +28,10 @@ pub struct RpCreateDir {}
 #[derive(Debug, Clone, Default)]
 pub struct RpDelete {}
 
+/// Reply for `undelete` operation
+#[derive(Debug, Clone, Default)]
+pub struct RpUndelete {}
+
 /// Reply for `list` operation.
 #[derive(Debug, Clone, Default)]
 pub struct RpList {}

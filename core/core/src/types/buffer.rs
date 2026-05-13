@@ -1270,7 +1270,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_split_to() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -1280,7 +1280,7 @@ mod tests {
         while !buf.is_empty() && times > 0 {
             times -= 1;
             let remaining = buf.len();
-            let at = rng.gen_range(0..=remaining);
+            let at = rng.random_range(0..=remaining);
             let head = buf.split_to(at);
             assert_eq!(head.to_bytes(), total_content.slice(cur..cur + at));
             cur += at;
@@ -1290,7 +1290,7 @@ mod tests {
 
     #[test]
     fn fuzz_buffer_split_off() {
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         let (mut buf, total_size, total_content) = setup_buffer();
         assert_eq!(buf.remaining(), total_size);
@@ -1301,7 +1301,7 @@ mod tests {
         while !buf.is_empty() && times > 0 {
             times -= 1;
             let remaining = buf.len();
-            let at = rng.gen_range(0..=remaining);
+            let at = rng.random_range(0..=remaining);
             let tail = buf.split_off(at);
             assert_eq!(buf.to_bytes(), total_content.slice(cur..cur + at));
             assert_eq!(tail.to_bytes(), total_content.slice(cur + at..end));

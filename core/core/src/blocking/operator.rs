@@ -516,10 +516,36 @@ impl Operator {
     /// # }
     /// ```
     pub fn copy(&self, from: &str, to: &str) -> Result<()> {
+        self.copy_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Copy a file from `from` to `to` with additional options.
+    pub fn copy_options(&self, from: &str, to: &str, opts: options::CopyOptions) -> Result<()> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.copy(&from, &to).await })?
+        self.spawn_block(async move { op.copy_options(&from, &to, opts).await })?
+    }
+
+    /// Create a copier from `from` to `to`.
+    ///
+    /// This function creates a new [`blocking::Copier`] that implements
+    /// `Iterator<Item = Result<usize>>`.
+    pub fn copier(&self, from: &str, to: &str) -> Result<blocking::Copier> {
+        self.copier_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Create a copier from `from` to `to` with additional options.
+    pub fn copier_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<blocking::Copier> {
+        let copier = self
+            .handle
+            .block_on(self.op.copier_options(from, to, opts))?;
+        Ok(blocking::Copier::new(self.handle.clone(), copier))
     }
 
     /// Rename a file from `from` to `to`.

@@ -95,6 +95,7 @@ impl Access for ObjectStoreService {
     type Writer = MultipartWriter<ObjectStoreWriter>;
     type Lister = ObjectStoreLister;
     type Deleter = BatchDeleter<ObjectStoreDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();

@@ -56,6 +56,11 @@ pub struct OneShotCopier {
 /// OneShotCopier is only accessed by `&mut self`.
 unsafe impl Sync for OneShotCopier {}
 
+/// # Safety
+///
+/// On wasm targets, futures are local but still only polled through `&mut self`.
+unsafe impl Send for OneShotCopier {}
+
 impl OneShotCopier {
     /// Create a new one-shot copier.
     pub fn new(fut: impl Future<Output = Result<Option<usize>>> + MaybeSend + 'static) -> Self {

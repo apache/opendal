@@ -53,7 +53,7 @@ impl opendal_entry {
     ///
     /// Path is relative to operator's root. Only valid in current operator.
     ///
-    /// \note To free the string, you can directly call free()
+    /// \note Free the returned string with opendal_string_free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_path(&self) -> *mut c_char {
         let s = self.deref().path();
@@ -67,7 +67,7 @@ impl opendal_entry {
     /// If this entry is a dir, `Name` MUST endswith `/`
     /// Otherwise, `Name` MUST NOT endswith `/`.
     ///
-    /// \note To free the string, you can directly call free()
+    /// \note Free the returned string with opendal_string_free()
     #[no_mangle]
     pub unsafe extern "C" fn opendal_entry_name(&self) -> *mut c_char {
         let s = self.deref().name();

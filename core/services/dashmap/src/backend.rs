@@ -116,6 +116,7 @@ impl Access for DashmapBackend {
     type Writer = DashmapWriter;
     type Lister = oio::HierarchyLister<DashmapLister>;
     type Deleter = oio::OneShotDeleter<DashmapDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -172,6 +172,7 @@ impl Access for RedbBackend {
     type Writer = RedbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedbDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

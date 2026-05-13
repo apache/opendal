@@ -312,6 +312,7 @@ impl Access for RedisBackend {
     type Writer = RedisWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

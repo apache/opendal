@@ -214,6 +214,7 @@ impl Access for SftpBackend {
     type Writer = SftpWriter;
     type Lister = Option<SftpLister>;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -354,7 +355,13 @@ impl Access for SftpBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let client = self.core.connect().await?;
 
         let mut fs = client.fs();
@@ -374,7 +381,7 @@ impl Access for SftpBackend {
             .await
             .map_err(parse_sftp_error)?;
 
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 
     async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {

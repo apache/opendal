@@ -147,6 +147,7 @@ impl Access for IpfsBackend {
     type Writer = ();
     type Lister = oio::PageLister<DirStream>;
     type Deleter = ();
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

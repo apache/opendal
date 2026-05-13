@@ -249,6 +249,7 @@ where
     type Writer = ConcurrentLimitWrapper<A::Writer, S::Permit>;
     type Lister = ConcurrentLimitWrapper<A::Lister, S::Permit>;
     type Deleter = ConcurrentLimitWrapper<A::Deleter, S::Permit>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -278,10 +279,16 @@ where
             .map(|(rp, w)| (rp, ConcurrentLimitWrapper::new(w, permit)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let _permit = self.semaphore.acquire().await;
 
-        self.inner.copy(from, to, args).await
+        self.inner.copy(from, to, args, opts.clone()).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -422,13 +429,20 @@ mod tests {
             type Writer = ();
             type Lister = ();
             type Deleter = ();
+            type Copier = oio::Copier;
 
             fn info(&self) -> Arc<AccessorInfo> {
                 self.info.clone()
             }
 
-            async fn copy(&self, _: &str, _: &str, _: OpCopy) -> Result<RpCopy> {
-                Ok(RpCopy::default())
+            async fn copy(
+                &self,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+                _: OpCopier,
+            ) -> Result<(RpCopy, Self::Copier)> {
+                Ok((RpCopy::default(), Box::new(())))
             }
 
             async fn rename(&self, _: &str, _: &str, _: OpRename) -> Result<RpRename> {
@@ -501,6 +515,7 @@ mod tests {
             type Writer = ();
             type Lister = ();
             type Deleter = ();
+            type Copier = oio::Copier;
 
             fn info(&self) -> Arc<AccessorInfo> {
                 self.info.clone()

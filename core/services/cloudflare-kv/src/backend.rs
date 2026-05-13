@@ -195,6 +195,7 @@ impl Access for CloudflareKvBackend {
     type Writer = oio::OneShotWriter<CloudflareWriter>;
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

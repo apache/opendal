@@ -39,6 +39,7 @@ impl Access for DropboxBackend {
     type Writer = oio::OneShotWriter<DropboxWriter>;
     type Lister = oio::PageLister<DropboxLister>;
     type Deleter = oio::OneShotDeleter<DropboxDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -150,17 +151,23 @@ impl Access for DropboxBackend {
         ))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.dropbox_copy(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => {
                 let err = parse_error(resp);
                 match err.kind() {
-                    ErrorKind::NotFound => Ok(RpCopy::default()),
+                    ErrorKind::NotFound => Ok((RpCopy::default(), ())),
                     _ => Err(err),
                 }
             }

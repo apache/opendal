@@ -139,6 +139,7 @@ impl Access for AlluxioBackend {
     type Writer = AlluxioWriters;
     type Lister = oio::PageLister<AlluxioLister>;
     type Deleter = oio::OneShotDeleter<AlluxioDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

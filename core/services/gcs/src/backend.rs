@@ -410,6 +410,7 @@ impl Access for GcsBackend {
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -475,11 +476,17 @@ impl Access for GcsBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.gcs_copy_object(from, to).await?;
 
         if resp.status().is_success() {
-            Ok(RpCopy::default())
+            Ok((RpCopy::default(), ()))
         } else {
             Err(parse_error(resp))
         }

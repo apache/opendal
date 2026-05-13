@@ -251,6 +251,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
     type Writer = LoggingWriter<A::Writer, I>;
     type Lister = LoggingLister<A::Lister, I>;
     type Deleter = LoggingDeleter<A::Deleter, I>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -362,7 +363,13 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.logger.log(
             &self.info,
             Operation::Copy,
@@ -372,7 +379,7 @@ impl<A: Access, I: LoggingInterceptor> LayeredAccess for LoggingAccessor<A, I> {
         );
 
         self.inner
-            .copy(from, to, args)
+            .copy(from, to, args, opts.clone())
             .await
             .inspect(|_| {
                 self.logger.log(

@@ -213,6 +213,7 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     type Writer = TimeoutWrapper<A::Writer>;
     type Lister = TimeoutWrapper<A::Lister>;
     type Deleter = TimeoutWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -235,9 +236,18 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
             .map(|(rp, r)| (rp, TimeoutWrapper::new(r, self.io_timeout)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.timeout(Operation::Copy, self.inner.copy(from, to, args))
-            .await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.timeout(
+            Operation::Copy,
+            self.inner.copy(from, to, args, opts.clone()),
+        )
+        .await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -377,6 +387,7 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();

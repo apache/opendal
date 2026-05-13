@@ -241,6 +241,7 @@ impl Access for WebhdfsBackend {
     type Writer = WebhdfsWriters;
     type Lister = oio::PageLister<WebhdfsLister>;
     type Deleter = oio::OneShotDeleter<WebhdfsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

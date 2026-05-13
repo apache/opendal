@@ -371,6 +371,7 @@ impl Access for AzdlsBackend {
     type Writer = AzdlsWriters;
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

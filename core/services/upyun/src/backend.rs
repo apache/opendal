@@ -193,6 +193,7 @@ impl Access for UpyunBackend {
     type Writer = UpyunWriters;
     type Lister = oio::PageLister<UpyunLister>;
     type Deleter = oio::OneShotDeleter<UpyunDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -258,13 +259,19 @@ impl Access for UpyunBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.copy(from, to).await?;
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

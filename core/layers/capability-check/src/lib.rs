@@ -110,6 +110,7 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -146,6 +147,25 @@ impl<A: Access> LayeredAccess for CapabilityAccessor<A> {
         self.inner.write(path, args).await
     }
 
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let capability = self.info.full_capability();
+        if args.if_not_exists() && !capability.copy_with_if_not_exists {
+            return Err(new_unsupported_error(
+                self.info.as_ref(),
+                Operation::Copy,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.copy(from, to, args, opts).await
+    }
+
     async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
         self.inner.delete().await
     }
@@ -178,6 +198,7 @@ mod tests {
         type Writer = oio::Writer;
         type Lister = oio::Lister;
         type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let info = AccessorInfo::default();

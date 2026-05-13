@@ -999,6 +999,7 @@ impl Access for S3Backend {
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -1095,7 +1096,13 @@ impl Access for S3Backend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let resp = self.core.s3_copy_object(from, to).await?;
 
         let status = resp.status();
@@ -1122,7 +1129,7 @@ impl Access for S3Backend {
                     );
                 }
 
-                Ok(RpCopy::default())
+                Ok((RpCopy::default(), ()))
             }
             _ => Err(parse_error(resp)),
         }

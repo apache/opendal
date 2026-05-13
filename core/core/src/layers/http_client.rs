@@ -122,6 +122,7 @@ impl<A: Access> LayeredAccess for HttpClientAccessor<A> {
     type Writer = A::Writer;
     type Lister = A::Lister;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -139,8 +140,14 @@ impl<A: Access> LayeredAccess for HttpClientAccessor<A> {
         self.inner.write(path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {

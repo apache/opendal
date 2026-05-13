@@ -307,6 +307,7 @@ impl Access for GoosefsBackend {
     type Writer = GoosefsWriters;
     type Lister = oio::PageLister<GoosefsLister>;
     type Deleter = oio::OneShotDeleter<GoosefsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

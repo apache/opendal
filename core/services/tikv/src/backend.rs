@@ -148,6 +148,7 @@ impl Access for TikvBackend {
     type Writer = TikvWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<TikvDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

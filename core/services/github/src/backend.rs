@@ -165,6 +165,7 @@ impl Access for GithubBackend {
     type Writer = GithubWriters;
     type Lister = oio::PageLister<GithubLister>;
     type Deleter = oio::OneShotDeleter<GithubDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

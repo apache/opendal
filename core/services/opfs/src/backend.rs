@@ -75,6 +75,7 @@ impl Access for OpfsBackend {
     type Lister = OpfsLister;
 
     type Deleter = oio::OneShotDeleter<OpfsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

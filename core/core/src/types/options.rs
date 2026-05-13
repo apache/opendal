@@ -532,4 +532,10 @@ pub struct CopyOptions {
     /// This operation provides a way to ensure copy operations only create new resources
     /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
     pub if_not_exists: bool,
+
+    /// Sets concurrent copy operations for this copier.
+    ///
+    /// This is a best-effort execution option. Services that cannot split copy
+    /// into concurrent server-side tasks can ignore it.
+    pub concurrent: usize,
 }

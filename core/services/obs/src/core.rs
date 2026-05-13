@@ -27,14 +27,12 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_MATCH;
 use http::header::IF_NONE_MATCH;
-use reqsign::HuaweicloudObsCredential;
-use reqsign::HuaweicloudObsCredentialLoader;
-use reqsign::HuaweicloudObsSigner;
-use serde::Deserialize;
-use serde::Serialize;
-
 use opendal_core::raw::*;
 use opendal_core::*;
+use reqsign_core::Signer;
+use reqsign_huaweicloud_obs::Credential;
+use serde::Deserialize;
+use serde::Serialize;
 
 pub mod constants {
     pub const X_OBS_META_PREFIX: &str = "x-obs-meta-";
@@ -47,8 +45,7 @@ pub struct ObsCore {
     pub root: String,
     pub endpoint: String,
 
-    pub signer: HuaweicloudObsSigner,
-    pub loader: HuaweicloudObsCredentialLoader,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for ObsCore {
@@ -62,40 +59,26 @@ impl Debug for ObsCore {
 }
 
 impl ObsCore {
-    async fn load_credential(&self) -> Result<Option<HuaweicloudObsCredential>> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
-
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
-    }
-
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
         self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
+    }
+
+    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -111,9 +94,9 @@ impl ObsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let mut req = self.obs_get_object_request(path, range, args)?;
+        let req = self.obs_get_object_request(path, range, args)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.info.http_client().fetch(req).await
     }
@@ -190,9 +173,9 @@ impl ObsCore {
     }
 
     pub async fn obs_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
-        let mut req = self.obs_head_object_request(path, args)?;
+        let req = self.obs_head_object_request(path, args)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -230,12 +213,12 @@ impl ObsCore {
 
         let req = Request::delete(&url);
 
-        let mut req = req
+        let req = req
             .extension(Operation::Delete)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -287,13 +270,13 @@ impl ObsCore {
         let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
-        let mut req = Request::put(&url)
+        let req = Request::put(&url)
             .extension(Operation::Copy)
             .header("x-obs-copy-source", &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -321,12 +304,12 @@ impl ObsCore {
             url = url.push("marker", next_marker);
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -344,12 +327,12 @@ impl ObsCore {
             req = req.header(CONTENT_TYPE, mime)
         }
 
-        let mut req = req
+        let req = req
             .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -377,13 +360,13 @@ impl ObsCore {
             req = req.header(CONTENT_LENGTH, size);
         }
 
-        let mut req = req
+        let req = req
             .extension(Operation::Write)
             // Set body
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
 
         self.send(req).await
     }
@@ -413,12 +396,12 @@ impl ObsCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
-        let mut req = req
+        let req = req
             .extension(Operation::Write)
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -437,12 +420,12 @@ impl ObsCore {
             percent_encode_path(upload_id)
         );
 
-        let mut req = Request::delete(&url)
+        let req = Request::delete(&url)
             .extension(Operation::Write)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 }
@@ -500,7 +483,7 @@ pub struct CompleteMultipartUploadRequestPart {
 
 /// Output of `CompleteMultipartUpload` operation
 #[derive(Debug, Default, Deserialize)]
-#[serde[default, rename_all = "PascalCase"]]
+#[serde(default, rename_all = "PascalCase")]
 pub struct CompleteMultipartUploadResult {
     pub location: String,
     pub bucket: String,

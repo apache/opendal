@@ -46,6 +46,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup Haskell toolchain (ghc-9.4.8)
         run: |
+          sudo apt-get update
+          sudo apt-get install -y alex happy
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.4.8 --set
           ghcup install cabal --set
@@ -83,6 +85,8 @@ jobs:
       - uses: actions/checkout@v6
       - name: Setup Haskell toolchain (ghc-9.2.8)
         run: |
+          sudo apt-get update
+          sudo apt-get install -y alex happy
           curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
           ghcup install ghc 9.2.8 --set
           ghcup install cabal --set
@@ -122,7 +126,7 @@ jobs:
 #          name: bindings-haskell-sdist
 #      - name: Load secret
 #        id: op-load-secret
-#        uses: 1password/load-secrets-action@13f58eec611f8e5db52ec16247f58c508398f3e6 # v3
+#        uses: 1Password/load-secrets-action@dafbe7cb03502b260e2b2893c753c352eee545bf # v3.2.1
 #        with:
 #          export-env: true
 #        env:

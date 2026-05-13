@@ -72,6 +72,14 @@ Then add the dependency to `opendal` as following:
 </dependencies>
 ```
 
+On musl-based Linux distributions such as Alpine, use the musl classified artifact instead of the default Linux classifier:
+
+```xml
+<classifier>linux-x86_64-musl</classifier>
+```
+
+Use `linux-aarch_64-musl` for aarch64 Linux musl environments.
+
 ### Gradle
 
 For Gradle, you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
@@ -90,6 +98,8 @@ dependencies {
     implementation "org.apache.opendal:opendal:$opendalVersion:$osdetector.classifier"
 }
 ```
+
+On musl-based Linux distributions such as Alpine, use `linux-x86_64-musl` or `linux-aarch_64-musl` as the classifier.
 
 ### Classified library
 
@@ -153,16 +163,6 @@ You can run service behavior tests of enabled with the following command:
 
 ```shell
 ./mvnw test -Dtest="behavior.*Test"
-```
-
-Remember to enable the necessary features via `-Dcargo-build.features=services-xxx` when running specific service test:
-
-```shell
-export OPENDAL_TEST=redis
-export OPENDAL_REDIS_ENDPOINT=tcp://127.0.0.1:6379
-export OPENDAL_REDIS_ROOT=/
-export OPENDAL_REDIS_DB=0
-./mvnw test -Dtest="behavior.*Test" -Dcargo-build.features=services-redis
 ```
 
 ## Used by

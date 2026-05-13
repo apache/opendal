@@ -25,8 +25,6 @@ use futures::StreamExt;
 use futures::io::BufReader;
 use futures::io::Cursor;
 use futures::stream;
-use sha2::Digest;
-use sha2::Sha256;
 
 use crate::*;
 
@@ -338,13 +336,13 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content_a)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content_a),
         "read content a"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", Sha256::digest(content_b)),
+        sha256_digest(&bs[size..]),
+        sha256_digest(content_b),
         "read content b"
     );
 
@@ -375,21 +373,18 @@ pub async fn test_writer_write_with_concurrent(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size_a + size_b + size_c, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size_a])),
-        format!("{:x}", Sha256::digest(content_a)),
+        sha256_digest(&bs[..size_a]),
+        sha256_digest(content_a),
         "read content a"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size_a..size_a + size_b])),
-        format!("{:x}", Sha256::digest(content_b)),
+        sha256_digest(&bs[size_a..size_a + size_b]),
+        sha256_digest(content_b),
         "read content b"
     );
     assert_eq!(
-        format!(
-            "{:x}",
-            Sha256::digest(&bs[size_a + size_b..size_a + size_b + size_c])
-        ),
-        format!("{:x}", Sha256::digest(content_c)),
+        sha256_digest(&bs[size_a + size_b..size_a + size_b + size_c]),
+        sha256_digest(content_c),
         "read content b"
     );
 
@@ -427,13 +422,13 @@ pub async fn test_writer_sink(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content_a)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content_a),
         "read content a"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", Sha256::digest(content_b)),
+        sha256_digest(&bs[size..]),
+        sha256_digest(content_b),
         "read content b"
     );
 
@@ -472,13 +467,13 @@ pub async fn test_writer_sink_with_concurrent(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content_a)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content_a),
         "read content a"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", Sha256::digest(content_b)),
+        sha256_digest(&bs[size..]),
+        sha256_digest(content_b),
         "read content b"
     );
 
@@ -512,8 +507,8 @@ pub async fn test_writer_futures_copy(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content),
         "read content"
     );
 
@@ -548,8 +543,8 @@ pub async fn test_writer_futures_copy_with_concurrent(op: Operator) -> Result<()
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content),
         "read content"
     );
 
@@ -683,8 +678,8 @@ pub async fn test_writer_with_append(op: Operator) -> Result<()> {
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size, "read size");
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", Sha256::digest(content)),
+        sha256_digest(&bs[..size]),
+        sha256_digest(content),
         "read content"
     );
 
@@ -706,8 +701,8 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
     op.write(&path, content_one.clone()).await?;
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content_one)),
+        sha256_digest(&bs),
+        sha256_digest(&content_one),
         "read content_one"
     );
     op.write(&path, content_two.clone())
@@ -715,13 +710,13 @@ pub async fn test_writer_write_with_overwrite(op: Operator) -> Result<()> {
         .expect("write overwrite must succeed");
     let bs = op.read(&path).await?.to_bytes();
     assert_ne!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content_one)),
+        sha256_digest(&bs),
+        sha256_digest(&content_one),
         "content_one must be overwrote"
     );
     assert_eq!(
-        format!("{:x}", Sha256::digest(&bs)),
-        format!("{:x}", Sha256::digest(&content_two)),
+        sha256_digest(&bs),
+        sha256_digest(&content_two),
         "read content_two"
     );
 
@@ -819,9 +814,9 @@ pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     let size = 1024 * 1024; // write file with 1 MiB
     let content_a = gen_fixed_bytes(size);
-    let digest_a = Sha256::digest(&content_a);
+    let digest_a = sha256_digest(&content_a);
     let content_b = gen_fixed_bytes(size);
-    let digest_b = Sha256::digest(&content_b);
+    let digest_b = sha256_digest(&content_b);
 
     let mut w = op.writer(&path).await?;
     w.write(vec![Bytes::from(content_a), Bytes::from(content_b)])
@@ -833,16 +828,8 @@ pub async fn test_writer_write_non_contiguous_data(op: Operator) -> Result<()> {
 
     let bs = op.read(&path).await?.to_bytes();
     assert_eq!(bs.len(), size * 2, "read size");
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[..size])),
-        format!("{:x}", digest_a),
-        "read content a"
-    );
-    assert_eq!(
-        format!("{:x}", Sha256::digest(&bs[size..])),
-        format!("{:x}", digest_b),
-        "read content b"
-    );
+    assert_eq!(sha256_digest(&bs[..size]), digest_a, "read content a");
+    assert_eq!(sha256_digest(&bs[size..]), digest_b, "read content b");
 
     Ok(())
 }

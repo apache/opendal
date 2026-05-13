@@ -28,7 +28,7 @@ use jni::JavaVM;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JValue;
-use jni::sys::jlong;
+use jni::sys::{jint, jlong};
 use tokio::task::JoinHandle;
 
 use crate::Result;
@@ -36,6 +36,12 @@ use crate::Result;
 static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
 thread_local! {
     static ENV: RefCell<Option<*mut jni::sys::JNIEnv>> = const { RefCell::new(None) };
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn JNI_OnLoad(_: JavaVM, _: *mut c_void) -> jint {
+    opendal::init_default_registry();
+    jni::sys::JNI_VERSION_1_8
 }
 
 /// # Safety

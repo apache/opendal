@@ -48,8 +48,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Cargo doc
         working-directory: core
@@ -70,8 +70,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Cargo clippy
         working-directory: core
@@ -90,12 +90,7 @@ jobs:
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Check
         working-directory: core
-        run: |
-          cargo update zerofrom --precise 0.1.5
-          cargo update idna_adapter --precise 1.2.0
-          cargo update litemap --precise 0.7.4
-          cargo update ctor --precise 0.6.1
-          cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}
@@ -126,8 +121,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -157,8 +152,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -190,7 +185,7 @@ jobs:
             # FIXME how to support HDFS services in other platforms?
             # services-hdfs
             services-http
-            services-huggingface
+            services-hf
             services-ipfs
             services-ipmfs
             services-memcached
@@ -266,8 +261,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -311,8 +306,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

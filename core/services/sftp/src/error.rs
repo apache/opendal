@@ -55,3 +55,7 @@ pub(super) fn is_not_found(e: &SftpClientError) -> bool {
 pub(super) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
     matches!(e, SftpClientError::SftpError(_, _))
 }
+
+pub(super) fn is_sftp_failure(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::Failure, _))
+}

@@ -231,7 +231,7 @@ impl OtelMetricsLayerBuilder {
                 meter,
                 "opendal.operation.ttfb",
                 metric,
-                self.duration_seconds_boundaries.clone(),
+                self.ttfb_boundaries.clone(),
             )
         };
 
@@ -446,6 +446,13 @@ impl OtelMetricsInterceptor {
             attributes.push(KeyValue::new(
                 observe::LABEL_STATUS_CODE,
                 status_code.as_u16() as i64,
+            ));
+        }
+
+        if let Some(service_operation) = attrs.service_operation {
+            attributes.push(KeyValue::new(
+                observe::LABEL_SERVICE_OPERATION,
+                service_operation,
             ));
         }
 

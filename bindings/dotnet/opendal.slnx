@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="OpenDAL.Tests/OpenDAL.Tests.csproj" />
+  <Project Path="OpenDAL/OpenDAL.csproj" />
+</Solution>

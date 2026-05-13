@@ -27,6 +27,7 @@ use super::config::GdriveConfig;
 use super::core::GdriveCore;
 use super::core::GdrivePathQuery;
 use super::core::GdriveSigner;
+use super::path_index::GdrivePathIndex;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -121,6 +122,7 @@ impl Builder for GdriveBuilder {
 
                 create_dir: true,
                 delete: true,
+                delete_with_recursive: true,
                 rename: true,
                 copy: true,
 
@@ -180,8 +182,8 @@ impl Builder for GdriveBuilder {
                 info: accessor_info.clone(),
                 root,
                 signer: signer.clone(),
-                path_cache: PathCacher::new(GdrivePathQuery::new(accessor_info, signer))
-                    .with_lock(),
+                path_index: GdrivePathIndex::new(GdrivePathQuery::new(accessor_info, signer)),
+                recent_entries: Mutex::default(),
             }),
         })
     }

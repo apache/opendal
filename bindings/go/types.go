@@ -135,6 +135,15 @@ var (
 		}[0],
 	}
 
+	typeResultPresign = ffi.Type{
+		Type: ffi.Struct,
+		Elements: &[]*ffi.Type{
+			&ffi.TypePointer,
+			&ffi.TypePointer,
+			nil,
+		}[0],
+	}
+
 	typeCapability = ffi.Type{
 		Type: ffi.Struct,
 		Elements: &[]*ffi.Type{
@@ -169,6 +178,7 @@ var (
 			&ffi.TypeUint8,   // presign_read
 			&ffi.TypeUint8,   // presign_stat
 			&ffi.TypeUint8,   // presign_write
+			&ffi.TypeUint8,   // presign_delete
 			&ffi.TypeUint8,   // shared
 			&ffi.TypeUint8,   // blocking
 			nil,
@@ -208,6 +218,7 @@ type opendalCapability struct {
 	presignRead                        uint8
 	presignStat                        uint8
 	presignWrite                       uint8
+	presignDelete                      uint8
 	shared                             uint8
 	blocking                           uint8
 }
@@ -249,7 +260,7 @@ type resultReaderRead struct {
 }
 
 type resultReaderSeek struct {
-	pos uint64
+	pos   uint64
 	error *opendalError
 }
 
@@ -261,6 +272,18 @@ type resultIsExist struct {
 type resultStat struct {
 	meta  *opendalMetadata
 	error *opendalError
+}
+
+type resultPresign struct {
+	req   *opendalPresignedRequest
+	error *opendalError
+}
+
+type opendalPresignedRequest struct{}
+
+type opendalHttpHeaderPair struct {
+	key   *byte
+	value *byte
 }
 
 type opendalMetadata struct{}

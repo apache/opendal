@@ -82,17 +82,20 @@ pub(super) fn parse_error(resp: Response<Buffer>) -> Error {
     };
 
     // If there is no body here, fill with error code.
-    if message.is_empty()
-        && let Some(v) = parts.headers.get("x-ms-error-code")
-        && let Ok(code) = v.to_str()
-    {
-        message = format!(
-            "{:?}",
-            AzblobError {
-                code: code.to_string(),
-                ..Default::default()
-            }
-        )
+    if message.is_empty() {
+        if let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|v| v.to_str().ok())
+        {
+            message = format!(
+                "{:?}",
+                AzblobError {
+                    code: code.to_string(),
+                    ..Default::default()
+                }
+            );
+        }
     }
 
     let mut err = Error::new(kind, &message);

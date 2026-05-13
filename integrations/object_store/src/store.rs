@@ -18,17 +18,21 @@
 use std::fmt::{self, Debug, Display, Formatter};
 use std::future::IntoFuture;
 use std::io;
+use std::ops::Range;
 use std::sync::Arc;
 
 use crate::utils::*;
 use crate::{datetime_to_timestamp, timestamp_to_datetime};
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use mea::mutex::Mutex;
 use mea::oneshot;
+use object_store::CopyMode as ObjectStoreCopyMode;
+use object_store::CopyOptions as ObjectStoreCopyOptions;
 use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
@@ -48,6 +52,8 @@ use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
+const DEFAULT_CONCURRENT: usize = 8;
+
 /// OpendalStore implements ObjectStore trait by using opendal.
 ///
 /// This allows users to use opendal as an object store without extra cost.
@@ -60,6 +66,7 @@ use std::collections::HashMap;
 /// use bytes::Bytes;
 /// use object_store::path::Path;
 /// use object_store::ObjectStore;
+/// use object_store::ObjectStoreExt;
 /// use object_store_opendal::OpendalStore;
 /// use opendal::services::S3;
 /// use opendal::{Builder, Operator};
@@ -227,30 +234,11 @@ impl ObjectStore for OpendalStore {
         Ok(PutResult { e_tag, version })
     }
 
-    async fn put_multipart(
-        &self,
-        location: &Path,
-    ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        let writer = self
-            .inner
-            .writer_with(&decoded_location)
-            .concurrent(8)
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
-        let upload = OpendalMultipartUpload::new(writer, location.clone());
-
-        Ok(Box::new(upload))
-    }
-
     async fn put_multipart_opts(
         &self,
         location: &Path,
         opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
-        const DEFAULT_CONCURRENT: usize = 8;
-
         let mut options = opendal::options::WriteOptions {
             concurrent: DEFAULT_CONCURRENT,
             ..Default::default()
@@ -430,15 +418,58 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn delete(&self, location: &Path) -> object_store::Result<()> {
-        let decoded_location = percent_decode_path(location.as_ref());
-        self.inner
-            .delete(&decoded_location)
+    async fn get_ranges(
+        &self,
+        location: &Path,
+        ranges: &[Range<u64>],
+    ) -> object_store::Result<Vec<Bytes>> {
+        let raw_location = percent_decode_path(location.as_ref());
+        let reader = self
+            .inner
+            .reader(&raw_location)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        Ok(())
+        let location_ref: Arc<str> = Arc::from(location.as_ref());
+        futures::stream::iter(ranges.iter().cloned())
+            .map(|range| {
+                let reader = reader.clone();
+                let location_ref = location_ref.clone();
+                async move {
+                    reader
+                        .read(range)
+                        .into_send()
+                        .await
+                        .map(|buf| buf.to_bytes())
+                        .map_err(|err| format_object_store_error(err, &location_ref))
+                }
+            })
+            .buffered(DEFAULT_CONCURRENT)
+            .try_collect()
+            .await
+    }
+
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, object_store::Result<Path>>,
+    ) -> BoxStream<'static, object_store::Result<Path>> {
+        let this = self.clone();
+        locations
+            .and_then(move |location| {
+                let this = this.clone();
+                async move {
+                    let decoded = percent_decode_path(location.as_ref());
+                    this.inner
+                        .delete(&decoded)
+                        .into_send()
+                        .await
+                        .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                    Ok(location)
+                }
+                .into_send()
+            })
+            .boxed()
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, object_store::Result<ObjectMeta>> {
@@ -576,25 +607,14 @@ impl ObjectStore for OpendalStore {
         })
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, false).await
-    }
-
-    async fn rename(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.inner
-            .rename(
-                &percent_decode_path(from.as_ref()),
-                &percent_decode_path(to.as_ref()),
-            )
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, from.as_ref()))?;
-
-        Ok(())
-    }
-
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> object_store::Result<()> {
-        self.copy_request(from, to, true).await
+    async fn copy_opts(
+        &self,
+        from: &Path,
+        to: &Path,
+        options: ObjectStoreCopyOptions,
+    ) -> object_store::Result<()> {
+        let if_not_exists = matches!(options.mode, ObjectStoreCopyMode::Create);
+        self.copy_request(from, to, if_not_exists).await
     }
 }
 
@@ -642,7 +662,7 @@ impl MultipartUpload for OpendalMultipartUpload {
 
             let mut writer = writer.lock().await;
             let result = writer
-                .write(Buffer::from_iter(data.into_iter()))
+                .write(Buffer::from_iter(data))
                 .await
                 .map_err(|err| format_object_store_error(err, location.as_ref()));
 
@@ -691,9 +711,10 @@ impl Debug for OpendalMultipartUpload {
 mod tests {
     use bytes::Bytes;
     use object_store::path::Path;
-    use object_store::{ObjectStore, WriteMultipart};
+    use object_store::{ObjectStore, ObjectStoreExt, WriteMultipart};
     use opendal::services;
     use rand::prelude::*;
+    use rand::rng;
     use std::sync::Arc;
 
     use super::*;
@@ -745,7 +766,7 @@ mod tests {
         let op = Operator::new(services::Memory::default()).unwrap().finish();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
 
-        let mut rng = thread_rng();
+        let mut rng = rng();
 
         // Case complete
         let path: Path = "data/test_complete.txt".into();
@@ -754,9 +775,9 @@ mod tests {
         let mut write = WriteMultipart::new(upload);
 
         let mut all_bytes = vec![];
-        let round = rng.gen_range(1..=1024);
+        let round = rng.random_range(1..=1024);
         for _ in 0..round {
-            let size = rng.gen_range(1..=1024);
+            let size = rng.random_range(1..=1024);
             let mut bytes = vec![0; size];
             rng.fill_bytes(&mut bytes);
 
@@ -857,5 +878,157 @@ mod tests {
             result[0].as_ref().unwrap().location.as_ref(),
             "data/test.txt"
         );
+    }
+
+    /// Custom layer that counts stat operations for testing
+    mod stat_counter {
+        use super::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        #[derive(Debug, Clone)]
+        pub struct StatCounterLayer {
+            count: Arc<AtomicUsize>,
+        }
+
+        impl StatCounterLayer {
+            pub fn new(count: Arc<AtomicUsize>) -> Self {
+                Self { count }
+            }
+        }
+
+        impl<A: opendal::raw::Access> opendal::raw::Layer<A> for StatCounterLayer {
+            type LayeredAccess = StatCounterAccessor<A>;
+
+            fn layer(&self, inner: A) -> Self::LayeredAccess {
+                StatCounterAccessor {
+                    inner,
+                    count: self.count.clone(),
+                }
+            }
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct StatCounterAccessor<A> {
+            inner: A,
+            count: Arc<AtomicUsize>,
+        }
+
+        impl<A: opendal::raw::Access> opendal::raw::LayeredAccess for StatCounterAccessor<A> {
+            type Inner = A;
+            type Reader = A::Reader;
+            type Writer = A::Writer;
+            type Lister = A::Lister;
+            type Deleter = A::Deleter;
+
+            fn inner(&self) -> &Self::Inner {
+                &self.inner
+            }
+
+            async fn stat(
+                &self,
+                path: &str,
+                args: opendal::raw::OpStat,
+            ) -> opendal::Result<opendal::raw::RpStat> {
+                self.count.fetch_add(1, Ordering::SeqCst);
+                self.inner.stat(path, args).await
+            }
+
+            async fn read(
+                &self,
+                path: &str,
+                args: opendal::raw::OpRead,
+            ) -> opendal::Result<(opendal::raw::RpRead, Self::Reader)> {
+                self.inner.read(path, args).await
+            }
+
+            async fn write(
+                &self,
+                path: &str,
+                args: opendal::raw::OpWrite,
+            ) -> opendal::Result<(opendal::raw::RpWrite, Self::Writer)> {
+                self.inner.write(path, args).await
+            }
+
+            async fn delete(&self) -> opendal::Result<(opendal::raw::RpDelete, Self::Deleter)> {
+                self.inner.delete().await
+            }
+
+            async fn list(
+                &self,
+                path: &str,
+                args: opendal::raw::OpList,
+            ) -> opendal::Result<(opendal::raw::RpList, Self::Lister)> {
+                self.inner.list(path, args).await
+            }
+
+            async fn copy(
+                &self,
+                from: &str,
+                to: &str,
+                args: opendal::raw::OpCopy,
+            ) -> opendal::Result<opendal::raw::RpCopy> {
+                self.inner.copy(from, to, args).await
+            }
+
+            async fn rename(
+                &self,
+                from: &str,
+                to: &str,
+                args: opendal::raw::OpRename,
+            ) -> opendal::Result<opendal::raw::RpRename> {
+                self.inner.rename(from, to, args).await
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_range_no_stat() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        // Create a stat counter and operator with tracking layer
+        let stat_count = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(opendal::services::Memory::default())
+            .unwrap()
+            .layer(stat_counter::StatCounterLayer::new(stat_count.clone()))
+            .finish();
+        let store = OpendalStore::new(op);
+
+        // Create a test file
+        let location = "test_get_range.txt".into();
+        let value = Bytes::from_static(b"Hello, world!");
+        store.put(&location, value.clone().into()).await.unwrap();
+
+        // Reset counter after put
+        stat_count.store(0, Ordering::SeqCst);
+
+        // Test 1: get_ranges should NOT call stat()
+        #[allow(clippy::single_range_in_vec_init)]
+        let ranges = [0u64..5];
+        let ret = store.get_ranges(&location, &ranges).await.unwrap();
+        assert_eq!(Bytes::from_static(b"Hello"), ret[0]);
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "get_ranges should not call stat()"
+        );
+
+        // Reset counter
+        stat_count.store(0, Ordering::SeqCst);
+
+        // Test 2: get_opts SHOULD call stat() to get metadata
+        let opts = object_store::GetOptions {
+            range: Some(object_store::GetRange::Bounded(0..5)),
+            ..Default::default()
+        };
+        let ret = store.get_opts(&location, opts).await.unwrap();
+        let data = ret.bytes().await.unwrap();
+        assert_eq!(Bytes::from_static(b"Hello"), data);
+        assert!(
+            stat_count.load(Ordering::SeqCst) > 0,
+            "get_opts should call stat() to get metadata"
+        );
+
+        // Cleanup
+        store.delete(&location).await.unwrap();
     }
 }

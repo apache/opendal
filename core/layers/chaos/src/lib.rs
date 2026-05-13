@@ -86,7 +86,7 @@ impl<A: Access> Layer<A> for ChaosLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
-            rng: StdRng::from_entropy(),
+            rng: Arc::new(Mutex::new(rand::make_rng())),
             error_ratio: self.error_ratio,
         }
     }
@@ -96,7 +96,7 @@ impl<A: Access> Layer<A> for ChaosLayer {
 #[derive(Debug)]
 pub struct ChaosAccessor<A> {
     inner: A,
-    rng: StdRng,
+    rng: Arc<Mutex<StdRng>>,
 
     error_ratio: f64,
 }
@@ -113,10 +113,12 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .await
-            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                ChaosReader::new(r, Arc::clone(&self.rng), self.error_ratio),
+            )
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -141,10 +143,10 @@ pub struct ChaosReader<R> {
 }
 
 impl<R> ChaosReader<R> {
-    fn new(inner: R, rng: StdRng, error_ratio: f64) -> Self {
+    fn new(inner: R, rng: Arc<Mutex<StdRng>>, error_ratio: f64) -> Self {
         Self {
             inner,
-            rng: Arc::new(Mutex::new(rng)),
+            rng,
             error_ratio,
         }
     }
@@ -152,8 +154,8 @@ impl<R> ChaosReader<R> {
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
     fn i_feel_lucky(&self) -> bool {
-        let point = self.rng.lock().unwrap().gen_range(0..=100);
-        point >= (self.error_ratio * 100.0) as i32
+        let point: u32 = self.rng.lock().unwrap().random_range(0..100);
+        point >= (self.error_ratio * 100.0) as u32
     }
 
     fn unexpected_eof() -> Error {

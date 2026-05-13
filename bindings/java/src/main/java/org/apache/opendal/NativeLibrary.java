@@ -58,7 +58,9 @@ public class NativeLibrary {
      *         You can use the prebuilt library:
      *         <ul>
      *             <li>org.apache.opendal:opendal-{version}-linux-x86_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-linux-x86_64-musl</li>
      *             <li>org.apache.opendal:opendal-{version}-linux-aarch_64</li>
+     *             <li>org.apache.opendal:opendal-{version}-linux-aarch_64-musl</li>
      *             <li>org.apache.opendal:opendal-{version}-osx-x86_64</li>
      *             <li>org.apache.opendal:opendal-{version}-osx-aarch_64</li>
      *             <li>org.apache.opendal:opendal-{version}-windows-x86_64</li>

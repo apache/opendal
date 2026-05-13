@@ -34,9 +34,8 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use http::header::RANGE;
-use reqsign::AliyunCredential;
-use reqsign::AliyunLoader;
-use reqsign::AliyunOssSigner;
+use reqsign_aliyun_oss::Credential;
+use reqsign_core::Signer;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -76,8 +75,7 @@ pub struct OssCore {
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
 
-    pub loader: AliyunLoader,
-    pub signer: AliyunOssSigner,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for OssCore {
@@ -92,48 +90,36 @@ impl Debug for OssCore {
 }
 
 impl OssCore {
-    async fn load_credential(&self) -> Result<Option<AliyunCredential>> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            Ok(Some(cred))
-        } else if self.allow_anonymous {
-            // If allow_anonymous has been set, we will not sign the request.
-            Ok(None)
-        } else {
-            // Mark this error as temporary since it could be caused by Aliyun STS.
-            Err(Error::new(
-                ErrorKind::PermissionDenied,
-                "no valid credential found, please check configuration or try again",
-            )
-            .set_temporary())
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        // Skip signing for anonymous access.
+        if self.allow_anonymous {
+            return Ok(req);
         }
-    }
 
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
-
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
-    }
-
-    pub async fn sign_query<T>(&self, req: &mut Request<T>, duration: Duration) -> Result<()> {
-        let cred = if let Some(cred) = self.load_credential().await? {
-            cred
-        } else {
-            return Ok(());
-        };
+        let (mut parts, body) = req.into_parts();
 
         self.signer
-            .sign_query(req, duration, &cred)
-            .map_err(new_request_sign_error)
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
+    }
+
+    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        // Skip signing for anonymous access.
+        if self.allow_anonymous {
+            return Ok(req);
+        }
+
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -264,7 +250,9 @@ impl OssCore {
         // set sse headers
         req = self.insert_sse_headers(req);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -294,7 +282,9 @@ impl OssCore {
         // set sse headers
         req = self.insert_sse_headers(req);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("AppendObject"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
         Ok(req)
@@ -356,7 +346,9 @@ impl OssCore {
             req = req.header(IF_UNMODIFIED_SINCE, if_unmodified_since.format_http_date());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -384,7 +376,9 @@ impl OssCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -423,7 +417,9 @@ impl OssCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -469,21 +465,21 @@ impl OssCore {
 
         let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
         Ok(req)
     }
 
     pub async fn oss_get_object(&self, path: &str, args: &OpRead) -> Result<Response<HttpBody>> {
-        let mut req = self.oss_get_object_request(path, false, args)?;
-        self.sign(&mut req).await?;
+        let req = self.oss_get_object_request(path, false, args)?;
+        let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }
 
     pub async fn oss_head_object(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
-        let mut req = self.oss_head_object_request(path, false, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.oss_head_object_request(path, false, args)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -504,11 +500,12 @@ impl OssCore {
 
         req = req.header("x-oss-copy-source", source);
 
-        let req = req.extension(Operation::Copy);
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"));
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -520,9 +517,8 @@ impl OssCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
-
-        self.sign(&mut req).await?;
+        let req = self.oss_list_object_request(path, token, delimiter, limit, start_after)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -556,19 +552,18 @@ impl OssCore {
             url = url.push("version-id-marker", &percent_encode_path(version_id_marker));
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
     pub async fn oss_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
-        let mut req = self.oss_delete_object_request(path, args)?;
-        self.sign(&mut req).await?;
+        let req = self.oss_delete_object_request(path, args)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -598,14 +593,14 @@ impl OssCore {
         // Set content-md5 as required by API.
         let req = req.header("CONTENT-MD5", format_content_md5(content.as_bytes()));
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteMultipleObjects"));
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
-
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -640,10 +635,12 @@ impl OssCore {
         }
         req = self.insert_sse_headers(req);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateMultipartUpload"));
 
-        let mut req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -671,10 +668,12 @@ impl OssCore {
         let mut req = Request::put(&url);
         req = req.header(CONTENT_LENGTH, size);
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
-        let mut req = req.body(body).map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = req.body(body).map_err(new_request_build_error)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -705,13 +704,14 @@ impl OssCore {
         // Set content-type to `application/xml` to avoid mixed with form post.
         let req = req.header(CONTENT_TYPE, "application/xml");
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
-        let mut req = req
+        let req = req
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
-
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -731,11 +731,12 @@ impl OssCore {
             percent_encode_path(upload_id)
         );
 
-        let mut req = Request::delete(&url)
+        let req = Request::delete(&url)
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 }

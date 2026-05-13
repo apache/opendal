@@ -32,9 +32,9 @@ all-features = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 bytes = { workspace = true }
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 probe = "0.5.1"
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
-opendal-core = { path = "../../core", version = "0.55.0" }
+opendal-core = { path = "../../core", version = "0.56.0" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

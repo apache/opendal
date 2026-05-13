@@ -16,8 +16,6 @@
 // under the License.
 
 use anyhow::Result;
-use sha2::Digest;
-use sha2::Sha256;
 
 use crate::*;
 
@@ -64,8 +62,8 @@ pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -94,8 +92,8 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(source_path).await.expect("delete must succeed");
@@ -200,8 +198,8 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -230,8 +228,8 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -263,8 +261,8 @@ pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -305,8 +303,8 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(current_content)),
-        format!("{:x}", Sha256::digest(&target_content)),
+        sha256_digest(current_content),
+        sha256_digest(&target_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");

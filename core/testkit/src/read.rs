@@ -17,10 +17,10 @@
 
 use bytes::Bytes;
 use opendal_core::*;
-use rand::RngCore;
-use rand::thread_rng;
-use sha2::Digest;
-use sha2::Sha256;
+use rand::Rng;
+use rand::rng;
+
+use crate::utils::sha256_digest;
 
 /// ReadAction represents a read action.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -45,7 +45,7 @@ impl ReadChecker {
     /// It's by design that we use a random generator to generate the raw data. The content of data
     /// is not important, we only care about the correctness of the read process.
     pub fn new(size: usize) -> Self {
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut data = vec![0; size];
         rng.fill_bytes(&mut data);
 
@@ -93,8 +93,8 @@ impl ReadChecker {
 
         // Check the read result
         assert_eq!(
-            format!("{:x}", Sha256::digest(output)),
-            format!("{:x}", Sha256::digest(expected)),
+            sha256_digest(output),
+            sha256_digest(expected),
             "check read failed: output bs is different with expected bs",
         );
     }

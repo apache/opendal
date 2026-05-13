@@ -75,6 +75,8 @@ pub mod constants {
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
     pub const X_AMZ_OBJECT_SIZE: &str = "x-amz-object-size";
 
+    pub const X_AMZ_ACL: &str = "x-amz-acl";
+
     pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
     pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
     pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
@@ -97,6 +99,7 @@ pub struct S3Core {
     pub allow_anonymous: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
+    pub default_acl: Option<String>,
 
     pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
@@ -330,6 +333,11 @@ impl S3Core {
                 req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value)
             }
         }
+
+        // Set ACL header.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
         req
     }
 
@@ -409,7 +417,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Stat);
+        req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("HeadObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -491,7 +501,9 @@ impl S3Core {
         req = self.insert_sse_headers(req, false);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Read);
+        req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -536,7 +548,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -579,7 +593,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutObject"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -619,6 +635,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -679,6 +696,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
@@ -718,6 +736,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -768,6 +787,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectsV2"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -797,6 +817,10 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -809,17 +833,33 @@ impl S3Core {
             }
         }
 
+        // also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
 
-        // Set SSE headers.
+        // Set checksum type headers.
+        // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
+        // Reference: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+        if matches!(self.checksum_algorithm, Some(ChecksumAlgorithm::Md5)) {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "checksum_algorithm \"md5\" is not supported for multipart uploads. \
+                 S3 CreateMultipartUpload only accepts: CRC32, CRC32C, SHA1, SHA256.",
+            ));
+        }
         req = self.insert_checksum_type_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateMultipartUpload"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
@@ -861,7 +901,9 @@ impl S3Core {
         }
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadPart"));
 
         // Set body
         let req = req.body(body).map_err(new_request_build_error)?;
@@ -874,6 +916,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
@@ -896,11 +939,21 @@ impl S3Core {
         // Set content-type to `application/xml` to avoid mixed with form post.
         req = req.header(CONTENT_TYPE, "application/xml");
 
+        // Set conditional write headers.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Write);
+        req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CompleteMultipartUpload"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -932,6 +985,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -940,17 +994,18 @@ impl S3Core {
 
     pub async fn s3_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&DeleteObjectsRequest {
+            quiet: true,
             object: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -968,7 +1023,9 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Inject operation to the request.
-        req = req.extension(Operation::Delete);
+        req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObjects"));
 
         let req = req
             .body(Buffer::from(Bytes::from(content)))
@@ -1020,6 +1077,7 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjectVersions"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1094,10 +1152,22 @@ pub struct CompleteMultipartUploadResult {
     pub request_id: String,
 }
 
+/// Partial output of a successful `CopyObject` operation.
+///
+/// ref: <https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html#API_CopyObject_ResponseSyntax>
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CopyObjectResult {
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub last_modified: String,
+}
+
 /// Request of DeleteObjects.
 #[derive(Default, Debug, Serialize)]
 #[serde(default, rename = "Delete", rename_all = "PascalCase")]
 pub struct DeleteObjectsRequest {
+    pub quiet: bool,
     pub object: Vec<DeleteObjectsRequestObject>,
 }
 
@@ -1113,15 +1183,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename = "DeleteResult", rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub error: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -1372,6 +1434,7 @@ mod tests {
     #[test]
     fn test_serialize_delete_objects_request() {
         let req = DeleteObjectsRequest {
+            quiet: true,
             object: vec![
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
@@ -1389,6 +1452,7 @@ mod tests {
         pretty_assertions::assert_eq!(
             actual,
             r#"<Delete>
+             <Quiet>true</Quiet>
              <Object>
              <Key>sample1.txt</Key>
              </Object>
@@ -1408,9 +1472,6 @@ mod tests {
         let bs = Bytes::from(
             r#"<?xml version="1.0" encoding="UTF-8"?>
             <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-             <Deleted>
-               <Key>sample1.txt</Key>
-             </Deleted>
              <Error>
               <Key>sample2.txt</Key>
               <Code>AccessDenied</Code>
@@ -1422,36 +1483,10 @@ mod tests {
         let out: DeleteObjectsResult =
             quick_xml::de::from_reader(bs.reader()).expect("must success");
 
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "sample1.txt");
         assert_eq!(out.error.len(), 1);
         assert_eq!(out.error[0].key, "sample2.txt");
         assert_eq!(out.error[0].code, "AccessDenied");
         assert_eq!(out.error[0].message, "Access Denied");
-    }
-
-    #[test]
-    fn test_deserialize_delete_objects_with_version_id() {
-        let bs = Bytes::from(
-            r#"<?xml version="1.0" encoding="UTF-8"?>
-                  <DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-                    <Deleted>
-                      <Key>SampleDocument.txt</Key>
-                      <VersionId>OYcLXagmS.WaD..oyH4KRguB95_YhLs7</VersionId>
-                    </Deleted>
-                  </DeleteResult>"#,
-        );
-
-        let out: DeleteObjectsResult =
-            quick_xml::de::from_reader(bs.reader()).expect("must success");
-
-        assert_eq!(out.deleted.len(), 1);
-        assert_eq!(out.deleted[0].key, "SampleDocument.txt");
-        assert_eq!(
-            out.deleted[0].version_id,
-            Some("OYcLXagmS.WaD..oyH4KRguB95_YhLs7".to_owned())
-        );
-        assert_eq!(out.error.len(), 0);
     }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html#API_ListObjects_Examples

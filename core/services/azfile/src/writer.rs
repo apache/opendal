@@ -36,13 +36,28 @@ impl AzfileWriter {
     pub fn new(core: Arc<AzfileCore>, op: OpWrite, path: String) -> Self {
         AzfileWriter { core, op, path }
     }
+
+    fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
+        let mut metadata = Metadata::default();
+
+        if let Some(last_modified) = parse_last_modified(headers)? {
+            metadata.set_last_modified(last_modified);
+        }
+        let etag = parse_etag(headers)?;
+        if let Some(etag) = etag {
+            metadata.set_etag(etag);
+        }
+
+        Ok(metadata)
+    }
 }
 
 impl oio::OneShotWrite for AzfileWriter {
     async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+        let size = bs.len();
         let resp = self
             .core
-            .azfile_create_file(&self.path, bs.len(), &self.op)
+            .azfile_create_file(&self.path, size, &self.op)
             .await?;
 
         let status = resp.status();
@@ -55,11 +70,13 @@ impl oio::OneShotWrite for AzfileWriter {
 
         let resp = self
             .core
-            .azfile_update(&self.path, bs.len() as u64, 0, bs)
+            .azfile_update(&self.path, size as u64, 0, bs)
             .await?;
         let status = resp.status();
+        let mut meta = AzfileWriter::parse_metadata(resp.headers())?;
+        meta.set_content_length(size as u64);
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::CREATED => Ok(meta),
             _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
         }
     }
@@ -84,8 +101,10 @@ impl oio::AppendWrite for AzfileWriter {
             .await?;
 
         let status = resp.status();
+        let mut meta = AzfileWriter::parse_metadata(resp.headers())?;
+        meta.set_content_length(offset + size);
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(Metadata::default()),
+            StatusCode::OK | StatusCode::CREATED => Ok(meta),
             _ => Err(parse_error(resp).with_operation("Backend::azfile_update")),
         }
     }

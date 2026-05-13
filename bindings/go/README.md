@@ -306,6 +306,11 @@ geomean         343.6        12.40       -96.39%
     - [ ] Metadata -- Need support from the C binding
 - [x] Copy
 - [x] Rename
+- [x] Presign
+    - [x] PresignRead
+    - [x] PresignWrite
+    - [x] PresignStat
+    - [x] PresignDelete
 
 ## Development
 

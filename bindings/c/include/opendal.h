@@ -87,6 +87,8 @@ typedef enum opendal_code {
   OPENDAL_RANGE_NOT_SATISFIED,
 } opendal_code;
 
+typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;
+
 /**
  * \brief opendal_bytes carries raw-bytes with its length
  *
@@ -578,10 +580,50 @@ typedef struct opendal_capability {
    */
   bool presign_write;
   /**
+   * If operator supports presign delete.
+   */
+  bool presign_delete;
+  /**
    * If operator supports shared.
    */
   bool shared;
 } opendal_capability;
+
+/**
+ * \brief The underlying presigned request, which contains the HTTP method, URI, and headers.
+ * This is an opaque struct, please use the accessor functions to get the fields.
+ */
+typedef struct opendal_presigned_request {
+  struct opendal_presigned_request_inner *inner;
+} opendal_presigned_request;
+
+/**
+ * @brief The result of a presign operation.
+ */
+typedef struct opendal_result_presign {
+  /**
+   * The presigned request.
+   */
+  struct opendal_presigned_request *req;
+  /**
+   * The error.
+   */
+  struct opendal_error *error;
+} opendal_result_presign;
+
+/**
+ * \brief The key-value pair for the headers of the presigned request.
+ */
+typedef struct opendal_http_header_pair {
+  /**
+   * The key of the header.
+   */
+  const char *key;
+  /**
+   * The value of the header.
+   */
+  const char *value;
+} opendal_http_header_pair;
 
 /**
  * \brief The is the result type returned by opendal_reader_read().
@@ -1333,7 +1375,7 @@ struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
  * assert(!strcmp(scheme, "memory"));
  *
  * /// free the heap memory
- * free(scheme);
+ * opendal_string_free(scheme);
  * opendal_operator_info_free(info);
  * ```
  */
@@ -1347,14 +1389,14 @@ void opendal_operator_info_free(struct opendal_operator_info *ptr);
 /**
  * \brief Return the nul-terminated operator's scheme, i.e. service
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_scheme(const struct opendal_operator_info *self);
 
 /**
  * \brief Return the nul-terminated operator's working root path
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 
@@ -1362,7 +1404,7 @@ char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
  * \brief Return the nul-terminated operator backend's name, could be empty if underlying backend has no
  * namespace concept.
  *
- * \note: The string is on heap, remember to free it
+ * \note: The string is on heap, free it with opendal_string_free()
  */
 char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 
@@ -1375,6 +1417,66 @@ struct opendal_capability opendal_operator_info_get_full_capability(const struct
  * \brief Return the operator's native capability
  */
 struct opendal_capability opendal_operator_info_get_native_capability(const struct opendal_operator_info *self);
+
+/**
+ * \brief Presign a read operation.
+ */
+struct opendal_result_presign opendal_operator_presign_read(const struct opendal_operator *op,
+                                                            const char *path,
+                                                            uint64_t expire_secs);
+
+/**
+ * \brief Presign a write operation.
+ */
+struct opendal_result_presign opendal_operator_presign_write(const struct opendal_operator *op,
+                                                             const char *path,
+                                                             uint64_t expire_secs);
+
+/**
+ * \brief Presign a delete operation.
+ */
+struct opendal_result_presign opendal_operator_presign_delete(const struct opendal_operator *op,
+                                                              const char *path,
+                                                              uint64_t expire_secs);
+
+/**
+ * \brief Presign a stat operation.
+ */
+struct opendal_result_presign opendal_operator_presign_stat(const struct opendal_operator *op,
+                                                            const char *path,
+                                                            uint64_t expire_secs);
+
+/**
+ * Get the method of the presigned request.
+ */
+const char *opendal_presigned_request_method(const struct opendal_presigned_request *req);
+
+/**
+ * Get the URI of the presigned request.
+ */
+const char *opendal_presigned_request_uri(const struct opendal_presigned_request *req);
+
+/**
+ * Get the headers of the presigned request.
+ */
+const struct opendal_http_header_pair *opendal_presigned_request_headers(const struct opendal_presigned_request *req);
+
+/**
+ * Get the length of the headers of the presigned request.
+ */
+uintptr_t opendal_presigned_request_headers_len(const struct opendal_presigned_request *req);
+
+/**
+ * \brief Free the presigned request.
+ */
+void opendal_presigned_request_free(struct opendal_presigned_request *req);
+
+/**
+ * \brief Frees a heap-allocated string returned by OpenDAL C APIs.
+ *
+ * \note Only pass pointers returned from OpenDAL APIs that transfer string ownership.
+ */
+void opendal_string_free(char *ptr);
 
 /**
  * \brief Frees the heap memory used by the opendal_bytes
@@ -1424,7 +1526,7 @@ void opendal_operator_options_free(struct opendal_operator_options *ptr);
  *
  * Path is relative to operator's root. Only valid in current operator.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_path(const struct opendal_entry *self);
 
@@ -1435,7 +1537,7 @@ char *opendal_entry_path(const struct opendal_entry *self);
  * If this entry is a dir, `Name` MUST endswith `/`
  * Otherwise, `Name` MUST NOT endswith `/`.
  *
- * \note To free the string, you can directly call free()
+ * \note Free the returned string with opendal_string_free()
  */
 char *opendal_entry_name(const struct opendal_entry *self);
 

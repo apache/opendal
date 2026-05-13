@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use log::debug;
 
 use super::HDFS_NATIVE_SCHEME;
+use super::config::HDFS_DEFAULT_AUTHORITY;
+use super::config::HDFS_SCHEME_PREFIX;
 use super::config::HdfsNativeConfig;
+use super::config::init_hdfs_config;
 use super::core::HdfsNativeCore;
 use super::deleter::HdfsNativeDeleter;
 use super::error::parse_hdfs_error;
@@ -58,9 +62,10 @@ impl HdfsNativeBuilder {
     ///
     /// - `default`: using the default setting based on hadoop config.
     /// - `hdfs://127.0.0.1:9000`: connect to hdfs cluster.
+    /// - `hdfs://namenode1:9000,namenode2:9000`: connect to hdfs ha cluster.
     pub fn name_node(mut self, name_node: &str) -> Self {
         if !name_node.is_empty() {
-            // Trim trailing `/` so that we can accept `http://127.0.0.1:9000/`
+            // Trim trailing `/` so that we can accept `hdfs://127.0.0.1:9000/`
             self.config.name_node = Some(name_node.trim_end_matches('/').to_string())
         }
 
@@ -72,6 +77,14 @@ impl HdfsNativeBuilder {
     /// This should be disabled when HDFS runs in non-distributed mode.
     pub fn enable_append(mut self, enable_append: bool) -> Self {
         self.config.enable_append = enable_append;
+        self
+    }
+
+    /// Set other hdfs-native client options of this backend.
+    ///
+    /// Currently the supported configs refer to (https://github.com/Kimahriman/hdfs-native)
+    pub fn options(mut self, options: HashMap<String, String>) -> Self {
+        self.config.options = Some(options);
         self
     }
 }
@@ -93,8 +106,14 @@ impl Builder for HdfsNativeBuilder {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
 
+        let mut hdfs_config = init_hdfs_config(name_node);
+        if let Some(options) = &self.config.options {
+            hdfs_config.extend(options.iter().map(|(k, v)| (k.clone(), v.clone())));
+        }
+
         let client = hdfs_native::ClientBuilder::new()
-            .with_url(name_node)
+            .with_url(format!("{}{}", HDFS_SCHEME_PREFIX, HDFS_DEFAULT_AUTHORITY))
+            .with_config(hdfs_config)
             .build()
             .map_err(parse_hdfs_error)?;
 

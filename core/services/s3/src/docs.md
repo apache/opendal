@@ -31,6 +31,7 @@ This service can be used to:
 - `enable_virtual_host_style`: Enable virtual host style.
 - `disable_write_with_if_match`: Disable write with if match.
 - `enable_request_payer`: Enable the request payer for backend.
+- `default_acl`: Define the default access control list (ACL) when creating a new object. Note that some s3 services like minio do not support this option.
 
 Refer to [`S3Builder`]'s public API docs for more information.
 
@@ -233,6 +234,36 @@ async fn main() -> Result<()> {
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
+
+    Ok(())
+}
+```
+
+### S3 with default ACL
+
+```rust,no_run
+use log::info;
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut builder = S3::default()
+      // Setup builders
+      .root("/path/to/dir")
+      .bucket("test")
+      .region("us-east-1")
+      .endpoint("https://s3.amazonaws.com")
+      .access_key_id("access_key_id")
+      .secret_access_key("secret_access_key")
+      // Enable public-read ACL
+      .default_acl("public-read");
+
+    let op = Operator::new(builder)?.finish();
+    info!("operator: {:?}", op);
+
+    // New objects will be created with public-read ACL
 
     Ok(())
 }

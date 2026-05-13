@@ -29,6 +29,7 @@ use super::config::SftpConfig;
 use super::core::SftpCore;
 use super::deleter::SftpDeleter;
 use super::error::is_not_found;
+use super::error::is_sftp_failure;
 use super::error::is_sftp_protocol_error;
 use super::error::parse_sftp_error;
 use super::lister::SftpLister;
@@ -172,6 +173,7 @@ impl Builder for SftpBuilder {
 
                 write: true,
                 write_can_multi: true,
+                write_with_if_not_exists: true,
 
                 create_dir: true,
                 delete: true,
@@ -287,14 +289,35 @@ impl Access for SftpBackend {
         let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
 
         let mut option = client.options();
-        option.create(true);
+        if op.if_not_exists() {
+            option.create_new(true);
+        } else {
+            option.create(true);
+        }
+
         if op.append() {
             option.append(true);
         } else {
             option.write(true).truncate(true);
         }
 
-        let file = option.open(path).await.map_err(parse_sftp_error)?;
+        let res = option.open(&path).await;
+        let file = match res {
+            Ok(f) => f,
+            Err(e) if op.if_not_exists() && is_sftp_failure(&e) => {
+                // OpenSSH returns Failure for create_new if file exists.
+                // We perform a post-check to confirm if it was a ConditionNotMatch.
+                if fs.metadata(&path).await.is_ok() {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file already exists, doesn't match the condition if_not_exists",
+                    )
+                    .set_source(e));
+                }
+                return Err(parse_sftp_error(e));
+            }
+            Err(e) => return Err(parse_sftp_error(e)),
+        };
 
         Ok((RpWrite::new(), SftpWriter::new(file)))
     }

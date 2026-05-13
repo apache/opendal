@@ -23,6 +23,7 @@
 //! it easier to develop services and layers outside opendal.
 
 mod client;
+pub use client::AccessorInfoHttpSend;
 /// temporary client used by several features
 #[allow(unused_imports)]
 pub use client::GLOBAL_REQWEST_CLIENT;

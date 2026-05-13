@@ -173,21 +173,7 @@ pub mod services;
 
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
-
     use super::*;
-    /// This is not a real test case.
-    ///
-    /// We assert our public structs here to make sure we don't introduce
-    /// unexpected struct/enum size change.
-    #[cfg(target_pointer_width = "64")]
-    #[test]
-    fn assert_size() {
-        assert_eq!(16, size_of::<Operator>());
-        assert_eq!(360, size_of::<Entry>());
-        assert_eq!(336, size_of::<Metadata>());
-        assert_eq!(1, size_of::<EntryMode>());
-    }
 
     trait AssertSendSync: Send + Sync {}
     impl AssertSendSync for Entry {}

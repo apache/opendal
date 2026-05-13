@@ -10,7 +10,9 @@ Please note that the following optimizations are based on experience and may not
 
 According to benchmarks from OpenDAL users, `HTTP/1.1` is generally faster than `HTTP/2` for large-scale download and upload operations.
 
-`reqwest` tends to maintain only a single TCP connection for `HTTP/2`, relying on its built-in multiplexing capabilities. While this works well for small files, such as web page downloads, the design is not ideal for handling large files or massive file scan OLAP workloads.
+`reqwest` tends to maintain only a single TCP connection for `HTTP/2`, relying on its built-in multiplexing capabilities. There is a [known issue](https://github.com/hyperium/hyper/issues/3623) in the underlying `hyper-util` HTTP util library: an HTTP/2 connection will remain in the pool and continue to be reused unless it is poisoned or closed after an idle timeout, even when the connection's max concurrent streams limit has been reached, or the TCP connection is exhausted (i.e., close to the bandwidth limit). In practice, this means all requests funnel through a single TCP connection, creating a bottleneck under heavy workloads.
+
+For HTTP/1.1, new connections will be created whenever there's no idle ones in the pool. While it solves the connection reuse issue, it also brings up possibility of excessive TCP connection. It's suggested to set a max concurrent request limit to avoid server overload and host bandwidth exhaustion.
 
 When `HTTP/2` is disabled, `reqwest` falls back to `HTTP/1.1` and utilizes its default connection pool. This approach is better suited for large files, as it allows multiple TCP connections to be opened and used concurrently, significantly improving performance for large file downloads and uploads.
 
@@ -120,5 +122,5 @@ By default, the connection pool is unlimited, allowing `reqwest` to open as many
 
 You can tune those settings via:
 
-- [pool_idle_timeout](https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout): Set an optional timeout for idle sockets being kept-alive.
-- [pool_max_idle_per_host](https://docs.rs/reqwest/0.12.15/reqwest/struct.ClientBuilder.html#method.pool_max_idle_per_host): Sets the maximum idle connection per host allowed in the pool.
+- [pool_idle_timeout](https://docs.rs/reqwest/0.13.2/reqwest/struct.ClientBuilder.html#method.pool_idle_timeout): Set an optional timeout for idle sockets being kept-alive.
+- [pool_max_idle_per_host](https://docs.rs/reqwest/0.13.2/reqwest/struct.ClientBuilder.html#method.pool_max_idle_per_host): Sets the maximum idle connection per host allowed in the pool.

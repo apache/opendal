@@ -51,6 +51,7 @@ def get_cargo_artifact_name(classifier: str) -> str:
         return "opendal_java.dll"
     raise Exception(f"Unsupported classifier: {classifier}")
 
+
 def is_musl_runtime() -> bool:
     return len(glob.glob("/lib/ld-musl-*.so.1")) > 0 or len(glob.glob("/usr/lib/ld-musl-*.so.1")) > 0
 
@@ -62,7 +63,6 @@ if __name__ == "__main__":
     parser.add_argument("--classifier", type=str, required=True)
     parser.add_argument("--target", type=str, default="")
     parser.add_argument("--profile", type=str, default="dev")
-    parser.add_argument("--features", type=str, default="default")
     parser.add_argument("--enable-zigbuild", type=str, default="false")
     args = parser.parse_args()
 
@@ -88,9 +88,6 @@ if __name__ == "__main__":
         "--color=always",
         f"--profile={args.profile}",
     ]
-
-    if args.features:
-        cmd += ["--features", args.features]
 
     if enable_zigbuild and target.endswith("-gnu"):
         # Pin glibc to 2.17 if zigbuild has been enabled.

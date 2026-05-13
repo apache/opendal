@@ -28,7 +28,7 @@ on:
       - main
     paths:
       - "bindings/php/**"
-      - ".github/workflows/bindings_php.yml"
+      - ".github/workflows/ci_bindings_php.yml"
   workflow_dispatch:
 
 concurrency:

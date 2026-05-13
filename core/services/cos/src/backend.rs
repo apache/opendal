@@ -246,6 +246,8 @@ impl Builder for CosBuilder {
                             write_with_content_disposition: true,
                             // Cos doesn't support forbid overwrite while version has been enabled.
                             write_with_if_not_exists: !self.config.enable_versioning,
+                            // Same as write: forbid-overwrite only works when versioning is disabled.
+                            copy_with_if_not_exists: !self.config.enable_versioning,
                             // The min multipart size of COS is 1 MiB.
                             //
                             // ref: <https://www.tencentcloud.com/document/product/436/14112>
@@ -392,8 +394,8 @@ impl Access for CosBackend {
         Ok((RpList::default(), l))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.cos_copy_object(from, to).await?;
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let resp = self.core.cos_copy_object(from, to, &args).await?;
 
         let status = resp.status();
 

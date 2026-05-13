@@ -41,7 +41,7 @@ impl Debug for LakefsCore {
         f.debug_struct("LakefsCore")
             .field("endpoint", &self.endpoint)
             .field("username", &self.username)
-            .field("password", &self.password)
+            .field("password", &"<redacted>")
             .field("root", &self.root)
             .field("repository", &self.repository)
             .field("branch", &self.branch)

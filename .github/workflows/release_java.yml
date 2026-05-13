@@ -149,9 +149,10 @@ jobs:
             --platform "$PLATFORM" \
             -v "$GITHUB_WORKSPACE":/work \
             -w /work/bindings/java \
-            eclipse-temurin:17-jdk-alpine \
+            alpine:3.20 \
             sh -lc '
               set -eu
+              apk add --no-cache openjdk17-jdk
               BASE_JAR="$(find target -maxdepth 1 -name "opendal-*.jar" ! -name "*-linux-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)"
               NATIVE_JAR="$(find target -maxdepth 1 -name "opendal-*-${{ matrix.classifier }}.jar" | head -n 1)"
               test -n "$BASE_JAR"

@@ -46,7 +46,7 @@ Cache eviction/TTL is handled by the chosen cache backend itself.
 
 ```rust
 use opendal::{
-  layers::{CacheLayer, CachePolicy, WholeCachePolicy},
+  layers::{CacheLayer, WholeCachePolicy},
   services::Memory,
   Operator,
 };
@@ -61,7 +61,6 @@ async fn main() -> opendal::Result<()> {
         .invalidate_on_delete(true);
 
     let op = Operator::new(/* source service builder */)?
-        .finish()
         .layer(CacheLayer::new(cache, policy))
         .finish();
 
@@ -75,6 +74,53 @@ This example highlights the intended responsibilities:
 - `CacheLayer` is glue code that composes `source + cache + policy`.
 - `CachePolicy` decides behavior; the cache backend decides eviction/TTL.
 
+## Route-based caching
+
+`CacheLayer` does not select which paths should be cached. Path-based dispatch is handled by
+`RouteLayer`, which is available behind the `layers-route` feature.
+
+Users can build independent operator stacks for different path groups, each with its own cache
+policy, and then combine them with `RouteLayer`:
+
+```rust
+use opendal::{
+  layers::{CacheLayer, ChunkedCachePolicy, RouteLayer, WholeCachePolicy},
+  services::Memory,
+  Operator,
+};
+
+fn build_routed_operator() -> opendal::Result<Operator> {
+    let default_op = Operator::new(/* source service builder */)?.finish();
+
+    let json_cache = Operator::new(Memory::default())?.finish();
+    let json_op = Operator::new(/* source service builder */)?
+        .layer(CacheLayer::new(json_cache, WholeCachePolicy::new()))
+        .finish();
+
+    let parquet_cache = Operator::new(Memory::default())?.finish();
+    let parquet_op = Operator::new(/* source service builder */)?
+        .layer(CacheLayer::new(
+            parquet_cache,
+            ChunkedCachePolicy::new(8 * 1024 * 1024),
+        ))
+        .finish();
+
+    let op = default_op.layer(
+        RouteLayer::builder()
+            .route("**/*.json", json_op)
+            .route("**/*.parquet", parquet_op)
+            .build()?,
+    );
+
+    Ok(op)
+}
+```
+
+This keeps routing and caching separated:
+
+- `RouteLayer` decides which operator stack handles a path.
+- `CacheLayer` decides how a selected stack uses its cache.
+
 # Reference-level explanation
 
 ## Public API surface
@@ -85,7 +131,7 @@ This RFC proposes:
 
 - `CacheLayer::new(cache: Operator, policy: impl CachePolicy) -> CacheLayer`
 - `CachePolicy` trait: defines evaluation and shaping behavior.
-- Minimal supporting request/decision types (`Cache*Request`, `CacheReadDecision`, `CacheWriteDecision`, `CacheLayout`).
+- Minimal supporting request/decision types (`Cache*Request`, `CacheReadDecision`, `CacheWriteDecision`, `CacheDeleteDecision`, `CacheLayout`).
 
 Notably, this design does **not** introduce a parallel “cache backend trait” separate from OpenDAL; the cache backend is just an `Operator`.
 
@@ -113,10 +159,18 @@ pub enum CacheReadDecision {
 pub enum CacheWriteDecision {
     /// Do not consult cache and do not fill/invalidate it for this request.
     Bypass,
-    /// Best-effort invalidation after a successful write/delete.
+    /// Best-effort invalidation after a successful write.
     Invalidate { layout: CacheLayout },
     /// Write-through caching after a successful write.
     WriteThrough { layout: CacheLayout },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CacheDeleteDecision {
+    /// Do not consult cache and do not invalidate it for this request.
+    Bypass,
+    /// Best-effort invalidation after a successful delete.
+    Invalidate { layout: CacheLayout },
 }
 
 pub struct CacheReadRequest<'a> {
@@ -151,7 +205,7 @@ pub trait CachePolicy: Send + Sync + 'static {
     fn on_read(&self, req: CacheReadRequest<'_>) -> CacheReadDecision;
     fn on_stat(&self, req: CacheStatRequest<'_>) -> CacheReadDecision;
     fn on_write(&self, req: CacheWriteRequest<'_>) -> CacheWriteDecision;
-    fn on_delete(&self, req: CacheDeleteRequest<'_>) -> CacheWriteDecision;
+    fn on_delete(&self, req: CacheDeleteRequest<'_>) -> CacheDeleteDecision;
 }
 ```
 
@@ -171,6 +225,11 @@ This layer provides **best-effort** consistency between cache and source:
 - On `write`: the layer should **invalidate** relevant cache entries after a successful write (best effort). If the write is cached (write-through), then cache will contain the new content. If write-through is disabled by policy, invalidation prevents serving stale data.
 - On `delete`: the layer should **invalidate** relevant cache entries after a successful delete (best effort), to avoid serving deleted content from cache.
 
+For operations that return stateful objects, success is defined by OpenDAL's operation lifecycle.
+For example, `delete` returns a `Deleter` that may batch entries and commit them during `close()`;
+cache invalidation must happen after the underlying delete has been committed successfully, not when
+the path is merely queued.
+
 Cache failures (e.g. Redis unavailable) should not fail the source operation by default; they only reduce caching effectiveness.
 
 ## Cache key shaping
@@ -181,6 +240,10 @@ A cache entry key is not required to be identical to the source path:
 - Chunked caching can use `{path}@{offset}-{len}` (or an equivalent scheme).
 
 The shaping is driven by `CachePolicy` (via `CacheLayout` and request fields like range).
+
+`CacheLayer` should use a namespace that cannot collide with normal user paths stored in the cache
+operator. Version and range information should be encoded into keys when the underlying operation
+uses versions or chunked layout.
 
 ## Out of scope
 

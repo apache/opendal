@@ -121,16 +121,22 @@ jobs:
             EXTRA_MVN_ARGS="-Dexec.skip=true"
           fi
 
-          ./mvnw -Papache-release package verify org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
+          MVN_GOALS="package verify"
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            MVN_GOALS="$MVN_GOALS org.sonatype.plugins:nexus-staging-maven-plugin:deploy"
+            EXTRA_MVN_ARGS="$EXTRA_MVN_ARGS \
+              -DaltStagingDirectory=local-staging \
+              -DskipRemoteStaging=true \
+              -DserverId=apache.releases.https \
+              -DnexusUrl=https://repository.apache.org"
+          fi
+
+          ./mvnw -Papache-release $MVN_GOALS \
             -DskipTests=true \
             -Djni.classifier=${{ matrix.classifier }} \
             -Dcargo-build.profile=release \
             -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
-            $EXTRA_MVN_ARGS \
-            -DaltStagingDirectory=local-staging \
-            -DskipRemoteStaging=true \
-            -DserverId=apache.releases.https \
-            -DnexusUrl=https://repository.apache.org
+            $EXTRA_MVN_ARGS
         env:
           MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
           MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
@@ -170,6 +176,7 @@ jobs:
               java -cp "$BASE_JAR:$NATIVE_JAR" /tmp/OpenDALSmoke.java
             '
       - name: Upload local staging directory
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.classifier }}-local-staging
@@ -178,6 +185,7 @@ jobs:
           include-hidden-files: true
 
   deploy-staged-snapshots:
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     needs: [stage-snapshot]
     steps:

@@ -3307,7 +3307,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0f3f231ff5b8465063b2bf8af3b975222b4fa3cc8c07b43d01fe8e0ae15c9dd"
 dependencies = [
- "bindgen 0.72.1",
+ "bindgen",
  "libc",
 ]
 
@@ -5224,7 +5224,7 @@ version = "0.17.3+10.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cef2a00ee60fe526157c9023edab23943fae1ce2ab6f4abb2a807c1746835de9"
 dependencies = [
- "bindgen 0.72.1",
+ "bindgen",
  "bzip2-sys",
  "cc",
  "libc",
@@ -6720,6 +6720,7 @@ dependencies = [
 name = "opendal-service-azdls"
 version = "0.56.0"
 dependencies = [
+ "base64 0.22.1",
  "bytes",
  "http 1.4.0",
  "log",

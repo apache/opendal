@@ -101,23 +101,24 @@ impl File {
             }
         };
 
-        let buffer = match size {
+        // Release GIL during blocking I/O operations to allow other Python threads to run
+        let buffer: Vec<u8> = py.detach(|| match size {
             Some(size) => {
                 let mut bs = vec![0; size];
                 let n = reader
                     .read(&mut bs)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 bs.truncate(n);
-                bs
+                Ok::<Vec<u8>, PyErr>(bs)
             }
             None => {
                 let mut buffer = Vec::new();
                 reader
                     .read_to_end(&mut buffer)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                buffer
+                Ok::<Vec<u8>, PyErr>(buffer)
             }
-        };
+        })?;
 
         Buffer::new(buffer).into_bytes_ref(py)
     }
@@ -161,13 +162,13 @@ impl File {
             }
         };
 
-        let buffer = match size {
+        let buffer: Vec<u8> = py.detach(|| match size {
             None => {
                 let mut buffer = Vec::new();
                 reader
                     .read_until(b'\n', &mut buffer)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
-                buffer
+                Ok::<Vec<u8>, PyErr>(buffer)
             }
             Some(size) => {
                 let mut bs = vec![0; size];
@@ -176,9 +177,9 @@ impl File {
                     .read_until(b'\n', &mut bs)
                     .map_err(|err| PyIOError::new_err(err.to_string()))?;
                 bs.truncate(n);
-                bs
+                Ok::<Vec<u8>, PyErr>(bs)
             }
-        };
+        })?;
 
         Buffer::new(buffer).into_bytes_ref(py)
     }
@@ -196,6 +197,7 @@ impl File {
     ///     The number of bytes read.
     pub fn readinto(
         &mut self,
+        py: Python<'_>,
         #[gen_stub(override_type(type_repr = "builtins.bytes | builtins.bytearray", imports=("builtins")))]
         buffer: PyBuffer<u8>,
     ) -> PyResult<usize> {
@@ -221,14 +223,12 @@ impl File {
             return Err(PyIOError::new_err("Buffer is not C contiguous."));
         }
 
-        Python::attach(|_py| {
-            let ptr = buffer.buf_ptr();
-            let nbytes = buffer.len_bytes();
-            unsafe {
-                let view: &mut [u8] = std::slice::from_raw_parts_mut(ptr as *mut u8, nbytes);
-                let z = Read::read(reader, view)?;
-                Ok(z)
-            }
+        let ptr = buffer.buf_ptr() as usize;
+        let nbytes = buffer.len_bytes();
+
+        py.detach(|| unsafe {
+            let view: &mut [u8] = std::slice::from_raw_parts_mut(ptr as *mut u8, nbytes);
+            Read::read(reader, view).map_err(|err| PyIOError::new_err(err.to_string()))
         })
     }
 
@@ -245,6 +245,7 @@ impl File {
     ///     The number of bytes written.
     pub fn write(
         &mut self,
+        py: Python<'_>,
         #[gen_stub(override_type(type_repr = "builtins.bytes", imports=("builtins")))] bs: &[u8],
     ) -> PyResult<usize> {
         let writer = match &mut self.0 {
@@ -261,10 +262,13 @@ impl File {
             }
         };
 
-        writer
-            .write_all(bs)
-            .map(|_| bs.len())
-            .map_err(|err| PyIOError::new_err(err.to_string()))
+        let len = bs.len();
+        py.detach(|| {
+            writer
+                .write_all(bs)
+                .map(|_| len)
+                .map_err(|err| PyIOError::new_err(err.to_string()))
+        })
     }
 
     /// Change the position of this file to the given byte offset.
@@ -282,7 +286,7 @@ impl File {
     /// int
     ///     The new absolute position.
     #[pyo3(signature = (pos, whence = 0))]
-    pub fn seek(&mut self, pos: i64, whence: u8) -> PyResult<u64> {
+    pub fn seek(&mut self, py: Python<'_>, pos: i64, whence: u8) -> PyResult<u64> {
         if !self.seekable()? {
             return Err(PyIOError::new_err(
                 "Seek operation is not supported by the backing service.",
@@ -309,9 +313,11 @@ impl File {
             _ => return Err(PyValueError::new_err("invalid whence")),
         };
 
-        reader
-            .seek(whence)
-            .map_err(|err| PyIOError::new_err(err.to_string()))
+        py.detach(|| {
+            reader
+                .seek(whence)
+                .map_err(|err| PyIOError::new_err(err.to_string()))
+        })
     }
 
     /// Return the current position of this file.
@@ -320,7 +326,7 @@ impl File {
     /// -------
     /// int
     ///     The current absolute position.
-    pub fn tell(&mut self) -> PyResult<u64> {
+    pub fn tell(&mut self, py: Python<'_>) -> PyResult<u64> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
             FileState::Writer(_) => {
@@ -335,9 +341,12 @@ impl File {
             }
         };
 
-        reader
-            .stream_position()
-            .map_err(|err| PyIOError::new_err(err.to_string()))
+        // Release GIL during blocking I/O operations to allow other Python threads to run
+        py.detach(|| {
+            reader
+                .stream_position()
+                .map_err(|err| PyIOError::new_err(err.to_string()))
+        })
     }
 
     /// Close this file.
@@ -347,9 +356,9 @@ impl File {
     /// Notes
     /// -----
     /// A closed file cannot be used for further I/O operations.
-    fn close(&mut self) -> PyResult<()> {
+    fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         if let FileState::Writer(w) = &mut self.0 {
-            w.close().map_err(format_pyerr_from_io_error)?;
+            py.detach(|| w.close().map_err(format_pyerr_from_io_error))?;
         };
         self.0 = FileState::Closed;
         Ok(())
@@ -363,6 +372,7 @@ impl File {
     #[pyo3(signature = (exc_type, exc_value, traceback))]
     pub fn __exit__(
         &mut self,
+        py: Python<'_>,
         #[gen_stub(override_type(type_repr = "type[builtins.BaseException] | None", imports=("builtins")))]
         exc_type: Py<PyAny>,
         #[gen_stub(override_type(type_repr = "builtins.BaseException | None", imports=("builtins")))]
@@ -370,7 +380,7 @@ impl File {
         #[gen_stub(override_type(type_repr = "types.TracebackType | None", imports=("types")))]
         traceback: Py<PyAny>,
     ) -> PyResult<()> {
-        self.close()
+        self.close(py)
     }
 
     /// Flush the underlying writer.
@@ -378,14 +388,11 @@ impl File {
     /// Notes
     /// -----
     /// Is a no-op if the file is not `writable`.
-    pub fn flush(&mut self) -> PyResult<()> {
+    pub fn flush(&mut self, py: Python<'_>) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
         } else if let FileState::Writer(w) = &mut self.0 {
-            match w.flush() {
-                Ok(_) => Ok(()),
-                Err(e) => Err(e.into()),
-            }
+            py.detach(|| w.flush().map_err(|e| e.into()))
         } else {
             Ok(())
         }

@@ -1542,6 +1542,14 @@ char *opendal_entry_path(const struct opendal_entry *self);
 char *opendal_entry_name(const struct opendal_entry *self);
 
 /**
+ * \brief Return the metadata associated with this entry.
+ *
+ * The returned metadata is heap-allocated and must be freed
+ * by the caller via opendal_metadata_free().
+ */
+struct opendal_metadata *opendal_entry_metadata(const struct opendal_entry *self);
+
+/**
  * \brief Frees the heap memory used by the opendal_list_entry
  */
 void opendal_entry_free(struct opendal_entry *ptr);

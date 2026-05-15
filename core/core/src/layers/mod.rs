@@ -34,3 +34,5 @@ pub(crate) use correctness_check::CorrectnessCheckLayer;
 
 mod http_client;
 pub use http_client::HttpClientLayer;
+mod sanity_check;
+pub use sanity_check::SanityCheckLayer;

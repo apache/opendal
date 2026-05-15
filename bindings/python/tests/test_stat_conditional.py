@@ -32,9 +32,7 @@ def test_stat_accepts_if_match_param(service_name, operator, async_operator):
 
 
 @pytest.mark.need_capability("write", "stat", "stat_with_if_none_match")
-def test_stat_accepts_if_none_match_param(
-    service_name, operator, async_operator
-):
+def test_stat_accepts_if_none_match_param(service_name, operator, async_operator):
     path = f"test_stat_if_none_match_{uuid4()}.txt"
     operator.write(path, b"test content")
     operator.stat(path, if_none_match="etag456")
@@ -84,9 +82,7 @@ async def test_async_stat_accepts_if_none_match_param(
 
 @pytest.mark.need_capability("write", "stat", "stat_with_version")
 @pytest.mark.asyncio
-async def test_async_stat_accepts_version_param(
-    service_name, operator, async_operator
-):
+async def test_async_stat_accepts_version_param(service_name, operator, async_operator):
     path = f"test_async_stat_version_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
     meta = await async_operator.stat(path)

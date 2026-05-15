@@ -27,17 +27,13 @@ def test_write_accepts_if_match_param(service_name, operator, async_operator):
 
 
 @pytest.mark.need_capability("write", "write_with_if_none_match")
-def test_write_accepts_if_none_match_param(
-    service_name, operator, async_operator
-):
+def test_write_accepts_if_none_match_param(service_name, operator, async_operator):
     path = f"test_write_if_none_match_{uuid4()}.txt"
     operator.write(path, b"test content", if_none_match="etag456")
 
 
 @pytest.mark.need_capability("write", "write_with_if_not_exists")
-def test_write_accepts_if_not_exists_param(
-    service_name, operator, async_operator
-):
+def test_write_accepts_if_not_exists_param(service_name, operator, async_operator):
     path = f"test_write_if_not_exists_{uuid4()}.txt"
     operator.write(path, b"test content", if_not_exists=True)
 

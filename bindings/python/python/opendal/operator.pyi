@@ -25,8 +25,6 @@ import os
 import pathlib
 import typing
 
-import typing_extensions
-
 import opendal.file
 import opendal.services
 import opendal.types
@@ -99,8 +97,8 @@ class AsyncOperator:
         size: builtins.int | None = None,
         if_match: builtins.str | None = None,
         if_none_match: builtins.str | None = None,
-        if_modified_since: datetime.datetime = None,
-        if_unmodified_since: datetime.datetime = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
@@ -210,8 +208,8 @@ class AsyncOperator:
         version: builtins.str | None = None,
         if_match: builtins.str | None = None,
         if_none_match: builtins.str | None = None,
-        if_modified_since: datetime.datetime = None,
-        if_unmodified_since: datetime.datetime = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
@@ -337,7 +335,11 @@ class AsyncOperator:
             An awaitable that completes when the directory is created.
         """
     def delete(
-        self, path: builtins.str | os.PathLike | pathlib.Path
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         r"""
         Delete a file at the given path.
@@ -355,6 +357,10 @@ class AsyncOperator:
         -------
         coroutine
             An awaitable that completes when the file is deleted.
+        version : str, optional
+            The version of the file to delete. Only supported on version-aware backends.
+        recursive : bool, optional
+            If True, delete the path recursively. Only supported on backends that support recursive delete.
         """
     def exists(
         self, path: builtins.str | os.PathLike | pathlib.Path
@@ -410,14 +416,14 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
         *,
-        version: builtins.str | None = ...,
-        if_match: builtins.str | None = ...,
-        if_none_match: builtins.str | None = ...,
-        if_modified_since: datetime.datetime = ...,
-        if_unmodified_since: datetime.datetime = ...,
-        content_type: builtins.str | None = ...,
-        cache_control: builtins.str | None = ...,
-        content_disposition: builtins.str | None = ...,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a stat operation.
@@ -455,14 +461,14 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
         *,
-        version: builtins.str | None = ...,
-        if_match: builtins.str | None = ...,
-        if_none_match: builtins.str | None = ...,
-        if_modified_since: datetime.datetime = ...,
-        if_unmodified_since: datetime.datetime = ...,
-        content_type: builtins.str | None = ...,
-        cache_control: builtins.str | None = ...,
-        content_disposition: builtins.str | None = ...,
+        version: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
+        content_type: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a read operation.
@@ -500,14 +506,14 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
         *,
-        content_type: builtins.str | None = ...,
-        content_disposition: builtins.str | None = ...,
-        content_encoding: builtins.str | None = ...,
-        cache_control: builtins.str | None = ...,
-        if_match: builtins.str | None = ...,
-        if_none_match: builtins.str | None = ...,
-        if_not_exists: builtins.bool | None = ...,
-        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = ...,
+        content_type: builtins.str | None = None,
+        content_disposition: builtins.str | None = None,
+        content_encoding: builtins.str | None = None,
+        cache_control: builtins.str | None = None,
+        if_match: builtins.str | None = None,
+        if_none_match: builtins.str | None = None,
+        if_not_exists: builtins.bool | None = None,
+        user_metadata: typing.Mapping[builtins.str, builtins.str] | None = None,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a write operation.
@@ -545,7 +551,7 @@ class AsyncOperator:
         path: builtins.str | os.PathLike | pathlib.Path,
         expire_second: builtins.int,
         *,
-        version: builtins.str | None = ...,
+        version: builtins.str | None = None,
     ) -> collections.abc.Awaitable[opendal.types.PresignedRequest]:
         r"""
         Create a presigned request for a delete operation.
@@ -584,15 +590,12 @@ class AsyncOperator:
         """
     @typing.overload
     def __new__(
-        cls,
-        scheme: builtins.str,
-        /,
-        **kwargs: builtins.str,
-    ) -> typing_extensions.Self: ...
+        cls, scheme: builtins.str, /, **kwargs: builtins.str
+    ) -> typing.Self: ...
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.AliyunDrive | typing.Literal["aliyun-drive"],
+        scheme: typing.Literal[opendal.services.Scheme.AliyunDrive, "aliyun-drive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -601,7 +604,7 @@ class AsyncOperator:
         drive_type: builtins.str,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `aliyun-drive` service.
 
@@ -641,12 +644,12 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Alluxio | typing.Literal["alluxio"],
+        scheme: typing.Literal[opendal.services.Scheme.Alluxio, "alluxio"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `alluxio` service.
 
@@ -669,7 +672,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azblob | typing.Literal["azblob"],
+        scheme: typing.Literal[opendal.services.Scheme.Azblob, "azblob"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -682,7 +685,7 @@ class AsyncOperator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `azblob` service.
 
@@ -723,7 +726,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azdls | typing.Literal["azdls"],
+        scheme: typing.Literal[opendal.services.Scheme.Azdls, "azdls"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -731,12 +734,13 @@ class AsyncOperator:
         authority_host: builtins.str = ...,
         client_id: builtins.str = ...,
         client_secret: builtins.str = ...,
+        enable_hns: builtins.bool = ...,
         endpoint: builtins.str = ...,
         filesystem: builtins.str,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
         tenant_id: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `azdls` service.
 
@@ -759,6 +763,12 @@ class AsyncOperator:
             client_secret The client secret of the service
             principal.
             - required for client_credentials authentication
+        enable_hns : builtins.bool, optional
+            Whether hierarchical namespace (HNS) is enabled for
+            the storage account.
+            When enabled, recursive deletion can use pagination
+            to avoid timeouts on large directories.
+            - default value: `false`
         endpoint : builtins.str, optional
             Endpoint of this backend.
         filesystem : builtins.str
@@ -780,7 +790,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azfile | typing.Literal["azfile"],
+        scheme: typing.Literal[opendal.services.Scheme.Azfile, "azfile"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -789,7 +799,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
         share_name: builtins.str,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `azfile` service.
 
@@ -816,7 +826,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.B2 | typing.Literal["b2"],
+        scheme: typing.Literal[opendal.services.Scheme.B2, "b2"],
         /,
         *,
         application_key: builtins.str = ...,
@@ -824,7 +834,7 @@ class AsyncOperator:
         bucket: builtins.str,
         bucket_id: builtins.str,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `b2` service.
 
@@ -858,11 +868,11 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Cacache | typing.Literal["cacache"],
+        scheme: typing.Literal[opendal.services.Scheme.Cacache, "cacache"],
         /,
         *,
         datadir: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `cacache` service.
 
@@ -879,7 +889,45 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Cos | typing.Literal["cos"],
+        scheme: typing.Literal[opendal.services.Scheme.CloudflareKv, "cloudflare-kv"],
+        /,
+        *,
+        account_id: builtins.str = ...,
+        api_token: builtins.str = ...,
+        default_ttl: typing.Any = ...,
+        namespace_id: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `cloudflare-kv` service.
+
+        Parameters
+        ----------
+        account_id : builtins.str, optional
+            The account ID used to authenticate with CloudFlare.
+            Used as URI path parameter.
+        api_token : builtins.str, optional
+            The token used to authenticate with CloudFlare.
+        default_ttl : typing.Any, optional
+            The default ttl for write operations..
+            a human readable duration string see
+            https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+            for more details
+        namespace_id : builtins.str, optional
+            The namespace ID.
+            Used as URI path parameter.
+        root : builtins.str, optional
+            Root within this backend.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `cloudflare-kv` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Cos, "cos"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -889,7 +937,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         secret_id: builtins.str = ...,
         secret_key: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `cos` service.
 
@@ -919,11 +967,11 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Dashmap | typing.Literal["dashmap"],
+        scheme: typing.Literal[opendal.services.Scheme.Dashmap, "dashmap"],
         /,
         *,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `dashmap` service.
 
@@ -940,7 +988,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Dropbox | typing.Literal["dropbox"],
+        scheme: typing.Literal[opendal.services.Scheme.Dropbox, "dropbox"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -948,7 +996,7 @@ class AsyncOperator:
         client_secret: builtins.str = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `dropbox` service.
 
@@ -973,12 +1021,67 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Fs | typing.Literal["fs"],
+        scheme: typing.Literal[opendal.services.Scheme.Foyer, "foyer"],
+        /,
+        *,
+        disk_capacity: builtins.int = ...,
+        disk_file_size: builtins.int = ...,
+        disk_path: builtins.str = ...,
+        memory: builtins.int = ...,
+        name: builtins.str = ...,
+        recover_mode: builtins.str = ...,
+        root: builtins.str = ...,
+        shards: builtins.int = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `foyer` service.
+
+        Parameters
+        ----------
+        disk_capacity : builtins.int, optional
+            Disk cache total capacity in bytes.
+            Only used when `disk_path` is set.
+        disk_file_size : builtins.int, optional
+            Individual cache file size in bytes.
+            Default is 1 MiB.
+            Only used when `disk_path` is set.
+        disk_path : builtins.str, optional
+            Disk cache directory path.
+            If set, enables hybrid cache with disk storage.
+            Data will be persisted to this directory when memory
+            cache is full.
+        memory : builtins.int, optional
+            Memory capacity in bytes for the cache.
+        name : builtins.str, optional
+            Name for this cache instance.
+        recover_mode : builtins.str, optional
+            Recovery mode when starting the cache.
+            Valid values: "none" (default), "quiet", "strict".
+            - "none": Don't recover from disk - "quiet": Recover
+            and skip errors - "strict": Recover and panic on
+            errors
+        root : builtins.str, optional
+            Root path of this backend.
+        shards : builtins.int, optional
+            Number of shards for concurrent access.
+            Default is 1.
+            Higher values improve concurrency but increase
+            overhead.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `foyer` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Fs, "fs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `fs` service.
 
@@ -997,14 +1100,14 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ftp | typing.Literal["ftp"],
+        scheme: typing.Literal[opendal.services.Scheme.Ftp, "ftp"],
         /,
         *,
         endpoint: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
         user: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `ftp` service.
 
@@ -1027,7 +1130,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gcs | typing.Literal["gcs"],
+        scheme: typing.Literal[opendal.services.Scheme.Gcs, "gcs"],
         /,
         *,
         allow_anonymous: builtins.bool = ...,
@@ -1043,7 +1146,7 @@ class AsyncOperator:
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
         token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `gcs` service.
 
@@ -1091,7 +1194,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gdrive | typing.Literal["gdrive"],
+        scheme: typing.Literal[opendal.services.Scheme.Gdrive, "gdrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -1099,7 +1202,7 @@ class AsyncOperator:
         client_secret: builtins.str = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `gdrive` service.
 
@@ -1124,14 +1227,14 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ghac | typing.Literal["ghac"],
+        scheme: typing.Literal[opendal.services.Scheme.Ghac, "ghac"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         runtime_token: builtins.str = ...,
         version: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `ghac` service.
 
@@ -1154,7 +1257,74 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gridfs | typing.Literal["gridfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Goosefs, "goosefs"],
+        /,
+        *,
+        auth_type: builtins.str = ...,
+        auth_username: builtins.str = ...,
+        block_size: builtins.int = ...,
+        chunk_size: builtins.int = ...,
+        master_addr: builtins.str = ...,
+        root: builtins.str = ...,
+        write_type: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `goosefs` service.
+
+        Parameters
+        ----------
+        auth_type : builtins.str, optional
+            Authentication type.
+            Supported values: `"nosasl"`, `"simple"`.
+            Default: `"simple"` — PLAIN SASL with usernam
+            e. `"nosasl"` — skip authentication entirely.
+        auth_username : builtins.str, optional
+            Authentication username.
+            Used in SIMPLE mode as the login identity.
+            Default: current OS user (`$USER` / `$USERNAME`).
+        block_size : builtins.int, optional
+            Block size in bytes for new files (default: 64 MiB).
+        chunk_size : builtins.int, optional
+            Chunk size in bytes for streaming RPCs (default: 1
+            MiB).
+        master_addr : builtins.str, optional
+            Master address(es) in `host:port` format.
+            For single master: `"10.0.0.1:9200"` For HA
+            (comma-separated):
+            `"10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200"` When
+            multiple addresses are provided, the client uses
+            `PollingMasterInquireClient` to discover the Primary
+            Master automatically.
+            Resolution precedence at `build()` time (highest →
+            lowest), following `goosefs-sdk`
+            `docs/CLIENT_CONFIGURATION.md` §1:
+            1. This field (when set on the builder / OpenDAL
+            config map)
+            2. `GOOSEFS_MASTER_ADDR` environment variable
+            3. `goosefs.master.rpc.addresses` /
+            `goosefs.master.hostname` in
+            `goosefs-site.properties` `build()` fails with
+            `ConfigInvalid` only when **none** of the above
+            supplies a master address.
+        root : builtins.str, optional
+            Root path of this backend.
+            All operations will happen under this root.
+            Default to `/` if not set.
+        write_type : builtins.str, optional
+            Default write type for new files.
+            Supported values: `"must_cache"`, `"cache_through"`,
+            `"through"`, `"async_through"`.
+            Default: `"must_cache"`.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `goosefs` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Gridfs, "gridfs"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -1162,7 +1332,7 @@ class AsyncOperator:
         connection_string: builtins.str = ...,
         database: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `gridfs` service.
 
@@ -1191,13 +1361,14 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.HdfsNative | typing.Literal["hdfs-native"],
+        scheme: typing.Literal[opendal.services.Scheme.HdfsNative, "hdfs-native"],
         /,
         *,
         enable_append: builtins.bool = ...,
         name_node: builtins.str = ...,
+        options: builtins.dict = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `hdfs-native` service.
 
@@ -1207,6 +1378,8 @@ class AsyncOperator:
             enable the append capacity
         name_node : builtins.str, optional
             name_node of this backend
+        options : builtins.dict, optional
+            other options for hdfs client
         root : builtins.str, optional
             work dir of this backend
 
@@ -1218,7 +1391,51 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Http | typing.Literal["http"],
+        scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        repo_id: builtins.str = ...,
+        repo_type: builtins.str,
+        revision: builtins.str = ...,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `hf` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            Endpoint of the Hugging Face Hub.
+            Default is "https://huggingface.co".
+        repo_id : builtins.str, optional
+            Repo id of this backend.
+            This is required.
+        repo_type : builtins.str
+            Repo type of this backend.
+            Default is model.
+            Default is model
+        revision : builtins.str, optional
+            Revision of this backend.
+            Default is main.
+        root : builtins.str, optional
+            Root of this backend.
+            Can be "/path/to/dir".
+            Default is "/".
+        token : builtins.str, optional
+            Token of this backend.
+            This is optional.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `hf` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Http, "http"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -1226,7 +1443,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         token: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `http` service.
 
@@ -1251,52 +1468,12 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Hf | typing.Literal["hf"],
-        /,
-        *,
-        repo_id: builtins.str = ...,
-        repo_type: builtins.str = ...,
-        revision: builtins.str = ...,
-        root: builtins.str = ...,
-        token: builtins.str = ...,
-    ) -> typing_extensions.Self:
-        r"""
-        Create a new `AsyncOperator` for `hf` (Hugging Face) service.
-
-        Parameters
-        ----------
-        repo_id : builtins.str, optional
-            Repo id of this backend.
-            This is required.
-        repo_type : builtins.str, optional
-            Repo type of this backend.
-            Default is model.
-            Available values: - model - dataset
-        revision : builtins.str, optional
-            Revision of this backend.
-            Default is main.
-        root : builtins.str, optional
-            Root of this backend.
-            Can be "/path/to/dir".
-            Default is "/".
-        token : builtins.str, optional
-            Token of this backend.
-            This is optional.
-
-        Returns
-        -------
-        AsyncOperator
-            The new `AsyncOperator` for `hf` (Hugging Face) service
-        """
-    @typing.overload
-    def __new__(
-        cls,
-        scheme: opendal.services.Scheme.Ipfs | typing.Literal["ipfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Ipfs, "ipfs"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `ipfs` service.
 
@@ -1315,12 +1492,12 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ipmfs | typing.Literal["ipmfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Ipmfs, "ipmfs"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `ipmfs` service.
 
@@ -1339,14 +1516,14 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Koofr | typing.Literal["koofr"],
+        scheme: typing.Literal[opendal.services.Scheme.Koofr, "koofr"],
         /,
         *,
         email: builtins.str,
         endpoint: builtins.str,
         password: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `koofr` service.
 
@@ -1371,7 +1548,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Memcached | typing.Literal["memcached"],
+        scheme: typing.Literal[opendal.services.Scheme.Memcached, "memcached"],
         /,
         *,
         connection_pool_max_size: builtins.int = ...,
@@ -1380,7 +1557,7 @@ class AsyncOperator:
         password: builtins.str = ...,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `memcached` service.
 
@@ -1413,11 +1590,11 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Memory | typing.Literal["memory"],
+        scheme: typing.Literal[opendal.services.Scheme.Memory, "memory"],
         /,
         *,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `memory` service.
 
@@ -1434,14 +1611,14 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.MiniMoka | typing.Literal["mini-moka"],
+        scheme: typing.Literal[opendal.services.Scheme.MiniMoka, "mini-moka"],
         /,
         *,
         max_capacity: builtins.int = ...,
         root: builtins.str = ...,
         time_to_idle: builtins.str = ...,
         time_to_live: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `mini-moka` service.
 
@@ -1470,7 +1647,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Moka | typing.Literal["moka"],
+        scheme: typing.Literal[opendal.services.Scheme.Moka, "moka"],
         /,
         *,
         max_capacity: builtins.int = ...,
@@ -1478,7 +1655,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         time_to_idle: builtins.str = ...,
         time_to_live: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `moka` service.
 
@@ -1509,7 +1686,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Mongodb | typing.Literal["mongodb"],
+        scheme: typing.Literal[opendal.services.Scheme.Mongodb, "mongodb"],
         /,
         *,
         collection: builtins.str = ...,
@@ -1518,7 +1695,7 @@ class AsyncOperator:
         key_field: builtins.str = ...,
         root: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `mongodb` service.
 
@@ -1545,7 +1722,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Mysql | typing.Literal["mysql"],
+        scheme: typing.Literal[opendal.services.Scheme.Mysql, "mysql"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -1553,7 +1730,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `mysql` service.
 
@@ -1590,7 +1767,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Obs | typing.Literal["obs"],
+        scheme: typing.Literal[opendal.services.Scheme.Obs, "obs"],
         /,
         *,
         access_key_id: builtins.str = ...,
@@ -1599,7 +1776,7 @@ class AsyncOperator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `obs` service.
 
@@ -1626,7 +1803,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Onedrive | typing.Literal["onedrive"],
+        scheme: typing.Literal[opendal.services.Scheme.Onedrive, "onedrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -1635,7 +1812,7 @@ class AsyncOperator:
         enable_versioning: builtins.bool = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `onedrive` service.
 
@@ -1666,7 +1843,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Oss | typing.Literal["oss"],
+        scheme: typing.Literal[opendal.services.Scheme.Oss, "oss"],
         /,
         *,
         access_key_id: builtins.str = ...,
@@ -1689,7 +1866,7 @@ class AsyncOperator:
         server_side_encryption: builtins.str = ...,
         server_side_encryption_key_id: builtins.str = ...,
         sts_endpoint: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `oss` service.
 
@@ -1698,11 +1875,11 @@ class AsyncOperator:
         access_key_id : builtins.str, optional
             Access key id for oss.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
+            `ALIBABA_CLOUD_ACCESS_KEY_ID`
         access_key_secret : builtins.str, optional
             Access key secret for oss.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
+            `ALIBABA_CLOUD_ACCESS_KEY_SECRET`
         addressing_style : builtins.str, optional
             Addressing style for oss.
         allow_anonymous : builtins.bool, optional
@@ -1720,11 +1897,11 @@ class AsyncOperator:
         oidc_provider_arn : builtins.str, optional
             `oidc_provider_arn` will be loaded from - this field
             if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+            `ALIBABA_CLOUD_OIDC_PROVIDER_ARN`
         oidc_token_file : builtins.str, optional
             `oidc_token_file` will be loaded from - this field
             if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+            `ALIBABA_CLOUD_OIDC_TOKEN_FILE`
         presign_addressing_style : builtins.str, optional
             Pre sign addressing style for oss.
         presign_endpoint : builtins.str, optional
@@ -1734,7 +1911,7 @@ class AsyncOperator:
             config as source credential to assume role with
             `role_arn`.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ROLE_ARN`]
+            `ALIBABA_CLOUD_ROLE_ARN`
         role_session_name : builtins.str, optional
             role_session_name for this backend.
         root : builtins.str, optional
@@ -1742,7 +1919,7 @@ class AsyncOperator:
         security_token : builtins.str, optional
             `security_token` will be loaded from - this field if
             it's `is_some` - env value:
-            [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+            `ALIBABA_CLOUD_SECURITY_TOKEN`
         server_side_encryption : builtins.str, optional
             Server side encryption for oss.
         server_side_encryption_key_id : builtins.str, optional
@@ -1750,7 +1927,7 @@ class AsyncOperator:
         sts_endpoint : builtins.str, optional
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
-            [`ALIBABA_CLOUD_STS_ENDPOINT`]
+            `ALIBABA_CLOUD_STS_ENDPOINT`
 
         Returns
         -------
@@ -1760,13 +1937,13 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Persy | typing.Literal["persy"],
+        scheme: typing.Literal[opendal.services.Scheme.Persy, "persy"],
         /,
         *,
         datafile: builtins.str = ...,
         index: builtins.str = ...,
         segment: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `persy` service.
 
@@ -1788,7 +1965,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Postgresql | typing.Literal["postgresql"],
+        scheme: typing.Literal[opendal.services.Scheme.Postgresql, "postgresql"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -1796,7 +1973,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `postgresql` service.
 
@@ -1832,13 +2009,13 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Redb | typing.Literal["redb"],
+        scheme: typing.Literal[opendal.services.Scheme.Redb, "redb"],
         /,
         *,
         datadir: builtins.str = ...,
         root: builtins.str = ...,
         table: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `redb` service.
 
@@ -1859,7 +2036,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Redis | typing.Literal["redis"],
+        scheme: typing.Literal[opendal.services.Scheme.Redis, "redis"],
         /,
         *,
         cluster_endpoints: builtins.str = ...,
@@ -1870,7 +2047,7 @@ class AsyncOperator:
         password: builtins.str = ...,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `redis` service.
 
@@ -1914,14 +2091,17 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.S3 | typing.Literal["s3"],
+        scheme: typing.Literal[opendal.services.Scheme.S3, "s3"],
         /,
         *,
         access_key_id: builtins.str = ...,
         allow_anonymous: builtins.bool = ...,
+        assume_role_duration_seconds: builtins.int = ...,
+        assume_role_session_tags: builtins.dict = ...,
         batch_max_operations: builtins.int = ...,
         bucket: builtins.str,
         checksum_algorithm: builtins.str = ...,
+        default_acl: builtins.str = ...,
         default_storage_class: builtins.str = ...,
         delete_max_size: builtins.int = ...,
         disable_config_load: builtins.bool = ...,
@@ -1946,7 +2126,7 @@ class AsyncOperator:
         server_side_encryption_customer_key: builtins.str = ...,
         server_side_encryption_customer_key_md5: builtins.str = ...,
         session_token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `s3` service.
 
@@ -1960,6 +2140,10 @@ class AsyncOperator:
         allow_anonymous : builtins.bool, optional
             Allow anonymous will allow opendal to send request
             without signing when credential is not loaded.
+        assume_role_duration_seconds : builtins.int, optional
+            assume_role_duration_seconds for this backend.
+        assume_role_session_tags : builtins.dict, optional
+            assume_role_session_tags for this backend.
         batch_max_operations : builtins.int, optional
             Set maximum batch operations of this backend.
             Some compatible services have a limit on the number
@@ -1975,7 +2159,11 @@ class AsyncOperator:
             HTTP headers.
             This is necessary when writing to AWS S3 Buckets
             with Object Lock enabled for example.
-            Available options: - "crc32c"
+            Available options: - "crc32c" - "md5"
+        default_acl : builtins.str, optional
+            Default ACL for new objects.
+            Note that some s3 services like minio do not support
+            this option.
         default_storage_class : builtins.str, optional
             default storage_class for this backend.
             Available values: - `DEEP_ARCHIVE` - `GLACIER` -
@@ -1999,7 +2187,7 @@ class AsyncOperator:
             Disable load credential from ec2 metadata.
             This option is used to disable the default behavior
             of opendal to load credential from ec2 metadata,
-            a.k.a, IMDSv2
+            a.k.a., IMDSv2
         disable_list_objects_v2 : builtins.bool, optional
             OpenDAL uses List Objects V2 by default to list
             objects.
@@ -2015,7 +2203,7 @@ class AsyncOperator:
             Disable write with if match so that opendal will not
             send write request with if match headers.
             For example, Ceph RADOS S3 doesn't support write
-            with if match.
+            with if matched.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
@@ -2120,7 +2308,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Seafile | typing.Literal["seafile"],
+        scheme: typing.Literal[opendal.services.Scheme.Seafile, "seafile"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -2128,7 +2316,7 @@ class AsyncOperator:
         repo_name: builtins.str,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `seafile` service.
 
@@ -2155,7 +2343,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sftp | typing.Literal["sftp"],
+        scheme: typing.Literal[opendal.services.Scheme.Sftp, "sftp"],
         /,
         *,
         enable_copy: builtins.bool = ...,
@@ -2164,7 +2352,7 @@ class AsyncOperator:
         known_hosts_strategy: builtins.str = ...,
         root: builtins.str = ...,
         user: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `sftp` service.
 
@@ -2191,13 +2379,13 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sled | typing.Literal["sled"],
+        scheme: typing.Literal[opendal.services.Scheme.Sled, "sled"],
         /,
         *,
         datadir: builtins.str = ...,
         root: builtins.str = ...,
         tree: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `sled` service.
 
@@ -2218,7 +2406,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sqlite | typing.Literal["sqlite"],
+        scheme: typing.Literal[opendal.services.Scheme.Sqlite, "sqlite"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -2226,7 +2414,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `sqlite` service.
 
@@ -2265,14 +2453,16 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Swift | typing.Literal["swift"],
+        scheme: typing.Literal[opendal.services.Scheme.Swift, "swift"],
         /,
         *,
         container: builtins.str = ...,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
+        temp_url_hash_algorithm: builtins.str = ...,
+        temp_url_key: builtins.str = ...,
         token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `swift` service.
 
@@ -2284,6 +2474,18 @@ class AsyncOperator:
             The endpoint for Swift.
         root : builtins.str, optional
             The root for Swift.
+        temp_url_hash_algorithm : builtins.str, optional
+            The hash algorithm for TempURL signing.
+            Supported values: `sha1`, `sha256`, `sha512`.
+            Defaults to `sha256`.
+            The cluster must have the chosen algorithm in its
+            `tempurl.allowed_digests` (check `GET /info`).
+        temp_url_key : builtins.str, optional
+            The TempURL key for generating presigned URLs.
+            This corresponds to the
+            `X-Account-Meta-Temp-URL-Key` or
+            `X-Container-Meta-Temp-URL-Key` header value
+            configured on the Swift account or container.
         token : builtins.str, optional
             The token for Swift.
 
@@ -2295,14 +2497,90 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Upyun | typing.Literal["upyun"],
+        scheme: typing.Literal[opendal.services.Scheme.Tos, "tos"],
+        /,
+        *,
+        access_key_id: builtins.str = ...,
+        allow_anonymous: builtins.bool = ...,
+        bucket: builtins.str,
+        disable_config_load: builtins.bool = ...,
+        enable_versioning: builtins.bool = ...,
+        endpoint: builtins.str = ...,
+        region: builtins.str = ...,
+        root: builtins.str = ...,
+        secret_access_key: builtins.str = ...,
+        security_token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `tos` service.
+
+        Parameters
+        ----------
+        access_key_id : builtins.str, optional
+            access_key_id of this backend.
+            - If access_key_id is set, we will take user's input
+            first.
+            - If not, we will try to load it from environment.
+        allow_anonymous : builtins.bool, optional
+            Allow anonymous will allow opendal to send request
+            without signing when credential is not loaded.
+        bucket : builtins.str
+            bucket name of this backend.
+            required.
+        disable_config_load : builtins.bool, optional
+            Disable config load so that opendal will not load
+            config from environment.
+            For examples: - envs like `TOS_ACCESS_KEY_ID`
+        enable_versioning : builtins.bool, optional
+            Enable bucket versioning for this backend.
+            If set to true, OpenDAL will support versioned
+            operations like list with versions, read with
+            version, etc.
+        endpoint : builtins.str, optional
+            endpoint of this backend.
+            Endpoint must be full uri, e.g.
+            - TOS: `https://tos-cn-beijing.volces.com` - TOS
+            with region: `https://tos-{region}.volces.com` If
+            user inputs endpoint without scheme like
+            "tos-cn-beijing.volces.com", we will prepend
+            "https://" before it.
+        region : builtins.str, optional
+            Region represent the signing region of this
+            endpoint.
+            Required if endpoint is not provided.
+            - If region is set, we will take user's input first.
+            - If not, we will try to load it from environment.
+            - If still not set, default to `cn-beijing`.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+            default to `/` if not set.
+        secret_access_key : builtins.str, optional
+            secret_access_key of this backend.
+            - If secret_access_key is set, we will take user's
+            input first.
+            - If not, we will try to load it from environment.
+        security_token : builtins.str, optional
+            security_token of this backend.
+            This token will expire after sometime, it's
+            recommended to set security_token by hand.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `tos` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Upyun, "upyun"],
         /,
         *,
         bucket: builtins.str,
         operator: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `upyun` service.
 
@@ -2326,15 +2604,16 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.VercelArtifacts
-        | typing.Literal["vercel-artifacts"],
+        scheme: typing.Literal[
+            opendal.services.Scheme.VercelArtifacts, "vercel-artifacts"
+        ],
         /,
         *,
         access_token: builtins.str = ...,
         endpoint: builtins.str = ...,
         team_id: builtins.str = ...,
         team_slug: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `vercel-artifacts` service.
 
@@ -2343,11 +2622,16 @@ class AsyncOperator:
         access_token : builtins.str, optional
             The access token for Vercel.
         endpoint : builtins.str, optional
-            The endpoint for the Vercel artifacts API. Defaults to ``https://api.vercel.com``.
+            The endpoint for the Vercel artifacts API.
+            Defaults to `https://api.vercel.com`.
         team_id : builtins.str, optional
             The Vercel team ID.
+            When set, the `teamId` query parameter is appended
+            to all API requests.
         team_slug : builtins.str, optional
             The Vercel team slug.
+            When set, the `slug` query parameter is appended to
+            all API requests.
 
         Returns
         -------
@@ -2357,16 +2641,45 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Webdav | typing.Literal["webdav"],
+        scheme: typing.Literal[opendal.services.Scheme.VercelBlob, "vercel-blob"],
+        /,
+        *,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `AsyncOperator` for `vercel-blob` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        token : builtins.str, optional
+            vercel blob token.
+
+        Returns
+        -------
+        AsyncOperator
+            The new `AsyncOperator` for `vercel-blob` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Webdav, "webdav"],
         /,
         *,
         disable_copy: builtins.bool = ...,
+        disable_create_dir: builtins.bool = ...,
+        enable_user_metadata: builtins.bool = ...,
         endpoint: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
         token: builtins.str = ...,
+        user_metadata_prefix: builtins.str = ...,
+        user_metadata_uri: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `webdav` service.
 
@@ -2374,6 +2687,28 @@ class AsyncOperator:
         ----------
         disable_copy : builtins.bool, optional
             WebDAV Service doesn't support copy.
+        disable_create_dir : builtins.bool, optional
+            Disable automatic parent directory creation before
+            write operations.
+            By default, OpenDAL creates parent directories using
+            MKCOL before writing files.
+            This requires PROPFIND support to check directory
+            existence.
+            Some WebDAV-compatible servers (e.g., bazel-remote)
+            don't support PROPFIND or don't require explicit
+            directory creation.
+            Enable this option to skip the MKCOL calls and write
+            files directly.
+            Default: false
+        enable_user_metadata : builtins.bool, optional
+            Enable user metadata support via WebDAV PROPPATCH.
+            This feature requires the WebDAV server to support
+            RFC4918 PROPPATCH method.
+            Not all WebDAV servers support this (e.g., nginx's
+            basic WebDAV module doesn't).
+            Only enable this if your server supports PROPPATCH
+            (e.g., Apache mod_dav, Nextcloud).
+            Default: false
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional
@@ -2382,6 +2717,22 @@ class AsyncOperator:
             root of this backend
         token : builtins.str, optional
             token of this backend
+        user_metadata_prefix : builtins.str, optional
+            The XML namespace prefix for user metadata
+            properties.
+            This prefix is used in PROPPATCH/PROPFIND XML
+            requests.
+            Different servers may require different prefixes.
+            Default: "opendal"
+        user_metadata_uri : builtins.str, optional
+            The XML namespace URI for user metadata properties.
+            This URI uniquely identifies the namespace for
+            custom properties.
+            Different servers may require different namespace
+            URIs.
+            For example, Nextcloud might work better with its
+            own namespace.
+            Default: `https://opendal.apache.org/ns`
         username : builtins.str, optional
             username of this backend
 
@@ -2393,7 +2744,7 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Webhdfs | typing.Literal["webhdfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Webhdfs, "webhdfs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
@@ -2402,7 +2753,7 @@ class AsyncOperator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         user_name: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `webhdfs` service.
 
@@ -2429,12 +2780,12 @@ class AsyncOperator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.YandexDisk | typing.Literal["yandex-disk"],
+        scheme: typing.Literal[opendal.services.Scheme.YandexDisk, "yandex-disk"],
         /,
         *,
         access_token: builtins.str,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `yandex-disk` service.
 
@@ -2516,8 +2867,8 @@ class Operator:
         size: builtins.int | None = None,
         if_match: builtins.str | None = None,
         if_none_match: builtins.str | None = None,
-        if_modified_since: datetime.datetime = None,
-        if_unmodified_since: datetime.datetime = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
@@ -2622,8 +2973,8 @@ class Operator:
         version: builtins.str | None = None,
         if_match: builtins.str | None = None,
         if_none_match: builtins.str | None = None,
-        if_modified_since: datetime.datetime = None,
-        if_unmodified_since: datetime.datetime = None,
+        if_modified_since: datetime.datetime | None = None,
+        if_unmodified_since: datetime.datetime | None = None,
         content_type: builtins.str | None = None,
         cache_control: builtins.str | None = None,
         content_disposition: builtins.str | None = None,
@@ -2710,7 +3061,13 @@ class Operator:
         path : str
             The path to the directory.
         """
-    def delete(self, path: builtins.str | os.PathLike | pathlib.Path) -> None:
+    def delete(
+        self,
+        path: builtins.str | os.PathLike | pathlib.Path,
+        *,
+        version: builtins.str | None = None,
+        recursive: builtins.bool | None = None,
+    ) -> None:
         r"""
         Delete a file at the given path.
 
@@ -2722,6 +3079,10 @@ class Operator:
         ----------
         path : str
             The path to the file.
+        version : str, optional
+            The version of the file to delete. Only supported on version-aware backends.
+        recursive : bool, optional
+            If True, delete the path recursively. Only supported on backends that support recursive delete.
         """
     def exists(self, path: builtins.str | os.PathLike | pathlib.Path) -> builtins.bool:
         r"""
@@ -2833,15 +3194,12 @@ class Operator:
         """
     @typing.overload
     def __new__(
-        cls,
-        scheme: builtins.str,
-        /,
-        **kwargs: builtins.str,
-    ) -> typing_extensions.Self: ...
+        cls, scheme: builtins.str, /, **kwargs: builtins.str
+    ) -> typing.Self: ...
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.AliyunDrive | typing.Literal["aliyun-drive"],
+        scheme: typing.Literal[opendal.services.Scheme.AliyunDrive, "aliyun-drive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -2850,7 +3208,7 @@ class Operator:
         drive_type: builtins.str,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `aliyun-drive` service.
 
@@ -2890,12 +3248,12 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Alluxio | typing.Literal["alluxio"],
+        scheme: typing.Literal[opendal.services.Scheme.Alluxio, "alluxio"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `alluxio` service.
 
@@ -2918,7 +3276,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azblob | typing.Literal["azblob"],
+        scheme: typing.Literal[opendal.services.Scheme.Azblob, "azblob"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -2931,7 +3289,7 @@ class Operator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `azblob` service.
 
@@ -2972,7 +3330,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azdls | typing.Literal["azdls"],
+        scheme: typing.Literal[opendal.services.Scheme.Azdls, "azdls"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -2980,12 +3338,13 @@ class Operator:
         authority_host: builtins.str = ...,
         client_id: builtins.str = ...,
         client_secret: builtins.str = ...,
+        enable_hns: builtins.bool = ...,
         endpoint: builtins.str = ...,
         filesystem: builtins.str,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
         tenant_id: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `azdls` service.
 
@@ -3008,6 +3367,12 @@ class Operator:
             client_secret The client secret of the service
             principal.
             - required for client_credentials authentication
+        enable_hns : builtins.bool, optional
+            Whether hierarchical namespace (HNS) is enabled for
+            the storage account.
+            When enabled, recursive deletion can use pagination
+            to avoid timeouts on large directories.
+            - default value: `false`
         endpoint : builtins.str, optional
             Endpoint of this backend.
         filesystem : builtins.str
@@ -3029,7 +3394,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Azfile | typing.Literal["azfile"],
+        scheme: typing.Literal[opendal.services.Scheme.Azfile, "azfile"],
         /,
         *,
         account_key: builtins.str = ...,
@@ -3038,7 +3403,7 @@ class Operator:
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
         share_name: builtins.str,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `azfile` service.
 
@@ -3065,7 +3430,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.B2 | typing.Literal["b2"],
+        scheme: typing.Literal[opendal.services.Scheme.B2, "b2"],
         /,
         *,
         application_key: builtins.str = ...,
@@ -3073,7 +3438,7 @@ class Operator:
         bucket: builtins.str,
         bucket_id: builtins.str,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `b2` service.
 
@@ -3107,11 +3472,11 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Cacache | typing.Literal["cacache"],
+        scheme: typing.Literal[opendal.services.Scheme.Cacache, "cacache"],
         /,
         *,
         datadir: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `cacache` service.
 
@@ -3128,7 +3493,45 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Cos | typing.Literal["cos"],
+        scheme: typing.Literal[opendal.services.Scheme.CloudflareKv, "cloudflare-kv"],
+        /,
+        *,
+        account_id: builtins.str = ...,
+        api_token: builtins.str = ...,
+        default_ttl: typing.Any = ...,
+        namespace_id: builtins.str = ...,
+        root: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `cloudflare-kv` service.
+
+        Parameters
+        ----------
+        account_id : builtins.str, optional
+            The account ID used to authenticate with CloudFlare.
+            Used as URI path parameter.
+        api_token : builtins.str, optional
+            The token used to authenticate with CloudFlare.
+        default_ttl : typing.Any, optional
+            The default ttl for write operations..
+            a human readable duration string see
+            https://docs.rs/humantime/latest/humantime/fn.parse_duration.html
+            for more details
+        namespace_id : builtins.str, optional
+            The namespace ID.
+            Used as URI path parameter.
+        root : builtins.str, optional
+            Root within this backend.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `cloudflare-kv` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Cos, "cos"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -3138,7 +3541,7 @@ class Operator:
         root: builtins.str = ...,
         secret_id: builtins.str = ...,
         secret_key: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `cos` service.
 
@@ -3168,11 +3571,11 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Dashmap | typing.Literal["dashmap"],
+        scheme: typing.Literal[opendal.services.Scheme.Dashmap, "dashmap"],
         /,
         *,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `dashmap` service.
 
@@ -3189,7 +3592,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Dropbox | typing.Literal["dropbox"],
+        scheme: typing.Literal[opendal.services.Scheme.Dropbox, "dropbox"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -3197,7 +3600,7 @@ class Operator:
         client_secret: builtins.str = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `dropbox` service.
 
@@ -3222,12 +3625,67 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Fs | typing.Literal["fs"],
+        scheme: typing.Literal[opendal.services.Scheme.Foyer, "foyer"],
+        /,
+        *,
+        disk_capacity: builtins.int = ...,
+        disk_file_size: builtins.int = ...,
+        disk_path: builtins.str = ...,
+        memory: builtins.int = ...,
+        name: builtins.str = ...,
+        recover_mode: builtins.str = ...,
+        root: builtins.str = ...,
+        shards: builtins.int = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `foyer` service.
+
+        Parameters
+        ----------
+        disk_capacity : builtins.int, optional
+            Disk cache total capacity in bytes.
+            Only used when `disk_path` is set.
+        disk_file_size : builtins.int, optional
+            Individual cache file size in bytes.
+            Default is 1 MiB.
+            Only used when `disk_path` is set.
+        disk_path : builtins.str, optional
+            Disk cache directory path.
+            If set, enables hybrid cache with disk storage.
+            Data will be persisted to this directory when memory
+            cache is full.
+        memory : builtins.int, optional
+            Memory capacity in bytes for the cache.
+        name : builtins.str, optional
+            Name for this cache instance.
+        recover_mode : builtins.str, optional
+            Recovery mode when starting the cache.
+            Valid values: "none" (default), "quiet", "strict".
+            - "none": Don't recover from disk - "quiet": Recover
+            and skip errors - "strict": Recover and panic on
+            errors
+        root : builtins.str, optional
+            Root path of this backend.
+        shards : builtins.int, optional
+            Number of shards for concurrent access.
+            Default is 1.
+            Higher values improve concurrency but increase
+            overhead.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `foyer` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Fs, "fs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `fs` service.
 
@@ -3246,14 +3704,14 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ftp | typing.Literal["ftp"],
+        scheme: typing.Literal[opendal.services.Scheme.Ftp, "ftp"],
         /,
         *,
         endpoint: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
         user: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `ftp` service.
 
@@ -3276,7 +3734,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gcs | typing.Literal["gcs"],
+        scheme: typing.Literal[opendal.services.Scheme.Gcs, "gcs"],
         /,
         *,
         allow_anonymous: builtins.bool = ...,
@@ -3292,7 +3750,7 @@ class Operator:
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
         token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `gcs` service.
 
@@ -3340,7 +3798,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gdrive | typing.Literal["gdrive"],
+        scheme: typing.Literal[opendal.services.Scheme.Gdrive, "gdrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -3348,7 +3806,7 @@ class Operator:
         client_secret: builtins.str = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `gdrive` service.
 
@@ -3373,14 +3831,14 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ghac | typing.Literal["ghac"],
+        scheme: typing.Literal[opendal.services.Scheme.Ghac, "ghac"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         runtime_token: builtins.str = ...,
         version: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `ghac` service.
 
@@ -3403,7 +3861,74 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Gridfs | typing.Literal["gridfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Goosefs, "goosefs"],
+        /,
+        *,
+        auth_type: builtins.str = ...,
+        auth_username: builtins.str = ...,
+        block_size: builtins.int = ...,
+        chunk_size: builtins.int = ...,
+        master_addr: builtins.str = ...,
+        root: builtins.str = ...,
+        write_type: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `goosefs` service.
+
+        Parameters
+        ----------
+        auth_type : builtins.str, optional
+            Authentication type.
+            Supported values: `"nosasl"`, `"simple"`.
+            Default: `"simple"` — PLAIN SASL with usernam
+            e. `"nosasl"` — skip authentication entirely.
+        auth_username : builtins.str, optional
+            Authentication username.
+            Used in SIMPLE mode as the login identity.
+            Default: current OS user (`$USER` / `$USERNAME`).
+        block_size : builtins.int, optional
+            Block size in bytes for new files (default: 64 MiB).
+        chunk_size : builtins.int, optional
+            Chunk size in bytes for streaming RPCs (default: 1
+            MiB).
+        master_addr : builtins.str, optional
+            Master address(es) in `host:port` format.
+            For single master: `"10.0.0.1:9200"` For HA
+            (comma-separated):
+            `"10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200"` When
+            multiple addresses are provided, the client uses
+            `PollingMasterInquireClient` to discover the Primary
+            Master automatically.
+            Resolution precedence at `build()` time (highest →
+            lowest), following `goosefs-sdk`
+            `docs/CLIENT_CONFIGURATION.md` §1:
+            1. This field (when set on the builder / OpenDAL
+            config map)
+            2. `GOOSEFS_MASTER_ADDR` environment variable
+            3. `goosefs.master.rpc.addresses` /
+            `goosefs.master.hostname` in
+            `goosefs-site.properties` `build()` fails with
+            `ConfigInvalid` only when **none** of the above
+            supplies a master address.
+        root : builtins.str, optional
+            Root path of this backend.
+            All operations will happen under this root.
+            Default to `/` if not set.
+        write_type : builtins.str, optional
+            Default write type for new files.
+            Supported values: `"must_cache"`, `"cache_through"`,
+            `"through"`, `"async_through"`.
+            Default: `"must_cache"`.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `goosefs` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Gridfs, "gridfs"],
         /,
         *,
         bucket: builtins.str = ...,
@@ -3411,7 +3936,7 @@ class Operator:
         connection_string: builtins.str = ...,
         database: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `gridfs` service.
 
@@ -3440,13 +3965,14 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.HdfsNative | typing.Literal["hdfs-native"],
+        scheme: typing.Literal[opendal.services.Scheme.HdfsNative, "hdfs-native"],
         /,
         *,
         enable_append: builtins.bool = ...,
         name_node: builtins.str = ...,
+        options: builtins.dict = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `hdfs-native` service.
 
@@ -3456,6 +3982,8 @@ class Operator:
             enable the append capacity
         name_node : builtins.str, optional
             name_node of this backend
+        options : builtins.dict, optional
+            other options for hdfs client
         root : builtins.str, optional
             work dir of this backend
 
@@ -3467,7 +3995,51 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Http | typing.Literal["http"],
+        scheme: typing.Literal[opendal.services.Scheme.Hf, "hf"],
+        /,
+        *,
+        endpoint: builtins.str = ...,
+        repo_id: builtins.str = ...,
+        repo_type: builtins.str,
+        revision: builtins.str = ...,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `hf` service.
+
+        Parameters
+        ----------
+        endpoint : builtins.str, optional
+            Endpoint of the Hugging Face Hub.
+            Default is "https://huggingface.co".
+        repo_id : builtins.str, optional
+            Repo id of this backend.
+            This is required.
+        repo_type : builtins.str
+            Repo type of this backend.
+            Default is model.
+            Default is model
+        revision : builtins.str, optional
+            Revision of this backend.
+            Default is main.
+        root : builtins.str, optional
+            Root of this backend.
+            Can be "/path/to/dir".
+            Default is "/".
+        token : builtins.str, optional
+            Token of this backend.
+            This is optional.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `hf` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Http, "http"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -3475,7 +4047,7 @@ class Operator:
         root: builtins.str = ...,
         token: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `http` service.
 
@@ -3500,52 +4072,12 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Hf | typing.Literal["hf"],
-        /,
-        *,
-        repo_id: builtins.str = ...,
-        repo_type: builtins.str = ...,
-        revision: builtins.str = ...,
-        root: builtins.str = ...,
-        token: builtins.str = ...,
-    ) -> typing_extensions.Self:
-        r"""
-        Create a new `Operator` for `hf` (Hugging Face) service.
-
-        Parameters
-        ----------
-        repo_id : builtins.str, optional
-            Repo id of this backend.
-            This is required.
-        repo_type : builtins.str, optional
-            Repo type of this backend.
-            Default is model.
-            Available values: - model - dataset
-        revision : builtins.str, optional
-            Revision of this backend.
-            Default is main.
-        root : builtins.str, optional
-            Root of this backend.
-            Can be "/path/to/dir".
-            Default is "/".
-        token : builtins.str, optional
-            Token of this backend.
-            This is optional.
-
-        Returns
-        -------
-        Operator
-            The new `Operator` for `hf` (Hugging Face) service
-        """
-    @typing.overload
-    def __new__(
-        cls,
-        scheme: opendal.services.Scheme.Ipfs | typing.Literal["ipfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Ipfs, "ipfs"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `ipfs` service.
 
@@ -3564,12 +4096,12 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Ipmfs | typing.Literal["ipmfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Ipmfs, "ipmfs"],
         /,
         *,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `ipmfs` service.
 
@@ -3588,14 +4120,14 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Koofr | typing.Literal["koofr"],
+        scheme: typing.Literal[opendal.services.Scheme.Koofr, "koofr"],
         /,
         *,
         email: builtins.str,
         endpoint: builtins.str,
         password: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `koofr` service.
 
@@ -3620,7 +4152,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Memcached | typing.Literal["memcached"],
+        scheme: typing.Literal[opendal.services.Scheme.Memcached, "memcached"],
         /,
         *,
         connection_pool_max_size: builtins.int = ...,
@@ -3629,7 +4161,7 @@ class Operator:
         password: builtins.str = ...,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `memcached` service.
 
@@ -3662,11 +4194,11 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Memory | typing.Literal["memory"],
+        scheme: typing.Literal[opendal.services.Scheme.Memory, "memory"],
         /,
         *,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `memory` service.
 
@@ -3683,14 +4215,14 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.MiniMoka | typing.Literal["mini-moka"],
+        scheme: typing.Literal[opendal.services.Scheme.MiniMoka, "mini-moka"],
         /,
         *,
         max_capacity: builtins.int = ...,
         root: builtins.str = ...,
         time_to_idle: builtins.str = ...,
         time_to_live: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `mini-moka` service.
 
@@ -3719,7 +4251,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Moka | typing.Literal["moka"],
+        scheme: typing.Literal[opendal.services.Scheme.Moka, "moka"],
         /,
         *,
         max_capacity: builtins.int = ...,
@@ -3727,7 +4259,7 @@ class Operator:
         root: builtins.str = ...,
         time_to_idle: builtins.str = ...,
         time_to_live: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `moka` service.
 
@@ -3758,7 +4290,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Mongodb | typing.Literal["mongodb"],
+        scheme: typing.Literal[opendal.services.Scheme.Mongodb, "mongodb"],
         /,
         *,
         collection: builtins.str = ...,
@@ -3767,7 +4299,7 @@ class Operator:
         key_field: builtins.str = ...,
         root: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `mongodb` service.
 
@@ -3794,7 +4326,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Mysql | typing.Literal["mysql"],
+        scheme: typing.Literal[opendal.services.Scheme.Mysql, "mysql"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -3802,7 +4334,7 @@ class Operator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `mysql` service.
 
@@ -3839,7 +4371,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Obs | typing.Literal["obs"],
+        scheme: typing.Literal[opendal.services.Scheme.Obs, "obs"],
         /,
         *,
         access_key_id: builtins.str = ...,
@@ -3848,7 +4380,7 @@ class Operator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `obs` service.
 
@@ -3875,7 +4407,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Onedrive | typing.Literal["onedrive"],
+        scheme: typing.Literal[opendal.services.Scheme.Onedrive, "onedrive"],
         /,
         *,
         access_token: builtins.str = ...,
@@ -3884,7 +4416,7 @@ class Operator:
         enable_versioning: builtins.bool = ...,
         refresh_token: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `onedrive` service.
 
@@ -3915,7 +4447,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Oss | typing.Literal["oss"],
+        scheme: typing.Literal[opendal.services.Scheme.Oss, "oss"],
         /,
         *,
         access_key_id: builtins.str = ...,
@@ -3938,7 +4470,7 @@ class Operator:
         server_side_encryption: builtins.str = ...,
         server_side_encryption_key_id: builtins.str = ...,
         sts_endpoint: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `oss` service.
 
@@ -3947,11 +4479,11 @@ class Operator:
         access_key_id : builtins.str, optional
             Access key id for oss.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ACCESS_KEY_ID`]
+            `ALIBABA_CLOUD_ACCESS_KEY_ID`
         access_key_secret : builtins.str, optional
             Access key secret for oss.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ACCESS_KEY_SECRET`]
+            `ALIBABA_CLOUD_ACCESS_KEY_SECRET`
         addressing_style : builtins.str, optional
             Addressing style for oss.
         allow_anonymous : builtins.bool, optional
@@ -3969,11 +4501,11 @@ class Operator:
         oidc_provider_arn : builtins.str, optional
             `oidc_provider_arn` will be loaded from - this field
             if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_OIDC_PROVIDER_ARN`]
+            `ALIBABA_CLOUD_OIDC_PROVIDER_ARN`
         oidc_token_file : builtins.str, optional
             `oidc_token_file` will be loaded from - this field
             if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_OIDC_TOKEN_FILE`]
+            `ALIBABA_CLOUD_OIDC_TOKEN_FILE`
         presign_addressing_style : builtins.str, optional
             Pre sign addressing style for oss.
         presign_endpoint : builtins.str, optional
@@ -3983,7 +4515,7 @@ class Operator:
             config as source credential to assume role with
             `role_arn`.
             - this field if it's `is_some` - env value:
-            [`ALIBABA_CLOUD_ROLE_ARN`]
+            `ALIBABA_CLOUD_ROLE_ARN`
         role_session_name : builtins.str, optional
             role_session_name for this backend.
         root : builtins.str, optional
@@ -3991,7 +4523,7 @@ class Operator:
         security_token : builtins.str, optional
             `security_token` will be loaded from - this field if
             it's `is_some` - env value:
-            [`ALIBABA_CLOUD_SECURITY_TOKEN`]
+            `ALIBABA_CLOUD_SECURITY_TOKEN`
         server_side_encryption : builtins.str, optional
             Server side encryption for oss.
         server_side_encryption_key_id : builtins.str, optional
@@ -3999,7 +4531,7 @@ class Operator:
         sts_endpoint : builtins.str, optional
             `sts_endpoint` will be loaded from - this field if
             it's `is_some` - env value:
-            [`ALIBABA_CLOUD_STS_ENDPOINT`]
+            `ALIBABA_CLOUD_STS_ENDPOINT`
 
         Returns
         -------
@@ -4009,13 +4541,13 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Persy | typing.Literal["persy"],
+        scheme: typing.Literal[opendal.services.Scheme.Persy, "persy"],
         /,
         *,
         datafile: builtins.str = ...,
         index: builtins.str = ...,
         segment: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `persy` service.
 
@@ -4037,7 +4569,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Postgresql | typing.Literal["postgresql"],
+        scheme: typing.Literal[opendal.services.Scheme.Postgresql, "postgresql"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -4045,7 +4577,7 @@ class Operator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `postgresql` service.
 
@@ -4081,13 +4613,13 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Redb | typing.Literal["redb"],
+        scheme: typing.Literal[opendal.services.Scheme.Redb, "redb"],
         /,
         *,
         datadir: builtins.str = ...,
         root: builtins.str = ...,
         table: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `redb` service.
 
@@ -4108,7 +4640,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Redis | typing.Literal["redis"],
+        scheme: typing.Literal[opendal.services.Scheme.Redis, "redis"],
         /,
         *,
         cluster_endpoints: builtins.str = ...,
@@ -4119,7 +4651,7 @@ class Operator:
         password: builtins.str = ...,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `redis` service.
 
@@ -4163,14 +4695,17 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.S3 | typing.Literal["s3"],
+        scheme: typing.Literal[opendal.services.Scheme.S3, "s3"],
         /,
         *,
         access_key_id: builtins.str = ...,
         allow_anonymous: builtins.bool = ...,
+        assume_role_duration_seconds: builtins.int = ...,
+        assume_role_session_tags: builtins.dict = ...,
         batch_max_operations: builtins.int = ...,
         bucket: builtins.str,
         checksum_algorithm: builtins.str = ...,
+        default_acl: builtins.str = ...,
         default_storage_class: builtins.str = ...,
         delete_max_size: builtins.int = ...,
         disable_config_load: builtins.bool = ...,
@@ -4195,7 +4730,7 @@ class Operator:
         server_side_encryption_customer_key: builtins.str = ...,
         server_side_encryption_customer_key_md5: builtins.str = ...,
         session_token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `s3` service.
 
@@ -4209,6 +4744,10 @@ class Operator:
         allow_anonymous : builtins.bool, optional
             Allow anonymous will allow opendal to send request
             without signing when credential is not loaded.
+        assume_role_duration_seconds : builtins.int, optional
+            assume_role_duration_seconds for this backend.
+        assume_role_session_tags : builtins.dict, optional
+            assume_role_session_tags for this backend.
         batch_max_operations : builtins.int, optional
             Set maximum batch operations of this backend.
             Some compatible services have a limit on the number
@@ -4224,7 +4763,11 @@ class Operator:
             HTTP headers.
             This is necessary when writing to AWS S3 Buckets
             with Object Lock enabled for example.
-            Available options: - "crc32c"
+            Available options: - "crc32c" - "md5"
+        default_acl : builtins.str, optional
+            Default ACL for new objects.
+            Note that some s3 services like minio do not support
+            this option.
         default_storage_class : builtins.str, optional
             default storage_class for this backend.
             Available values: - `DEEP_ARCHIVE` - `GLACIER` -
@@ -4248,7 +4791,7 @@ class Operator:
             Disable load credential from ec2 metadata.
             This option is used to disable the default behavior
             of opendal to load credential from ec2 metadata,
-            a.k.a, IMDSv2
+            a.k.a., IMDSv2
         disable_list_objects_v2 : builtins.bool, optional
             OpenDAL uses List Objects V2 by default to list
             objects.
@@ -4264,7 +4807,7 @@ class Operator:
             Disable write with if match so that opendal will not
             send write request with if match headers.
             For example, Ceph RADOS S3 doesn't support write
-            with if match.
+            with if matched.
         enable_request_payer : builtins.bool, optional
             Indicates whether the client agrees to pay for the
             requests made to the S3 bucket.
@@ -4369,7 +4912,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Seafile | typing.Literal["seafile"],
+        scheme: typing.Literal[opendal.services.Scheme.Seafile, "seafile"],
         /,
         *,
         endpoint: builtins.str = ...,
@@ -4377,7 +4920,7 @@ class Operator:
         repo_name: builtins.str,
         root: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `seafile` service.
 
@@ -4404,7 +4947,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sftp | typing.Literal["sftp"],
+        scheme: typing.Literal[opendal.services.Scheme.Sftp, "sftp"],
         /,
         *,
         enable_copy: builtins.bool = ...,
@@ -4413,7 +4956,7 @@ class Operator:
         known_hosts_strategy: builtins.str = ...,
         root: builtins.str = ...,
         user: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `sftp` service.
 
@@ -4440,13 +4983,13 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sled | typing.Literal["sled"],
+        scheme: typing.Literal[opendal.services.Scheme.Sled, "sled"],
         /,
         *,
         datadir: builtins.str = ...,
         root: builtins.str = ...,
         tree: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `sled` service.
 
@@ -4467,7 +5010,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Sqlite | typing.Literal["sqlite"],
+        scheme: typing.Literal[opendal.services.Scheme.Sqlite, "sqlite"],
         /,
         *,
         connection_string: builtins.str = ...,
@@ -4475,7 +5018,7 @@ class Operator:
         root: builtins.str = ...,
         table: builtins.str = ...,
         value_field: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `sqlite` service.
 
@@ -4514,14 +5057,16 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Swift | typing.Literal["swift"],
+        scheme: typing.Literal[opendal.services.Scheme.Swift, "swift"],
         /,
         *,
         container: builtins.str = ...,
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
+        temp_url_hash_algorithm: builtins.str = ...,
+        temp_url_key: builtins.str = ...,
         token: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `swift` service.
 
@@ -4533,6 +5078,18 @@ class Operator:
             The endpoint for Swift.
         root : builtins.str, optional
             The root for Swift.
+        temp_url_hash_algorithm : builtins.str, optional
+            The hash algorithm for TempURL signing.
+            Supported values: `sha1`, `sha256`, `sha512`.
+            Defaults to `sha256`.
+            The cluster must have the chosen algorithm in its
+            `tempurl.allowed_digests` (check `GET /info`).
+        temp_url_key : builtins.str, optional
+            The TempURL key for generating presigned URLs.
+            This corresponds to the
+            `X-Account-Meta-Temp-URL-Key` or
+            `X-Container-Meta-Temp-URL-Key` header value
+            configured on the Swift account or container.
         token : builtins.str, optional
             The token for Swift.
 
@@ -4544,14 +5101,90 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Upyun | typing.Literal["upyun"],
+        scheme: typing.Literal[opendal.services.Scheme.Tos, "tos"],
+        /,
+        *,
+        access_key_id: builtins.str = ...,
+        allow_anonymous: builtins.bool = ...,
+        bucket: builtins.str,
+        disable_config_load: builtins.bool = ...,
+        enable_versioning: builtins.bool = ...,
+        endpoint: builtins.str = ...,
+        region: builtins.str = ...,
+        root: builtins.str = ...,
+        secret_access_key: builtins.str = ...,
+        security_token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `tos` service.
+
+        Parameters
+        ----------
+        access_key_id : builtins.str, optional
+            access_key_id of this backend.
+            - If access_key_id is set, we will take user's input
+            first.
+            - If not, we will try to load it from environment.
+        allow_anonymous : builtins.bool, optional
+            Allow anonymous will allow opendal to send request
+            without signing when credential is not loaded.
+        bucket : builtins.str
+            bucket name of this backend.
+            required.
+        disable_config_load : builtins.bool, optional
+            Disable config load so that opendal will not load
+            config from environment.
+            For examples: - envs like `TOS_ACCESS_KEY_ID`
+        enable_versioning : builtins.bool, optional
+            Enable bucket versioning for this backend.
+            If set to true, OpenDAL will support versioned
+            operations like list with versions, read with
+            version, etc.
+        endpoint : builtins.str, optional
+            endpoint of this backend.
+            Endpoint must be full uri, e.g.
+            - TOS: `https://tos-cn-beijing.volces.com` - TOS
+            with region: `https://tos-{region}.volces.com` If
+            user inputs endpoint without scheme like
+            "tos-cn-beijing.volces.com", we will prepend
+            "https://" before it.
+        region : builtins.str, optional
+            Region represent the signing region of this
+            endpoint.
+            Required if endpoint is not provided.
+            - If region is set, we will take user's input first.
+            - If not, we will try to load it from environment.
+            - If still not set, default to `cn-beijing`.
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+            default to `/` if not set.
+        secret_access_key : builtins.str, optional
+            secret_access_key of this backend.
+            - If secret_access_key is set, we will take user's
+            input first.
+            - If not, we will try to load it from environment.
+        security_token : builtins.str, optional
+            security_token of this backend.
+            This token will expire after sometime, it's
+            recommended to set security_token by hand.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `tos` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Upyun, "upyun"],
         /,
         *,
         bucket: builtins.str,
         operator: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `upyun` service.
 
@@ -4575,15 +5208,16 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.VercelArtifacts
-        | typing.Literal["vercel-artifacts"],
+        scheme: typing.Literal[
+            opendal.services.Scheme.VercelArtifacts, "vercel-artifacts"
+        ],
         /,
         *,
         access_token: builtins.str = ...,
         endpoint: builtins.str = ...,
         team_id: builtins.str = ...,
         team_slug: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `vercel-artifacts` service.
 
@@ -4592,11 +5226,16 @@ class Operator:
         access_token : builtins.str, optional
             The access token for Vercel.
         endpoint : builtins.str, optional
-            The endpoint for the Vercel artifacts API. Defaults to ``https://api.vercel.com``.
+            The endpoint for the Vercel artifacts API.
+            Defaults to `https://api.vercel.com`.
         team_id : builtins.str, optional
             The Vercel team ID.
+            When set, the `teamId` query parameter is appended
+            to all API requests.
         team_slug : builtins.str, optional
             The Vercel team slug.
+            When set, the `slug` query parameter is appended to
+            all API requests.
 
         Returns
         -------
@@ -4606,16 +5245,45 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Webdav | typing.Literal["webdav"],
+        scheme: typing.Literal[opendal.services.Scheme.VercelBlob, "vercel-blob"],
+        /,
+        *,
+        root: builtins.str = ...,
+        token: builtins.str = ...,
+    ) -> typing.Self:
+        r"""
+        Create a new `Operator` for `vercel-blob` service.
+
+        Parameters
+        ----------
+        root : builtins.str, optional
+            root of this backend.
+            All operations will happen under this root.
+        token : builtins.str, optional
+            vercel blob token.
+
+        Returns
+        -------
+        Operator
+            The new `Operator` for `vercel-blob` service
+        """
+    @typing.overload
+    def __new__(
+        cls,
+        scheme: typing.Literal[opendal.services.Scheme.Webdav, "webdav"],
         /,
         *,
         disable_copy: builtins.bool = ...,
+        disable_create_dir: builtins.bool = ...,
+        enable_user_metadata: builtins.bool = ...,
         endpoint: builtins.str = ...,
         password: builtins.str = ...,
         root: builtins.str = ...,
         token: builtins.str = ...,
+        user_metadata_prefix: builtins.str = ...,
+        user_metadata_uri: builtins.str = ...,
         username: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `webdav` service.
 
@@ -4623,6 +5291,28 @@ class Operator:
         ----------
         disable_copy : builtins.bool, optional
             WebDAV Service doesn't support copy.
+        disable_create_dir : builtins.bool, optional
+            Disable automatic parent directory creation before
+            write operations.
+            By default, OpenDAL creates parent directories using
+            MKCOL before writing files.
+            This requires PROPFIND support to check directory
+            existence.
+            Some WebDAV-compatible servers (e.g., bazel-remote)
+            don't support PROPFIND or don't require explicit
+            directory creation.
+            Enable this option to skip the MKCOL calls and write
+            files directly.
+            Default: false
+        enable_user_metadata : builtins.bool, optional
+            Enable user metadata support via WebDAV PROPPATCH.
+            This feature requires the WebDAV server to support
+            RFC4918 PROPPATCH method.
+            Not all WebDAV servers support this (e.g., nginx's
+            basic WebDAV module doesn't).
+            Only enable this if your server supports PROPPATCH
+            (e.g., Apache mod_dav, Nextcloud).
+            Default: false
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional
@@ -4631,6 +5321,22 @@ class Operator:
             root of this backend
         token : builtins.str, optional
             token of this backend
+        user_metadata_prefix : builtins.str, optional
+            The XML namespace prefix for user metadata
+            properties.
+            This prefix is used in PROPPATCH/PROPFIND XML
+            requests.
+            Different servers may require different prefixes.
+            Default: "opendal"
+        user_metadata_uri : builtins.str, optional
+            The XML namespace URI for user metadata properties.
+            This URI uniquely identifies the namespace for
+            custom properties.
+            Different servers may require different namespace
+            URIs.
+            For example, Nextcloud might work better with its
+            own namespace.
+            Default: `https://opendal.apache.org/ns`
         username : builtins.str, optional
             username of this backend
 
@@ -4642,7 +5348,7 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.Webhdfs | typing.Literal["webhdfs"],
+        scheme: typing.Literal[opendal.services.Scheme.Webhdfs, "webhdfs"],
         /,
         *,
         atomic_write_dir: builtins.str = ...,
@@ -4651,7 +5357,7 @@ class Operator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         user_name: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `webhdfs` service.
 
@@ -4678,12 +5384,12 @@ class Operator:
     @typing.overload
     def __new__(
         cls,
-        scheme: opendal.services.Scheme.YandexDisk | typing.Literal["yandex-disk"],
+        scheme: typing.Literal[opendal.services.Scheme.YandexDisk, "yandex-disk"],
         /,
         *,
         access_token: builtins.str,
         root: builtins.str = ...,
-    ) -> typing_extensions.Self:
+    ) -> typing.Self:
         r"""
         Create a new `Operator` for `yandex-disk` service.
 

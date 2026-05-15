@@ -24,10 +24,19 @@ use anyhow::Result;
 
 pub fn run(language: &str) -> Result<()> {
     let workspace_dir = workspace_dir();
-    let services_path = workspace_dir
-        .join("core/core/src/services")
-        .canonicalize()?;
-    let services = parser::parse(&services_path.to_string_lossy())?;
+    let mut services = parser::Services::new();
+
+    // Old layout: core/core/src/services/<name>/config.rs (e.g. memory)
+    let old_services_path = workspace_dir.join("core/core/src/services");
+    if old_services_path.exists() {
+        services.extend(parser::parse(&old_services_path.to_string_lossy())?);
+    }
+
+    // New layout: core/services/<name>/src/config.rs (most services)
+    let new_services_path = workspace_dir.join("core/services");
+    if new_services_path.exists() {
+        services.extend(parser::parse(&new_services_path.to_string_lossy())?);
+    }
 
     match language {
         "java" => java::generate(workspace_dir, services),

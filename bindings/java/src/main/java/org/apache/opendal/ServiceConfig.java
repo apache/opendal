@@ -51,7 +51,7 @@ public interface ServiceConfig {
     Map<String, String> configMap();
 
     /**
-     * Configuration for service aliyun_drive.
+     * Configuration for service aliyun-drive.
      */
     @Builder
     @Data
@@ -94,7 +94,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "aliyun_drive";
+            return "aliyun-drive";
         }
 
         @Override
@@ -295,6 +295,14 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
+         * <p>Whether hierarchical namespace (HNS) is enabled for the storage account.
+         * When enabled, recursive deletion can use pagination to avoid timeouts on large directories.</p>
+         * <ul>
+         * <li>default value: <code>false</code></li>
+         * </ul>
+         */
+        public final Boolean enableHns;
+        /**
          * <p>Endpoint of this backend.</p>
          */
         public final String endpoint;
@@ -345,6 +353,9 @@ public interface ServiceConfig {
             }
             if (clientSecret != null) {
                 map.put("client_secret", clientSecret);
+            }
+            if (enableHns != null) {
+                map.put("enable_hns", String.valueOf(enableHns));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -513,7 +524,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service cloudflare_kv.
+     * Configuration for service cloudflare-kv.
      */
     @Builder
     @Data
@@ -542,7 +553,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "cloudflare_kv";
+            return "cloudflare-kv";
         }
 
         @Override
@@ -935,6 +946,94 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service foyer.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Foyer implements ServiceConfig {
+        /**
+         * <p>Disk cache total capacity in bytes.
+         * Only used when <code>disk_path</code> is set.</p>
+         */
+        public final Long diskCapacity;
+        /**
+         * <p>Individual cache file size in bytes.</p>
+         * <p>Default is 1 MiB.
+         * Only used when <code>disk_path</code> is set.</p>
+         */
+        public final Long diskFileSize;
+        /**
+         * <p>Disk cache directory path.</p>
+         * <p>If set, enables hybrid cache with disk storage. Data will be persisted to
+         * this directory when memory cache is full.</p>
+         */
+        public final String diskPath;
+        /**
+         * <p>Memory capacity in bytes for the cache.</p>
+         */
+        public final Long memory;
+        /**
+         * <p>Name for this cache instance.</p>
+         */
+        public final String name;
+        /**
+         * <p>Recovery mode when starting the cache.</p>
+         * <p>Valid values: &quot;none&quot; (default), &quot;quiet&quot;, &quot;strict&quot;.</p>
+         * <ul>
+         * <li>&quot;none&quot;: Don't recover from disk</li>
+         * <li>&quot;quiet&quot;: Recover and skip errors</li>
+         * <li>&quot;strict&quot;: Recover and panic on errors</li>
+         * </ul>
+         */
+        public final String recoverMode;
+        /**
+         * <p>Root path of this backend.</p>
+         */
+        public final String root;
+        /**
+         * <p>Number of shards for concurrent access.</p>
+         * <p>Default is 1. Higher values improve concurrency but increase overhead.</p>
+         */
+        public final Long shards;
+
+        @Override
+        public String scheme() {
+            return "foyer";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (diskCapacity != null) {
+                map.put("disk_capacity", String.valueOf(diskCapacity));
+            }
+            if (diskFileSize != null) {
+                map.put("disk_file_size", String.valueOf(diskFileSize));
+            }
+            if (diskPath != null) {
+                map.put("disk_path", diskPath);
+            }
+            if (memory != null) {
+                map.put("memory", String.valueOf(memory));
+            }
+            if (name != null) {
+                map.put("name", name);
+            }
+            if (recoverMode != null) {
+                map.put("recover_mode", recoverMode);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (shards != null) {
+                map.put("shards", String.valueOf(shards));
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service fs.
      */
     @Builder
@@ -1235,6 +1334,98 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service goosefs.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Goosefs implements ServiceConfig {
+        /**
+         * <p>Authentication type.</p>
+         * <p>Supported values: <code>&quot;nosasl&quot;</code>, <code>&quot;simple&quot;</code>.
+         * Default: <code>&quot;simple&quot;</code> — PLAIN SASL with username.
+         * <code>&quot;nosasl&quot;</code> — skip authentication entirely.</p>
+         */
+        public final String authType;
+        /**
+         * <p>Authentication username.</p>
+         * <p>Used in SIMPLE mode as the login identity.
+         * Default: current OS user (<code>$USER</code> / <code>$USERNAME</code>).</p>
+         */
+        public final String authUsername;
+        /**
+         * <p>Block size in bytes for new files (default: 64 MiB).</p>
+         */
+        public final Long blockSize;
+        /**
+         * <p>Chunk size in bytes for streaming RPCs (default: 1 MiB).</p>
+         */
+        public final Long chunkSize;
+        /**
+         * <p>Master address(es) in <code>host:port</code> format.</p>
+         * <p>For single master: <code>&quot;10.0.0.1:9200&quot;</code>
+         * For HA (comma-separated): <code>&quot;10.0.0.1:9200,10.0.0.2:9200,10.0.0.3:9200&quot;</code></p>
+         * <p>When multiple addresses are provided, the client uses
+         * <code>PollingMasterInquireClient</code> to discover the Primary Master automatically.</p>
+         * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
+         * <code>goosefs-sdk</code> <code>docs/CLIENT_CONFIGURATION.md</code> §1:</p>
+         * <ol>
+         * <li>This field (when set on the builder / OpenDAL config map)</li>
+         * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>
+         * <li><code>goosefs.master.rpc.addresses</code> / <code>goosefs.master.hostname</code> in
+         * <code>goosefs-site.properties</code></li>
+         * </ol>
+         * <p><code>build()</code> fails with <code>ConfigInvalid</code> only when <strong>none</strong> of the above
+         * supplies a master address.</p>
+         */
+        public final String masterAddr;
+        /**
+         * <p>Root path of this backend.</p>
+         * <p>All operations will happen under this root.
+         * Default to <code>/</code> if not set.</p>
+         */
+        public final String root;
+        /**
+         * <p>Default write type for new files.</p>
+         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;cache_through&quot;</code>, <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>.
+         * Default: <code>&quot;must_cache&quot;</code>.</p>
+         */
+        public final String writeType;
+
+        @Override
+        public String scheme() {
+            return "goosefs";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (authType != null) {
+                map.put("auth_type", authType);
+            }
+            if (authUsername != null) {
+                map.put("auth_username", authUsername);
+            }
+            if (blockSize != null) {
+                map.put("block_size", String.valueOf(blockSize));
+            }
+            if (chunkSize != null) {
+                map.put("chunk_size", String.valueOf(chunkSize));
+            }
+            if (masterAddr != null) {
+                map.put("master_addr", masterAddr);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (writeType != null) {
+                map.put("write_type", writeType);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service gridfs.
      */
     @Builder
@@ -1290,7 +1481,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service hdfs_native.
+     * Configuration for service hdfs-native.
      */
     @Builder
     @Data
@@ -1305,13 +1496,17 @@ public interface ServiceConfig {
          */
         public final String nameNode;
         /**
+         * <p>other options for hdfs client</p>
+         */
+        public final Map<String, String> options;
+        /**
          * <p>work dir of this backend</p>
          */
         public final String root;
 
         @Override
         public String scheme() {
-            return "hdfs_native";
+            return "hdfs-native";
         }
 
         @Override
@@ -1323,8 +1518,77 @@ public interface ServiceConfig {
             if (nameNode != null) {
                 map.put("name_node", nameNode);
             }
+            if (options != null) {
+                map.putAll(options);
+            }
             if (root != null) {
                 map.put("root", root);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service hf.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Hf implements ServiceConfig {
+        /**
+         * <p>Endpoint of the Hugging Face Hub.</p>
+         * <p>Default is &quot;https://huggingface.co&quot;.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Repo id of this backend.</p>
+         * <p>This is required.</p>
+         */
+        public final String repoId;
+        /**
+         * <p>Repo type of this backend. Default is model.</p>
+         * <p>Default is model</p>
+         */
+        public final @NonNull String repoType;
+        /**
+         * <p>Revision of this backend.</p>
+         * <p>Default is main.</p>
+         */
+        public final String revision;
+        /**
+         * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
+         * <p>Default is &quot;/&quot;.</p>
+         */
+        public final String root;
+        /**
+         * <p>Token of this backend.</p>
+         * <p>This is optional.</p>
+         */
+        public final String token;
+
+        @Override
+        public String scheme() {
+            return "hf";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (repoId != null) {
+                map.put("repo_id", repoId);
+            }
+            map.put("repo_type", repoType);
+            if (revision != null) {
+                map.put("revision", revision);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (token != null) {
+                map.put("token", token);
             }
             return map;
         }
@@ -1380,70 +1644,6 @@ public interface ServiceConfig {
             }
             if (username != null) {
                 map.put("username", username);
-            }
-            return map;
-        }
-    }
-
-    /**
-     * Configuration for service huggingface.
-     */
-    @Builder
-    @Data
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    class Huggingface implements ServiceConfig {
-        /**
-         * <p>Repo id of this backend.</p>
-         * <p>This is required.</p>
-         */
-        public final String repoId;
-        /**
-         * <p>Repo type of this backend. Default is model.</p>
-         * <p>Available values:</p>
-         * <ul>
-         * <li>model</li>
-         * <li>dataset</li>
-         * </ul>
-         */
-        public final String repoType;
-        /**
-         * <p>Revision of this backend.</p>
-         * <p>Default is main.</p>
-         */
-        public final String revision;
-        /**
-         * <p>Root of this backend. Can be &quot;/path/to/dir&quot;.</p>
-         * <p>Default is &quot;/&quot;.</p>
-         */
-        public final String root;
-        /**
-         * <p>Token of this backend.</p>
-         * <p>This is optional.</p>
-         */
-        public final String token;
-
-        @Override
-        public String scheme() {
-            return "huggingface";
-        }
-
-        @Override
-        public Map<String, String> configMap() {
-            final HashMap<String, String> map = new HashMap<>();
-            if (repoId != null) {
-                map.put("repo_id", repoId);
-            }
-            if (repoType != null) {
-                map.put("repo_type", repoType);
-            }
-            if (revision != null) {
-                map.put("revision", revision);
-            }
-            if (root != null) {
-                map.put("root", root);
-            }
-            if (token != null) {
-                map.put("token", token);
             }
             return map;
         }
@@ -1641,7 +1841,7 @@ public interface ServiceConfig {
          * <p>The maximum number of connections allowed.</p>
          * <p>default is 10</p>
          */
-        public final Integer connectionPoolMaxSize;
+        public final Long connectionPoolMaxSize;
         /**
          * <p>The default ttl for put operations.</p>
          */
@@ -2117,6 +2317,10 @@ public interface ServiceConfig {
     @Data
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Opfs implements ServiceConfig {
+        /**
+         * <p>Root directory for this backend.</p>
+         */
+        public final String root;
 
         @Override
         public String scheme() {
@@ -2126,6 +2330,9 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (root != null) {
+                map.put("root", root);
+            }
             return map;
         }
     }
@@ -2141,7 +2348,7 @@ public interface ServiceConfig {
          * <p>Access key id for oss.</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_ACCESS_KEY_ID</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_ACCESS_KEY_ID</code></li>
          * </ul>
          */
         public final String accessKeyId;
@@ -2149,7 +2356,7 @@ public interface ServiceConfig {
          * <p>Access key secret for oss.</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_ACCESS_KEY_SECRET</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_ACCESS_KEY_SECRET</code></li>
          * </ul>
          */
         public final String accessKeySecret;
@@ -2187,7 +2394,7 @@ public interface ServiceConfig {
          * <p><code>oidc_provider_arn</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_OIDC_PROVIDER_ARN</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_OIDC_PROVIDER_ARN</code></li>
          * </ul>
          */
         public final String oidcProviderArn;
@@ -2195,7 +2402,7 @@ public interface ServiceConfig {
          * <p><code>oidc_token_file</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_OIDC_TOKEN_FILE</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_OIDC_TOKEN_FILE</code></li>
          * </ul>
          */
         public final String oidcTokenFile;
@@ -2212,7 +2419,7 @@ public interface ServiceConfig {
          * credential to assume role with <code>role_arn</code>.</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_ROLE_ARN</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_ROLE_ARN</code></li>
          * </ul>
          */
         public final String roleArn;
@@ -2228,7 +2435,7 @@ public interface ServiceConfig {
          * <p><code>security_token</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_SECURITY_TOKEN</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_SECURITY_TOKEN</code></li>
          * </ul>
          */
         public final String securityToken;
@@ -2244,7 +2451,7 @@ public interface ServiceConfig {
          * <p><code>sts_endpoint</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
-         * <li>env value: [<code>ALIBABA_CLOUD_STS_ENDPOINT</code>]</li>
+         * <li>env value: <code>ALIBABA_CLOUD_STS_ENDPOINT</code></li>
          * </ul>
          */
         public final String stsEndpoint;
@@ -2528,7 +2735,7 @@ public interface ServiceConfig {
          * <p>The maximum number of connections allowed.</p>
          * <p>default is 10</p>
          */
-        public final Integer connectionPoolMaxSize;
+        public final Long connectionPoolMaxSize;
         /**
          * <p>the number of DBs redis can take is unlimited</p>
          * <p>default is db 0</p>
@@ -2614,6 +2821,14 @@ public interface ServiceConfig {
          */
         public final Boolean allowAnonymous;
         /**
+         * <p>assume_role_duration_seconds for this backend.</p>
+         */
+        public final Integer assumeRoleDurationSeconds;
+        /**
+         * <p>assume_role_session_tags for this backend.</p>
+         */
+        public final Map<String, String> assumeRoleSessionTags;
+        /**
          * <p>Set maximum batch operations of this backend.</p>
          * <p>Some compatible services have a limit on the number of operations in a batch request.
          * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
@@ -2633,9 +2848,15 @@ public interface ServiceConfig {
          * <p>Available options:</p>
          * <ul>
          * <li>&quot;crc32c&quot;</li>
+         * <li>&quot;md5&quot;</li>
          * </ul>
          */
         public final String checksumAlgorithm;
+        /**
+         * <p>Default ACL for new objects.
+         * Note that some s3 services like minio do not support this option.</p>
+         */
+        public final String defaultAcl;
         /**
          * <p>default storage_class for this backend.</p>
          * <p>Available values:</p>
@@ -2674,7 +2895,7 @@ public interface ServiceConfig {
         /**
          * <p>Disable load credential from ec2 metadata.</p>
          * <p>This option is used to disable the default behavior of opendal
-         * to load credential from ec2 metadata, a.k.a, IMDSv2</p>
+         * to load credential from ec2 metadata, a.k.a., IMDSv2</p>
          */
         public final Boolean disableEc2Metadata;
         /**
@@ -2690,7 +2911,7 @@ public interface ServiceConfig {
         public final Boolean disableStatWithOverride;
         /**
          * <p>Disable write with if match so that opendal will not send write request with if match headers.</p>
-         * <p>For example, Ceph RADOS S3 doesn't support write with if match.</p>
+         * <p>For example, Ceph RADOS S3 doesn't support write with if matched.</p>
          */
         public final Boolean disableWriteWithIfMatch;
         /**
@@ -2827,12 +3048,21 @@ public interface ServiceConfig {
             if (allowAnonymous != null) {
                 map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
+            if (assumeRoleDurationSeconds != null) {
+                map.put("assume_role_duration_seconds", String.valueOf(assumeRoleDurationSeconds));
+            }
+            if (assumeRoleSessionTags != null) {
+                map.putAll(assumeRoleSessionTags);
+            }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));
             }
             map.put("bucket", bucket);
             if (checksumAlgorithm != null) {
                 map.put("checksum_algorithm", checksumAlgorithm);
+            }
+            if (defaultAcl != null) {
+                map.put("default_acl", defaultAcl);
             }
             if (defaultStorageClass != null) {
                 map.put("default_storage_class", defaultStorageClass);
@@ -3237,6 +3467,20 @@ public interface ServiceConfig {
          */
         public final String root;
         /**
+         * <p>The hash algorithm for TempURL signing.</p>
+         * <p>Supported values: <code>sha1</code>, <code>sha256</code>, <code>sha512</code>. Defaults to <code>sha256</code>.
+         * The cluster must have the chosen algorithm in its
+         * <code>tempurl.allowed_digests</code> (check <code>GET /info</code>).</p>
+         */
+        public final String tempUrlHashAlgorithm;
+        /**
+         * <p>The TempURL key for generating presigned URLs.</p>
+         * <p>This corresponds to the <code>X-Account-Meta-Temp-URL-Key</code> or
+         * <code>X-Container-Meta-Temp-URL-Key</code> header value configured on the
+         * Swift account or container.</p>
+         */
+        public final String tempUrlKey;
+        /**
          * <p>The token for Swift.</p>
          */
         public final String token;
@@ -3258,8 +3502,136 @@ public interface ServiceConfig {
             if (root != null) {
                 map.put("root", root);
             }
+            if (tempUrlHashAlgorithm != null) {
+                map.put("temp_url_hash_algorithm", tempUrlHashAlgorithm);
+            }
+            if (tempUrlKey != null) {
+                map.put("temp_url_key", tempUrlKey);
+            }
             if (token != null) {
                 map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
+     * Configuration for service tos.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class Tos implements ServiceConfig {
+        /**
+         * <p>access_key_id of this backend.</p>
+         * <ul>
+         * <li>If access_key_id is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
+         */
+        public final String accessKeyId;
+        /**
+         * <p>Allow anonymous will allow opendal to send request without signing
+         * when credential is not loaded.</p>
+         */
+        public final Boolean allowAnonymous;
+        /**
+         * <p>bucket name of this backend.</p>
+         * <p>required.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Disable config load so that opendal will not load config from
+         * environment.</p>
+         * <p>For examples:</p>
+         * <ul>
+         * <li>envs like <code>TOS_ACCESS_KEY_ID</code></li>
+         * </ul>
+         */
+        public final Boolean disableConfigLoad;
+        /**
+         * <p>Enable bucket versioning for this backend.</p>
+         * <p>If set to true, OpenDAL will support versioned operations like list with
+         * versions, read with version, etc.</p>
+         */
+        public final Boolean enableVersioning;
+        /**
+         * <p>endpoint of this backend.</p>
+         * <p>Endpoint must be full uri, e.g.</p>
+         * <ul>
+         * <li>TOS: <code>https://tos-cn-beijing.volces.com</code></li>
+         * <li>TOS with region: <code>https://tos-{region}.volces.com</code></li>
+         * </ul>
+         * <p>If user inputs endpoint without scheme like &quot;tos-cn-beijing.volces.com&quot;, we
+         * will prepend &quot;https://&quot; before it.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Region represent the signing region of this endpoint.</p>
+         * <p>Required if endpoint is not provided.</p>
+         * <ul>
+         * <li>If region is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * <li>If still not set, default to <code>cn-beijing</code>.</li>
+         * </ul>
+         */
+        public final String region;
+        /**
+         * <p>root of this backend.</p>
+         * <p>All operations will happen under this root.</p>
+         * <p>default to <code>/</code> if not set.</p>
+         */
+        public final String root;
+        /**
+         * <p>secret_access_key of this backend.</p>
+         * <ul>
+         * <li>If secret_access_key is set, we will take user's input first.</li>
+         * <li>If not, we will try to load it from environment.</li>
+         * </ul>
+         */
+        public final String secretAccessKey;
+        /**
+         * <p>security_token of this backend.</p>
+         * <p>This token will expire after sometime, it's recommended to set security_token
+         * by hand.</p>
+         */
+        public final String securityToken;
+
+        @Override
+        public String scheme() {
+            return "tos";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            if (accessKeyId != null) {
+                map.put("access_key_id", accessKeyId);
+            }
+            if (allowAnonymous != null) {
+                map.put("allow_anonymous", String.valueOf(allowAnonymous));
+            }
+            map.put("bucket", bucket);
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
+            if (enableVersioning != null) {
+                map.put("enable_versioning", String.valueOf(enableVersioning));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (region != null) {
+                map.put("region", region);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (secretAccessKey != null) {
+                map.put("secret_access_key", secretAccessKey);
+            }
+            if (securityToken != null) {
+                map.put("security_token", securityToken);
             }
             return map;
         }
@@ -3313,7 +3685,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service vercel_artifacts.
+     * Configuration for service vercel-artifacts.
      */
     @Builder
     @Data
@@ -3341,7 +3713,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "vercel_artifacts";
+            return "vercel-artifacts";
         }
 
         @Override
@@ -3364,7 +3736,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service vercel_blob.
+     * Configuration for service vercel-blob.
      */
     @Builder
     @Data
@@ -3382,7 +3754,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "vercel_blob";
+            return "vercel-blob";
         }
 
         @Override
@@ -3410,6 +3782,24 @@ public interface ServiceConfig {
          */
         public final Boolean disableCopy;
         /**
+         * <p>Disable automatic parent directory creation before write operations.</p>
+         * <p>By default, OpenDAL creates parent directories using MKCOL before writing files.
+         * This requires PROPFIND support to check directory existence.</p>
+         * <p>Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
+         * or don't require explicit directory creation. Enable this option to skip
+         * the MKCOL calls and write files directly.</p>
+         * <p>Default: false</p>
+         */
+        public final Boolean disableCreateDir;
+        /**
+         * <p>Enable user metadata support via WebDAV PROPPATCH.</p>
+         * <p>This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
+         * Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
+         * Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).</p>
+         * <p>Default: false</p>
+         */
+        public final Boolean enableUserMetadata;
+        /**
          * <p>endpoint of this backend</p>
          */
         public final String endpoint;
@@ -3426,6 +3816,21 @@ public interface ServiceConfig {
          */
         public final String token;
         /**
+         * <p>The XML namespace prefix for user metadata properties.</p>
+         * <p>This prefix is used in PROPPATCH/PROPFIND XML requests.
+         * Different servers may require different prefixes.</p>
+         * <p>Default: &quot;opendal&quot;</p>
+         */
+        public final String userMetadataPrefix;
+        /**
+         * <p>The XML namespace URI for user metadata properties.</p>
+         * <p>This URI uniquely identifies the namespace for custom properties.
+         * Different servers may require different namespace URIs.
+         * For example, Nextcloud might work better with its own namespace.</p>
+         * <p>Default: <code>https://opendal.apache.org/ns</code></p>
+         */
+        public final String userMetadataUri;
+        /**
          * <p>username of this backend</p>
          */
         public final String username;
@@ -3441,6 +3846,12 @@ public interface ServiceConfig {
             if (disableCopy != null) {
                 map.put("disable_copy", String.valueOf(disableCopy));
             }
+            if (disableCreateDir != null) {
+                map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (enableUserMetadata != null) {
+                map.put("enable_user_metadata", String.valueOf(enableUserMetadata));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -3452,6 +3863,12 @@ public interface ServiceConfig {
             }
             if (token != null) {
                 map.put("token", token);
+            }
+            if (userMetadataPrefix != null) {
+                map.put("user_metadata_prefix", userMetadataPrefix);
+            }
+            if (userMetadataUri != null) {
+                map.put("user_metadata_uri", userMetadataUri);
             }
             if (username != null) {
                 map.put("username", username);
@@ -3523,7 +3940,7 @@ public interface ServiceConfig {
     }
 
     /**
-     * Configuration for service yandex_disk.
+     * Configuration for service yandex-disk.
      */
     @Builder
     @Data
@@ -3541,7 +3958,7 @@ public interface ServiceConfig {
 
         @Override
         public String scheme() {
-            return "yandex_disk";
+            return "yandex-disk";
         }
 
         @Override

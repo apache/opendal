@@ -235,6 +235,7 @@ fn make_python_type(ty: ViaDeserialize<ConfigType>) -> Result<String, minijinja:
         | ConfigType::U32
         | ConfigType::U16 => "builtins.int",
         ConfigType::Vec => "typing.Any",
+        ConfigType::HashMap => "builtins.dict",
         ConfigType::String => "builtins.str",
     }
     .to_string())

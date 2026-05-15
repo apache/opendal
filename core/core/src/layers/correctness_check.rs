@@ -147,6 +147,13 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
                 "if_not_exists",
             ));
         }
+        if args.if_match().is_some() && !capability.write_with_if_match {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Write,
+                "if_match",
+            ));
+        }
         if let Some(if_none_match) = args.if_none_match() {
             if !capability.write_with_if_none_match {
                 let mut err =
@@ -208,6 +215,19 @@ impl<A: Access> LayeredAccess for CorrectnessAccessor<A> {
             let deleter = CheckWrapper::new(deleter, self.info.clone());
             (rp, deleter)
         })
+    }
+
+    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+        let capability = self.info.full_capability();
+        if args.if_not_exists() && !capability.copy_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &self.info,
+                Operation::Copy,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.copy(from, to, args).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

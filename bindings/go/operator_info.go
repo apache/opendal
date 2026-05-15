@@ -219,6 +219,10 @@ func (c *Capability) PresignWrite() bool {
 	return c.inner.presignWrite == 1
 }
 
+func (c *Capability) PresignDelete() bool {
+	return c.inner.presignDelete == 1
+}
+
 func (c *Capability) Shared() bool {
 	return c.inner.shared == 1
 }
@@ -285,47 +289,56 @@ var ffiOperatorInfoGetNativeCapability = newFFI(ffiOpts{
 	}
 })
 
-var ffiOperatorInfoGetScheme = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_scheme",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-	return func(info *opendalOperatorInfo) string {
-		var bytePtr *byte
-		ffiCall(
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&info),
-		)
-		return BytePtrToString(bytePtr)
-	}
-})
+var ffiOperatorInfoGetScheme = func() *FFI[func(info *opendalOperatorInfo) string] {
+	_ = ffiStringFree
+	return newFFI(ffiOpts{
+		sym:    "opendal_operator_info_get_scheme",
+		rType:  &ffi.TypePointer,
+		aTypes: []*ffi.Type{&ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
+		return func(info *opendalOperatorInfo) string {
+			var bytePtr *byte
+			ffiCall(
+				unsafe.Pointer(&bytePtr),
+				unsafe.Pointer(&info),
+			)
+			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+		}
+	})
+}()
 
-var ffiOperatorInfoGetRoot = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_root",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-	return func(info *opendalOperatorInfo) string {
-		var bytePtr *byte
-		ffiCall(
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&info),
-		)
-		return BytePtrToString(bytePtr)
-	}
-})
+var ffiOperatorInfoGetRoot = func() *FFI[func(info *opendalOperatorInfo) string] {
+	_ = ffiStringFree
+	return newFFI(ffiOpts{
+		sym:    "opendal_operator_info_get_root",
+		rType:  &ffi.TypePointer,
+		aTypes: []*ffi.Type{&ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
+		return func(info *opendalOperatorInfo) string {
+			var bytePtr *byte
+			ffiCall(
+				unsafe.Pointer(&bytePtr),
+				unsafe.Pointer(&info),
+			)
+			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+		}
+	})
+}()
 
-var ffiOperatorInfoGetName = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_name",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-	return func(info *opendalOperatorInfo) string {
-		var bytePtr *byte
-		ffiCall(
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&info),
-		)
-		return BytePtrToString(bytePtr)
-	}
-})
+var ffiOperatorInfoGetName = func() *FFI[func(info *opendalOperatorInfo) string] {
+	_ = ffiStringFree
+	return newFFI(ffiOpts{
+		sym:    "opendal_operator_info_get_name",
+		rType:  &ffi.TypePointer,
+		aTypes: []*ffi.Type{&ffi.TypePointer},
+	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
+		return func(info *opendalOperatorInfo) string {
+			var bytePtr *byte
+			ffiCall(
+				unsafe.Pointer(&bytePtr),
+				unsafe.Pointer(&info),
+			)
+			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+		}
+	})
+}()

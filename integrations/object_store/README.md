@@ -92,10 +92,10 @@ Add the following dependencies to your `Cargo.toml` with correct version:
 
 ```toml
 [dependencies]
-object_store = "0.11.0"
+object_store = "0.13.1"
 object_store_opendal = "xxx" # see the latest version above
 opendal = { version = "xxx", features = ["services-s3"] } # see the latest version above
-datafusion = "44.0.0"
+datafusion = "53.0.0"
 url = "2.5.2"
 ```
 

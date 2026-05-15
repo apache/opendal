@@ -68,10 +68,10 @@ impl SurrealdbCore {
 
                 if !self.username.is_empty() && !self.password.is_empty() {
                     db.signin(Database {
-                        namespace,
-                        database,
-                        username: self.username.as_str(),
-                        password: self.password.as_str(),
+                        namespace: namespace.to_string(),
+                        database: database.to_string(),
+                        username: self.username.clone(),
+                        password: self.password.clone(),
                     })
                     .await
                     .map_err(parse_surrealdb_error)?;

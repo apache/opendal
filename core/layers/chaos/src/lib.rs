@@ -15,14 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Chaos layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use rand::prelude::*;
-use rand::rngs::StdRng;
-
 use opendal_core::raw::*;
 use opendal_core::*;
+use rand::prelude::*;
+use rand::rngs::StdRng;
 
 /// Inject chaos into underlying services for robustness test.
 ///
@@ -44,25 +48,25 @@ use opendal_core::*;
 /// # Examples
 ///
 /// ```no_run
-/// # use opendal_layer_chaos::ChaosLayer;
 /// # use opendal_core::services;
 /// # use opendal_core::Operator;
 /// # use opendal_core::Result;
-///
+/// # use opendal_layer_chaos::ChaosLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ChaosLayer::new(0.1))
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ChaosLayer {
     error_ratio: f64,
 }
 
 impl ChaosLayer {
-    /// Create a new chaos layer with specified error ratio.
+    /// Create a new [`ChaosLayer`] with specified error ratio.
     ///
     /// # Panics
     ///
@@ -82,16 +86,17 @@ impl<A: Access> Layer<A> for ChaosLayer {
     fn layer(&self, inner: A) -> Self::LayeredAccess {
         ChaosAccessor {
             inner,
-            rng: StdRng::from_entropy(),
+            rng: Arc::new(Mutex::new(rand::make_rng())),
             error_ratio: self.error_ratio,
         }
     }
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub struct ChaosAccessor<A> {
     inner: A,
-    rng: StdRng,
+    rng: Arc<Mutex<StdRng>>,
 
     error_ratio: f64,
 }
@@ -108,10 +113,12 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     }
 
     async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        self.inner
-            .read(path, args)
-            .await
-            .map(|(rp, r)| (rp, ChaosReader::new(r, self.rng.clone(), self.error_ratio)))
+        self.inner.read(path, args).await.map(|(rp, r)| {
+            (
+                rp,
+                ChaosReader::new(r, Arc::clone(&self.rng), self.error_ratio),
+            )
+        })
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
@@ -127,7 +134,7 @@ impl<A: Access> LayeredAccess for ChaosAccessor<A> {
     }
 }
 
-/// ChaosReader will inject error into read operations.
+#[doc(hidden)]
 pub struct ChaosReader<R> {
     inner: R,
     rng: Arc<Mutex<StdRng>>,
@@ -136,10 +143,10 @@ pub struct ChaosReader<R> {
 }
 
 impl<R> ChaosReader<R> {
-    fn new(inner: R, rng: StdRng, error_ratio: f64) -> Self {
+    fn new(inner: R, rng: Arc<Mutex<StdRng>>, error_ratio: f64) -> Self {
         Self {
             inner,
-            rng: Arc::new(Mutex::new(rng)),
+            rng,
             error_ratio,
         }
     }
@@ -147,8 +154,8 @@ impl<R> ChaosReader<R> {
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
     fn i_feel_lucky(&self) -> bool {
-        let point = self.rng.lock().unwrap().gen_range(0..=100);
-        point >= (self.error_ratio * 100.0) as i32
+        let point: u32 = self.rng.lock().unwrap().random_range(0..100);
+        point >= (self.error_ratio * 100.0) as u32
     }
 
     fn unexpected_eof() -> Error {

@@ -49,7 +49,7 @@ jobs:
         dlang: ["ldc-latest", "dmd-latest"]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: dlang-community/setup-dlang@v2
         with:
           compiler: ${{ matrix.dlang }}

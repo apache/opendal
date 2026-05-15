@@ -24,8 +24,8 @@ runs:
     - name: Setup java env
       uses: actions/setup-java@v4
       with:
-        distribution: temurin
-        java-version: "11"
+        distribution: zulu
+        java-version: 11
     - name: Setup MinIO Server
       shell: bash
       working-directory: fixtures/s3

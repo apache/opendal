@@ -193,6 +193,10 @@ bool opendal_check_capability(const opendal_operator* op,
         result = false;
     if (required.presign_write && !cap.presign_write)
         result = false;
+    if (required.presign_stat && !cap.presign_stat)
+        result = false;
+    if (required.presign_delete && !cap.presign_delete)
+        result = false;
 
     opendal_operator_info_free(info);
     return result;

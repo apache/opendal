@@ -21,7 +21,7 @@ edition = "2024"
 license = "Apache-2.0"
 name = "opendal-service-http"
 repository = "https://github.com/apache/opendal"
-version = "0.55.0"
+version = "0.56.0"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -29,9 +29,9 @@ all-features = true
 [dependencies]
 http = "1.1"
 log = "0.4"
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
-opendal-core = { path = "../../core", version = "0.55.0", default-features = false }
+opendal-core = { path = "../../core", version = "0.56.0", default-features = false }
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }

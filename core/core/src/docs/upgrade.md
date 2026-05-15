@@ -1,3 +1,29 @@
+# Upgrade to v0.57
+
+## Public API
+
+### `RetryInterceptor::intercept` takes `RetryEvent`
+
+`RetryInterceptor::intercept` now receives a single `RetryEvent<'_>` argument instead of `(&Error, Duration)`. The event carries the operation being retried and a 1-based retry attempt counter, and is `#[non_exhaustive]` so future fields can be added without another break.
+
+# Upgrade to v0.56
+
+## Public API
+
+### Deprecated HTTP client builder hooks removed
+
+The long-deprecated `http_client` customization hooks on service builders have been removed. Configure custom HTTP behavior with the layered HTTP client APIs instead of mutating service builders directly.
+
+### `TimeoutLayer::with_speed` removed
+
+`TimeoutLayer::with_speed` has been removed after a deprecation cycle. Use `with_io_timeout` to enforce per-IO deadlines instead.
+
+## Raw API
+
+### Test helpers moved to `opendal_testkit`
+
+The old `opendal::raw::tests` module has been split into the standalone `opendal-testkit` crate. If you maintain out-of-tree services or integrations, replace imports from `opendal::raw::tests` with `opendal::tests` or depend on `opendal-testkit` directly.
+
 # Upgrade to v0.55
 
 ## Public API
@@ -56,7 +82,7 @@ OpenDAL v0.54 implements [RFC-6213](https://opendal.apache.org/docs/rust/opendal
 New APIs added:
 
 - `read_options(path, ReadOptions)`
-- `write_options(path, data, WriteOptions)`  
+- `write_options(path, data, WriteOptions)`
 - `list_options(path, ListOptions)`
 - `stat_options(path, StatOptions)`
 - `delete_options(path, DeleteOptions)`
@@ -70,7 +96,7 @@ let options = ReadOptions::new()
     .if_match("etag");
 let data = op.read_options("path/to/file", options).await?;
 
-// Write with options  
+// Write with options
 let options = WriteOptions::new()
     .content_type("text/plain")
     .cache_control("max-age=3600");
@@ -118,7 +144,7 @@ New options-based presign APIs have been exposed:
 ```rust
 let options = PresignOptions::new()
     .expire(Duration::from_secs(3600));
-    
+
 let url = op.presign_read_options("path/to/file", options).await?;
 ```
 
@@ -170,7 +196,6 @@ For example:
 
 - `Operation::ReaderRead` has been merged into `Operation::Read`
 - `Operation::BlockingRead` has been merged into `Operation::Read`
-
 
 # Upgrade to v0.52
 
@@ -636,7 +661,7 @@ After [RFC: List Prefix](crate::docs::rfcs::rfc_3243_list_prefix) landed, we hav
 Here are the behavior list:
 
 | Case                   | Path            | Result                                     |
-|------------------------|-----------------|--------------------------------------------|
+| ---------------------- | --------------- | ------------------------------------------ |
 | stat existing dir      | `abc/`          | Metadata with dir mode                     |
 | stat existing file     | `abc/def_file`  | Metadata with file mode                    |
 | stat dir without `/`   | `abc/def_dir`   | Error `NotFound` or metadata with dir mode |
@@ -772,8 +797,6 @@ OpenDAL v0.40 removed the origin `range_read` and `range_reader` interfaces, ple
 - let reader = op.range_reader(path, range_start..range_end).await?;
 + let reader = op.reader_with(path).range(range_start..range_end).await?;
 ```
-
-
 
 ## Raw API
 
@@ -962,7 +985,7 @@ More details could be found at [RFC: Remove Object Concept][crate::docs::rfcs::r
 To upgrade to OpenDAL v0.30, users need to make the following changes:
 
 - regex replace `object\((.*)\).reader\(\)` to `reader($1)`
-	- replace the function on your case, it's recommended to do it one by one
+  - replace the function on your case, it's recommended to do it one by one
 - rename `ObjectMetakey` => `Metakey`
 - rename `ObjectMode` => `EntryMode`
 - replace `ErrorKind::ObjectXxx` to `ErrorKind::Xxx`

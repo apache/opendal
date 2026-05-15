@@ -15,8 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::Result;
+//! MIME guess layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use opendal_core::raw::*;
+use opendal_core::*;
 
 /// A layer that can automatically set `Content-Type` based on the file extension in the path.
 ///
@@ -52,14 +57,21 @@ use opendal_core::raw::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(MimeGuessLayer::default())
+///     .layer(MimeGuessLayer::new())
 ///     .finish();
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 #[non_exhaustive]
 pub struct MimeGuessLayer {}
+
+impl MimeGuessLayer {
+    /// Create a new [`MimeGuessLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for MimeGuessLayer {
     type LayeredAccess = MimeGuessAccessor<A>;
@@ -69,7 +81,8 @@ impl<A: Access> Layer<A> for MimeGuessLayer {
     }
 }
 
-#[derive(Clone, Debug)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct MimeGuessAccessor<A: Access>(A);
 
 fn mime_from_path(path: &str) -> Option<&str> {
@@ -142,9 +155,6 @@ impl<A: Access> LayeredAccess for MimeGuessAccessor<A> {
 #[cfg(test)]
 mod tests {
     use futures::TryStreamExt;
-    use opendal_core::Metadata;
-    use opendal_core::Operator;
-    use opendal_core::services::Memory;
 
     use super::*;
 
@@ -153,46 +163,35 @@ mod tests {
     const HTML: &str = "text/html";
 
     #[tokio::test]
-    async fn test_async() {
-        let op = Operator::new(Memory::default())
-            .unwrap()
-            .layer(MimeGuessLayer::default())
+    async fn test_async() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?
+            .layer(MimeGuessLayer::new())
             .finish();
 
-        op.write("test0.html", DATA).await.unwrap();
-        assert_eq!(
-            op.stat("test0.html").await.unwrap().content_type(),
-            Some(HTML)
-        );
+        op.write("test0.html", DATA).await?;
+        assert_eq!(op.stat("test0.html").await?.content_type(), Some(HTML));
 
-        op.write("test1.asdfghjkl", DATA).await.unwrap();
-        assert_eq!(
-            op.stat("test1.asdfghjkl").await.unwrap().content_type(),
-            None
-        );
+        op.write("test1.asdfghjkl", DATA).await?;
+        assert_eq!(op.stat("test1.asdfghjkl").await?.content_type(), None);
 
         op.write_with("test2.html", DATA)
             .content_type(CUSTOM)
-            .await
-            .unwrap();
-        assert_eq!(
-            op.stat("test2.html").await.unwrap().content_type(),
-            Some(CUSTOM)
-        );
+            .await?;
+        assert_eq!(op.stat("test2.html").await?.content_type(), Some(CUSTOM));
 
-        let entries: Vec<Metadata> = op
+        let entries = op
             .lister_with("")
-            .await
-            .unwrap()
+            .await?
             .and_then(|entry| {
                 let op = op.clone();
                 async move { op.stat(entry.path()).await }
             })
-            .try_collect()
-            .await
-            .unwrap();
+            .try_collect::<Vec<_>>()
+            .await?;
         assert_eq!(entries[0].content_type(), Some(HTML));
         assert_eq!(entries[1].content_type(), None);
         assert_eq!(entries[2].content_type(), Some(CUSTOM));
+
+        Ok(())
     }
 }

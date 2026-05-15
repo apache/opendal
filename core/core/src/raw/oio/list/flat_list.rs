@@ -92,8 +92,42 @@ where
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = self.acc.list(de.path(), OpList::new()).await?;
-                if let Some(v) = l.next().await? {
+                let (_, mut l) = match self.acc.list(de.path(), OpList::new()).await {
+                    Ok(v) => v,
+                    Err(e) if e.kind() == ErrorKind::PermissionDenied => {
+                        // Skip directories that we don't have permission to access
+                        // and continue with the rest of the listing.
+                        log::warn!(
+                            "FlatLister skipping directory due to permission denied: {}",
+                            de.path()
+                        );
+                        continue;
+                    }
+                    Err(e) if e.kind() == ErrorKind::NotFound => {
+                        // Skip directories that are deleted while listing.
+                        log::warn!(
+                            "FlatLister skipping directory due to not found during listing: {}",
+                            de.path()
+                        );
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                };
+                let first = loop {
+                    match l.next().await {
+                        Ok(v) => break v,
+                        Err(e) if e.kind() == ErrorKind::NotFound => {
+                            // Skip entries that are deleted during listing.
+                            log::warn!(
+                                "FlatLister skipping entry due to not found during listing: {}",
+                                de.path()
+                            );
+                            continue;
+                        }
+                        Err(e) => return Err(e),
+                    }
+                };
+                if let Some(v) = first {
                     self.active_lister.push((Some(de.clone()), l));
 
                     if v.mode().is_dir() {
@@ -108,21 +142,40 @@ where
                 }
             }
 
+            if matches!(self.active_lister.last(), Some((None, _))) {
+                let _ = self.active_lister.pop();
+                continue;
+            }
+
             let (de, lister) = match self.active_lister.last_mut() {
                 Some((de, lister)) => (de, lister),
                 None => return Ok(None),
             };
 
-            match lister.next().await? {
-                Some(v) if v.mode().is_dir() => {
+            match lister.next().await {
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    let path = de.as_ref().map(|entry| entry.path()).unwrap_or("<unknown>");
+                    log::warn!(
+                        "FlatLister skipping entry due to not found during recursive listing: {}",
+                        path
+                    );
+                    continue;
+                }
+                Err(e) => return Err(e),
+                Ok(Some(v)) if v.mode().is_dir() => {
                     // should not loop itself again
-                    if v.path() != de.as_ref().expect("de should not be none here").path() {
+                    if v.path()
+                        != de
+                            .as_ref()
+                            .expect("de must be present before listing")
+                            .path()
+                    {
                         self.next_dir = Some(v);
                         continue;
                     }
                 }
-                Some(v) => return Ok(Some(v)),
-                None => match de.take() {
+                Ok(Some(v)) => return Ok(Some(v)),
+                Ok(None) => match de.take() {
                     Some(de) => {
                         return Ok(Some(de));
                     }

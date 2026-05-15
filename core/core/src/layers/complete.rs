@@ -57,7 +57,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Inner = A;
     type Reader = CompleteReader<A::Reader>;
     type Writer = CompleteWriter<A::Writer>;
-    type Lister = A::Lister;
+    type Lister = CompleteLister<A>;
     type Deleter = A::Deleter;
 
     fn inner(&self) -> &Self::Inner {
@@ -95,11 +95,73 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.list(path, args).await
+        let (rp, lister) = self.inner.list(path, args).await?;
+        let lister = CompleteLister::new(self.inner.clone(), self.info.clone(), lister);
+        Ok((rp, lister))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
         self.inner.presign(path, args).await
+    }
+}
+
+pub struct CompleteLister<A: Access> {
+    inner: A::Lister,
+    acc: Arc<A>,
+    info: Arc<AccessorInfo>,
+}
+
+impl<A: Access> CompleteLister<A> {
+    fn new(acc: Arc<A>, info: Arc<AccessorInfo>, inner: A::Lister) -> Self {
+        Self { inner, acc, info }
+    }
+
+    async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
+        let path = entry.path().to_string();
+        let version = entry.metadata().version().map(str::to_owned);
+        let mut op = OpStat::new();
+        if let Some(version) = version.as_deref() {
+            op = op.with_version(version);
+        }
+
+        let stat_metadata = self.acc.stat(&path, op).await?.into_metadata();
+        if !stat_metadata.has_content_length() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "content length is required for list file entries",
+            )
+            .with_operation("CompleteLister::ensure_file_content_length")
+            .with_context("service", self.info.scheme().to_string())
+            .with_context("path", path));
+        }
+
+        entry
+            .metadata_mut()
+            .set_content_length(stat_metadata.content_length());
+        Ok(())
+    }
+}
+
+impl<A: Access> oio::List for CompleteLister<A> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        loop {
+            let Some(mut entry) = self.inner.next().await? else {
+                return Ok(None);
+            };
+
+            if !entry.mode().is_file()
+                || entry.metadata().is_deleted()
+                || entry.metadata().has_content_length()
+            {
+                return Ok(Some(entry));
+            }
+
+            match self.ensure_file_content_length(&mut entry).await {
+                Ok(()) => return Ok(Some(entry)),
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err),
+            }
+        }
     }
 }
 
@@ -153,10 +215,32 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
     }
 }
 
+/// Tracks the state of the Write operation.
+/// A successful operation goes through states: Open -> Written -> Closed
+/// A failed operation terminates in the Error state
+#[derive(Debug, PartialEq, Eq)]
+enum CompleteState {
+    Open,
+    Written,
+    Closed,
+    Error,
+}
+
+impl CompleteState {
+    /// Attempt to transition to the destination state. Once CompleteState has
+    /// errored all further transitions are ignored.
+    fn transition(&mut self, destination: CompleteState) {
+        if *self != CompleteState::Error {
+            *self = destination
+        }
+    }
+}
+
 pub struct CompleteWriter<W> {
     inner: Option<W>,
     append: bool,
     size: u64,
+    state: CompleteState,
 }
 
 impl<W> CompleteWriter<W> {
@@ -165,6 +249,7 @@ impl<W> CompleteWriter<W> {
             inner: Some(inner),
             append,
             size: 0,
+            state: CompleteState::Open,
         }
     }
 
@@ -194,8 +279,10 @@ impl<W> CompleteWriter<W> {
 #[cfg(debug_assertions)]
 impl<W> Drop for CompleteWriter<W> {
     fn drop(&mut self) {
-        if self.inner.is_some() {
-            log::warn!("writer has not been closed or aborted, must be a bug")
+        if self.state == CompleteState::Written {
+            log::warn!(
+                "writer has not been closed or aborted after successful write operation, must be a bug"
+            )
         }
     }
 }
@@ -206,29 +293,47 @@ where
 {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let w = self.inner.as_mut().ok_or_else(|| {
+            debug_assert_ne!(
+                self.state,
+                CompleteState::Open,
+                "bug: inner is empty, but state is Open"
+            );
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
         let len = bs.len();
-        w.write(bs).await?;
+        w.write(bs)
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
         self.size += len as u64;
+        self.state.transition(CompleteState::Written);
 
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
+            debug_assert_ne!(
+                self.state,
+                CompleteState::Open,
+                "bug: inner is empty, but state is Open"
+            );
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
         // we must return `Err` before setting inner to None; otherwise,
         // we won't be able to retry `close` in `RetryLayer`.
-        let mut ret = w.close().await?;
-        self.check(ret.content_length())?;
+        let mut ret = w
+            .close()
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        self.check(ret.content_length())
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
         if ret.content_length() == 0 {
             ret = ret.with_content_length(self.size);
         }
         self.inner = None;
+        self.state.transition(CompleteState::Closed);
 
         Ok(ret)
     }
@@ -238,8 +343,11 @@ where
             Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
         })?;
 
-        w.abort().await?;
+        w.abort()
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
         self.inner = None;
+        self.state.transition(CompleteState::Closed);
 
         Ok(())
     }

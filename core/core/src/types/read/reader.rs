@@ -144,6 +144,10 @@ impl Reader {
     /// The returning `Buffer` may share the same underlying memory without
     /// any extra copy.
     pub async fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
+        if ranges.is_empty() {
+            return Ok(vec![]);
+        }
+
         let merged_ranges = self.merge_ranges(ranges.clone());
 
         #[derive(Clone)]
@@ -190,7 +194,7 @@ impl Reader {
         let gap = self.ctx.options().gap().unwrap_or(1024 * 1024) as u64;
         // We don't care about the order of range with same start, they
         // will be merged in the next step.
-        ranges.sort_unstable_by(|a, b| a.start.cmp(&b.start));
+        ranges.sort_unstable_by_key(|a| a.start);
 
         // We know that this vector will have at most element
         let mut merged = Vec::with_capacity(ranges.len());
@@ -429,9 +433,7 @@ impl Reader {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngExt};
 
     use super::*;
     use crate::Operator;
@@ -456,16 +458,16 @@ mod tests {
     }
 
     fn gen_random_bytes() -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let size = rng.random_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
     }
 
     fn gen_fixed_bytes(size: usize) -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
@@ -599,6 +601,26 @@ mod tests {
                 content[range.start as usize..range.end as usize]
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_empty_ranges() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader(path).await.unwrap();
+        let result = reader
+            .fetch(vec![])
+            .await
+            .expect("fetch with empty ranges must not panic");
+        assert!(result.is_empty());
+
         Ok(())
     }
 }

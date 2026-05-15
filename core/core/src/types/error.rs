@@ -368,14 +368,6 @@ impl Error {
         self
     }
 
-    /// Operate on error with map.
-    pub fn map<F>(self, f: F) -> Self
-    where
-        F: FnOnce(Self) -> Self,
-    {
-        f(self)
-    }
-
     /// Set permanent status for error.
     ///
     /// By set permanent, we indicate the retry must be stopped.
@@ -515,7 +507,6 @@ impl From<Error> for io::Error {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::size_of;
     use std::sync::LazyLock;
 
     use anyhow::anyhow;
@@ -535,16 +526,6 @@ mod tests {
         source: Some(anyhow!("networking error")),
         backtrace: None,
     });
-
-    /// This is not a real test case.
-    ///
-    /// We assert our public structs here to make sure we don't introduce
-    /// unexpected struct/enum size change.
-    #[cfg(target_pointer_width = "64")]
-    #[test]
-    fn assert_size() {
-        assert_eq!(88, size_of::<Error>());
-    }
 
     #[test]
     fn test_error_display() {

@@ -27,9 +27,8 @@ use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::IF_NONE_MATCH;
-use reqsign::AzureStorageCredential;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::Credential;
+use reqsign_core::Signer;
 
 use super::error::parse_error;
 use opendal_core::raw::*;
@@ -38,6 +37,7 @@ use opendal_core::*;
 const X_MS_RENAME_SOURCE: &str = "x-ms-rename-source";
 const X_MS_VERSION: &str = "x-ms-version";
 pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
+const X_MS_CONTINUATION: &str = "x-ms-continuation";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
 
@@ -46,9 +46,9 @@ pub struct AzdlsCore {
     pub filesystem: String,
     pub root: String,
     pub endpoint: String,
+    pub enable_hns: bool,
 
-    pub loader: AzureStorageLoader,
-    pub signer: AzureStorageSigner,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for AzdlsCore {
@@ -57,32 +57,17 @@ impl Debug for AzdlsCore {
             .field("filesystem", &self.filesystem)
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
+            .field("enable_hns", &self.enable_hns)
             .finish_non_exhaustive()
     }
 }
 
 impl AzdlsCore {
-    async fn load_credential(&self) -> Result<AzureStorageCredential> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
-        if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
-        }
-    }
-
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
         // Insert x-ms-version header for normal requests.
-        req.headers_mut().insert(
+        parts.headers.insert(
             HeaderName::from_static(X_MS_VERSION),
             // 2022-11-02 is the version supported by Azurite V3 and
             // used by Azure Portal, We use this version to make
@@ -91,7 +76,13 @@ impl AzdlsCore {
             // In the future, we could allow users to configure this value.
             HeaderValue::from_static("2022-11-02"),
         );
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -117,12 +108,13 @@ impl AzdlsCore {
             req = req.header(http::header::RANGE, range.to_header());
         }
 
-        let mut req = req
+        let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("ReadFile"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.info.http_client().fetch(req).await
     }
 
@@ -172,13 +164,19 @@ impl AzdlsCore {
         } else {
             Operation::Write
         };
+        let service_operation = if resource == DIRECTORY {
+            ServiceOperation("CreateDirectory")
+        } else {
+            ServiceOperation("CreateFile")
+        };
 
-        let mut req = req
+        let req = req
             .extension(operation)
+            .extension(service_operation)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -195,14 +193,15 @@ impl AzdlsCore {
 
         let source_path = format!("/{}/{}", self.filesystem, percent_encode_path(&source));
 
-        let mut req = Request::put(&url)
+        let req = Request::put(&url)
             .header(X_MS_RENAME_SOURCE, source_path)
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Rename)
+            .extension(ServiceOperation("RenamePath"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -239,12 +238,13 @@ impl AzdlsCore {
             req = req.header(CONTENT_LENGTH, size)
         }
 
-        let mut req = req
+        let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("AppendData"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -269,13 +269,14 @@ impl AzdlsCore {
             url.push_str("&close=true");
         }
 
-        let mut req = Request::patch(&url)
+        let req = Request::patch(&url)
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Write)
+            .extension(ServiceOperation("FlushData"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -293,12 +294,13 @@ impl AzdlsCore {
 
         let req = Request::head(&url);
 
-        let mut req = req
+        let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetPathProperties"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -357,13 +359,69 @@ impl AzdlsCore {
             percent_encode_path(&p)
         );
 
-        let mut req = Request::delete(&url)
+        let req = Request::delete(&url)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeletePath"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
+    }
+
+    pub async fn azdls_recursive_delete(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path)
+            .trim_end_matches('/')
+            .to_string();
+
+        let base = format!(
+            "{}/{}/{}",
+            self.endpoint,
+            self.filesystem,
+            percent_encode_path(&p)
+        );
+
+        let mut continuation = String::new();
+
+        loop {
+            let mut url = QueryPairsWriter::new(&base).push("recursive", "true");
+
+            if self.enable_hns {
+                url = url.push("paginated", "true");
+            }
+
+            if !continuation.is_empty() {
+                url = url.push("continuation", &percent_encode_path(&continuation));
+            }
+
+            let req = Request::delete(url.finish())
+                .extension(Operation::Delete)
+                .extension(ServiceOperation("RecursiveDeletePath"))
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?;
+
+            let req = self.sign(req).await?;
+            let resp = self.send(req).await?;
+
+            let status = resp.status();
+            match status {
+                StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {}
+                _ => return Err(parse_error(resp)),
+            }
+
+            let next = resp
+                .headers()
+                .get(X_MS_CONTINUATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .trim();
+
+            if next.is_empty() {
+                return Ok(resp);
+            }
+
+            continuation = next.to_string();
+        }
     }
 
     pub async fn azdls_list(
@@ -389,12 +447,13 @@ impl AzdlsCore {
             url = url.push("continuation", &percent_encode_path(continuation));
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListPaths"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 

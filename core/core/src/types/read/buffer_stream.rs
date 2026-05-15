@@ -71,12 +71,20 @@ impl oio::Read for StreamingReader {
     }
 }
 
+/// Input for a chunked read task.
+struct ChunkedReadInput {
+    ctx: Arc<ReadContext>,
+    range: BytesRange,
+}
+
 /// ChunkedReader will read the file in chunks.
 ///
 /// ChunkedReader is good for concurrent read and optimized for throughput.
 pub struct ChunkedReader {
-    generator: ReadGenerator,
-    tasks: ConcurrentTasks<oio::Reader, Buffer>,
+    ctx: Arc<ReadContext>,
+    offset: u64,
+    remaining: Option<u64>,
+    tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
 
@@ -91,29 +99,65 @@ impl ChunkedReader {
             ctx.accessor().info().executor(),
             ctx.options().concurrent(),
             ctx.options().prefetch(),
-            |mut r: oio::Reader| {
-                Box::pin(async {
-                    match r.read_all().await {
-                        Ok(buf) => (r, Ok(buf)),
-                        Err(err) => (r, Err(err)),
+            |input: ChunkedReadInput| {
+                Box::pin(async move {
+                    let args = input.ctx.args().clone().with_range(input.range);
+                    let result = async {
+                        let (_, mut r) = input.ctx.accessor().read(input.ctx.path(), args).await?;
+                        r.read_all().await
                     }
+                    .await;
+                    (input, result)
                 })
             },
         );
-        let generator = ReadGenerator::new(ctx, range.offset(), range.size());
         Self {
-            generator,
+            ctx,
+            offset: range.offset(),
+            remaining: range.size(),
             tasks,
             done: false,
         }
+    }
+
+    /// Generate the next range to read, advancing internal state.
+    fn next_range(&mut self) -> Option<BytesRange> {
+        if self.remaining == Some(0) {
+            return None;
+        }
+
+        let next_offset = self.offset;
+        let next_size = match self.remaining {
+            None => {
+                self.remaining = Some(0);
+                None
+            }
+            Some(remaining) => {
+                let read_size = self
+                    .ctx
+                    .options()
+                    .chunk()
+                    .map_or(remaining, |chunk| remaining.min(chunk as u64));
+                self.offset += read_size;
+                self.remaining = Some(remaining - read_size);
+                Some(read_size)
+            }
+        };
+
+        Some(BytesRange::new(next_offset, next_size))
     }
 }
 
 impl oio::Read for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(r) = self.generator.next_reader().await? {
-                self.tasks.execute(r).await?;
+            if let Some(range) = self.next_range() {
+                self.tasks
+                    .execute(ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                    })
+                    .await?;
             } else {
                 self.done = true;
                 break;

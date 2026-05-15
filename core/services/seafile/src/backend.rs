@@ -162,6 +162,7 @@ impl Builder for SeafileBuilder {
                     am.set_scheme(SEAFILE_SCHEME)
                         .set_root(&root)
                         .set_native_capability(Capability {
+                            create_dir: true,
                             stat: true,
 
                             read: true,
@@ -205,6 +206,11 @@ impl Access for SeafileBackend {
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
+    }
+
+    async fn create_dir(&self, path: &str, _args: OpCreateDir) -> Result<RpCreateDir> {
+        self.core.create_dir(path).await?;
+        Ok(RpCreateDir::default())
     }
 
     async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {

@@ -3323,6 +3323,21 @@ public interface ServiceConfig {
          * <p>The access token for Vercel.</p>
          */
         public final String accessToken;
+        /**
+         * <p>The endpoint for the Vercel artifacts API.</p>
+         * <p>Defaults to <code>https://api.vercel.com</code>.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>The Vercel team ID. When set, the <code>teamId</code> query parameter
+         * is appended to all API requests.</p>
+         */
+        public final String teamId;
+        /**
+         * <p>The Vercel team slug. When set, the <code>slug</code> query parameter
+         * is appended to all API requests.</p>
+         */
+        public final String teamSlug;
 
         @Override
         public String scheme() {
@@ -3334,6 +3349,15 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessToken != null) {
                 map.put("access_token", accessToken);
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (teamId != null) {
+                map.put("team_id", teamId);
+            }
+            if (teamSlug != null) {
+                map.put("team_slug", teamSlug);
             }
             return map;
         }

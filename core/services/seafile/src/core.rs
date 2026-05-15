@@ -216,6 +216,37 @@ impl SeafileCore {
         self.send(req).await
     }
 
+    pub async fn create_dir(&self, path: &str) -> Result<()> {
+        if path == "/" {
+            return Ok(());
+        }
+
+        let path = build_rooted_abs_path(&self.root, path);
+        let path = percent_encode_path(path.trim_end_matches('/'));
+
+        let auth_info = self.get_auth_info().await?;
+        let body = Buffer::from(Bytes::from_static(b"operation=mkdir&create_parents=true"));
+
+        let req = Request::post(format!(
+            "{}/api2/repos/{}/dir/?p={}",
+            self.endpoint, auth_info.repo_id, path
+        ));
+
+        let req = req
+            .header(header::AUTHORIZATION, format!("Token {}", auth_info.token))
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .extension(Operation::CreateDir)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK | StatusCode::CREATED => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     /// get download
     async fn get_download_url(&self, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);

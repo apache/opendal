@@ -102,6 +102,7 @@ impl oio::MultipartWrite for VercelBlobWriter {
                     part_number,
                     etag: resp.etag,
                     checksum: None,
+                    size: None,
                 })
             }
             _ => Err(parse_error(resp)),

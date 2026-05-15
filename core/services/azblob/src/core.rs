@@ -32,9 +32,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign::AzureStorageCredential;
-use reqsign::AzureStorageLoader;
-use reqsign::AzureStorageSigner;
+use reqsign_azure_storage::Credential;
+use reqsign_core::Signer;
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -69,8 +68,7 @@ pub struct AzblobCore {
     pub encryption_key: Option<HeaderValue>,
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
-    pub loader: AzureStorageLoader,
-    pub signer: AzureStorageSigner,
+    pub signer: Signer<Credential>,
 }
 
 impl Debug for AzblobCore {
@@ -84,35 +82,22 @@ impl Debug for AzblobCore {
 }
 
 impl AzblobCore {
-    async fn load_credential(&self) -> Result<AzureStorageCredential> {
-        let cred = self
-            .loader
-            .load()
-            .await
-            .map_err(new_request_credential_error)?;
-
-        if let Some(cred) = cred {
-            Ok(cred)
-        } else {
-            Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "no valid credential found",
-            ))
-        }
-    }
-
-    pub async fn sign_query<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
+    pub async fn sign_query<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
 
         self.signer
-            .sign_query(req, Duration::from_secs(3600), &cred)
-            .map_err(new_request_sign_error)
+            .sign(&mut parts, Some(Duration::from_secs(3600)))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
+    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
+
         // Insert x-ms-version header for normal requests.
-        req.headers_mut().insert(
+        parts.headers.insert(
             HeaderName::from_static(constants::X_MS_VERSION),
             // 2022-11-02 is the version supported by Azurite V3 and
             // used by Azure Portal, We use this version to make
@@ -121,12 +106,24 @@ impl AzblobCore {
             // In the future, we could allow users to configure this value.
             HeaderValue::from_static("2022-11-02"),
         );
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
-    async fn batch_sign<T>(&self, req: &mut Request<T>) -> Result<()> {
-        let cred = self.load_credential().await?;
-        self.signer.sign(req, &cred).map_err(new_request_sign_error)
+    async fn batch_sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        let (mut parts, body) = req.into_parts();
+
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        Ok(Request::from_parts(parts, body))
     }
 
     #[inline]
@@ -218,6 +215,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -230,9 +228,8 @@ impl AzblobCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let mut req = self.azblob_get_blob_request(path, range, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_get_blob_request(path, range, args)?;
+        let req = self.sign(req).await?;
 
         self.info.http_client().fetch(req).await
     }
@@ -284,6 +281,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlob"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -297,9 +295,8 @@ impl AzblobCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_put_blob_request(path, size, args, body)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_put_blob_request(path, size, args, body)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -348,6 +345,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -359,9 +357,8 @@ impl AzblobCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_init_appendable_blob_request(path, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_init_appendable_blob_request(path, args)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -394,6 +391,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("AppendBlock"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -407,9 +405,8 @@ impl AzblobCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_append_blob_request(path, position, size, body)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_append_blob_request(path, position, size, body)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -448,6 +445,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlock"))
             .body(body)
             .map_err(new_request_build_error)?;
 
@@ -462,9 +460,8 @@ impl AzblobCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_put_block_request(path, block_id, size, args, body)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_put_block_request(path, block_id, size, args, body)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -499,6 +496,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("PutBlockList"))
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
@@ -511,10 +509,8 @@ impl AzblobCore {
         block_ids: Vec<Uuid>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
-
-        self.sign(&mut req).await?;
-
+        let req = self.azblob_complete_put_block_list_request(path, block_ids, args)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -534,6 +530,7 @@ impl AzblobCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("GetBlobProperties"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -545,9 +542,8 @@ impl AzblobCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_head_blob_request(path, args)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_head_blob_request(path, args)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -555,14 +551,14 @@ impl AzblobCore {
         Request::delete(self.build_path_url(path))
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)
     }
 
     pub async fn azblob_delete_blob(&self, path: &str) -> Result<Response<Buffer>> {
-        let mut req = self.azblob_delete_blob_request(path)?;
-
-        self.sign(&mut req).await?;
+        let req = self.azblob_delete_blob_request(path)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -584,12 +580,13 @@ impl AzblobCore {
             req = req.header(IF_NONE_MATCH, "*");
         }
 
-        let mut req = req
+        let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -618,12 +615,13 @@ impl AzblobCore {
             url = url.push("marker", next_marker);
         }
 
-        let mut req = Request::get(url.finish())
+        let req = Request::get(url.finish())
             .extension(Operation::List)
+            .extension(ServiceOperation("ListBlobs"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.sign(&mut req).await?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 
@@ -636,18 +634,19 @@ impl AzblobCore {
         let mut multipart = Multipart::new();
 
         for (idx, path) in paths.iter().enumerate() {
-            let mut req = self.azblob_delete_blob_request(path)?;
-            self.batch_sign(&mut req).await?;
+            let req = self.azblob_delete_blob_request(path)?;
+            let req = self.batch_sign(req).await?;
 
             multipart = multipart.part(
                 MixedPart::from_request(req).part_header("content-id".parse().unwrap(), idx.into()),
             );
         }
 
-        let req = Request::post(url);
-        let mut req = multipart.apply(req)?;
-
-        self.sign(&mut req).await?;
+        let req = Request::post(url)
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("BatchDeleteBlobs"));
+        let req = multipart.apply(req)?;
+        let req = self.sign(req).await?;
         self.send(req).await
     }
 }

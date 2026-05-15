@@ -16,8 +16,6 @@
 // under the License.
 
 use anyhow::Result;
-use sha2::Digest;
-use sha2::Sha256;
 
 use crate::*;
 
@@ -58,8 +56,8 @@ pub async fn test_rename_file(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -167,8 +165,8 @@ pub async fn test_rename_nested(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");
@@ -200,8 +198,8 @@ pub async fn test_rename_overwrite(op: Operator) -> Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(
-        format!("{:x}", Sha256::digest(target_content)),
-        format!("{:x}", Sha256::digest(&source_content)),
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
     );
 
     op.delete(&source_path).await.expect("delete must succeed");

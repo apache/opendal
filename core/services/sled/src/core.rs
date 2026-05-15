@@ -51,18 +51,19 @@ impl SledCore {
         Ok(())
     }
 
-    pub fn list(&self, path: &str) -> Result<Vec<String>> {
-        let it = self.tree.scan_prefix(path).keys();
+    pub fn list(&self, path: &str) -> Result<Vec<(String, u64)>> {
+        let it = self.tree.scan_prefix(path);
         let mut res = Vec::default();
 
         for i in it {
-            let bs = i.map_err(parse_error)?.to_vec();
+            let (key, value) = i.map_err(parse_error)?;
+            let bs = key.to_vec();
             let v = String::from_utf8(bs).map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "store key is not valid utf-8 string")
                     .set_source(err)
             })?;
 
-            res.push(v);
+            res.push((v, value.len() as u64));
         }
 
         Ok(res)

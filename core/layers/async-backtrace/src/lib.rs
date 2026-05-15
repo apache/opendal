@@ -15,7 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::raw::oio;
+//! Async backtrace layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -29,30 +33,39 @@ use opendal_core::*;
 /// # Examples
 ///
 /// ```no_run
-/// use opendal_layer_async_backtrace::AsyncBacktraceLayer;
-/// use opendal_core::services;
-/// use opendal_core::Operator;
-/// use opendal_core::Result;
-///
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_async_backtrace::AsyncBacktraceLayer;
+/// #
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
-///     .layer(AsyncBacktraceLayer::default())
+///     .layer(AsyncBacktraceLayer::new())
 ///     .finish();
-/// Ok(())
+/// # Ok(())
 /// # }
 /// ```
 #[derive(Clone, Default)]
-pub struct AsyncBacktraceLayer;
+#[non_exhaustive]
+pub struct AsyncBacktraceLayer {}
+
+impl AsyncBacktraceLayer {
+    /// Create a new [`AsyncBacktraceLayer`].
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
 
 impl<A: Access> Layer<A> for AsyncBacktraceLayer {
     type LayeredAccess = AsyncBacktraceAccessor<A>;
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccess {
-        AsyncBacktraceAccessor { inner: accessor }
+    fn layer(&self, inner: A) -> Self::LayeredAccess {
+        AsyncBacktraceAccessor { inner }
     }
 }
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct AsyncBacktraceAccessor<A: Access> {
     inner: A,
 }
@@ -121,6 +134,7 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 }
 
+#[doc(hidden)]
 pub struct AsyncBacktraceWrapper<R> {
     inner: R,
 }

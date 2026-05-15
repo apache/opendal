@@ -36,7 +36,7 @@ jobs:
   check_docs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -48,8 +48,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Cargo doc
         working-directory: core
@@ -58,7 +58,7 @@ jobs:
   check_clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -70,8 +70,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Cargo clippy
         working-directory: core
@@ -83,19 +83,14 @@ jobs:
       # OpenDAL's MSRV is 1.85.
       OPENDAL_MSRV: "1.85"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup msrv of rust
         run: |
           rustup toolchain install ${OPENDAL_MSRV}
           rustup component add clippy --toolchain ${OPENDAL_MSRV}
       - name: Check
         working-directory: core
-        run: |
-          cargo update zerofrom --precise 0.1.5
-          cargo update idna_adapter --precise 1.2.0
-          cargo update litemap --precise 0.7.4
-          cargo update ctor --precise 0.6.1
-          cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}
@@ -106,7 +101,7 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -118,7 +113,7 @@ jobs:
   build_all_features:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -126,8 +121,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -149,7 +144,7 @@ jobs:
           - macos-latest
           - windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -157,8 +152,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -190,7 +185,7 @@ jobs:
             # FIXME how to support HDFS services in other platforms?
             # services-hdfs
             services-http
-            services-huggingface
+            services-hf
             services-ipfs
             services-ipmfs
             services-memcached
@@ -223,7 +218,7 @@ jobs:
   build_under_wasm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -258,7 +253,7 @@ jobs:
 
           sudo docker image prune --all --force
           sudo docker builder prune -a
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -266,8 +261,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -303,7 +298,7 @@ jobs:
 
           sudo docker image prune --all --force
           sudo docker builder prune -a
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Checkout python env
         uses: actions/setup-python@v6
         with:
@@ -311,8 +306,8 @@ jobs:
       - name: Checkout java env
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: "11"
+          distribution: zulu
+          java-version: 25
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup

@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::SloManifestEntry;
 use super::core::SwiftCore;
 use super::error::parse_error;
 use opendal_core::raw::*;
@@ -50,8 +51,8 @@ impl SwiftWriter {
     }
 }
 
-impl oio::OneShotWrite for SwiftWriter {
-    async fn write_once(&self, bs: Buffer) -> Result<Metadata> {
+impl oio::MultipartWrite for SwiftWriter {
+    async fn write_once(&self, _size: u64, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
             .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
@@ -66,5 +67,86 @@ impl oio::OneShotWrite for SwiftWriter {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+
+    async fn initiate_part(&self) -> Result<String> {
+        // Swift SLO doesn't need a server-side initiate call.
+        // Generate a local UUID as the upload ID to namespace the segments.
+        Ok(uuid::Uuid::new_v4().to_string())
+    }
+
+    async fn write_part(
+        &self,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<oio::MultipartPart> {
+        let resp = self
+            .core
+            .swift_put_segment(&self.path, upload_id, part_number, size, body)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                let etag = parse_etag(resp.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in segment upload response",
+                        )
+                    })?
+                    .to_string();
+
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag,
+                    checksum: None,
+                    size: Some(size),
+                })
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn complete_part(
+        &self,
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
+    ) -> Result<Metadata> {
+        let manifest: Vec<SloManifestEntry> = parts
+            .iter()
+            .map(|part| {
+                let segment = self
+                    .core
+                    .slo_segment_path(&self.path, upload_id, part.part_number);
+                SloManifestEntry {
+                    path: format!("{}/{}", &self.core.container, segment),
+                    etag: part.etag.trim_matches('"').to_string(),
+                    size_bytes: part.size.unwrap_or(0),
+                }
+            })
+            .collect();
+
+        let resp = self
+            .core
+            .swift_put_slo_manifest(&self.path, &manifest, &self.op)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::CREATED | StatusCode::OK => {
+                let metadata = SwiftWriter::parse_metadata(resp.headers())?;
+                Ok(metadata)
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        self.core.swift_delete_slo(&self.path, upload_id).await
     }
 }

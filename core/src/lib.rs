@@ -27,9 +27,7 @@ pub use opendal_core::*;
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
-static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
-
-/// Initialize [`DEFAULT_OPERATOR_REGISTRY`] with enabled services.
+/// Initialize the global [`OperatorRegistry`] with enabled services.
 ///
 /// This function is safe to call multiple times and will only perform
 /// initialization once.
@@ -41,13 +39,11 @@ static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
 /// should call this function explicitly before using `Operator::from_uri` or
 /// `Operator::via_iter`.
 pub fn init_default_registry() {
-    DEFAULT_REGISTRY_INIT.call_once(|| {
-        let registry = &opendal_core::DEFAULT_OPERATOR_REGISTRY;
-        init_default_registry_inner(registry);
-    });
+    static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
+    DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));
 }
 
-fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
+fn init_default_registry_inner(registry: &OperatorRegistry) {
     opendal_core::services::register_memory_service(registry);
 
     #[cfg(feature = "services-aliyun-drive")]
@@ -98,6 +94,9 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-foundationdb")]
     opendal_service_foundationdb::register_foundationdb_service(registry);
 
+    #[cfg(feature = "services-foyer")]
+    opendal_service_foyer::register_foyer_service(registry);
+
     #[cfg(feature = "services-fs")]
     opendal_service_fs::register_fs_service(registry);
 
@@ -116,6 +115,9 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-github")]
     opendal_service_github::register_github_service(registry);
 
+    #[cfg(feature = "services-goosefs")]
+    opendal_service_goosefs::register_goosefs_service(registry);
+
     #[cfg(feature = "services-gridfs")]
     opendal_service_gridfs::register_gridfs_service(registry);
 
@@ -128,8 +130,8 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-http")]
     opendal_service_http::register_http_service(registry);
 
-    #[cfg(feature = "services-huggingface")]
-    opendal_service_huggingface::register_huggingface_service(registry);
+    #[cfg(feature = "services-hf")]
+    opendal_service_hf::register_hf_service(registry);
 
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);
@@ -209,6 +211,9 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     #[cfg(feature = "services-tikv")]
     opendal_service_tikv::register_tikv_service(registry);
 
+    #[cfg(feature = "services-tos")]
+    opendal_service_tos::register_tos_service(registry);
+
     #[cfg(feature = "services-upyun")]
     opendal_service_upyun::register_upyun_service(registry);
 
@@ -234,7 +239,8 @@ fn init_default_registry_inner(registry: &opendal_core::OperatorRegistry) {
     opendal_service_redis::register_redis_service(registry);
 }
 
-#[ctor::ctor]
+#[cfg(feature = "auto-register-services")]
+#[ctor::ctor(unsafe)]
 fn register_default_operator_registry() {
     init_default_registry();
 }
@@ -274,6 +280,8 @@ pub mod services {
     pub use opendal_service_etcd::*;
     #[cfg(feature = "services-foundationdb")]
     pub use opendal_service_foundationdb::*;
+    #[cfg(feature = "services-foyer")]
+    pub use opendal_service_foyer::*;
     #[cfg(feature = "services-fs")]
     pub use opendal_service_fs::*;
     #[cfg(feature = "services-ftp")]
@@ -286,16 +294,18 @@ pub mod services {
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
+    #[cfg(feature = "services-goosefs")]
+    pub use opendal_service_goosefs::*;
     #[cfg(feature = "services-gridfs")]
     pub use opendal_service_gridfs::*;
     #[cfg(feature = "services-hdfs")]
     pub use opendal_service_hdfs::*;
     #[cfg(feature = "services-hdfs-native")]
     pub use opendal_service_hdfs_native::*;
+    #[cfg(feature = "services-hf")]
+    pub use opendal_service_hf::*;
     #[cfg(feature = "services-http")]
     pub use opendal_service_http::*;
-    #[cfg(feature = "services-huggingface")]
-    pub use opendal_service_huggingface::*;
     #[cfg(feature = "services-ipfs")]
     pub use opendal_service_ipfs::*;
     #[cfg(feature = "services-ipmfs")]
@@ -352,6 +362,8 @@ pub mod services {
     pub use opendal_service_swift::*;
     #[cfg(feature = "services-tikv")]
     pub use opendal_service_tikv::*;
+    #[cfg(feature = "services-tos")]
+    pub use opendal_service_tos::*;
     #[cfg(feature = "services-upyun")]
     pub use opendal_service_upyun::*;
     #[cfg(feature = "services-vercel-artifacts")]
@@ -385,6 +397,8 @@ pub mod layers {
     pub use opendal_layer_fastmetrics::*;
     #[cfg(feature = "layers-fastrace")]
     pub use opendal_layer_fastrace::*;
+    #[cfg(feature = "layers-foyer")]
+    pub use opendal_layer_foyer::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
@@ -405,6 +419,8 @@ pub mod layers {
     pub use opendal_layer_prometheus_client::*;
     #[cfg(feature = "layers-retry")]
     pub use opendal_layer_retry::*;
+    #[cfg(feature = "layers-route")]
+    pub use opendal_layer_route::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

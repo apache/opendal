@@ -15,6 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+//! Timeout layer implementation for Apache OpenDAL.
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![deny(missing_docs)]
+
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -63,10 +68,10 @@ use opendal_core::*;
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
 ///     // This is fine, since timeout happen during retry.
-///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
-///     .layer(RetryLayer::new())
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(RetryLayer::default())
 ///     // This is wrong. Since timeout layer will drop future, leaving retry layer in a bad state.
-///     .layer(TimeoutLayer::new().with_io_timeout(Duration::from_nanos(1)))
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
 ///     .finish();
 /// # Ok(())
 /// # }
@@ -127,7 +132,7 @@ impl Default for TimeoutLayer {
 }
 
 impl TimeoutLayer {
-    /// Create a new `TimeoutLayer` with default settings.
+    /// Create a new [`TimeoutLayer`] with default settings.
     pub fn new() -> Self {
         Self::default()
     }
@@ -167,7 +172,8 @@ impl<A: Access> Layer<A> for TimeoutLayer {
     }
 }
 
-#[derive(Debug, Clone)]
+#[doc(hidden)]
+#[derive(Debug)]
 pub struct TimeoutAccessor<A: Access> {
     inner: A,
 
@@ -262,13 +268,13 @@ impl<A: Access> LayeredAccess for TimeoutAccessor<A> {
     }
 }
 
-pub struct TimeoutExecutor {
+struct TimeoutExecutor {
     exec: Arc<dyn Execute>,
     timeout: Duration,
 }
 
 impl TimeoutExecutor {
-    pub fn new(exec: Arc<dyn Execute>, timeout: Duration) -> Self {
+    fn new(exec: Arc<dyn Execute>, timeout: Duration) -> Self {
         Self { exec, timeout }
     }
 }
@@ -283,6 +289,7 @@ impl Execute for TimeoutExecutor {
     }
 }
 
+#[doc(hidden)]
 pub struct TimeoutWrapper<R> {
     inner: R,
 
@@ -342,7 +349,8 @@ impl<R: oio::List> oio::List for TimeoutWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        let fut = self.inner.delete(path, args);
+        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -353,12 +361,9 @@ impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
     use std::future::pending;
 
     use futures::StreamExt;
-    use opendal_core::raw::*;
-    use opendal_core::*;
     use tokio::time::sleep;
     use tokio::time::timeout;
 
@@ -419,11 +424,24 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Default)]
+    struct MockDeleter;
+
+    impl oio::Delete for MockDeleter {
+        fn delete(&mut self, _: &str, _: OpDelete) -> impl Future<Output = Result<()>> {
+            pending()
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_operation_timeout() {
         let srv = MockService;
         let op = Operator::from_inner(Arc::new(srv))
-            .layer(TimeoutLayer::new().with_timeout(Duration::from_secs(1)));
+            .layer(TimeoutLayer::default().with_timeout(Duration::from_secs(1)));
 
         let fut = async {
             let res = op.delete("test").await;
@@ -442,7 +460,7 @@ mod tests {
     async fn test_io_timeout() {
         let srv = MockService;
         let op = Operator::from_inner(Arc::new(srv))
-            .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
+            .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(1)));
 
         let reader = op.reader("test").await.unwrap();
 
@@ -457,7 +475,7 @@ mod tests {
     async fn test_list_timeout() {
         let srv = MockService;
         let op = Operator::from_inner(Arc::new(srv)).layer(
-            TimeoutLayer::new()
+            TimeoutLayer::default()
                 .with_timeout(Duration::from_secs(1))
                 .with_io_timeout(Duration::from_secs(1)),
         );
@@ -472,11 +490,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_delete_io_timeout() {
+        use oio::Delete;
+
+        let mut deleter = TimeoutWrapper::new(MockDeleter, Duration::from_secs(1));
+
+        let res = deleter.delete("test", OpDelete::default()).await;
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("timeout"));
+    }
+
+    #[tokio::test]
     async fn test_list_timeout_raw() {
         use oio::List;
 
         let acc = MockService;
-        let timeout_layer = TimeoutLayer::new()
+        let timeout_layer = TimeoutLayer::default()
             .with_timeout(Duration::from_secs(1))
             .with_io_timeout(Duration::from_secs(1));
         let timeout_acc = timeout_layer.layer(acc);

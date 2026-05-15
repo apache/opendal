@@ -104,6 +104,21 @@ impl WebdavBuilder {
         self
     }
 
+    /// Disable automatic parent directory creation before write operations.
+    ///
+    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
+    /// This requires PROPFIND support to check directory existence.
+    ///
+    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
+    /// or don't require explicit directory creation. Enable this option to skip
+    /// the MKCOL calls and write files directly.
+    ///
+    /// Default: false
+    pub fn disable_create_dir(mut self, disable: bool) -> Self {
+        self.config.disable_create_dir = disable;
+        self
+    }
+
     /// Enable user metadata support via WebDAV PROPPATCH.
     ///
     /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
@@ -225,6 +240,7 @@ impl Builder for WebdavBuilder {
                 .config
                 .user_metadata_uri
                 .unwrap_or_else(|| DEFAULT_USER_METADATA_URI.to_string()),
+            disable_create_dir: self.config.disable_create_dir,
         });
         Ok(WebdavBackend { core })
     }
@@ -274,8 +290,10 @@ impl Access for WebdavBackend {
     }
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        // Ensure parent path exists
-        self.core.webdav_mkcol(get_parent(path)).await?;
+        // Ensure parent path exists (unless disabled for servers that don't support PROPFIND)
+        if !self.core.disable_create_dir {
+            self.core.webdav_mkcol(get_parent(path)).await?;
+        }
 
         Ok((
             RpWrite::default(),

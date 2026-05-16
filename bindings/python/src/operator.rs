@@ -264,9 +264,9 @@ impl Operator {
         size: Option<usize>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -424,9 +424,9 @@ impl Operator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -947,9 +947,9 @@ impl AsyncOperator {
         size: Option<usize>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -1133,9 +1133,9 @@ impl AsyncOperator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -1530,9 +1530,9 @@ impl AsyncOperator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,
@@ -1612,9 +1612,9 @@ impl AsyncOperator {
         version: Option<String>,
         if_match: Option<String>,
         if_none_match: Option<String>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_modified_since: Option<jiff::Timestamp>,
-        #[gen_stub(override_type(type_repr = "datetime.datetime", imports=("datetime")))]
+        #[gen_stub(override_type(type_repr = "datetime.datetime | None", imports=("datetime")))]
         if_unmodified_since: Option<jiff::Timestamp>,
         content_type: Option<String>,
         cache_control: Option<String>,

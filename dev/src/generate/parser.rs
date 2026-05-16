@@ -18,12 +18,13 @@
 use anyhow::{Context, anyhow};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::read_dir;
 use std::str::FromStr;
 use syn::{
     Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
+    UseTree,
 };
 
 pub type Services = HashMap<String, Service>;
@@ -92,6 +93,9 @@ pub enum ConfigType {
     ///
     /// Please note, all vec in config are `,` separated string.
     Vec,
+
+    /// Mapping to rust's `HashMap`
+    HashMap,
 }
 
 impl FromStr for ConfigType {
@@ -110,6 +114,7 @@ impl FromStr for ConfigType {
             "u16" => ConfigType::U16,
 
             "Vec" => ConfigType::Vec,
+            "HashMap" => ConfigType::HashMap,
 
             v => bail!("unsupported config type {v}"),
         })
@@ -147,6 +152,29 @@ pub struct AttrDeprecated {
 }
 
 /// List and parse given path to a `Services` struct.
+fn collect_custom_type_names(items: &[Item]) -> HashSet<String> {
+    fn extract_name(tree: &UseTree) -> Option<String> {
+        match tree {
+            UseTree::Name(name) => Some(name.ident.to_string()),
+            UseTree::Path(path) => {
+                let ident = path.tree.as_ref();
+                extract_name(ident)
+            }
+            _ => None,
+        }
+    }
+
+    let mut names = HashSet::new();
+    for item in items {
+        if let Item::Use(item_use) = item {
+            if let Some(name) = extract_name(&item_use.tree) {
+                names.insert(name);
+            }
+        }
+    }
+    names
+}
+
 pub fn parse(path: &str) -> Result<Services> {
     let mut map = HashMap::default();
 
@@ -156,6 +184,15 @@ pub fn parse(path: &str) -> Result<Services> {
             continue;
         }
         let path = dir.path().join("config.rs");
+        // Try the old layout (config.rs directly) first, then the new layout (src/config.rs)
+        let path = if path.exists() {
+            path
+        } else {
+            dir.path().join("src/config.rs")
+        };
+        if !path.exists() {
+            continue;
+        }
         let content = fs::read_to_string(&path)?;
         let parser = ServiceParser {
             service: dir.file_name().to_string_lossy().to_string(),
@@ -217,9 +254,11 @@ impl ServiceParser {
             })
             .ok_or_else(|| anyhow!("there is no Config in {}", &self.path))?;
 
+        let custom_types = collect_custom_type_names(&ast.items);
+
         let mut config = Vec::with_capacity(config_struct.fields.len());
         for field in config_struct.fields {
-            let field = Self::parse_field(field)?;
+            let field = Self::parse_field(field, &custom_types)?;
             config.push(field);
         }
 
@@ -228,7 +267,7 @@ impl ServiceParser {
     }
 
     /// TODO: Add comment parse support.
-    fn parse_field(field: Field) -> Result<Config> {
+    fn parse_field(field: Field, custom_types: &HashSet<String>) -> Result<Config> {
         let name = field
             .ident
             .clone()
@@ -266,7 +305,11 @@ impl ServiceParser {
                     segment.ident.to_string()
                 };
 
-                let typ = type_name.as_str().parse()?;
+                let typ = match type_name.as_str().parse::<ConfigType>() {
+                    Ok(t) => t,
+                    Err(_) if custom_types.contains(&type_name) => ConfigType::String,
+                    Err(_) => bail!("unsupported config type {type_name}"),
+                };
                 let optional = optional || typ == ConfigType::Bool;
 
                 (typ, optional)
@@ -395,7 +438,8 @@ mod tests {
             let input = format!("struct Test {{ {input} }}");
             let x: ItemStruct = syn::parse_str(&input).unwrap();
             let actual =
-                ServiceParser::parse_field(x.fields.iter().next().unwrap().clone()).unwrap();
+                ServiceParser::parse_field(x.fields.iter().next().unwrap().clone(), &HashSet::new())
+                    .unwrap();
             assert_eq!(actual, expected);
         }
     }

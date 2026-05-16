@@ -72,6 +72,16 @@ Then add the dependency to `opendal` as following:
 </dependencies>
 ```
 
+On musl-based Linux distributions such as Alpine, use the musl classified artifact instead of the default Linux classifier:
+
+```xml
+<classifier>linux-x86_64-musl</classifier>
+```
+
+Use `linux-aarch_64-musl` for aarch64 Linux musl environments.
+
+The musl native library is dynamically linked against musl libc and the GCC runtime. On Alpine Linux, install `libgcc` before loading the native library.
+
 ### Gradle
 
 For Gradle, you can first add the `com.google.osdetector` for automatically detect the classifier based on your platform:
@@ -90,6 +100,10 @@ dependencies {
     implementation "org.apache.opendal:opendal:$opendalVersion:$osdetector.classifier"
 }
 ```
+
+On musl-based Linux distributions such as Alpine, use `linux-x86_64-musl` or `linux-aarch_64-musl` as the classifier.
+
+The musl native library is dynamically linked against musl libc and the GCC runtime. On Alpine Linux, install `libgcc` before loading the native library.
 
 ### Classified library
 

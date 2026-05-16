@@ -331,7 +331,7 @@ impl AzdlsCore {
         }
 
         if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
-            let user_meta = decode_user_metadata(value)?;
+            let user_meta = decode_user_metadata(value);
             if !user_meta.is_empty() {
                 meta = meta.with_user_metadata(user_meta);
             }
@@ -509,37 +509,16 @@ fn encode_user_metadata(metadata: &HashMap<String, String>) -> String {
         .join(",")
 }
 
-/// Empty pairs (e.g. trailing commas) are skipped; everything else is fatal.
-fn decode_user_metadata(value: &str) -> Result<HashMap<String, String>> {
-    let mut out = HashMap::new();
-    for pair in value.split(',') {
-        let pair = pair.trim();
-        if pair.is_empty() {
-            continue;
-        }
-        let (key, encoded) = pair.split_once('=').ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "azdls returned malformed x-ms-properties pair without '='",
-            )
-        })?;
-        let bytes = BASE64_STANDARD.decode(encoded.trim()).map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "azdls returned x-ms-properties value that is not valid base64",
-            )
-            .set_source(err)
-        })?;
-        let decoded = String::from_utf8(bytes).map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "azdls returned x-ms-properties value that is not valid UTF-8",
-            )
-            .set_source(err)
-        })?;
-        out.insert(key.trim().to_string(), decoded);
-    }
-    Ok(out)
+fn decode_user_metadata(value: &str) -> HashMap<String, String> {
+    value
+        .split(',')
+        .filter_map(|pair| {
+            let (key, encoded) = pair.split_once('=')?;
+            let bytes = BASE64_STANDARD.decode(encoded.trim()).ok()?;
+            let decoded = String::from_utf8(bytes).ok()?;
+            Some((key.trim().to_string(), decoded))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -552,18 +531,8 @@ mod tests {
         input.insert("location".to_string(), "everywhere".to_string());
         input.insert("owner".to_string(), "opendal".to_string());
 
-        let header = encode_user_metadata(&input);
-        let decoded = decode_user_metadata(&header).expect("decode should succeed");
-
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
         assert_eq!(decoded, input);
-    }
-
-    #[test]
-    fn decode_skips_empty_pairs_from_trailing_or_double_commas() {
-        let decoded = decode_user_metadata(",a=YQ==,,b=Yg==,").unwrap();
-        assert_eq!(decoded.get("a"), Some(&"a".to_string()));
-        assert_eq!(decoded.get("b"), Some(&"b".to_string()));
-        assert_eq!(decoded.len(), 2);
     }
 
     #[test]
@@ -571,7 +540,7 @@ mod tests {
         let mut input = HashMap::new();
         input.insert("k".to_string(), "a=b,c".to_string());
 
-        let decoded = decode_user_metadata(&encode_user_metadata(&input)).unwrap();
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
         assert_eq!(decoded.get("k"), Some(&"a=b,c".to_string()));
     }
 
@@ -580,26 +549,18 @@ mod tests {
         let mut input = HashMap::new();
         input.insert("greeting".to_string(), "你好".to_string());
 
-        let decoded = decode_user_metadata(&encode_user_metadata(&input)).unwrap();
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
         assert_eq!(decoded, input);
     }
 
     #[test]
-    fn decode_rejects_pair_without_equals() {
-        let err = decode_user_metadata("no_equals_here").unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-    }
-
-    #[test]
-    fn decode_rejects_invalid_base64() {
-        let err = decode_user_metadata("k=not_base64!@#").unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-    }
-
-    #[test]
-    fn decode_rejects_non_utf8_bytes() {
-        let header = format!("k={}", BASE64_STANDARD.encode([0xFF, 0xFE]));
-        let err = decode_user_metadata(&header).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    fn decode_silently_skips_malformed_entries_and_keeps_valid_ones() {
+        let header = format!(
+            "good=Z29vZA==,no_equals,bad_b64=!!!,k={}",
+            BASE64_STANDARD.encode([0xFF, 0xFE])
+        );
+        let decoded = decode_user_metadata(&header);
+        assert_eq!(decoded.len(), 1);
+        assert_eq!(decoded.get("good"), Some(&"good".to_string()));
     }
 }

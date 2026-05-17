@@ -148,6 +148,38 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 		*(**byte)(rValue) = pathPtr
 	}))
 
+	// Mock the new metadata path exercised by newEntry()
+	metaInner := &opendalMetadata{}
+	metaFreed := 0
+	ctx = context.WithValue(ctx, ffiEntryMetadata.opts.sym, func(e *opendalEntry) *opendalMetadata {
+		if e != entryInner {
+			t.Fatalf("ffiEntryMetadata called with unexpected entry")
+		}
+		return metaInner
+	})
+	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+		if m != metaInner {
+			t.Fatalf("metadata freed unexpected pointer: %p", m)
+		}
+		metaFreed++
+	})
+	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+		assertMetadataPointer(t, metaInner, m)
+		return 4096
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metaInner, m)
+		return true
+	})
+	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+		assertMetadataPointer(t, metaInner, m)
+		return false
+	})
+	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+		assertMetadataPointer(t, metaInner, m)
+		return 1700000000000
+	})
+
 	entry := newEntry(ctx, entryInner)
 	if entry.Name() != "file.txt" {
 		t.Fatalf("newEntry().Name() = %q, want file.txt", entry.Name())
@@ -159,6 +191,27 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 		t.Fatalf("newEntry() freed entry %d times, want 1", entryFreed)
 	}
 	assertFreedPointers(t, freed, namePtr, pathPtr)
+
+	// Verify new Metadata() support
+	meta := entry.Metadata()
+	if meta == nil {
+		t.Fatal("newEntry().Metadata() returned nil, expected non-nil")
+	}
+	if meta.ContentLength() != 4096 {
+		t.Fatalf("Metadata().ContentLength() = %d, want 4096", meta.ContentLength())
+	}
+	if !meta.IsFile() {
+		t.Fatal("Metadata().IsFile() = false, want true")
+	}
+	if meta.IsDir() {
+		t.Fatal("Metadata().IsDir() = true, want false")
+	}
+	if meta.LastModified().UnixMilli() != 1700000000000 {
+		t.Fatalf("Metadata().LastModified().UnixMilli() = %d, want 1700000000000", meta.LastModified().UnixMilli())
+	}
+	if metaFreed != 1 {
+		t.Fatalf("newEntry() freed metadata %d times, want 1", metaFreed)
+	}
 }
 
 func mustBytePtrFromString(t *testing.T, value string) *byte {
@@ -192,6 +245,14 @@ func assertEntryPointer(t *testing.T, want *opendalEntry, aValues ...unsafe.Poin
 	got := *(**opendalEntry)(aValues[0])
 	if got != want {
 		t.Fatalf("entry getter received %p, want %p", got, want)
+	}
+}
+
+func assertMetadataPointer(t *testing.T, want *opendalMetadata, got *opendalMetadata) {
+	t.Helper()
+
+	if got != want {
+		t.Fatalf("metadata getter received %p, want %p", got, want)
 	}
 }
 

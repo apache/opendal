@@ -101,16 +101,12 @@ func (op *Operator) Check() (err error) {
 //		for lister.Next() {
 //			entry := lister.Entry()
 //
-//			meta, err := op.Stat(entry.Path())
-//			if err != nil {
-//				log.Printf("Error fetching metadata for %s: %v", entry.Path(), err)
-//				continue
-//			}
-//
 //			fmt.Printf("Name: %s\n", entry.Name())
-//			fmt.Printf("Length: %d\n", meta.ContentLength())
-//			fmt.Printf("Last Modified: %s\n", meta.LastModified())
-//			fmt.Printf("Is Directory: %v, Is File: %v\n", meta.IsDir(), meta.IsFile())
+//			if meta := entry.Metadata(); meta != nil {
+//				fmt.Printf("Length: %d\n", meta.ContentLength())
+//				fmt.Printf("Last Modified: %s\n", meta.LastModified())
+//				fmt.Printf("Is Directory: %v, Is File: %v\n", meta.IsDir(), meta.IsFile())
+//			}
 //			fmt.Println("---")
 //		}
 //		if err := lister.Err(); err != nil {
@@ -244,11 +240,6 @@ func (l *Lister) Entry() *Entry {
 // An Entry provides basic information about a file or directory encountered
 // during a list operation. It contains the path of the item and minimal metadata.
 //
-// # Limitations
-//
-// The Entry itself does not contain comprehensive metadata. For detailed
-// metadata information, use the op.Stat() method with the Entry's path.
-//
 // # Usage
 //
 // Entries are typically obtained through iteration of a Lister:
@@ -257,35 +248,42 @@ func (l *Lister) Entry() *Entry {
 //		entry := lister.Entry()
 //		// Process the entry
 //		fmt.Println(entry.Name())
+//		if m := entry.Metadata(); m != nil {
+//			fmt.Printf("Size: %d\n", m.ContentLength())
+//		}
 //	}
 //
-// # Fetching Detailed Metadata
+// # Metadata
 //
-// To obtain comprehensive metadata for an Entry, use op.Stat():
-//
-//	meta, err := op.Stat(entry.Path())
-//	if err != nil {
-//		log.Printf("Error fetching metadata: %v", err)
-//		return
-//	}
-//	fmt.Printf("Size: %d, Last Modified: %s\n", meta.ContentLength(), meta.LastModified())
+// Use Metadata() to retrieve metadata populated during the list operation.
 //
 // # Methods
 //
-// Entry provides methods to access basic information:
-//   - Path(): Returns the full path of the entry.
+// Entry provides the following methods:
 //   - Name(): Returns the name of the entry (last component of the path).
+//   - Path(): Returns the full path of the entry.
+//   - Metadata(): Returns metadata collected during listing, if available.
 type Entry struct {
 	name string
 	path string
+	meta *Metadata
 }
 
 func newEntry(ctx context.Context, inner *opendalEntry) *Entry {
-	defer ffiEntryFree.symbol(ctx)(inner)
+	name := ffiEntryName.symbol(ctx)(inner)
+	path := ffiEntryPath.symbol(ctx)(inner)
+
+	var meta *Metadata
+	if m := ffiEntryMetadata.symbol(ctx)(inner); m != nil {
+		meta = newMetadata(ctx, m)
+	}
+
+	ffiEntryFree.symbol(ctx)(inner)
 
 	return &Entry{
-		name: ffiEntryName.symbol(ctx)(inner),
-		path: ffiEntryPath.symbol(ctx)(inner),
+		name: name,
+		path: path,
+		meta: meta,
 	}
 }
 
@@ -297,6 +295,12 @@ func (e *Entry) Name() string {
 // Path returns the full path of the entry.
 func (e *Entry) Path() string {
 	return e.path
+}
+
+// Metadata returns the metadata associated with this entry, as reported by the
+// underlying storage service during the list operation.
+func (e *Entry) Metadata() *Metadata {
+	return e.meta
 }
 
 var ffiOperatorList = newFFI(ffiOpts{
@@ -401,3 +405,18 @@ var ffiEntryPath = func() *FFI[func(e *opendalEntry) string] {
 		}
 	})
 }()
+
+var ffiEntryMetadata = newFFI(ffiOpts{
+	sym:    "opendal_entry_metadata",
+	rType:  &ffi.TypePointer,
+	aTypes: []*ffi.Type{&ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) *opendalMetadata {
+	return func(e *opendalEntry) *opendalMetadata {
+		var meta *opendalMetadata
+		ffiCall(
+			unsafe.Pointer(&meta),
+			unsafe.Pointer(&e),
+		)
+		return meta
+	}
+})

@@ -244,6 +244,13 @@ impl AzblobBuilder {
         self
     }
 
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credential is not loaded.
+    pub fn allow_anonymous(mut self) -> Self {
+        self.config.allow_anonymous = true;
+        self
+    }
+
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -455,7 +462,7 @@ impl Builder for AzblobBuilder {
                 encryption_key_sha256,
                 encryption_algorithm,
                 container: self.config.container.clone(),
-
+                allow_anonymous: self.config.allow_anonymous,
                 signer,
             }),
         })

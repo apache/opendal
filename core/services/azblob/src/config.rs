@@ -76,6 +76,10 @@ pub struct AzblobConfig {
 
     /// The maximum batch operations of Azblob service backend.
     pub batch_max_operations: Option<usize>,
+
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credential is not loaded.
+    pub allow_anonymous: bool,
 }
 
 impl Debug for AzblobConfig {

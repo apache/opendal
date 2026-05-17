@@ -62,9 +62,7 @@ export function runner(testName, scheme) {
 
   operator = operator.layer(retryLayer.build())
   if (process.env.OPENDAL_TEST_CAPABILITY_OVERRIDES) {
-    operator = operator.layer(
-      new layers.CapabilityOverrideLayer(process.env.OPENDAL_TEST_CAPABILITY_OVERRIDES).build()
-    )
+    operator = operator.layer(new layers.CapabilityOverrideLayer(process.env.OPENDAL_TEST_CAPABILITY_OVERRIDES).build())
   }
 
   describe.skipIf(!operator)(testName, () => {

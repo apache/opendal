@@ -469,6 +469,183 @@ impl TosCore {
 
         self.send(req).await
     }
+
+    pub async fn tos_initiate_multipart_upload(
+        &self,
+        path: &str,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploads",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p)
+        );
+
+        let mut req = Request::post(&url);
+
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(http::header::CACHE_CONTROL, cache_control);
+        }
+
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(http::header::CONTENT_ENCODING, content_encoding);
+        }
+
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(http::header::CONTENT_DISPOSITION, content_disposition);
+        }
+
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(
+                http::HeaderName::from_static(constants::X_TOS_STORAGE_CLASS),
+                v,
+            );
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{}{}", constants::X_TOS_META_PREFIX, key), value);
+            }
+        }
+
+        req = req.extension(Operation::Write);
+
+        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub fn tos_upload_part_request(
+        &self,
+        path: &str,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
+    ) -> Result<Request<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?partNumber={}&uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p),
+            part_number,
+            percent_encode_query(upload_id)
+        );
+
+        let req = Request::put(&url)
+            .header(CONTENT_LENGTH, size)
+            .extension(Operation::Write)
+            .body(body)
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
+    pub async fn tos_complete_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p),
+            percent_encode_query(upload_id)
+        );
+
+        let content = serde_json::to_string(&CompleteMultipartUploadRequest { parts })
+            .map_err(new_json_serialize_error)?;
+
+        let mut req = Request::post(&url)
+            .header(CONTENT_LENGTH, content.len())
+            .header(CONTENT_TYPE, "application/json");
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(http::header::IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(http::header::IF_NONE_MATCH, "*");
+        }
+
+        let req = req
+            .extension(Operation::Write)
+            .body(Buffer::from(content))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_abort_multipart_upload(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "https://{}.{}/{}?uploadId={}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&p),
+            percent_encode_query(upload_id)
+        );
+
+        let req = Request::delete(&url)
+            .extension(Operation::Write)
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+}
+
+#[derive(Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequest {
+    pub parts: Vec<CompleteMultipartUploadRequestPart>,
+}
+
+#[derive(Clone, Default, Debug, Serialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadRequestPart {
+    pub part_number: usize,
+    #[serde(rename = "ETag")]
+    pub etag: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct InitiateMultipartUploadResult {
+    #[serde(alias = "UploadID")]
+    pub upload_id: String,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct CompleteMultipartUploadResult {
+    pub bucket: String,
+    pub key: String,
+    #[serde(rename = "ETag")]
+    pub etag: String,
+    pub location: String,
+    pub version_id: String,
+    pub code: String,
+    pub message: String,
+    pub request_id: String,
 }
 
 #[derive(Default, Debug, Serialize)]

@@ -210,7 +210,12 @@ impl Builder for TosBuilder {
                     list_with_start_after: true,
                     list_with_recursive: true,
 
-                    stat: false,
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
+                    stat_with_version: config.enable_versioning,
 
                     shared: false,
 
@@ -243,6 +248,37 @@ impl Builder for TosBuilder {
         Ok(TosBackend {
             core: Arc::new(core),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tos_stat_capability() {
+        let backend = TosBuilder::default().bucket("test").build().unwrap();
+        let capability = backend.info().native_capability();
+
+        assert!(capability.stat);
+        assert!(capability.stat_with_if_match);
+        assert!(capability.stat_with_if_none_match);
+        assert!(capability.stat_with_if_modified_since);
+        assert!(capability.stat_with_if_unmodified_since);
+        assert!(!capability.stat_with_version);
+    }
+
+    #[test]
+    fn test_tos_stat_capability_with_versioning() {
+        let backend = TosBuilder::default()
+            .bucket("test")
+            .enable_versioning(true)
+            .build()
+            .unwrap();
+        let capability = backend.info().native_capability();
+
+        assert!(capability.stat);
+        assert!(capability.stat_with_version);
     }
 }
 

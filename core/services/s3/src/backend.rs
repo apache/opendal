@@ -1126,8 +1126,7 @@ impl Access for S3Backend {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let meta = self.stat(from, OpStat::default()).await?.into_metadata();
-        let copier = new_s3_copier(self.core.clone(), from, to, args, opts, meta)?;
+        let copier = new_s3_copier(self.core.clone(), from, to, args, opts)?;
         Ok((RpCopy::default(), copier))
     }
 

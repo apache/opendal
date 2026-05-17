@@ -96,17 +96,21 @@ impl ReadContext {
             })?,
             Bound::Excluded(v) => *v,
             Bound::Unbounded => {
-                let mut op_stat = OpStat::new();
+                if let Some(v) = self.options().content_length_hint() {
+                    v
+                } else {
+                    let mut op_stat = OpStat::new();
 
-                if let Some(v) = self.args().version() {
-                    op_stat = op_stat.with_version(v);
+                    if let Some(v) = self.args().version() {
+                        op_stat = op_stat.with_version(v);
+                    }
+
+                    self.accessor()
+                        .stat(self.path(), op_stat)
+                        .await?
+                        .into_metadata()
+                        .content_length()
                 }
-
-                self.accessor()
-                    .stat(self.path(), op_stat)
-                    .await?
-                    .into_metadata()
-                    .content_length()
             }
         };
 
@@ -271,6 +275,24 @@ mod tests {
             "Excluded(u64::MAX) start should return error, not overflow"
         );
         assert_eq!(result.unwrap_err().kind(), ErrorKind::RangeNotSatisfied);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_parse_into_range_uses_content_length_hint() -> Result<()> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+
+        let acc = op.into_inner();
+        let ctx = ReadContext::new(
+            acc,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new().with_content_length_hint(42),
+        );
+
+        let range = ctx.parse_into_range(10..).await?;
+
+        pretty_assertions::assert_eq!(range, 10..42);
         Ok(())
     }
 }

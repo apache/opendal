@@ -204,7 +204,11 @@ impl Builder for TosBuilder {
                     list_with_start_after: true,
                     list_with_recursive: true,
 
-                    stat: false,
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
 
                     shared: false,
 

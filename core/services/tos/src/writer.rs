@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
 use constants::X_TOS_OBJECT_SIZE;
 use constants::X_TOS_VERSION_ID;
 use http::StatusCode;
@@ -79,44 +80,116 @@ impl oio::MultipartWrite for TosWriter {
     }
 
     async fn initiate_part(&self) -> Result<String> {
-        // TODO: Implement multipart upload in follow-up PR
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "Multipart upload not yet implemented for TOS",
-        ))
+        let resp = self
+            .core
+            .tos_initiate_multipart_upload(&self.path, &self.op)
+            .await?;
+
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let result: InitiateMultipartUploadResult =
+                    serde_json::from_reader(resp.into_body().reader())
+                        .map_err(new_json_deserialize_error)?;
+
+                Ok(result.upload_id)
+            }
+            _ => Err(parse_error(resp)),
+        }
     }
 
     async fn write_part(
         &self,
-        _upload_id: &str,
-        _part_number: usize,
-        _size: u64,
-        _body: Buffer,
+        upload_id: &str,
+        part_number: usize,
+        size: u64,
+        body: Buffer,
     ) -> Result<oio::MultipartPart> {
-        // TODO: Implement multipart upload in follow-up PR
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "Multipart upload not yet implemented for TOS",
-        ))
+        let part_number = part_number + 1;
+
+        let req =
+            self.core
+                .tos_upload_part_request(&self.path, upload_id, part_number, size, body)?;
+
+        let resp = self.core.send(req).await?;
+        let status = resp.status();
+
+        match status {
+            StatusCode::OK => {
+                let etag = tos_parse_etag(resp.headers())?
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "ETag not present in returning response",
+                        )
+                    })?
+                    .to_string();
+
+                Ok(oio::MultipartPart {
+                    part_number,
+                    etag,
+                    checksum: None,
+                    size: None,
+                })
+            }
+            _ => Err(parse_error(resp)),
+        }
     }
 
     async fn complete_part(
         &self,
-        _upload_id: &str,
-        _parts: &[oio::MultipartPart],
+        upload_id: &str,
+        parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
-        // TODO: Implement multipart upload in follow-up PR
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "Multipart upload not yet implemented for TOS",
-        ))
+        let parts = parts
+            .iter()
+            .map(|p| CompleteMultipartUploadRequestPart {
+                part_number: p.part_number,
+                etag: p.etag.clone(),
+            })
+            .collect();
+
+        let resp = self
+            .core
+            .tos_complete_multipart_upload(&self.path, upload_id, parts, &self.op)
+            .await?;
+
+        let status = resp.status();
+        let mut meta = TosWriter::parse_header_into_meta(&self.path, resp.headers())?;
+
+        match status {
+            StatusCode::OK => {
+                let ret: CompleteMultipartUploadResult =
+                    serde_json::from_reader(resp.into_body().reader())
+                        .map_err(new_json_deserialize_error)?;
+                if !ret.code.is_empty() {
+                    return Err(Error::new(ErrorKind::Unexpected, ret.message));
+                }
+                if !ret.etag.is_empty() {
+                    // CompleteMultipartUpload response wraps ETag in quotes:
+                    // https://www.volcengine.com/docs/6349/74868
+                    meta.set_etag(ret.etag.trim_matches('"'));
+                }
+                if !ret.version_id.is_empty() {
+                    meta.set_version(&ret.version_id);
+                }
+
+                Ok(meta)
+            }
+            _ => Err(parse_error(resp)),
+        }
     }
 
-    async fn abort_part(&self, _upload_id: &str) -> Result<()> {
-        // TODO: Implement multipart upload in follow-up PR
-        Err(Error::new(
-            ErrorKind::Unexpected,
-            "Multipart upload not yet implemented for TOS",
-        ))
+    async fn abort_part(&self, upload_id: &str) -> Result<()> {
+        let resp = self
+            .core
+            .tos_abort_multipart_upload(&self.path, upload_id)
+            .await?;
+
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(()),
+            _ => Err(parse_error(resp)),
+        }
     }
 }

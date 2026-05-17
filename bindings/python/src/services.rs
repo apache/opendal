@@ -332,8 +332,6 @@ submit! {
                 skip_signature : builtins.bool, optional
                     Skip signature will skip loading credentials and
                     signing requests.
-                    This is useful for accessing public Azure containers
-                    without credentials.
                 Returns
                 -------
                 Operator
@@ -3021,8 +3019,6 @@ submit! {
                 skip_signature : builtins.bool, optional
                     Skip signature will skip loading credentials and
                     signing requests.
-                    This is useful for accessing public Azure containers
-                    without credentials.
                 Returns
                 -------
                 AsyncOperator

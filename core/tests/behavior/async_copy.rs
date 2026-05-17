@@ -39,6 +39,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if cap.read && cap.write && cap.copy && cap.copy_can_multi {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_chunk,
+            test_copy_with_chunk_and_concurrent
+        ))
+    }
+
     if cap.read && cap.write && cap.copy && cap.copy_with_if_not_exists {
         tests.extend(async_trials!(
             op,
@@ -48,6 +56,30 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copier_with_if_not_exists_to_existing_file
         ))
     }
+}
+
+fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
+    let chunk = cap
+        .copy_multi_min_size
+        .expect("copy_can_multi should set copy_multi_min_size");
+    let max_chunk = cap
+        .copy_multi_max_size
+        .expect("copy_can_multi should set copy_multi_max_size");
+    assert!(
+        chunk <= max_chunk,
+        "copy_multi_min_size should not exceed copy_multi_max_size"
+    );
+
+    let source_size = chunk.checked_add(1)?;
+
+    if cap
+        .write_total_max_size
+        .is_some_and(|max_size| source_size > max_size)
+    {
+        return None;
+    }
+
+    Some((chunk, source_size))
 }
 
 /// Copy a file with ascii name and test contents.
@@ -317,6 +349,39 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
     Ok(())
 }
 
+/// Copy with chunk should copy a file successfully.
+pub async fn test_copy_with_chunk(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    let Some((chunk, source_size)) = copy_multi_chunk_size(cap) else {
+        return Ok(());
+    };
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let source_content = gen_fixed_bytes(source_size);
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    op.copy_with(&source_path, &target_path)
+        .chunk(chunk)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(target_content.len(), source_size, "read size");
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Copier should copy a file and commit the target after completion.
 pub async fn test_copier_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
@@ -334,6 +399,40 @@ pub async fn test_copier_file(op: Operator) -> Result<()> {
         .await
         .expect("read must succeed")
         .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with chunk and concurrent should copy a file successfully.
+pub async fn test_copy_with_chunk_and_concurrent(op: Operator) -> Result<()> {
+    let cap = op.info().full_capability();
+    let Some((chunk, source_size)) = copy_multi_chunk_size(cap) else {
+        return Ok(());
+    };
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let source_content = gen_fixed_bytes(source_size);
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    op.copy_with(&source_path, &target_path)
+        .chunk(chunk)
+        .concurrent(4)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(target_content.len(), source_size, "read size");
     assert_eq!(
         sha256_digest(target_content),
         sha256_digest(&source_content),

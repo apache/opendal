@@ -212,8 +212,6 @@ public interface ServiceConfig {
         public final String sasToken;
         /**
          * <p>Skip signature will skip loading credentials and signing requests.</p>
-         * <p>This is useful for accessing public Azure containers without
-         * credentials.</p>
          */
         public final Boolean skipSignature;
 

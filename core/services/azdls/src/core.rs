@@ -298,7 +298,7 @@ impl AzdlsCore {
             .to_string();
 
         let url = format!(
-            "{}/{}/{}?action=getStatus",
+            "{}/{}/{}",
             self.endpoint,
             self.filesystem,
             percent_encode_path(&p)

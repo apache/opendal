@@ -173,6 +173,11 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>Allow anonymous will allow opendal to send request without signing
+         * when credential is not loaded.</p>
+         */
+        public final Boolean allowAnonymous;
+        /**
          * <p>The maximum batch operations of Azblob service backend.</p>
          */
         public final Long batchMaxOperations;
@@ -224,6 +229,9 @@ public interface ServiceConfig {
             }
             if (accountName != null) {
                 map.put("account_name", accountName);
+            }
+            if (allowAnonymous != null) {
+                map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));

@@ -244,10 +244,9 @@ impl AzblobBuilder {
         self
     }
 
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 
@@ -462,7 +461,7 @@ impl Builder for AzblobBuilder {
                 encryption_key_sha256,
                 encryption_algorithm,
                 container: self.config.container.clone(),
-                allow_anonymous: self.config.allow_anonymous,
+                skip_signature: self.config.skip_signature,
                 signer,
             }),
         })

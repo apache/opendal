@@ -68,7 +68,7 @@ pub struct AzblobCore {
     pub encryption_key: Option<HeaderValue>,
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
     pub signer: Signer<Credential>,
 }
 
@@ -84,7 +84,7 @@ impl Debug for AzblobCore {
 
 impl AzblobCore {
     pub async fn sign_query<T>(&self, req: Request<T>) -> Result<Request<T>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 
@@ -112,8 +112,8 @@ impl AzblobCore {
             HeaderValue::from_static("2022-11-02"),
         );
 
-        // x-ms-version must be set even for anonymous requests.
-        if self.allow_anonymous {
+        // x-ms-version must be set even when signing is skipped.
+        if self.skip_signature {
             return Ok(Request::from_parts(parts, body));
         }
 
@@ -126,7 +126,7 @@ impl AzblobCore {
     }
 
     async fn batch_sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 

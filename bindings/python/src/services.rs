@@ -288,7 +288,6 @@ submit! {
                 *,
                 account_key: builtins.str = ...,
                 account_name: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 batch_max_operations: builtins.int = ...,
                 container: builtins.str,
                 encryption_algorithm: builtins.str = ...,
@@ -297,6 +296,7 @@ submit! {
                 endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `azblob` service.
@@ -307,9 +307,6 @@ submit! {
                     The account key of Azblob service backend.
                 account_name : builtins.str, optional
                     The account name of Azblob service backend.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 batch_max_operations : builtins.int, optional
                     The maximum batch operations of Azblob service
                     backend.
@@ -332,6 +329,11 @@ submit! {
                     All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
+                    This is useful for accessing public Azure containers
+                    without credentials.
                 Returns
                 -------
                 Operator
@@ -2975,7 +2977,6 @@ submit! {
                 *,
                 account_key: builtins.str = ...,
                 account_name: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 batch_max_operations: builtins.int = ...,
                 container: builtins.str,
                 encryption_algorithm: builtins.str = ...,
@@ -2984,6 +2985,7 @@ submit! {
                 endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `azblob` service.
@@ -2994,9 +2996,6 @@ submit! {
                     The account key of Azblob service backend.
                 account_name : builtins.str, optional
                     The account name of Azblob service backend.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 batch_max_operations : builtins.int, optional
                     The maximum batch operations of Azblob service
                     backend.
@@ -3019,6 +3018,11 @@ submit! {
                     All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
+                    This is useful for accessing public Azure containers
+                    without credentials.
                 Returns
                 -------
                 AsyncOperator

@@ -382,11 +382,10 @@ impl OneDriveCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let parent_path = get_parent(path);
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
-            self.onedrive_item_url(parent_path, true),
+            self.onedrive_item_url(path, true),
         );
         let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 

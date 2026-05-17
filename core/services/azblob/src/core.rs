@@ -68,6 +68,7 @@ pub struct AzblobCore {
     pub encryption_key: Option<HeaderValue>,
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
+    pub skip_signature: bool,
     pub signer: Signer<Credential>,
 }
 
@@ -83,6 +84,10 @@ impl Debug for AzblobCore {
 
 impl AzblobCore {
     pub async fn sign_query<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer
@@ -107,6 +112,11 @@ impl AzblobCore {
             HeaderValue::from_static("2022-11-02"),
         );
 
+        // x-ms-version must be set even when signing is skipped.
+        if self.skip_signature {
+            return Ok(Request::from_parts(parts, body));
+        }
+
         self.signer
             .sign(&mut parts, None)
             .await
@@ -116,6 +126,10 @@ impl AzblobCore {
     }
 
     async fn batch_sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer

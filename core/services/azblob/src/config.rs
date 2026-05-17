@@ -76,6 +76,10 @@ pub struct AzblobConfig {
 
     /// The maximum batch operations of Azblob service backend.
     pub batch_max_operations: Option<usize>,
+
+    /// Skip signature will skip loading credentials and signing requests.
+    #[serde(default)]
+    pub skip_signature: bool,
 }
 
 impl Debug for AzblobConfig {

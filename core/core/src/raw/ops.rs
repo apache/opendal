@@ -439,6 +439,8 @@ pub struct OpReader {
     gap: Option<usize>,
     /// The maximum number of buffers that can be prefetched.
     prefetch: usize,
+    /// Known content length of the object.
+    content_length_hint: Option<u64>,
 }
 
 impl Default for OpReader {
@@ -448,6 +450,7 @@ impl Default for OpReader {
             chunk: None,
             gap: None,
             prefetch: 0,
+            content_length_hint: None,
         }
     }
 }
@@ -501,6 +504,17 @@ impl OpReader {
     pub fn prefetch(&self) -> usize {
         self.prefetch
     }
+
+    /// Set content length hint of the option
+    pub fn with_content_length_hint(mut self, content_length: u64) -> Self {
+        self.content_length_hint = Some(content_length);
+        self
+    }
+
+    /// Get content length hint from option
+    pub fn content_length_hint(&self) -> Option<u64> {
+        self.content_length_hint
+    }
 }
 
 impl From<options::ReadOptions> for (OpRead, OpReader) {
@@ -523,6 +537,7 @@ impl From<options::ReadOptions> for (OpRead, OpReader) {
                 chunk: value.chunk,
                 gap: value.gap,
                 prefetch: 0,
+                content_length_hint: value.content_length_hint,
             },
         )
     }
@@ -548,6 +563,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
                 chunk: value.chunk,
                 gap: value.gap,
                 prefetch: value.prefetch,
+                content_length_hint: value.content_length_hint,
             },
         )
     }
@@ -906,6 +922,7 @@ impl OpCopy {
 pub struct OpCopier {
     concurrent: usize,
     chunk: Option<usize>,
+    source_content_length_hint: Option<u64>,
 }
 
 impl OpCopier {
@@ -935,6 +952,17 @@ impl OpCopier {
     pub fn chunk(&self) -> Option<usize> {
         self.chunk
     }
+
+    /// Set source content length hint for the copier.
+    pub fn with_source_content_length_hint(mut self, content_length: u64) -> Self {
+        self.source_content_length_hint = Some(content_length);
+        self
+    }
+
+    /// Get source content length hint from the copier.
+    pub fn source_content_length_hint(&self) -> Option<u64> {
+        self.source_content_length_hint
+    }
 }
 
 impl From<options::CopyOptions> for (OpCopy, OpCopier) {
@@ -946,6 +974,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
             OpCopier {
                 concurrent: value.concurrent.max(1),
                 chunk: value.chunk,
+                source_content_length_hint: value.source_content_length_hint,
             },
         )
     }

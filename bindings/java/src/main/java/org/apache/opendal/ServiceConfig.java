@@ -2910,8 +2910,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableStatWithOverride;
         /**
-         * <p>Disable write with if match so that opendal will not send write request with if match headers.</p>
-         * <p>For example, Ceph RADOS S3 doesn't support write with if matched.</p>
+         * <p>Deprecated: S3 write with If-Match capability is enabled by default.</p>
+         *
+         * @deprecated S3 write with If-Match capability is enabled by default and this option is no longer needed.
          */
         public final Boolean disableWriteWithIfMatch;
         /**
@@ -2919,7 +2920,9 @@ public interface ServiceConfig {
          */
         public final Boolean enableRequestPayer;
         /**
-         * <p>is bucket versioning enabled for this bucket</p>
+         * <p>Deprecated: S3 versioning capability is enabled by default.</p>
+         *
+         * @deprecated S3 versioning capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**
@@ -2932,7 +2935,9 @@ public interface ServiceConfig {
          */
         public final Boolean enableVirtualHostStyle;
         /**
-         * <p>Enable write with append so that opendal will send write request with append headers.</p>
+         * <p>Deprecated: S3 append capability is enabled by default.</p>
+         *
+         * @deprecated S3 append capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableWriteWithAppend;
         /**

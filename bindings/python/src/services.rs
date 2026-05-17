@@ -2135,15 +2135,14 @@ submit! {
                     For example, R2 doesn't support stat with
                     `response_content_type` query.
                 disable_write_with_if_match : builtins.bool, optional
-                    Disable write with if match so that opendal will not
-                    send write request with if match headers.
-                    For example, Ceph RADOS S3 doesn't support write
-                    with if matched.
+                    Deprecated: S3 write with If-Match capability is
+                    enabled by default.
                 enable_request_payer : builtins.bool, optional
                     Indicates whether the client agrees to pay for the
                     requests made to the S3 bucket.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: S3 versioning capability is enabled by
+                    default.
                 enable_virtual_host_style : builtins.bool, optional
                     Enable virtual host style so that opendal will send
                     API requests in virtual host style instead of path
@@ -2153,8 +2152,8 @@ submit! {
                     Enabled, opendal will send API to
                     `https://bucket_name.s3.us-east-1.amazonaws.com`
                 enable_write_with_append : builtins.bool, optional
-                    Enable write with append so that opendal will send
-                    write request with append headers.
+                    Deprecated: S3 append capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -4818,15 +4817,14 @@ submit! {
                     For example, R2 doesn't support stat with
                     `response_content_type` query.
                 disable_write_with_if_match : builtins.bool, optional
-                    Disable write with if match so that opendal will not
-                    send write request with if match headers.
-                    For example, Ceph RADOS S3 doesn't support write
-                    with if matched.
+                    Deprecated: S3 write with If-Match capability is
+                    enabled by default.
                 enable_request_payer : builtins.bool, optional
                     Indicates whether the client agrees to pay for the
                     requests made to the S3 bucket.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: S3 versioning capability is enabled by
+                    default.
                 enable_virtual_host_style : builtins.bool, optional
                     Enable virtual host style so that opendal will send
                     API requests in virtual host style instead of path
@@ -4836,8 +4834,8 @@ submit! {
                     Enabled, opendal will send API to
                     `https://bucket_name.s3.us-east-1.amazonaws.com`
                 enable_write_with_append : builtins.bool, optional
-                    Enable write with append so that opendal will send
-                    write request with append headers.
+                    Deprecated: S3 append capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.

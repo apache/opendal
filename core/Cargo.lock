@@ -6916,6 +6916,7 @@ dependencies = [
  "log",
  "opendal-core",
  "serde",
+ "tempfile",
  "tokio",
  "xattr",
 ]

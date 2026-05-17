@@ -79,6 +79,7 @@ pub struct AzblobConfig {
 
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
+    #[serde(default)]
     pub allow_anonymous: bool,
 }
 

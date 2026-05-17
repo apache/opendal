@@ -240,6 +240,7 @@ impl Access for SurrealdbBackend {
     type Writer = SurrealdbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SurrealdbDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

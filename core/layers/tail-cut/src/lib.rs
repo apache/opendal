@@ -364,6 +364,7 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
     type Writer = TailCutWrapper<A::Writer>;
     type Lister = TailCutWrapper<A::Lister>;
     type Deleter = TailCutWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -401,9 +402,19 @@ impl<A: Access> LayeredAccess for TailCutAccessor<A> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.with_deadline(Operation::Copy, None, self.inner.copy(from, to, args))
-            .await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.with_deadline(
+            Operation::Copy,
+            None,
+            self.inner.copy(from, to, args, opts.clone()),
+        )
+        .await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {

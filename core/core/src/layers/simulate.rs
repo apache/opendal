@@ -257,6 +257,7 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
     type Writer = A::Writer;
     type Lister = SimulateLister<A, A::Lister>;
     type Deleter = SimulateDeleter<A, A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -276,6 +277,16 @@ impl<A: Access> LayeredAccess for SimulateAccessor<A> {
 
     async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
         self.inner.write(path, args).await
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

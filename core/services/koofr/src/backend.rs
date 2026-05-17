@@ -194,6 +194,7 @@ impl Access for KoofrBackend {
     type Writer = KoofrWriters;
     type Lister = oio::PageLister<KoofrLister>;
     type Deleter = oio::OneShotDeleter<KoofrDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -274,11 +275,17 @@ impl Access for KoofrBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.core.ensure_dir_exists(to).await?;
 
         if from == to {
-            return Ok(RpCopy::default());
+            return Ok((RpCopy::default(), ()));
         }
 
         let resp = self.core.remove(to).await?;
@@ -294,7 +301,7 @@ impl Access for KoofrBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(RpCopy::default()),
+            StatusCode::OK => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

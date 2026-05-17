@@ -135,6 +135,7 @@ impl Access for MiniMokaBackend {
     type Writer = MiniMokaWriter;
     type Lister = oio::HierarchyLister<MiniMokaLister>;
     type Deleter = oio::OneShotDeleter<MiniMokaDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         let info = AccessorInfo::default();

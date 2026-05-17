@@ -244,6 +244,7 @@ impl Access for FoyerBackend {
     type Writer = FoyerWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<FoyerDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

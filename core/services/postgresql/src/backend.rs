@@ -186,6 +186,7 @@ impl Access for PostgresqlBackend {
     type Writer = PostgresqlWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

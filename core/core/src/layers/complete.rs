@@ -22,8 +22,9 @@ use std::sync::Arc;
 
 use crate::raw::oio;
 use crate::raw::{
-    Access, AccessorInfo, Layer, LayeredAccess, OpCreateDir, OpList, OpPresign, OpRead, OpStat,
-    OpWrite, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpStat, RpWrite,
+    Access, AccessorInfo, Layer, LayeredAccess, OpCopier, OpCopy, OpCreateDir, OpList, OpPresign,
+    OpRead, OpStat, OpWrite, RpCopy, RpCreateDir, RpDelete, RpList, RpPresign, RpRead, RpStat,
+    RpWrite,
 };
 use crate::*;
 
@@ -59,6 +60,7 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
     type Writer = CompleteWriter<A::Writer>;
     type Lister = CompleteLister<A>;
     type Deleter = A::Deleter;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -84,6 +86,16 @@ impl<A: Access> LayeredAccess for CompleteAccessor<A> {
         let (rp, w) = self.inner.write(path, args.clone()).await?;
         let w = CompleteWriter::new(w, args.append());
         Ok((rp, w))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts).await
     }
 
     async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {

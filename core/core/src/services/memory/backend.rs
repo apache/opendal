@@ -104,6 +104,7 @@ impl Access for MemoryBackend {
     type Writer = MemoryWriter;
     type Lister = oio::HierarchyLister<MemoryLister>;
     type Deleter = oio::OneShotDeleter<MemoryDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

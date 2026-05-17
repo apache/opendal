@@ -36,6 +36,9 @@ pub use write::*;
 mod list;
 pub use list::Lister;
 
+mod copy;
+pub use copy::Copier;
+
 mod delete;
 pub use delete::*;
 

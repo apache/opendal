@@ -191,6 +191,7 @@ impl Access for GridfsBackend {
     type Writer = GridfsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<GridfsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

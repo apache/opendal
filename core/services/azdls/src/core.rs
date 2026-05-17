@@ -15,9 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use http::HeaderName;
 use http::HeaderValue;
 use http::Request;
@@ -40,6 +43,9 @@ pub const X_MS_VERSION_ID: &str = "x-ms-version-id";
 const X_MS_CONTINUATION: &str = "x-ms-continuation";
 pub const DIRECTORY: &str = "directory";
 pub const FILE: &str = "file";
+// Format: `n1=base64(v1),n2=base64(v2),...`.
+// See https://learn.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/create
+const X_MS_PROPERTIES: &str = "x-ms-properties";
 
 pub struct AzdlsCore {
     pub info: Arc<AccessorInfo>,
@@ -157,6 +163,12 @@ impl AzdlsCore {
 
         if let Some(v) = args.if_none_match() {
             req = req.header(IF_NONE_MATCH, v)
+        }
+
+        if let Some(user_metadata) = args.user_metadata() {
+            if !user_metadata.is_empty() {
+                req = req.header(X_MS_PROPERTIES, encode_user_metadata(user_metadata));
+            }
         }
 
         let operation = if resource == DIRECTORY {
@@ -286,7 +298,7 @@ impl AzdlsCore {
             .to_string();
 
         let url = format!(
-            "{}/{}/{}?action=getStatus",
+            "{}/{}/{}",
             self.endpoint,
             self.filesystem,
             percent_encode_path(&p)
@@ -316,6 +328,13 @@ impl AzdlsCore {
 
         if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
             meta.set_version(version_id);
+        }
+
+        if let Some(value) = parse_header_to_str(headers, X_MS_PROPERTIES)? {
+            let user_meta = decode_user_metadata(value);
+            if !user_meta.is_empty() {
+                meta = meta.with_user_metadata(user_meta);
+            }
         }
 
         let resource = resp
@@ -479,5 +498,69 @@ impl AzdlsCore {
         } else {
             Ok(None)
         }
+    }
+}
+
+fn encode_user_metadata(metadata: &HashMap<String, String>) -> String {
+    metadata
+        .iter()
+        .map(|(k, v)| format!("{k}={}", BASE64_STANDARD.encode(v)))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn decode_user_metadata(value: &str) -> HashMap<String, String> {
+    value
+        .split(',')
+        .filter_map(|pair| {
+            let (key, encoded) = pair.split_once('=')?;
+            let bytes = BASE64_STANDARD.decode(encoded.trim()).ok()?;
+            let decoded = String::from_utf8(bytes).ok()?;
+            Some((key.trim().to_string(), decoded))
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_then_decode_roundtrips() {
+        let mut input = HashMap::new();
+        input.insert("location".to_string(), "everywhere".to_string());
+        input.insert("owner".to_string(), "opendal".to_string());
+
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
+        assert_eq!(decoded, input);
+    }
+
+    #[test]
+    fn encoded_value_is_base64_so_special_characters_survive() {
+        let mut input = HashMap::new();
+        input.insert("k".to_string(), "a=b,c".to_string());
+
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
+        assert_eq!(decoded.get("k"), Some(&"a=b,c".to_string()));
+    }
+
+    #[test]
+    fn decode_preserves_utf8_multibyte_values() {
+        let mut input = HashMap::new();
+        input.insert("greeting".to_string(), "你好".to_string());
+
+        let decoded = decode_user_metadata(&encode_user_metadata(&input));
+        assert_eq!(decoded, input);
+    }
+
+    #[test]
+    fn decode_silently_skips_malformed_entries_and_keeps_valid_ones() {
+        let header = format!(
+            "good=Z29vZA==,no_equals,bad_b64=!!!,k={}",
+            BASE64_STANDARD.encode([0xFF, 0xFE])
+        );
+        let decoded = decode_user_metadata(&header);
+        assert_eq!(decoded.len(), 1);
+        assert_eq!(decoded.get("good"), Some(&"good".to_string()));
     }
 }

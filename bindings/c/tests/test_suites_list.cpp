@@ -69,7 +69,7 @@ void test_list_basic(opendal_test_context* ctx)
         OPENDAL_ASSERT_NOT_NULL(path, "Entry path should not be null");
         found_paths.insert(std::string(path));
 
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -124,7 +124,7 @@ void test_list_empty_dir(opendal_test_context* ctx)
 
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -191,7 +191,7 @@ void test_list_nested(opendal_test_context* ctx)
 
         char* path = opendal_entry_path(next_result.entry);
         found_paths.insert(std::string(path));
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 
@@ -269,8 +269,73 @@ void test_entry_name_path(opendal_test_context* ctx)
                 "Entry path should be the full path");
         }
 
+        opendal_string_free(path);
+        opendal_string_free(name);
+        opendal_entry_free(next_result.entry);
+    }
+
+    OPENDAL_ASSERT(found_file, "Should have found the test file");
+
+    // Cleanup
+    opendal_lister_free(list_result.lister);
+    opendal_operator_delete(ctx->config->operator_instance, file_path);
+    opendal_operator_delete(ctx->config->operator_instance, dir_path);
+}
+
+// Test: Entry metadata from lister
+void test_entry_metadata(opendal_test_context* ctx)
+{
+    const char* dir_path = "test_entry_meta/";
+    const char* file_path = "test_entry_meta/file.txt";
+    const char* content_str = "hello, metadata!";
+    const size_t content_len = strlen(content_str);
+
+    // Create directory and file
+    opendal_error* error = opendal_operator_create_dir(ctx->config->operator_instance, dir_path);
+    OPENDAL_ASSERT_NO_ERROR(error, "Create dir should succeed");
+
+    opendal_bytes data;
+    data.data = (uint8_t*)content_str;
+    data.len = content_len;
+    data.capacity = content_len;
+    error = opendal_operator_write(ctx->config->operator_instance, file_path, &data);
+    OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
+
+    // List directory
+    opendal_result_list list_result = opendal_operator_list(ctx->config->operator_instance, dir_path);
+    OPENDAL_ASSERT_NO_ERROR(list_result.error, "List operation should succeed");
+
+    bool found_file = false;
+    bool found_dir = false;
+    while (true) {
+        opendal_result_lister_next next_result = opendal_lister_next(list_result.lister);
+        if (next_result.error) {
+            OPENDAL_ASSERT_NO_ERROR(next_result.error, "Lister next should not fail");
+            break;
+        }
+
+        if (!next_result.entry) {
+            break;
+        }
+
+        char* path = opendal_entry_path(next_result.entry);
+        opendal_metadata* meta = opendal_entry_metadata(next_result.entry);
+        OPENDAL_ASSERT_NOT_NULL(meta, "Entry metadata should not be null");
+
+        if (strcmp(path, file_path) == 0) {
+            found_file = true;
+            OPENDAL_ASSERT(opendal_metadata_is_file(meta), "File entry should be a file");
+            OPENDAL_ASSERT(!opendal_metadata_is_dir(meta), "File entry should not be a dir");
+            OPENDAL_ASSERT_EQ((long)content_len, (long)opendal_metadata_content_length(meta),
+                "Content length should match written data");
+        } else if (strcmp(path, dir_path) == 0) {
+            found_dir = true;
+            OPENDAL_ASSERT(opendal_metadata_is_dir(meta), "Dir entry should be a dir");
+            OPENDAL_ASSERT(!opendal_metadata_is_file(meta), "Dir entry should not be a file");
+        }
+
+        opendal_metadata_free(meta);
         free(path);
-        free(name);
         opendal_entry_free(next_result.entry);
     }
 
@@ -288,6 +353,8 @@ opendal_test_case list_tests[] = {
     { "list_empty_dir", test_list_empty_dir, make_capability_create_dir_list() },
     { "list_nested", test_list_nested, make_capability_write_create_dir_list() },
     { "entry_name_path", test_entry_name_path,
+        make_capability_write_create_dir_list() },
+    { "entry_metadata", test_entry_metadata,
         make_capability_write_create_dir_list() },
 };
 

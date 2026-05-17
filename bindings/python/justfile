@@ -22,7 +22,7 @@ default: help
 # Configuration & Variables
 # ==============================================================================
 
-set ignore-comments := true
+set ignore-comments
 
 # ==============================================================================
 # Setup & Maintenance

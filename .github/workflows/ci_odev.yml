@@ -60,3 +60,23 @@ jobs:
       - name: Cargo Test
         working-directory: dev
         run: cargo test
+
+  check_generated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Python bindings code
+        run: cargo run --manifest-path=dev/Cargo.toml -- generate -l python
+
+      - name: Generate Java bindings code
+        run: cargo run --manifest-path=dev/Cargo.toml -- generate -l java
+      - run: cargo fmt --manifest-path bindings/python/Cargo.toml --all
+
+      - name: Check diff
+        run: git diff --exit-code

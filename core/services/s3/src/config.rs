@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use opendal_core::Configurator;
@@ -108,6 +109,8 @@ pub struct S3Config {
     pub role_session_name: Option<String>,
     /// assume_role_duration_seconds for this backend.
     pub assume_role_duration_seconds: Option<u32>,
+    /// assume_role_session_tags for this backend.
+    pub assume_role_session_tags: Option<HashMap<String, String>>,
     /// Disable config load so that opendal will not load config from
     /// environment.
     ///

@@ -359,7 +359,7 @@ var ffiListerNext = newFFI(ffiOpts{
 
 var ffiEntryFree = newFFI(ffiOpts{
 	sym:    "opendal_entry_free",
-	rType:  &ffi.TypePointer,
+	rType:  &ffi.TypeVoid,
 	aTypes: []*ffi.Type{&ffi.TypePointer},
 }, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) {
 	return func(e *opendalEntry) {

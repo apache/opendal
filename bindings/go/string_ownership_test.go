@@ -23,7 +23,15 @@ import (
 	"context"
 	"testing"
 	"unsafe"
+
+	"github.com/jupiterrider/ffi"
 )
+
+func TestEntryFreeUsesVoidReturnType(t *testing.T) {
+	if ffiEntryFree.opts.rType != &ffi.TypeVoid {
+		t.Fatalf("ffiEntryFree return type = %v, want void", ffiEntryFree.opts.rType)
+	}
+}
 
 func TestCopyCStringAndFreeNil(t *testing.T) {
 	var freed int

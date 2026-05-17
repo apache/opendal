@@ -122,6 +122,7 @@ impl GhacWriter {
                     encryption_key: None,
                     encryption_key_sha256: None,
                     encryption_algorithm: None,
+                    allow_anonymous: false,
                     signer,
                 });
                 let w = AzblobWriter::new(azure_core, OpWrite::default(), path.to_string());

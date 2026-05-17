@@ -212,6 +212,7 @@ impl Access for SqliteBackend {
     type Writer = SqliteWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<SqliteDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

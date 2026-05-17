@@ -194,6 +194,7 @@ impl Access for MysqlBackend {
     type Writer = MysqlWriter;
     type Lister = oio::HierarchyLister<MysqlLister>;
     type Deleter = oio::OneShotDeleter<MysqlDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

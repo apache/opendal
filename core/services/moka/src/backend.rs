@@ -227,6 +227,7 @@ impl Access for MokaBackend {
     type Writer = MokaWriter;
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

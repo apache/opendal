@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use futures::Future;
+use futures::future::ready;
 
 use crate::raw::*;
 use crate::*;
@@ -60,6 +61,7 @@ use crate::*;
 ///     type Writer = A::Writer;
 ///     type Lister = A::Lister;
 ///     type Deleter = A::Deleter;
+///     type Copier = A::Copier;
 ///
 ///     fn inner(&self) -> &Self::Inner {
 ///         &self.inner
@@ -113,6 +115,7 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
     type Writer: oio::Write;
     type Lister: oio::List;
     type Deleter: oio::Delete;
+    type Copier: oio::Copy;
 
     fn inner(&self) -> &Self::Inner;
 
@@ -145,8 +148,14 @@ pub trait LayeredAccess: Send + Sync + Debug + Unpin + 'static {
         from: &str,
         to: &str,
         args: OpCopy,
-    ) -> impl Future<Output = Result<RpCopy>> + MaybeSend {
-        self.inner().copy(from, to, args)
+        opts: OpCopier,
+    ) -> impl Future<Output = Result<(RpCopy, Self::Copier)>> + MaybeSend {
+        let (_, _, _, _) = (from, to, args, opts);
+
+        ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
     }
 
     fn rename(
@@ -184,6 +193,7 @@ impl<L: LayeredAccess> Access for L {
     type Writer = L::Writer;
     type Lister = L::Lister;
     type Deleter = L::Deleter;
+    type Copier = L::Copier;
 
     fn info(&self) -> Arc<AccessorInfo> {
         LayeredAccess::info(self)
@@ -201,8 +211,14 @@ impl<L: LayeredAccess> Access for L {
         LayeredAccess::write(self, path, args).await
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        LayeredAccess::copy(self, from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        LayeredAccess::copy(self, from, to, args, opts).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -258,6 +274,7 @@ mod tests {
         type Writer = ();
         type Lister = ();
         type Deleter = ();
+        type Copier = ();
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();

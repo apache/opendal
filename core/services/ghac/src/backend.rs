@@ -214,6 +214,7 @@ impl Access for GhacBackend {
     type Writer = GhacWriter;
     type Lister = ();
     type Deleter = ();
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

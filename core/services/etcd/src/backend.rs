@@ -208,6 +208,7 @@ impl Access for EtcdBackend {
     type Writer = EtcdWriter;
     type Lister = oio::HierarchyLister<EtcdLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

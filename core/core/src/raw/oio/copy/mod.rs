@@ -15,22 +15,5 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! blocking module provides blocking APIs for OpenDAL.
-
-mod copy;
-pub use copy::*;
-
-mod delete;
-pub use delete::*;
-
-mod list;
-pub use list::*;
-
-mod read;
-pub use read::*;
-
-mod write;
-pub use write::*;
-
-mod operator;
-pub use operator::*;
+mod api;
+pub use api::*;

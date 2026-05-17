@@ -87,6 +87,7 @@ impl Access for CacacheBackend {
     type Writer = CacacheWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<CacacheDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -202,6 +202,7 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     type Writer = TracingWrapper<A::Writer>;
     type Lister = TracingWrapper<A::Lister>;
     type Deleter = TracingWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -233,8 +234,14 @@ impl<A: Access> LayeredAccess for TracingAccessor<A> {
     }
 
     #[tracing::instrument(level = "debug", skip(self))]
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner().copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner().copy(from, to, args, opts.clone()).await
     }
 
     #[tracing::instrument(level = "debug", skip(self))]

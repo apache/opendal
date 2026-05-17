@@ -24,6 +24,9 @@
 mod delete;
 pub use delete::*;
 
+mod copy;
+pub use copy::*;
+
 mod read;
 pub use read::*;
 

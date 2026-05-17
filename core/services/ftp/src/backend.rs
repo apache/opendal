@@ -195,6 +195,7 @@ impl Access for FtpBackend {
     type Writer = FtpWriter;
     type Lister = FtpLister;
     type Deleter = oio::OneShotDeleter<FtpDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info()

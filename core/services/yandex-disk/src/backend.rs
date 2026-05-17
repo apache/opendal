@@ -141,6 +141,7 @@ impl Access for YandexDiskBackend {
     type Writer = YandexDiskWriters;
     type Lister = oio::PageLister<YandexDiskLister>;
     type Deleter = oio::OneShotDeleter<YandexDiskDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -165,7 +166,13 @@ impl Access for YandexDiskBackend {
         }
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         self.core.ensure_dir_exists(to).await?;
 
         let resp = self.core.copy(from, to).await?;
@@ -173,7 +180,7 @@ impl Access for YandexDiskBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK | StatusCode::CREATED => Ok(RpCopy::default()),
+            StatusCode::OK | StatusCode::CREATED => Ok((RpCopy::default(), ())),
             _ => Err(parse_error(resp)),
         }
     }

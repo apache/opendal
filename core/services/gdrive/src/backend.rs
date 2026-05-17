@@ -47,6 +47,7 @@ impl Access for GdriveBackend {
     type Writer = oio::OneShotWriter<GdriveWriter>;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -208,7 +209,13 @@ impl Access for GdriveBackend {
         }
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let source = build_abs_path(&self.core.root, from);
         let target = build_abs_path(&self.core.root, to);
         let resp = self.core.gdrive_copy(from, to).await?;
@@ -238,7 +245,7 @@ impl Access for GdriveBackend {
                 }
                 self.core.record_recent_upsert(&to_path, metadata).await;
 
-                Ok(RpCopy::default())
+                Ok((RpCopy::default(), ()))
             }
             StatusCode::NOT_FOUND => {
                 self.core.refresh_path(&source).await;
@@ -272,7 +279,7 @@ impl Access for GdriveBackend {
                         }
                         self.core.record_recent_upsert(&to_path, metadata).await;
 
-                        Ok(RpCopy::default())
+                        Ok((RpCopy::default(), ()))
                     }
                     _ => Err(parse_error(resp)),
                 }

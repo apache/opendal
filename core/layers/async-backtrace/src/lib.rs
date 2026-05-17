@@ -76,6 +76,7 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     type Writer = AsyncBacktraceWrapper<A::Writer>;
     type Lister = AsyncBacktraceWrapper<A::Lister>;
     type Deleter = AsyncBacktraceWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -98,8 +99,14 @@ impl<A: Access> LayeredAccess for AsyncBacktraceAccessor<A> {
     }
 
     #[async_backtrace::framed]
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.copy(from, to, args).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.copy(from, to, args, opts.clone()).await
     }
 
     #[async_backtrace::framed]

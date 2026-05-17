@@ -113,6 +113,7 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
     type Writer = HotpathWrapper<A::Writer>;
     type Lister = HotpathWrapper<A::Lister>;
     type Deleter = HotpathWrapper<A::Deleter>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -133,8 +134,14 @@ impl<A: Access> LayeredAccess for HotpathAccessor<A> {
         Ok((rp, HotpathWrapper::new(writer)))
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        hotpath::measure_async(LABEL_COPY, self.inner.copy(from, to, args)).await
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        hotpath::measure_async(LABEL_COPY, self.inner.copy(from, to, args, opts.clone())).await
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {

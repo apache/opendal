@@ -173,6 +173,7 @@ impl Access for HdfsNativeBackend {
     type Writer = HdfsNativeWriter;
     type Lister = Option<HdfsNativeLister>;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

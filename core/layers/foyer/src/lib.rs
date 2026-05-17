@@ -188,6 +188,7 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
     type Writer = Writer<A>;
     type Lister = A::Lister;
     type Deleter = Deleter<A>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner.accessor
@@ -223,6 +224,16 @@ impl<A: Access> LayeredAccess for FoyerAccessor<A> {
             let (rp, d) = inner.accessor.delete().await?;
             Ok((rp, Deleter::new(d, inner)))
         }
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner.accessor.copy(from, to, args, opts).await
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {

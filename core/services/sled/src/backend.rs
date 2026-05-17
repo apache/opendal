@@ -146,6 +146,7 @@ impl Access for SledBackend {
     type Writer = SledWriter;
     type Lister = oio::HierarchyLister<SledLister>;
     type Deleter = oio::OneShotDeleter<SledDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

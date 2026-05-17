@@ -209,6 +209,7 @@ impl Access for MongodbBackend {
     type Writer = MongodbWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MongodbDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.info.clone()

@@ -252,6 +252,7 @@ impl Access for TosBackend {
     type Writer = oio::MultipartWriter<TosWriter>;
     type Lister = ();
     type Deleter = oio::BatchDeleter<TosDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()

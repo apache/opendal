@@ -293,6 +293,7 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
     type Writer = RetryWrapper<A::Writer, I>;
     type Lister = RetryWrapper<A::Lister, I>;
     type Deleter = RetryWrapper<A::Deleter, I>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -395,9 +396,15 @@ impl<A: Access, I: RetryInterceptor> LayeredAccess for RetryAccessor<A, I> {
             .map_err(|e| e.set_persistent())
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let mut attempt: u32 = 0;
-        { || self.inner.copy(from, to, args.clone()) }
+        { || self.inner.copy(from, to, args.clone(), opts.clone()) }
             .retry(self.builder)
             .when(|e| e.is_temporary())
             .notify(|err, dur| {
@@ -788,6 +795,7 @@ mod tests {
         type Writer = MockWriter;
         type Lister = MockLister;
         type Deleter = MockDeleter;
+        type Copier = oio::Copier;
 
         fn info(&self) -> Arc<AccessorInfo> {
             let am = AccessorInfo::default();

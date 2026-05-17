@@ -32,7 +32,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copy_target_dir,
             test_copy_self,
             test_copy_nested,
-            test_copy_overwrite
+            test_copy_overwrite,
+            test_copier_file,
+            test_copier_completion,
+            test_copier_abort
         ))
     }
 
@@ -40,7 +43,9 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(
             op,
             test_copy_with_if_not_exists_to_new_file,
-            test_copy_with_if_not_exists_to_existing_file
+            test_copy_with_if_not_exists_to_existing_file,
+            test_copier_with_if_not_exists_to_new_file,
+            test_copier_with_if_not_exists_to_existing_file
         ))
     }
 }
@@ -297,6 +302,130 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
     assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
     // Verify target file content is unchanged
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&target_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copier should copy a file and commit the target after completion.
+pub async fn test_copier_file(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let mut copier = op.copier(&source_path, &target_path).await?;
+
+    while copier.next().await?.is_some() {}
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Completed copier should keep returning `None`.
+pub async fn test_copier_completion(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let mut copier = op.copier(&source_path, &target_path).await?;
+
+    while copier.next().await?.is_some() {}
+    assert!(copier.next().await?.is_none());
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Aborting a copier should be explicit and idempotent for completed one-shot copies.
+pub async fn test_copier_abort(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let mut copier = op.copier(&source_path, &target_path).await?;
+    copier.abort().await?;
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    let _ = op.delete(&target_path).await;
+    Ok(())
+}
+
+/// Copier with if_not_exists to a new file should succeed.
+pub async fn test_copier_with_if_not_exists_to_new_file(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let mut copier = op
+        .copier_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await?;
+
+    while copier.next().await?.is_some() {}
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copier with if_not_exists to an existing file should fail.
+pub async fn test_copier_with_if_not_exists_to_existing_file(op: Operator) -> Result<()> {
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().full_capability());
+
+    op.write(&source_path, source_content).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().full_capability());
+    op.write(&target_path, target_content.clone()).await?;
+
+    let err = op
+        .copier_with(&source_path, &target_path)
+        .if_not_exists(true)
+        .await
+        .expect_err("copier must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
     let current_content = op
         .read(&target_path)
         .await

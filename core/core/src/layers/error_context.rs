@@ -69,6 +69,7 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
     type Writer = ErrorContextWrapper<A::Writer>;
     type Lister = ErrorContextWrapper<A::Lister>;
     type Deleter = ErrorContextWrapper<A::Deleter>;
+    type Copier = ErrorContextWrapper<A::Copier>;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -119,13 +120,28 @@ impl<A: Access> LayeredAccess for ErrorContextAccessor<A> {
             })
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
-        self.inner.copy(from, to, args).await.map_err(|err| {
-            err.with_operation(Operation::Copy)
-                .with_context("service", self.info.scheme())
-                .with_context("from", from)
-                .with_context("to", to)
-        })
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        self.inner
+            .copy(from, to, args, opts)
+            .await
+            .map(|(rp, p)| {
+                (
+                    rp,
+                    ErrorContextWrapper::new(self.info.scheme(), to.to_string(), p),
+                )
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Copy)
+                    .with_context("service", self.info.scheme())
+                    .with_context("from", from)
+                    .with_context("to", to)
+            })
     }
 
     async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
@@ -299,6 +315,32 @@ impl<T: oio::Delete> oio::Delete for ErrorContextWrapper<T> {
             err.with_operation(Operation::Delete)
                 .with_context("service", self.scheme)
                 .with_context("deleted", self.processed.to_string())
+        })
+    }
+}
+
+impl<T: oio::Copy> oio::Copy for ErrorContextWrapper<T> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner
+            .next()
+            .await
+            .inspect(|size| {
+                self.processed += size.unwrap_or_default() as u64;
+            })
+            .map_err(|err| {
+                err.with_operation(Operation::Copy)
+                    .with_context("service", self.scheme)
+                    .with_context("path", &self.path)
+                    .with_context("copied", self.processed.to_string())
+            })
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await.map_err(|err| {
+            err.with_operation(Operation::Copy)
+                .with_context("service", self.scheme)
+                .with_context("path", &self.path)
+                .with_context("copied", self.processed.to_string())
         })
     }
 }

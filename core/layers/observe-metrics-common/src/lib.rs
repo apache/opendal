@@ -720,6 +720,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
     type Writer = MetricsWrapper<A::Writer, I>;
     type Lister = MetricsWrapper<A::Lister, I>;
     type Deleter = MetricsWrapper<A::Deleter, I>;
+    type Copier = A::Copier;
 
     fn inner(&self) -> &Self::Inner {
         &self.inner
@@ -818,7 +819,13 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn copy(&self, from: &str, to: &str, args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
         let start = Instant::now();
@@ -830,7 +837,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         let res = self
             .inner()
-            .copy(from, to, args)
+            .copy(from, to, args, opts.clone())
             .await
             .inspect(|_| {
                 self.interceptor.observe(

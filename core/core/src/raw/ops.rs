@@ -901,6 +901,43 @@ impl OpCopy {
     }
 }
 
+/// Args for `copier` operation.
+#[derive(Debug, Clone, Default)]
+pub struct OpCopier {
+    concurrent: usize,
+}
+
+impl OpCopier {
+    /// Create a new `OpCopier`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the concurrent tasks for the copier.
+    pub fn with_concurrent(mut self, concurrent: usize) -> Self {
+        self.concurrent = concurrent.max(1);
+        self
+    }
+
+    /// Get the concurrent tasks for the copier.
+    pub fn concurrent(&self) -> usize {
+        self.concurrent.max(1)
+    }
+}
+
+impl From<options::CopyOptions> for (OpCopy, OpCopier) {
+    fn from(value: options::CopyOptions) -> Self {
+        (
+            OpCopy {
+                if_not_exists: value.if_not_exists,
+            },
+            OpCopier {
+                concurrent: value.concurrent.max(1),
+            },
+        )
+    }
+}
+
 /// Args for `rename` operation.
 #[derive(Debug, Clone, Default)]
 pub struct OpRename {}

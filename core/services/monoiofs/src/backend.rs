@@ -97,6 +97,7 @@ impl Access for MonoiofsBackend {
     type Writer = MonoiofsWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MonoiofsDeleter>;
+    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -170,7 +171,13 @@ impl Access for MonoiofsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
         let from = self.core.prepare_path(from);
         // ensure file exists
         self.core
@@ -223,6 +230,6 @@ impl Access for MonoiofsBackend {
             })
             .await
             .map_err(new_std_io_error)?;
-        Ok(RpCopy::default())
+        Ok((RpCopy::default(), ()))
     }
 }

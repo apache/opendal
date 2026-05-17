@@ -335,7 +335,7 @@ void test_entry_metadata(opendal_test_context* ctx)
         }
 
         opendal_metadata_free(meta);
-        free(path);
+        opendal_string_free(path);
         opendal_entry_free(next_result.entry);
     }
 

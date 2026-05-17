@@ -64,7 +64,13 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         py,
         m,
         "layers",
-        [Layer, RetryLayer, ConcurrentLimitLayer, MimeGuessLayer]
+        [
+            Layer,
+            RetryLayer,
+            ConcurrentLimitLayer,
+            MimeGuessLayer,
+            HttpClientLayer
+        ]
     )?;
 
     // Types module
@@ -75,6 +81,7 @@ fn _opendal(py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
         [Entry, EntryMode, Metadata, PresignedRequest]
     )?;
 
+    m.add_class::<HttpClient>()?;
     m.add_class::<WriteOptions>()?;
     m.add_class::<ReadOptions>()?;
     m.add_class::<ListOptions>()?;

@@ -101,6 +101,29 @@ async def main():
 asyncio.run(main())
 ```
 
+### Advanced: Custom HTTP Client Configuration
+
+For testing with self-signed certificates or custom HTTP settings:
+
+```python
+import opendal
+from opendal.layers import HttpClientLayer
+
+# Create HTTP client that accepts invalid certificates (testing only!)
+client = opendal.HttpClient(danger_accept_invalid_certs=True, timeout=30.0)
+
+# Apply to operator
+op = opendal.Operator(
+    "s3",
+    bucket="my-bucket",
+    endpoint="https://localhost:9000"
+).layer(HttpClientLayer(client))
+
+op.write("test.txt", b"Hello World")
+```
+
+**⚠️ Security Warning**: `danger_accept_invalid_certs=True` disables SSL verification. Only use in testing!
+
 ---
 
 ## Development

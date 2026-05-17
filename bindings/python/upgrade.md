@@ -1,5 +1,54 @@
 # Upgrade to v0.47
 
+## New feature: HttpClientLayer for custom HTTP client configuration
+
+OpenDAL Python bindings now support `HttpClientLayer`, allowing you to customize the HTTP client used for all operations. This is particularly useful for:
+
+- **Testing with self-signed certificates**: Use `danger_accept_invalid_certs=True` when connecting to local/development services with self-signed SSL certificates (e.g., local MinIO, S3-compatible services)
+- **Custom timeouts**: Set request-specific timeout values
+- **Advanced HTTP configurations**: More options may be added in future versions
+
+### Example: Accept invalid SSL certificates (testing only)
+
+```python
+import opendal
+from opendal.layers import HttpClientLayer
+
+# Create a custom HTTP client that accepts invalid certificates
+# WARNING: Only use this in testing/development environments!
+client = opendal.HttpClient(danger_accept_invalid_certs=True)
+
+# Create the layer
+http_layer = HttpClientLayer(client)
+
+# Apply to your operator
+op = opendal.Operator(
+    "s3",
+    bucket="my-bucket",
+    endpoint="https://localhost:9000",
+    access_key_id="minioadmin",
+    secret_access_key="minioadmin"
+).layer(http_layer)
+
+# Now you can use the operator normally
+op.write("test.txt", b"Hello World")
+```
+
+### Example: Custom timeout
+
+```python
+import opendal
+from opendal.layers import HttpClientLayer
+
+# Create HTTP client with 30 second timeout
+client = opendal.HttpClient(timeout=30.0)
+http_layer = HttpClientLayer(client)
+
+op = opendal.Operator("s3", bucket="my-bucket").layer(http_layer)
+```
+
+**Security Warning**: `danger_accept_invalid_certs=True` disables SSL/TLS certificate verification. Never use this in production environments.
+
 ## Breaking change: Module exports are explicit
 
 `opendal.__init__` now only re-exports the `capability`, `exceptions`, `file`, `layers`, `services`, `types`, `Operator`, and `AsyncOperator` symbols. Imports such as:

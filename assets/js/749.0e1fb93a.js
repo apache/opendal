@@ -1,0 +1,1 @@
+(globalThis.webpackChunkopendal_website=globalThis.webpackChunkopendal_website||[]).push([[749],{7046(e,s,a){"use strict";a.d(s,{A:()=>l});var b=a(6430);const l=b},9056(){}}]);

@@ -2065,6 +2065,7 @@ submit! {
                 server_side_encryption_customer_key: builtins.str = ...,
                 server_side_encryption_customer_key_md5: builtins.str = ...,
                 session_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `s3` service.
@@ -2237,6 +2238,9 @@ submit! {
                     session_token (aka, security token) of this backend.
                     This token will expire after sometime, it's
                     recommended to set session_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 Operator
@@ -4751,6 +4755,7 @@ submit! {
                 server_side_encryption_customer_key: builtins.str = ...,
                 server_side_encryption_customer_key_md5: builtins.str = ...,
                 session_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `s3` service.
@@ -4923,6 +4928,9 @@ submit! {
                     session_token (aka, security token) of this backend.
                     This token will expire after sometime, it's
                     recommended to set session_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 AsyncOperator

@@ -2825,6 +2825,8 @@ public interface ServiceConfig {
         /**
          * <p>Allow anonymous will allow opendal to send request without signing
          * when credential is not loaded.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
          */
         public final Boolean allowAnonymous;
         /**
@@ -3045,6 +3047,10 @@ public interface ServiceConfig {
          * by hand.</p>
          */
         public final String sessionToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -3147,6 +3153,9 @@ public interface ServiceConfig {
             }
             if (sessionToken != null) {
                 map.put("session_token", sessionToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }

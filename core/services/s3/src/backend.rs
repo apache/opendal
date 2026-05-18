@@ -431,11 +431,20 @@ impl S3Builder {
         self
     }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
-        self
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 
     /// Enable virtual host style so that opendal will send API requests
@@ -717,6 +726,11 @@ impl Builder for S3Builder {
             mut config,
             credential_providers,
         } = self;
+
+        #[allow(deprecated)]
+        if config.allow_anonymous {
+            config.skip_signature = true;
+        }
 
         let root = normalize_root(&config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
@@ -1000,7 +1014,7 @@ impl Builder for S3Builder {
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
                 default_storage_class,
-                allow_anonymous: config.allow_anonymous,
+                skip_signature: config.skip_signature,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
                 signer,
@@ -1276,7 +1290,7 @@ mod tests {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
-            .allow_anonymous()
+            .skip_signature()
             .disable_config_load()
             .disable_ec2_metadata()
             .build()

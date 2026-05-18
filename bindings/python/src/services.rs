@@ -2084,12 +2084,8 @@ submit! {
                 assume_role_session_tags : builtins.dict, optional
                     assume_role_session_tags for this backend.
                 batch_max_operations : builtins.int, optional
-                    Set maximum batch operations of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
+                    Deprecated: S3 delete batch capability is enabled by
+                    default.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -2111,12 +2107,8 @@ submit! {
                     `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
                     compatible services don't support all of them
                 delete_max_size : builtins.int, optional
-                    Set the maximum delete size of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
+                    Deprecated: S3 delete batch capability is enabled by
+                    default.
                 disable_config_load : builtins.bool, optional
                     Disable config load so that opendal will not load
                     config from environment.
@@ -2134,10 +2126,8 @@ submit! {
                     This option allows users to switch back to the older
                     List Objects V1.
                 disable_stat_with_override : builtins.bool, optional
-                    Disable stat with override so that opendal will not
-                    send stat request with override queries.
-                    For example, R2 doesn't support stat with
-                    `response_content_type` query.
+                    Deprecated: S3 stat override capabilities are
+                    enabled by default.
                 disable_write_with_if_match : builtins.bool, optional
                     Deprecated: S3 write with If-Match capability is
                     enabled by default.
@@ -4770,12 +4760,8 @@ submit! {
                 assume_role_session_tags : builtins.dict, optional
                     assume_role_session_tags for this backend.
                 batch_max_operations : builtins.int, optional
-                    Set maximum batch operations of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
+                    Deprecated: S3 delete batch capability is enabled by
+                    default.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -4797,12 +4783,8 @@ submit! {
                     `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA` S3
                     compatible services don't support all of them
                 delete_max_size : builtins.int, optional
-                    Set the maximum delete size of this backend.
-                    Some compatible services have a limit on the number
-                    of operations in a batch request.
-                    For example, R2 could return `Internal Error` while
-                    batch delete 1000 files.
-                    Please tune this value based on services' document.
+                    Deprecated: S3 delete batch capability is enabled by
+                    default.
                 disable_config_load : builtins.bool, optional
                     Disable config load so that opendal will not load
                     config from environment.
@@ -4820,10 +4802,8 @@ submit! {
                     This option allows users to switch back to the older
                     List Objects V1.
                 disable_stat_with_override : builtins.bool, optional
-                    Disable stat with override so that opendal will not
-                    send stat request with override queries.
-                    For example, R2 doesn't support stat with
-                    `response_content_type` query.
+                    Deprecated: S3 stat override capabilities are
+                    enabled by default.
                 disable_write_with_if_match : builtins.bool, optional
                     Deprecated: S3 write with If-Match capability is
                     enabled by default.

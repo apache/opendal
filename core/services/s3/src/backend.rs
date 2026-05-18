@@ -448,11 +448,12 @@ impl S3Builder {
         self
     }
 
-    /// Disable stat with override so that opendal will not send stat request with override queries.
-    ///
-    /// For example, R2 doesn't support stat with `response_content_type` query.
-    pub fn disable_stat_with_override(mut self) -> Self {
-        self.config.disable_stat_with_override = true;
+    /// Deprecated: S3 stat override capabilities are enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 stat override capabilities are enabled by default and this option is no longer needed."
+    )]
+    pub fn disable_stat_with_override(self) -> Self {
         self
     }
 
@@ -535,21 +536,21 @@ impl S3Builder {
         endpoint
     }
 
-    /// Set maximum batch operations of this backend.
+    /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default and this option is no longer needed."
     )]
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.delete_max_size = Some(batch_max_operations);
-
+    pub fn batch_max_operations(self, _batch_max_operations: usize) -> Self {
         self
     }
 
-    /// Set maximum delete operations of this backend.
-    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
-
+    /// Deprecated: S3 delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn delete_max_size(self, _delete_max_size: usize) -> Self {
         self
     }
 
@@ -646,6 +647,10 @@ impl S3Builder {
         }
 
         // If this bucket is AWS, we can try to match the endpoint.
+        if endpoint == "https://s3.amazonaws.com" {
+            return Some("us-east-1".to_string());
+        }
+
         if let Some(region) = endpoint
             .strip_prefix("https://s3.")
             .and_then(|v| v.strip_suffix(".amazonaws.com"))
@@ -895,10 +900,6 @@ impl Builder for S3Builder {
         // Create the signer
         let signer = Signer::new(ctx, provider, request_signer);
 
-        let delete_max_size = config
-            .delete_max_size
-            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-
         Ok(S3Backend {
             core: Arc::new(S3Core {
                 info: {
@@ -911,10 +912,9 @@ impl Builder for S3Builder {
                             stat_with_if_none_match: true,
                             stat_with_if_modified_since: true,
                             stat_with_if_unmodified_since: true,
-                            stat_with_override_cache_control: !config.disable_stat_with_override,
-                            stat_with_override_content_disposition: !config
-                                .disable_stat_with_override,
-                            stat_with_override_content_type: !config.disable_stat_with_override,
+                            stat_with_override_cache_control: true,
+                            stat_with_override_content_disposition: true,
+                            stat_with_override_content_type: true,
                             stat_with_version: true,
 
                             read: true,
@@ -954,7 +954,7 @@ impl Builder for S3Builder {
                             },
 
                             delete: true,
-                            delete_max_size: Some(delete_max_size),
+                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
                             delete_with_version: true,
 
                             copy: true,

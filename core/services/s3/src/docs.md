@@ -30,6 +30,9 @@ This service can be used to:
 - `disable_config_load`: Disable aws config load from env.
 - `enable_virtual_host_style`: Enable virtual host style.
 - `enable_request_payer`: Enable the request payer for backend.
+- `batch_max_operations`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
+- `delete_max_size`: Deprecated. S3 delete batch capability is enabled by default and this option is no longer needed.
+- `disable_stat_with_override`: Deprecated. S3 stat override capabilities are enabled by default and this option is no longer needed.
 - `disable_write_with_if_match`: Deprecated. S3 write with If-Match capability is enabled by default and this option is no longer needed.
 - `enable_versioning`: Deprecated. S3 versioning capability is enabled by default and this option is no longer needed.
 - `enable_write_with_append`: Deprecated. S3 append capability is enabled by default and this option is no longer needed.

@@ -110,8 +110,12 @@ To connect to r2, we need to set:
 - `endpoint`: The endpoint of r2, for example: `https://<account_id>.r2.cloudflarestorage.com`
 - `bucket`: The bucket name of r2.
 - `region`: When you create a new bucket, the data location is set to Automatic by default. So please use `auto` for region.
-- `batch_max_operations`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please set this value `<= 700` to make sure batch delete work as expected.
 - `enable_exact_buf_write`: R2 requires the non-tailing parts size to be exactly the same. Please enable this option to avoid the error `All non-trailing parts must have the same length`.
+
+R2 has the following capability differences from S3:
+
+- `delete_max_size`: R2's delete objects will return `Internal Error` if the batch is larger than `700`. Please override `delete_max_size` to `700`.
+- `stat_with_override_cache_control`, `stat_with_override_content_disposition`, `stat_with_override_content_type`: R2 doesn't support stat with response override queries. Please override them to `false`.
 
 ### Google Cloud Storage XML API
 [Google Cloud Storage XML API](https://cloud.google.com/storage/docs/xml-api/overview) provides s3 compatible API.
@@ -123,4 +127,3 @@ To connect to r2, we need to set:
 Ceph supports a RESTful API that is compatible with the basic data access model of the Amazon S3 API.
 
 For more information, refer: <https://docs.ceph.com/en/latest/radosgw/s3/>
-

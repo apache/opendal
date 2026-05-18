@@ -22,6 +22,7 @@ use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
+use reqsign_aliyun_oss::AssumeRoleCredentialProvider;
 use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
 use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
 use reqsign_aliyun_oss::EnvCredentialProvider;
@@ -359,6 +360,15 @@ impl OssBuilder {
 
         self
     }
+
+    /// Set external_id for this backend.
+    pub fn external_id(mut self, v: &str) -> Self {
+        if !v.is_empty() {
+            self.config.external_id = Some(v.to_string())
+        }
+
+        self
+    }
 }
 
 enum AddressingStyle {
@@ -484,18 +494,44 @@ impl Builder for OssBuilder {
                 envs,
             });
 
-        let mut provider = ProvideCredentialChain::new()
+        let static_provider = if let (Some(ak), Some(sk)) =
+            (&self.config.access_key_id, &self.config.access_key_secret)
+        {
+            Some(if let Some(token) = self.config.security_token.as_deref() {
+                StaticCredentialProvider::new(ak, sk).with_security_token(token)
+            } else {
+                StaticCredentialProvider::new(ak, sk)
+            })
+        } else {
+            None
+        };
+
+        let mut provider = ProvideCredentialChain::new();
+        if let Some(static_provider) = static_provider {
+            provider = provider.push(static_provider);
+        }
+        let mut provider = provider
             .push(EnvCredentialProvider::new())
             .push(EcsRamRoleCredentialProvider::new())
             .push(assume_role);
 
-        if let (Some(ak), Some(sk)) = (&self.config.access_key_id, &self.config.access_key_secret) {
-            let static_provider = if let Some(token) = self.config.security_token.as_deref() {
-                StaticCredentialProvider::new(ak, sk).with_security_token(token)
-            } else {
-                StaticCredentialProvider::new(ak, sk)
-            };
-            provider = provider.push_front(static_provider);
+        if let Some(role_arn) = &self.config.role_arn {
+            let mut assume_role_with_ak = AssumeRoleCredentialProvider::new()
+                .with_base_provider(provider)
+                .with_role_arn(role_arn.clone());
+
+            if let Some(role_session_name) = &self.config.role_session_name {
+                assume_role_with_ak =
+                    assume_role_with_ak.with_role_session_name(role_session_name.clone());
+            }
+            if let Some(external_id) = &self.config.external_id {
+                assume_role_with_ak = assume_role_with_ak.with_external_id(external_id.clone());
+            }
+            if let Some(sts_endpoint) = &self.config.sts_endpoint {
+                assume_role_with_ak = assume_role_with_ak.with_sts_endpoint(sts_endpoint.clone());
+            }
+
+            provider = ProvideCredentialChain::new().push(assume_role_with_ak);
         }
 
         let request_signer = RequestSigner::new(bucket);

@@ -2376,9 +2376,9 @@ public interface ServiceConfig {
          */
         public final Boolean allowAnonymous;
         /**
-         * <p>The size of max batch operations.</p>
+         * <p>Deprecated: OSS delete batch capability is enabled by default.</p>
          *
-         * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
+         * @deprecated OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
         /**
@@ -2386,11 +2386,15 @@ public interface ServiceConfig {
          */
         public final @NonNull String bucket;
         /**
-         * <p>The size of max delete operations.</p>
+         * <p>Deprecated: OSS delete batch capability is enabled by default.</p>
+         *
+         * @deprecated OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long deleteMaxSize;
         /**
-         * <p>is bucket versioning enabled for this bucket</p>
+         * <p>Deprecated: OSS versioning capability is enabled by default.</p>
+         *
+         * @deprecated OSS versioning capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**

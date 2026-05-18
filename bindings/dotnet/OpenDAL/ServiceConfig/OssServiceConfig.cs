@@ -45,7 +45,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? AllowAnonymous { get; init; }
         /// <summary>
-        /// The size of max batch operations.
+        /// Deprecated: OSS delete batch capability is enabled by default.
         /// </summary>
         public long? BatchMaxOperations { get; init; }
         /// <summary>
@@ -53,11 +53,11 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
-        /// The size of max delete operations.
+        /// Deprecated: OSS delete batch capability is enabled by default.
         /// </summary>
         public long? DeleteMaxSize { get; init; }
         /// <summary>
-        /// is bucket versioning enabled for this bucket
+        /// Deprecated: OSS versioning capability is enabled by default.
         /// </summary>
         public bool? EnableVersioning { get; init; }
         /// <summary>

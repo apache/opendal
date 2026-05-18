@@ -111,10 +111,12 @@ impl OssBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: OSS versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OSS versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -287,21 +289,21 @@ impl OssBuilder {
         self
     }
 
-    /// Set maximum batch operations of this backend.
+    /// Deprecated: OSS delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "OSS delete batch capability is enabled by default and this option is no longer needed."
     )]
-    pub fn batch_max_operations(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
-
+    pub fn batch_max_operations(self, _delete_max_size: usize) -> Self {
         self
     }
 
-    /// Set maximum delete operations of this backend.
-    pub fn delete_max_size(mut self, delete_max_size: usize) -> Self {
-        self.config.delete_max_size = Some(delete_max_size);
-
+    /// Deprecated: OSS delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OSS delete batch capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn delete_max_size(self, _delete_max_size: usize) -> Self {
         self
     }
 
@@ -501,11 +503,6 @@ impl Builder for OssBuilder {
         let request_signer = RequestSigner::new(bucket);
         let signer = Signer::new(ctx, provider, request_signer);
 
-        let delete_max_size = self
-            .config
-            .delete_max_size
-            .unwrap_or(DEFAULT_BATCH_MAX_OPERATIONS);
-
         Ok(OssBackend {
             core: Arc::new(OssCore {
                 info: {
@@ -516,13 +513,13 @@ impl Builder for OssBuilder {
                             stat: true,
                             stat_with_if_match: true,
                             stat_with_if_none_match: true,
-                            stat_with_version: self.config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
 
                             read_with_if_match: true,
                             read_with_if_none_match: true,
-                            read_with_version: self.config.enable_versioning,
+                            read_with_version: true,
                             read_with_if_modified_since: true,
                             read_with_if_unmodified_since: true,
 
@@ -533,8 +530,7 @@ impl Builder for OssBuilder {
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
-                            // TODO: set this to false while version has been enabled.
-                            write_with_if_not_exists: !self.config.enable_versioning,
+                            write_with_if_not_exists: true,
 
                             // The min multipart size of OSS is 100 KiB.
                             //
@@ -551,8 +547,8 @@ impl Builder for OssBuilder {
                             write_with_user_metadata: true,
 
                             delete: true,
-                            delete_with_version: self.config.enable_versioning,
-                            delete_max_size: Some(delete_max_size),
+                            delete_with_version: true,
+                            delete_max_size: Some(DEFAULT_BATCH_MAX_OPERATIONS),
 
                             copy: true,
 
@@ -560,8 +556,8 @@ impl Builder for OssBuilder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: self.config.enable_versioning,
-                            list_with_deleted: self.config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,

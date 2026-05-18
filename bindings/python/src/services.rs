@@ -1779,13 +1779,16 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional
@@ -4459,13 +4462,16 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional

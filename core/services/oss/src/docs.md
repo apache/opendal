@@ -25,6 +25,9 @@ This service can be used to:
 - `role_arn`: Set the role of backend.
 - `oidc_token`: Set the oidc_token for backend.
 - `allow_anonymous`: Set the backend access OSS in anonymous way.
+- `enable_versioning`: Deprecated. OSS versioning capability is enabled by default and this option is no longer needed.
+- `batch_max_operations`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.
+- `delete_max_size`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.
 
 Refer to [`OssBuilder`]'s public API docs for more information.
 

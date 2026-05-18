@@ -30,8 +30,3 @@ runs:
         OPENDAL_OSS_ENDPOINT: op://services/oss/endpoint
         OPENDAL_OSS_ACCESS_KEY_ID: op://services/oss/access_key_id
         OPENDAL_OSS_ACCESS_KEY_SECRET: op://services/oss/access_key_secret
-
-    - name: Add extra settings
-      shell: bash
-      run: |
-        echo "OPENDAL_OSS_ENABLE_VERSIONING=true" >> $GITHUB_ENV

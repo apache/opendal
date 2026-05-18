@@ -396,7 +396,7 @@ impl TosCore {
 
     pub async fn tos_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("https://{}.{}?delete", self.bucket, self.endpoint_domain);
 
@@ -404,9 +404,9 @@ impl TosCore {
 
         let content = serde_json::to_string(&DeleteObjectsRequest {
             objects: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -450,7 +450,8 @@ impl TosCore {
             url = url.push("max-keys", &limit.to_string());
         }
         if let Some(start_after) = start_after {
-            if start_after.starts_with(&p) {
+            if path.is_empty() || path == "/" || start_after.starts_with(path) {
+                let start_after = build_abs_path(&self.root, &start_after);
                 url = url.push("start-after", &percent_encode_query(&start_after));
             }
         }
@@ -487,15 +488,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub errors: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]

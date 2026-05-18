@@ -33,15 +33,13 @@ pub struct TosLister {
     args: OpList,
 
     delimiter: &'static str,
-    abs_start_after: Option<String>,
+    start_after: Option<String>,
 }
 
 impl TosLister {
     pub fn new(core: Arc<TosCore>, path: &str, args: OpList) -> Self {
         let delimiter = if args.recursive() { "" } else { "/" };
-        let abs_start_after = args
-            .start_after()
-            .map(|start_after| build_abs_path(&core.root, start_after));
+        let start_after = args.start_after().map(ToString::to_string);
 
         Self {
             core,
@@ -50,7 +48,7 @@ impl TosLister {
             args,
 
             delimiter,
-            abs_start_after,
+            start_after,
         }
     }
 }
@@ -65,7 +63,7 @@ impl oio::PageList for TosLister {
                 self.delimiter,
                 self.args.limit(),
                 if ctx.token.is_empty() {
-                    self.abs_start_after.clone()
+                    self.start_after.clone()
                 } else {
                     None
                 },

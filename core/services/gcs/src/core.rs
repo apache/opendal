@@ -46,6 +46,14 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub mod constants {
+    pub const GCS_REWRITE_MIN_CHUNK_SIZE: usize = 1024 * 1024;
+    #[cfg(target_pointer_width = "64")]
+    pub const GCS_REWRITE_MAX_CHUNK_SIZE: usize =
+        i64::MAX as usize / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE;
+    #[cfg(not(target_pointer_width = "64"))]
+    pub const GCS_REWRITE_MAX_CHUNK_SIZE: usize =
+        usize::MAX / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE;
+
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
@@ -466,12 +474,19 @@ impl GcsCore {
         self.send(req).await
     }
 
-    pub async fn gcs_copy_object(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
+    pub async fn gcs_rewrite_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+        max_bytes_rewritten_per_call: Option<usize>,
+        rewrite_token: Option<&str>,
+    ) -> Result<Response<Buffer>> {
         let source = build_abs_path(&self.root, from);
         let dest = build_abs_path(&self.root, to);
 
-        let req_uri = format!(
-            "{}/storage/v1/b/{}/o/{}/copyTo/b/{}/o/{}",
+        let url = format!(
+            "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
             self.endpoint,
             self.bucket,
             percent_encode_path(&source),
@@ -479,10 +494,22 @@ impl GcsCore {
             percent_encode_path(&dest)
         );
 
-        let req = Request::post(req_uri)
+        let mut url = QueryPairsWriter::new(&url);
+
+        if args.if_not_exists() {
+            url = url.push("ifGenerationMatch", "0");
+        }
+        if let Some(max_bytes) = max_bytes_rewritten_per_call {
+            url = url.push("maxBytesRewrittenPerCall", &max_bytes.to_string());
+        }
+        if let Some(token) = rewrite_token {
+            url = url.push("rewriteToken", &percent_encode_path(token));
+        }
+
+        let req = Request::post(url.finish())
             .header(CONTENT_LENGTH, 0)
             .extension(Operation::Copy)
-            .extension(ServiceOperation("CopyObject"))
+            .extension(ServiceOperation("RewriteObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -816,6 +843,14 @@ pub struct CompleteMultipartUploadRequestPart {
     pub part_number: usize,
     #[serde(rename = "ETag")]
     pub etag: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RewriteResponse {
+    pub total_bytes_rewritten: String,
+    pub done: bool,
+    pub rewrite_token: Option<String>,
 }
 
 /// The raw json response returned by [`get`](https://cloud.google.com/storage/docs/json_api/v1/objects/get)

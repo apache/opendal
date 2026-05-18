@@ -155,7 +155,7 @@ impl Builder for TosBuilder {
 
         let endpoint = config.endpoint.clone().unwrap();
         let bucket = config.bucket.clone();
-        let root = config.root.clone().unwrap_or_else(|| "/".to_string());
+        let root = normalize_root(&config.root.clone().unwrap_or_default());
 
         let ctx = Context::new()
             .with_file_read(TokioFileRead)

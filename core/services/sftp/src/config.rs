@@ -37,6 +37,10 @@ pub struct SftpConfig {
     pub key: Option<String>,
     /// known_hosts_strategy of this backend
     pub known_hosts_strategy: Option<String>,
+    /// acquire_timeout of this backend
+    pub acquire_timeout: Option<String>,
+    /// connect_timeout of this backend
+    pub connect_timeout: Option<String>,
     /// enable_copy of this backend
     pub enable_copy: bool,
 }
@@ -107,5 +111,22 @@ mod tests {
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.key.as_deref(), Some("/home/alice/.ssh/id_rsa"));
         assert_eq!(cfg.known_hosts_strategy.as_deref(), Some("accept"));
+    }
+
+    #[test]
+    fn from_uri_applies_timeout_overrides() {
+        let uri = OperatorUri::new(
+            "sftp://host",
+            vec![
+                ("acquire_timeout".to_string(), "5s".to_string()),
+                ("connect_timeout".to_string(), "15s".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoint.as_deref(), Some("host"));
+        assert_eq!(cfg.acquire_timeout.as_deref(), Some("5s"));
+        assert_eq!(cfg.connect_timeout.as_deref(), Some("15s"));
     }
 }

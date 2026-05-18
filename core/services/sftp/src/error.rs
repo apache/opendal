@@ -45,7 +45,7 @@ pub fn parse_sftp_error(e: SftpClientError) -> Error {
 }
 
 pub fn parse_ssh_error(e: SshError) -> Error {
-    Error::new(ErrorKind::Unexpected, "ssh error").set_source(e)
+    Error::new(ErrorKind::Unexpected, "failed to establish ssh connection").set_source(e)
 }
 
 pub(super) fn is_not_found(e: &SftpClientError) -> bool {

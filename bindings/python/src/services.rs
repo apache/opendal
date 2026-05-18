@@ -296,6 +296,7 @@ submit! {
                 endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `azblob` service.
@@ -328,6 +329,9 @@ submit! {
                     All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 Operator
@@ -2978,6 +2982,7 @@ submit! {
                 endpoint: builtins.str = ...,
                 root: builtins.str = ...,
                 sas_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `azblob` service.
@@ -3010,6 +3015,9 @@ submit! {
                     All operations will happen under this root.
                 sas_token : builtins.str, optional
                     The sas token of Azblob service backend.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 AsyncOperator

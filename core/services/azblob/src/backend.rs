@@ -244,6 +244,12 @@ impl AzblobBuilder {
         self
     }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// from_connection_string will make a builder from connection string
     ///
     /// connection string looks like:
@@ -455,7 +461,7 @@ impl Builder for AzblobBuilder {
                 encryption_key_sha256,
                 encryption_algorithm,
                 container: self.config.container.clone(),
-
+                skip_signature: self.config.skip_signature,
                 signer,
             }),
         })

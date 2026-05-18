@@ -210,6 +210,10 @@ public interface ServiceConfig {
          * <p>The sas token of Azblob service backend.</p>
          */
         public final String sasToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -246,6 +250,9 @@ public interface ServiceConfig {
             }
             if (sasToken != null) {
                 map.put("sas_token", sasToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }

@@ -23,6 +23,7 @@ This service can be used to:
 - `access_key_id`: Set the access_key_id for backend.
 - `access_key_secret`: Set the access_key_secret for backend.
 - `role_arn`: Set the role of backend.
+- `external_id`: Set the external_id for backend.
 - `oidc_token`: Set the oidc_token for backend.
 - `allow_anonymous`: Set the backend access OSS in anonymous way.
 

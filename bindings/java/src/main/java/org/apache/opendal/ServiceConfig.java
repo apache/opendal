@@ -2398,6 +2398,10 @@ public interface ServiceConfig {
          */
         public final String endpoint;
         /**
+         * <p>external_id for this backend.</p>
+         */
+        public final String externalId;
+        /**
          * <p><code>oidc_provider_arn</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
@@ -2495,6 +2499,9 @@ public interface ServiceConfig {
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
+            }
+            if (externalId != null) {
+                map.put("external_id", externalId);
             }
             if (oidcProviderArn != null) {
                 map.put("oidc_provider_arn", oidcProviderArn);

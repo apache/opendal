@@ -38,6 +38,19 @@ pub struct CosConfig {
     pub secret_id: Option<String>,
     /// Secret key of this backend.
     pub secret_key: Option<String>,
+    /// Security token (a.k.a. session token) of this backend.
+    ///
+    /// This is used for temporary credentials issued by Tencent Cloud STS
+    /// (e.g. `GetFederationToken` / `AssumeRole`). When `security_token` is
+    /// provided, it will be used together with `secret_id` and `secret_key`
+    /// to sign requests, and the `x-cos-security-token` header will be
+    /// attached automatically by the signer.
+    ///
+    /// If this field is not set, OpenDAL will also fall back to reading
+    /// the token from environment variables `TENCENTCLOUD_TOKEN`,
+    /// `TENCENTCLOUD_SECURITY_TOKEN` or `QCLOUD_SECRET_TOKEN` (unless
+    /// `disable_config_load` is enabled).
+    pub security_token: Option<String>,
     /// Bucket of this backend.
     pub bucket: Option<String>,
     /// is bucket versioning enabled for this bucket
@@ -52,6 +65,10 @@ impl Debug for CosConfig {
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
+            .field(
+                "security_token",
+                &self.security_token.as_ref().map(|_| "<redacted>"),
+            )
             .field("enable_versioning", &self.enable_versioning)
             .field("disable_config_load", &self.disable_config_load)
             .finish_non_exhaustive()
@@ -96,5 +113,45 @@ mod tests {
         let cfg = CosConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
         assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
+
+    #[test]
+    fn from_uri_accepts_cosn_scheme() {
+        let uri = OperatorUri::new(
+            "cosn://example-bucket/path/to/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let cfg = CosConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.bucket.as_deref(), Some("example-bucket"));
+        assert_eq!(cfg.root.as_deref(), Some("path/to/root"));
+    }
+
+    #[test]
+    fn from_uri_extracts_security_token() {
+        let uri = OperatorUri::new(
+            "cos://example-bucket/",
+            vec![
+                ("secret_id".to_string(), "id".to_string()),
+                ("secret_key".to_string(), "key".to_string()),
+                ("security_token".to_string(), "token".to_string()),
+            ],
+        )
+        .unwrap();
+        let cfg = CosConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.secret_id.as_deref(), Some("id"));
+        assert_eq!(cfg.secret_key.as_deref(), Some("key"));
+        assert_eq!(cfg.security_token.as_deref(), Some("token"));
+    }
+
+    #[test]
+    fn debug_redacts_security_token() {
+        let cfg = CosConfig {
+            security_token: Some("super-secret-token".to_string()),
+            ..Default::default()
+        };
+        let debug_output = format!("{cfg:?}");
+        assert!(!debug_output.contains("super-secret-token"));
+        assert!(debug_output.contains("<redacted>"));
     }
 }

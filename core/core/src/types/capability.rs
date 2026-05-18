@@ -17,6 +17,9 @@
 
 use std::fmt::Debug;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 /// Capability defines the supported operations and their constraints for a storage Operator.
 ///
 /// # Overview
@@ -62,7 +65,8 @@ use std::fmt::Debug;
 /// - Metadata Results: Returning metadata capabilities (e.g., `stat_has_content_length`)
 ///
 /// All capability fields are public and can be accessed directly.
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Capability {
     /// Indicates if the operator supports metadata retrieval operations.
     pub stat: bool,

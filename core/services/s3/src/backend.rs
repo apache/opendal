@@ -456,10 +456,12 @@ impl S3Builder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: S3 versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 
@@ -563,15 +565,21 @@ impl S3Builder {
         self
     }
 
-    /// Disable write with if match so that opendal will not send write request with if match headers.
-    pub fn disable_write_with_if_match(mut self) -> Self {
-        self.config.disable_write_with_if_match = true;
+    /// Deprecated: S3 write with If-Match capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 write with If-Match capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn disable_write_with_if_match(self) -> Self {
         self
     }
 
-    /// Enable write with append so that opendal will send write request with append headers.
-    pub fn enable_write_with_append(mut self) -> Self {
-        self.config.enable_write_with_append = true;
+    /// Deprecated: S3 append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_write_with_append(self) -> Self {
         self
     }
 
@@ -907,7 +915,7 @@ impl Builder for S3Builder {
                             stat_with_override_content_disposition: !config
                                 .disable_stat_with_override,
                             stat_with_override_content_type: !config.disable_stat_with_override,
-                            stat_with_version: config.enable_versioning,
+                            stat_with_version: true,
 
                             read: true,
                             read_with_if_match: true,
@@ -917,18 +925,18 @@ impl Builder for S3Builder {
                             read_with_override_cache_control: true,
                             read_with_override_content_disposition: true,
                             read_with_override_content_type: true,
-                            read_with_version: config.enable_versioning,
+                            read_with_version: true,
 
                             write: true,
                             write_can_empty: true,
                             write_can_multi: true,
-                            write_can_append: config.enable_write_with_append,
+                            write_can_append: true,
 
                             write_with_cache_control: true,
                             write_with_content_type: true,
                             write_with_content_disposition: true,
                             write_with_content_encoding: true,
-                            write_with_if_match: !config.disable_write_with_if_match,
+                            write_with_if_match: true,
                             write_with_if_not_exists: true,
                             write_with_user_metadata: true,
 
@@ -947,7 +955,7 @@ impl Builder for S3Builder {
 
                             delete: true,
                             delete_max_size: Some(delete_max_size),
-                            delete_with_version: config.enable_versioning,
+                            delete_with_version: true,
 
                             copy: true,
                             copy_can_multi: true,
@@ -968,8 +976,8 @@ impl Builder for S3Builder {
                             list_with_limit: true,
                             list_with_start_after: true,
                             list_with_recursive: true,
-                            list_with_versions: config.enable_versioning,
-                            list_with_deleted: config.enable_versioning,
+                            list_with_versions: true,
+                            list_with_deleted: true,
 
                             presign: true,
                             presign_stat: true,

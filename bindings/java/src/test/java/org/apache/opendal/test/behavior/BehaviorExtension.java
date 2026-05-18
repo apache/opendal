@@ -30,6 +30,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Operator;
+import org.apache.opendal.layer.CapabilityOverrideLayer;
 import org.apache.opendal.layer.RetryLayer;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -67,6 +68,10 @@ public class BehaviorExtension implements BeforeAllCallback, AfterAllCallback, T
             @Cleanup
             final AsyncOperator op = AsyncOperator.of(scheme.toLowerCase().replace('_', '-'), config);
             this.asyncOperator = op.layer(RetryLayer.builder().build());
+            final String capabilityOverrides = dotenv.get("OPENDAL_TEST_CAPABILITY_OVERRIDES");
+            if (capabilityOverrides != null && !capabilityOverrides.trim().isEmpty()) {
+                this.asyncOperator = this.asyncOperator.layer(new CapabilityOverrideLayer(capabilityOverrides));
+            }
             this.operator = this.asyncOperator.blocking();
 
             this.scheme = scheme;

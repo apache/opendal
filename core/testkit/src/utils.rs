@@ -21,11 +21,14 @@ use std::sync::LazyLock;
 
 use opendal_core::Operator;
 use opendal_core::Result;
+use opendal_core::layers::CapabilityOverrideLayer;
 use opendal_layer_logging::LoggingLayer;
 use opendal_layer_retry::RetryLayer;
 use opendal_layer_timeout::TimeoutLayer;
 use sha2::Digest;
 use sha2::Sha256;
+
+const OPENDAL_TEST_CAPABILITY_OVERRIDES: &str = "OPENDAL_TEST_CAPABILITY_OVERRIDES";
 
 pub(crate) fn sha256_digest(data: impl AsRef<[u8]>) -> String {
     use std::fmt::Write;
@@ -86,7 +89,11 @@ pub fn init_test_service() -> Result<Option<Operator>> {
 
     // string-based scheme uses a hyphen ('-') as the connector
     let scheme = scheme.replace('_', "-");
-    let op = Operator::via_iter(scheme, cfg).expect("must succeed");
+    let mut op = Operator::via_iter(scheme, cfg).expect("must succeed");
+
+    if let Ok(overrides) = env::var(OPENDAL_TEST_CAPABILITY_OVERRIDES) {
+        op = op.layer(CapabilityOverrideLayer::from_overrides(&overrides)?);
+    }
 
     let op = op
         .layer(LoggingLayer::default())

@@ -29,6 +29,45 @@ pub trait PythonLayer: Send + Sync {
 #[pyclass(module = "opendal.layers", subclass)]
 pub struct Layer(pub Box<dyn PythonLayer>);
 
+/// A layer that overrides the full capability exposed by an operator.
+#[gen_stub_pyclass]
+#[pyclass(module = "opendal.layers", extends=Layer)]
+#[derive(Clone)]
+pub struct CapabilityOverrideLayer(ocore::layers::CapabilityOverrideLayer);
+
+impl PythonLayer for CapabilityOverrideLayer {
+    fn layer(&self, op: Operator) -> Operator {
+        op.layer(self.0.clone())
+    }
+}
+
+#[gen_stub_pymethods]
+#[pymethods]
+impl CapabilityOverrideLayer {
+    /// Create a new CapabilityOverrideLayer from capability override entries.
+    ///
+    /// Parameters
+    /// ----------
+    /// overrides : str
+    ///     Comma-separated capability override entries.
+    ///
+    /// Returns
+    /// -------
+    /// CapabilityOverrideLayer
+    #[gen_stub(override_return_type(type_repr = "CapabilityOverrideLayer"))]
+    #[new]
+    #[pyo3(signature = (overrides))]
+    fn new(overrides: &str) -> PyResult<PyClassInitializer<Self>> {
+        let layer = Self(
+            ocore::layers::CapabilityOverrideLayer::from_overrides(overrides)
+                .map_err(format_pyerr)?,
+        );
+        let class = PyClassInitializer::from(Layer(Box::new(layer.clone()))).add_subclass(layer);
+
+        Ok(class)
+    }
+}
+
 /// A layer that retries operations that fail with temporary errors.
 ///
 /// Operations are retried if they fail with an error for which

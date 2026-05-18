@@ -154,6 +154,13 @@ internal partial class NativeMethods
         nuint permits
     );
 
+    [LibraryImport(__DllName, EntryPoint = "operator_layer_capability_override", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALOperatorResult operator_layer_capability_override(
+        Operator op,
+        string overrides
+    );
+
     [LibraryImport(__DllName, EntryPoint = "operator_layer_timeout")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial OpenDALOperatorResult operator_layer_timeout(

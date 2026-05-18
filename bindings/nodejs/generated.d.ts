@@ -208,6 +208,17 @@ export declare class Capability {
 }
 
 /**
+ * Capability override layer
+ *
+ * Override the full capability exposed by an operator.
+ */
+export declare class CapabilityOverrideLayer {
+  /** Create a new CapabilityOverrideLayer from capability override entries. */
+  constructor(overrides: string)
+  build(): ExternalObject<Layer>
+}
+
+/**
  * Concurrent limit layer
  *
  * Add concurrent request limit.

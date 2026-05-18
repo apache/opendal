@@ -43,7 +43,11 @@ pub struct S3Config {
     /// required.
     #[serde(alias = "aws_bucket", alias = "aws_bucket_name", alias = "bucket_name")]
     pub bucket: String,
-    /// is bucket versioning enabled for this bucket
+    /// Deprecated: S3 versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 versioning capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_versioning: bool,
     /// endpoint of this backend.
     ///
@@ -210,12 +214,18 @@ pub struct S3Config {
     /// - "md5"
     #[serde(alias = "aws_checksum_algorithm")]
     pub checksum_algorithm: Option<String>,
-    /// Disable write with if match so that opendal will not send write request with if match headers.
-    ///
-    /// For example, Ceph RADOS S3 doesn't support write with if matched.
+    /// Deprecated: S3 write with If-Match capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 write with If-Match capability is enabled by default and this option is no longer needed."
+    )]
     pub disable_write_with_if_match: bool,
 
-    /// Enable write with append so that opendal will send write request with append headers.
+    /// Deprecated: S3 append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 append capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_write_with_append: bool,
 
     /// OpenDAL uses List Objects V2 by default to list objects.

@@ -17,12 +17,16 @@
 
 use std::time::Duration;
 
+use crate::Result;
+use crate::convert::jstring_to_string;
 use jni::JNIEnv;
 use jni::objects::JClass;
+use jni::objects::JString;
 use jni::sys::jboolean;
 use jni::sys::jfloat;
 use jni::sys::jlong;
 use opendal::Operator;
+use opendal::layers::CapabilityOverrideLayer;
 use opendal::layers::ConcurrentLimitLayer;
 use opendal::layers::RetryLayer;
 
@@ -49,6 +53,30 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer(
         retry = retry.with_max_times(max_times as usize);
     }
     Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_CapabilityOverrideLayer_doLayer(
+    mut env: JNIEnv,
+    _: JClass,
+    op: *mut Operator,
+    overrides: JString,
+) -> jlong {
+    intern_capability_override_layer(&mut env, op, overrides).unwrap_or_else(|e| {
+        e.throw(&mut env);
+        0
+    })
+}
+
+fn intern_capability_override_layer(
+    env: &mut JNIEnv,
+    op: *mut Operator,
+    overrides: JString,
+) -> Result<jlong> {
+    let op = unsafe { &*op };
+    let overrides = jstring_to_string(env, &overrides)?;
+    let layer = CapabilityOverrideLayer::from_overrides(&overrides)?;
+    Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
 }
 
 #[unsafe(no_mangle)]

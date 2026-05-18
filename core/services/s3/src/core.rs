@@ -96,7 +96,7 @@ pub struct S3Core {
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
     pub default_storage_class: Option<HeaderValue>,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
     pub disable_list_objects_v2: bool,
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
@@ -117,8 +117,7 @@ impl Debug for S3Core {
 
 impl S3Core {
     pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 
@@ -142,8 +141,7 @@ impl S3Core {
     }
 
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().send(req).await;
         }
 
@@ -169,8 +167,7 @@ impl S3Core {
     }
 
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        // Skip signing for anonymous access
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().fetch(req).await;
         }
 

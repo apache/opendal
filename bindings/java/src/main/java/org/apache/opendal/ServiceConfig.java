@@ -2823,11 +2823,6 @@ public interface ServiceConfig {
          */
         public final String accessKeyId;
         /**
-         * <p>Allow anonymous will allow opendal to send request without signing
-         * when credential is not loaded.</p>
-         */
-        public final Boolean allowAnonymous;
-        /**
          * <p>assume_role_duration_seconds for this backend.</p>
          */
         public final Integer assumeRoleDurationSeconds;
@@ -3040,6 +3035,10 @@ public interface ServiceConfig {
          * by hand.</p>
          */
         public final String sessionToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -3051,9 +3050,6 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessKeyId != null) {
                 map.put("access_key_id", accessKeyId);
-            }
-            if (allowAnonymous != null) {
-                map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
             if (assumeRoleDurationSeconds != null) {
                 map.put("assume_role_duration_seconds", String.valueOf(assumeRoleDurationSeconds));
@@ -3142,6 +3138,9 @@ public interface ServiceConfig {
             }
             if (sessionToken != null) {
                 map.put("session_token", sessionToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }

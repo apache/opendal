@@ -685,6 +685,7 @@ class AsyncOperator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `azblob` service.
@@ -717,6 +718,9 @@ class AsyncOperator:
             All operations will happen under this root.
         sas_token : builtins.str, optional
             The sas token of Azblob service backend.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -2095,7 +2099,6 @@ class AsyncOperator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         assume_role_duration_seconds: builtins.int = ...,
         assume_role_session_tags: builtins.dict = ...,
         batch_max_operations: builtins.int = ...,
@@ -2126,6 +2129,7 @@ class AsyncOperator:
         server_side_encryption_customer_key: builtins.str = ...,
         server_side_encryption_customer_key_md5: builtins.str = ...,
         session_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `s3` service.
@@ -2137,9 +2141,6 @@ class AsyncOperator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         assume_role_duration_seconds : builtins.int, optional
             assume_role_duration_seconds for this backend.
         assume_role_session_tags : builtins.dict, optional
@@ -2299,6 +2300,9 @@ class AsyncOperator:
             session_token (aka, security token) of this backend.
             This token will expire after sometime, it's
             recommended to set session_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -3289,6 +3293,7 @@ class Operator:
         endpoint: builtins.str = ...,
         root: builtins.str = ...,
         sas_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `Operator` for `azblob` service.
@@ -3321,6 +3326,9 @@ class Operator:
             All operations will happen under this root.
         sas_token : builtins.str, optional
             The sas token of Azblob service backend.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -4699,7 +4707,6 @@ class Operator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         assume_role_duration_seconds: builtins.int = ...,
         assume_role_session_tags: builtins.dict = ...,
         batch_max_operations: builtins.int = ...,
@@ -4730,6 +4737,7 @@ class Operator:
         server_side_encryption_customer_key: builtins.str = ...,
         server_side_encryption_customer_key_md5: builtins.str = ...,
         session_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `Operator` for `s3` service.
@@ -4741,9 +4749,6 @@ class Operator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         assume_role_duration_seconds : builtins.int, optional
             assume_role_duration_seconds for this backend.
         assume_role_session_tags : builtins.dict, optional
@@ -4903,6 +4908,9 @@ class Operator:
             session_token (aka, security token) of this backend.
             This token will expire after sometime, it's
             recommended to set session_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------

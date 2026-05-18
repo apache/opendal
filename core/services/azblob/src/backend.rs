@@ -37,7 +37,11 @@ use sha2::Sha256;
 
 use super::AZBLOB_SCHEME;
 use super::config::AzblobConfig;
+use super::copier::AzblobCopiers;
+use super::copier::new_azblob_copier;
 use super::core::AzblobCore;
+use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
+use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_META_PREFIX;
 use super::core::constants::X_MS_VERSION_ID;
 use super::deleter::AzblobDeleter;
@@ -439,6 +443,9 @@ impl Builder for AzblobBuilder {
 
                             copy: true,
                             copy_with_if_not_exists: true,
+                            copy_can_multi: true,
+                            copy_multi_min_size: Some(AZBLOB_COPY_MIN_BLOCK_SIZE),
+                            copy_multi_max_size: Some(AZBLOB_COPY_MAX_BLOCK_SIZE),
 
                             list: true,
                             list_with_recursive: true,
@@ -479,7 +486,7 @@ impl Access for AzblobBackend {
     type Writer = AzblobWriters;
     type Lister = oio::PageLister<AzblobLister>;
     type Deleter = oio::BatchDeleter<AzblobDeleter>;
-    type Copier = ();
+    type Copier = AzblobCopiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -564,16 +571,10 @@ impl Access for AzblobBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        _opts: OpCopier,
+        opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.azblob_copy_blob(from, to, args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::ACCEPTED => Ok((RpCopy::default(), ())),
-            _ => Err(parse_error(resp)),
-        }
+        let copier = new_azblob_copier(self.core.clone(), from, to, args, opts)?;
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

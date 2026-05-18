@@ -205,6 +205,8 @@ impl Builder for TosBuilder {
                     delete_max_size: Some(1000),
                     delete_with_version: config.enable_versioning,
 
+                    copy: true,
+
                     list: true,
                     list_with_limit: true,
                     list_with_start_after: true,
@@ -340,5 +342,20 @@ impl Access for TosBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let lister = TosLister::new(self.core.clone(), path, args);
         Ok((RpList::default(), oio::PageLister::new(lister)))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let resp = self.core.tos_copy_object(from, to, &args).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok((RpCopy::default(), ())),
+            _ => Err(parse_error(resp)),
+        }
     }
 }

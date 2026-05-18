@@ -2838,12 +2838,9 @@ public interface ServiceConfig {
          */
         public final Map<String, String> assumeRoleSessionTags;
         /**
-         * <p>Set maximum batch operations of this backend.</p>
-         * <p>Some compatible services have a limit on the number of operations in a batch request.
-         * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
-         * <p>Please tune this value based on services' document.</p>
+         * <p>Deprecated: S3 delete batch capability is enabled by default.</p>
          *
-         * @deprecated Please use `delete_max_size` instead of `batch_max_operations`
+         * @deprecated S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
         /**
@@ -2885,10 +2882,9 @@ public interface ServiceConfig {
          */
         public final String defaultStorageClass;
         /**
-         * <p>Set the maximum delete size of this backend.</p>
-         * <p>Some compatible services have a limit on the number of operations in a batch request.
-         * For example, R2 could return <code>Internal Error</code> while batch delete 1000 files.</p>
-         * <p>Please tune this value based on services' document.</p>
+         * <p>Deprecated: S3 delete batch capability is enabled by default.</p>
+         *
+         * @deprecated S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long deleteMaxSize;
         /**
@@ -2914,8 +2910,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableListObjectsV2;
         /**
-         * <p>Disable stat with override so that opendal will not send stat request with override queries.</p>
-         * <p>For example, R2 doesn't support stat with <code>response_content_type</code> query.</p>
+         * <p>Deprecated: S3 stat override capabilities are enabled by default.</p>
+         *
+         * @deprecated S3 stat override capabilities are enabled by default. Use CapabilityOverrideLayer to override them for specific endpoints.
          */
         public final Boolean disableStatWithOverride;
         /**

@@ -190,27 +190,23 @@ pub struct S3Config {
         alias = "virtual_hosted_style_request"
     )]
     pub enable_virtual_host_style: bool,
-    /// Set maximum batch operations of this backend.
-    ///
-    /// Some compatible services have a limit on the number of operations in a batch request.
-    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
-    ///
-    /// Please tune this value based on services' document.
+    /// Deprecated: S3 delete batch capability is enabled by default.
     #[deprecated(
-        since = "0.52.0",
-        note = "Please use `delete_max_size` instead of `batch_max_operations`"
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."
     )]
     pub batch_max_operations: Option<usize>,
-    /// Set the maximum delete size of this backend.
-    ///
-    /// Some compatible services have a limit on the number of operations in a batch request.
-    /// For example, R2 could return `Internal Error` while batch delete 1000 files.
-    ///
-    /// Please tune this value based on services' document.
+    /// Deprecated: S3 delete batch capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."
+    )]
     pub delete_max_size: Option<usize>,
-    /// Disable stat with override so that opendal will not send stat request with override queries.
-    ///
-    /// For example, R2 doesn't support stat with `response_content_type` query.
+    /// Deprecated: S3 stat override capabilities are enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "S3 stat override capabilities are enabled by default. Use CapabilityOverrideLayer to override them for specific endpoints."
+    )]
     pub disable_stat_with_override: bool,
     /// Checksum Algorithm to use when sending checksums in HTTP headers.
     /// This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.

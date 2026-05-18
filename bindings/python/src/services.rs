@@ -2034,6 +2034,7 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
                 assume_role_duration_seconds: builtins.int = ...,
                 assume_role_session_tags: builtins.dict = ...,
                 batch_max_operations: builtins.int = ...,
@@ -2076,6 +2077,9 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous will allow opendal to send request
+                    without signing when credential is not loaded.
                 assume_role_duration_seconds : builtins.int, optional
                     assume_role_duration_seconds for this backend.
                 assume_role_session_tags : builtins.dict, optional
@@ -4721,6 +4725,7 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
+                allow_anonymous: builtins.bool = ...,
                 assume_role_duration_seconds: builtins.int = ...,
                 assume_role_session_tags: builtins.dict = ...,
                 batch_max_operations: builtins.int = ...,
@@ -4763,6 +4768,9 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
+                allow_anonymous : builtins.bool, optional
+                    Allow anonymous will allow opendal to send request
+                    without signing when credential is not loaded.
                 assume_role_duration_seconds : builtins.int, optional
                     assume_role_duration_seconds for this backend.
                 assume_role_session_tags : builtins.dict, optional

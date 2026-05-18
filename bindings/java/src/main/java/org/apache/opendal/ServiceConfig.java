@@ -2823,6 +2823,13 @@ public interface ServiceConfig {
          */
         public final String accessKeyId;
         /**
+         * <p>Allow anonymous will allow opendal to send request without signing
+         * when credential is not loaded.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
+         */
+        public final Boolean allowAnonymous;
+        /**
          * <p>assume_role_duration_seconds for this backend.</p>
          */
         public final Integer assumeRoleDurationSeconds;
@@ -3050,6 +3057,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessKeyId != null) {
                 map.put("access_key_id", accessKeyId);
+            }
+            if (allowAnonymous != null) {
+                map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
             if (assumeRoleDurationSeconds != null) {
                 map.put("assume_role_duration_seconds", String.valueOf(assumeRoleDurationSeconds));

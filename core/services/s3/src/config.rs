@@ -121,8 +121,14 @@ pub struct S3Config {
     /// to load credential from ec2 metadata, a.k.a., IMDSv2
     pub disable_ec2_metadata: bool,
     /// Skip signature will skip loading credentials and signing requests.
-    #[serde(alias = "allow_anonymous")]
     pub skip_signature: bool,
+    /// Allow anonymous will allow opendal to send request without signing
+    /// when credential is not loaded.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub allow_anonymous: bool,
     /// server_side_encryption for this backend.
     ///
     /// Available values: `AES256`, `aws:kms`.

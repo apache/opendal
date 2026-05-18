@@ -37,6 +37,11 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? SkipSignature { get; init; }
         /// <summary>
+        /// Allow anonymous will allow opendal to send request without signing when credential is not loaded.
+        /// </summary>
+        [System.Obsolete("Please use SkipSignature instead of AllowAnonymous")]
+        public bool? AllowAnonymous { get; init; }
+        /// <summary>
         /// Set maximum batch operations of this backend. Some compatible services have a limit on the number of operations in a batch request. For example, R2 could return Internal Error while batch delete 1000 files. Please tune this value based on services' document.
         /// </summary>
         public long? BatchMaxOperations { get; init; }
@@ -158,6 +163,12 @@ namespace OpenDAL.ServiceConfig
             {
                 map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
             }
+#pragma warning disable CS0618
+            if (AllowAnonymous is not null)
+            {
+                map["allow_anonymous"] = Utilities.ToOptionString(AllowAnonymous);
+            }
+#pragma warning restore CS0618
             if (BatchMaxOperations is not null)
             {
                 map["batch_max_operations"] = Utilities.ToOptionString(BatchMaxOperations);

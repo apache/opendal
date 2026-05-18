@@ -717,6 +717,11 @@ impl Builder for S3Builder {
             credential_providers,
         } = self;
 
+        #[allow(deprecated)]
+        if config.allow_anonymous {
+            config.skip_signature = true;
+        }
+
         let root = normalize_root(&config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
 

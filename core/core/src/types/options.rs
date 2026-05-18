@@ -104,6 +104,13 @@ pub struct ReadOptions {
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
 
+    /// Known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    pub content_length_hint: Option<u64>,
+
     /// Set `concurrent` for the operation.
     ///
     /// OpenDAL by default to read file without concurrent. This is not efficient for cases when users
@@ -187,6 +194,13 @@ pub struct ReaderOptions {
     /// If file exists and it has been modified since the specified time, an error with kind
     /// [`ErrorKind::ConditionNotMatch`] will be returned.
     pub if_unmodified_since: Option<Timestamp>,
+
+    /// Known content length of the object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning reads. It must not be used as an object identity
+    /// or consistency condition.
+    pub content_length_hint: Option<u64>,
 
     /// Set `concurrent` for the operation.
     ///
@@ -532,6 +546,13 @@ pub struct CopyOptions {
     /// This operation provides a way to ensure copy operations only create new resources
     /// without overwriting existing ones, useful for implementing "copy if not exists" logic.
     pub if_not_exists: bool,
+
+    /// Known content length of the source object.
+    ///
+    /// This is an execution hint that allows OpenDAL to avoid extra metadata
+    /// requests while planning copy operations. It must not be used as an object
+    /// identity or consistency condition.
+    pub source_content_length_hint: Option<u64>,
 
     /// Sets concurrent copy operations for this copier.
     ///

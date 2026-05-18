@@ -31,6 +31,12 @@ use crate::*;
 /// service-specific multipart copy operations. [`MultipartCopier`] will drive
 /// the upload id, part queue, completion, and abort state.
 pub trait MultipartCopy: Send + Sync + Unpin + 'static {
+    /// source_metadata returns source metadata for planning multipart copy.
+    ///
+    /// MultipartCopier will call this API when source content length hint is not
+    /// provided.
+    fn source_metadata(&self) -> impl Future<Output = Result<Metadata>> + MaybeSend;
+
     /// copy_once is used to copy the source object at once.
     ///
     /// MultipartCopier will call this API when the source object can be copied
@@ -95,7 +101,7 @@ pub struct MultipartCopier<C: MultipartCopy> {
     parts: Vec<MultipartPart>,
     next_part_number: usize,
     next_offset: u64,
-    source_size: u64,
+    source_size: Option<u64>,
     copy_once_threshold: u64,
     part_size: u64,
     concurrent: usize,
@@ -109,7 +115,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
     pub fn new(
         info: Arc<AccessorInfo>,
         inner: C,
-        source_size: u64,
+        source_content_length_hint: Option<u64>,
         copy_once_threshold: u64,
         part_size: u64,
         concurrent: usize,
@@ -125,7 +131,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             parts: Vec::new(),
             next_part_number: 0,
             next_offset: 0,
-            source_size,
+            source_size: source_content_length_hint,
             copy_once_threshold,
             part_size,
             concurrent,
@@ -166,6 +172,17 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         }
     }
 
+    async fn source_size(&mut self) -> Result<u64> {
+        match self.source_size {
+            Some(size) => Ok(size),
+            None => {
+                let size = self.copier.source_metadata().await?.content_length();
+                self.source_size = Some(size);
+                Ok(size)
+            }
+        }
+    }
+
     async fn upload_id(&mut self) -> Result<Arc<String>> {
         match self.upload_id.clone() {
             Some(upload_id) => Ok(upload_id),
@@ -178,14 +195,14 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         }
     }
 
-    async fn fill_tasks(&mut self, upload_id: Arc<String>) -> Result<()> {
+    async fn fill_tasks(&mut self, upload_id: Arc<String>, source_size: u64) -> Result<()> {
         let mut scheduled = 0;
 
-        while self.next_offset < self.source_size
+        while self.next_offset < source_size
             && self.tasks.has_remaining()
             && scheduled < self.concurrent
         {
-            let size = self.part_size.min(self.source_size - self.next_offset);
+            let size = self.part_size.min(source_size - self.next_offset);
             let range = BytesRange::new(self.next_offset, Some(size));
 
             let input = CopyInput {
@@ -226,14 +243,16 @@ where
             return Ok(None);
         }
 
-        if self.upload_id.is_none() && self.source_size <= self.copy_once_threshold {
+        let source_size = self.source_size().await?;
+
+        if self.upload_id.is_none() && source_size <= self.copy_once_threshold {
             self.copier.copy_once().await?;
             self.completed = true;
             return Ok(None);
         }
 
         let upload_id = self.upload_id().await?;
-        self.fill_tasks(upload_id.clone()).await?;
+        self.fill_tasks(upload_id.clone(), source_size).await?;
 
         loop {
             match self.tasks.next().await {
@@ -277,6 +296,91 @@ where
 
         self.copier.abort_copy(&upload_id).await?;
         self.completed = true;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    use super::*;
+    use crate::raw::oio::Copy;
+
+    struct TestCopy {
+        source_size: u64,
+        source_metadata_calls: AtomicUsize,
+        copy_once_calls: AtomicUsize,
+    }
+
+    impl TestCopy {
+        fn new(source_size: u64) -> Arc<Self> {
+            Arc::new(Self {
+                source_size,
+                source_metadata_calls: AtomicUsize::new(0),
+                copy_once_calls: AtomicUsize::new(0),
+            })
+        }
+    }
+
+    impl MultipartCopy for Arc<TestCopy> {
+        async fn source_metadata(&self) -> Result<Metadata> {
+            self.source_metadata_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(Metadata::default().with_content_length(self.source_size))
+        }
+
+        async fn copy_once(&self) -> Result<()> {
+            self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+
+        async fn initiate_copy(&self) -> Result<String> {
+            Ok("upload_id".to_string())
+        }
+
+        async fn copy_part(
+            &self,
+            _: &str,
+            part_number: usize,
+            range: BytesRange,
+        ) -> Result<MultipartPart> {
+            Ok(MultipartPart {
+                part_number,
+                etag: "etag".to_string(),
+                checksum: None,
+                size: range.size(),
+            })
+        }
+
+        async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn abort_copy(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_content_length_hint_skips_source_metadata() -> Result<()> {
+        let inner = TestCopy::new(8);
+        let mut copier = MultipartCopier::new(Arc::default(), inner.clone(), Some(8), 8, 8, 1);
+
+        assert_eq!(copier.next().await?, None);
+        assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_missing_content_length_hint_loads_source_metadata() -> Result<()> {
+        let inner = TestCopy::new(8);
+        let mut copier = MultipartCopier::new(Arc::default(), inner.clone(), None, 8, 8, 1);
+
+        assert_eq!(copier.next().await?, None);
+        assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
         Ok(())
     }
 }

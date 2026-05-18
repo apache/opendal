@@ -16,6 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use bytes::Buf;
 use http::StatusCode;
@@ -35,9 +36,7 @@ pub fn new_s3_copier(
     to: &str,
     args: OpCopy,
     opts: OpCopier,
-    meta: Metadata,
 ) -> Result<S3Copiers> {
-    let source_size = meta.content_length();
     let capability = core.info.full_capability();
     let max_part_size = capability.copy_multi_max_size.ok_or_else(|| {
         Error::new(
@@ -70,10 +69,9 @@ pub fn new_s3_copier(
             from: from.to_string(),
             to: to.to_string(),
             args,
-            source_etag: meta.etag().map(ToOwned::to_owned),
-            source_version: meta.version().map(ToOwned::to_owned),
+            source_metadata: Mutex::new(None),
         },
-        source_size,
+        opts.source_content_length_hint(),
         copy_once_threshold,
         part_size,
         opts.concurrent(),
@@ -85,11 +83,37 @@ pub struct S3Copier {
     from: String,
     to: String,
     args: OpCopy,
-    source_etag: Option<String>,
-    source_version: Option<String>,
+    source_metadata: Mutex<Option<Metadata>>,
 }
 
 impl oio::MultipartCopy for S3Copier {
+    async fn source_metadata(&self) -> Result<Metadata> {
+        let resp = self
+            .core
+            .s3_head_object(&self.from, OpStat::default())
+            .await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let headers = resp.headers();
+                let mut meta = parse_into_metadata(&self.from, headers)?;
+
+                if let Some(v) = parse_header_to_str(headers, constants::X_AMZ_VERSION_ID)? {
+                    meta.set_version(v);
+                }
+
+                let mut source_metadata = self
+                    .source_metadata
+                    .lock()
+                    .expect("source metadata mutex poisoned");
+                *source_metadata = Some(meta.clone());
+
+                Ok(meta)
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
+
     async fn copy_once(&self) -> Result<()> {
         let resp = self.core.s3_copy_object(&self.from, &self.to).await?;
 
@@ -137,6 +161,22 @@ impl oio::MultipartCopy for S3Copier {
     ) -> Result<oio::MultipartPart> {
         let size = range.size().expect("multipart copy range must be sized");
         let part_number = part_number + 1;
+        let (source_etag, source_version) = {
+            let source_metadata = self
+                .source_metadata
+                .lock()
+                .expect("source metadata mutex poisoned");
+            (
+                source_metadata
+                    .as_ref()
+                    .and_then(|meta| meta.etag())
+                    .map(ToOwned::to_owned),
+                source_metadata
+                    .as_ref()
+                    .and_then(|meta| meta.version())
+                    .map(ToOwned::to_owned),
+            )
+        };
 
         let req = self
             .core
@@ -146,8 +186,8 @@ impl oio::MultipartCopy for S3Copier {
                 upload_id,
                 part_number,
                 range,
-                source_etag: self.source_etag.as_deref(),
-                source_version: self.source_version.as_deref(),
+                source_etag: source_etag.as_deref(),
+                source_version: source_version.as_deref(),
             })?;
 
         let resp = self.core.send(req).await?;

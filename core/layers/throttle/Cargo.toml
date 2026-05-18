@@ -36,3 +36,4 @@ opendal-core = { path = "../../core", version = "0.56.0", default-features = fal
 
 [dev-dependencies]
 opendal-core = { path = "../../core", version = "0.56.0" }
+tokio = { workspace = true, features = ["macros", "rt"] }

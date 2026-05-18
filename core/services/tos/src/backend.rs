@@ -24,6 +24,7 @@ use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
 use crate::core::*;
 use crate::deleter::TosDeleter;
 use crate::error::parse_error;
+use crate::lister::TosLister;
 use crate::utils::tos_parse_into_metadata;
 use crate::writer::TosWriter;
 use http::Response;
@@ -204,7 +205,10 @@ impl Builder for TosBuilder {
                     delete_max_size: Some(1000),
                     delete_with_version: config.enable_versioning,
 
-                    list: false,
+                    list: true,
+                    list_with_limit: true,
+                    list_with_start_after: true,
+                    list_with_recursive: true,
 
                     stat: false,
 
@@ -250,7 +254,7 @@ pub struct TosBackend {
 impl Access for TosBackend {
     type Reader = HttpBody;
     type Writer = oio::MultipartWriter<TosWriter>;
-    type Lister = ();
+    type Lister = oio::PageLister<TosLister>;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = ();
 
@@ -331,5 +335,10 @@ impl Access for TosBackend {
             RpDelete::default(),
             oio::BatchDeleter::new(deleter, capability.delete_max_size),
         ))
+    }
+
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let lister = TosLister::new(self.core.clone(), path, args);
+        Ok((RpList::default(), oio::PageLister::new(lister)))
     }
 }

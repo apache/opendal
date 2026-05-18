@@ -53,7 +53,7 @@ impl oio::BatchDelete for TosDeleter {
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let resp = self.core.tos_delete_objects(batch).await?;
+        let resp = self.core.tos_delete_objects(&batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {
@@ -65,27 +65,26 @@ impl oio::BatchDelete for TosDeleter {
         let result: DeleteObjectsResult =
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
+        let mut errors = result.errors;
         let mut batched_result = BatchDeleteResult {
-            succeeded: Vec::with_capacity(result.deleted.len()),
-            failed: Vec::with_capacity(result.errors.len()),
+            succeeded: Vec::with_capacity(batch.len() - errors.len()),
+            failed: Vec::with_capacity(errors.len()),
         };
-        for i in result.deleted {
-            let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::new();
-            if let Some(version_id) = i.version_id {
-                op = op.with_version(version_id.as_str());
+        for (path, op) in batch {
+            let abs_path = build_abs_path(&self.core.root, &path);
+            if let Some(idx) = errors
+                .iter()
+                .position(|e| e.key == abs_path && e.version_id.as_deref() == op.version())
+            {
+                let error = errors.swap_remove(idx);
+                batched_result.failed.push((
+                    path,
+                    op,
+                    Error::new(ErrorKind::Unexpected, error.message),
+                ));
+            } else {
+                batched_result.succeeded.push((path, op));
             }
-            batched_result.succeeded.push((path, op));
-        }
-        for i in result.errors {
-            let path = build_rel_path(&self.core.root, &i.key);
-            let mut op = OpDelete::new();
-            if let Some(version_id) = &i.version_id {
-                op = op.with_version(version_id.as_str());
-            }
-            batched_result
-                .failed
-                .push((path, op, Error::new(ErrorKind::Unexpected, i.message)));
         }
 
         Ok(batched_result)

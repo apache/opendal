@@ -396,7 +396,7 @@ impl TosCore {
 
     pub async fn tos_delete_objects(
         &self,
-        paths: Vec<(String, OpDelete)>,
+        paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("https://{}.{}?delete", self.bucket, self.endpoint_domain);
 
@@ -404,9 +404,9 @@ impl TosCore {
 
         let content = serde_json::to_string(&DeleteObjectsRequest {
             objects: paths
-                .into_iter()
+                .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, &path),
+                    key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -421,6 +421,50 @@ impl TosCore {
 
         let req = req
             .body(Buffer::from(content))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_list_objects_v2(
+        &self,
+        path: &str,
+        continuation_token: &str,
+        delimiter: &str,
+        limit: Option<usize>,
+        start_after: Option<String>,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let mut url =
+            QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
+        url = url.push("list-type", "2");
+
+        if !p.is_empty() {
+            url = url.push("prefix", &percent_encode_query(&p));
+        }
+        if !delimiter.is_empty() {
+            url = url.push("delimiter", &percent_encode_query(delimiter));
+        }
+        if let Some(limit) = limit {
+            url = url.push("max-keys", &limit.to_string());
+        }
+        if let Some(start_after) = start_after {
+            if path.is_empty() || path == "/" || start_after.starts_with(path) {
+                let start_after = build_abs_path(&self.root, &start_after);
+                url = url.push("start-after", &percent_encode_query(&start_after));
+            }
+        }
+        if !continuation_token.is_empty() {
+            url = url.push(
+                "continuation-token",
+                &percent_encode_query(continuation_token),
+            );
+        }
+
+        let req = Request::get(url.finish())
+            .extension(Operation::List)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await
@@ -444,15 +488,7 @@ pub struct DeleteObjectsRequestObject {
 #[derive(Default, Debug, Deserialize)]
 #[serde(default, rename_all = "PascalCase")]
 pub struct DeleteObjectsResult {
-    pub deleted: Vec<DeleteObjectsResultDeleted>,
     pub errors: Vec<DeleteObjectsResultError>,
-}
-
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-pub struct DeleteObjectsResultDeleted {
-    pub key: String,
-    pub version_id: Option<String>,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -462,4 +498,34 @@ pub struct DeleteObjectsResultError {
     pub key: String,
     pub message: String,
     pub version_id: Option<String>,
+}
+
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct ListObjectsOutputV2 {
+    pub name: String,
+    pub prefix: String,
+    pub key_count: usize,
+    pub max_keys: usize,
+    pub is_truncated: bool,
+    pub delimiter: String,
+    pub next_continuation_token: Option<String>,
+    pub common_prefixes: Vec<OutputCommonPrefix>,
+    pub contents: Vec<ListObjectsOutputContent>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ListObjectsOutputContent {
+    pub key: String,
+    pub size: u64,
+    pub last_modified: String,
+    #[serde(rename = "ETag")]
+    pub etag: Option<String>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct OutputCommonPrefix {
+    pub prefix: String,
 }

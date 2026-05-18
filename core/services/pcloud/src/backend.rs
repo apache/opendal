@@ -155,6 +155,7 @@ impl Builder for PcloudBuilder {
                             copy: true,
 
                             list: true,
+                            list_with_recursive: true,
 
                             shared: true,
 
@@ -257,8 +258,8 @@ impl Access for PcloudBackend {
         ))
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = PcloudLister::new(self.core.clone(), path);
+    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+        let l = PcloudLister::new(self.core.clone(), path, args.recursive());
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 

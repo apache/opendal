@@ -418,15 +418,20 @@ impl PcloudCore {
         self.send(req).await
     }
 
-    pub async fn list_folder(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn list_folder(&self, path: &str, recursive: bool) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
         let path = normalize_root(&path);
 
         let path = path.trim_end_matches('/');
 
+        let mut query = format!("path={}", percent_encode_path(path));
+        if recursive {
+            query.push_str("&recursive=1");
+        }
+
         let url = self
-            .build_url("listfolder", format!("path={}", percent_encode_path(path)))
+            .build_url("listfolder", query)
             .await?;
 
         let req = Request::get(url);
@@ -457,7 +462,7 @@ pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
     Ok(md)
 }
 
-pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
+pub(super) fn parse_list_metadata(content: &ListMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
         Metadata::new(EntryMode::DIR)
     } else {
@@ -516,7 +521,8 @@ pub struct ListFolderResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListMetadata {
-    pub path: String,
+    pub path: Option<String>,
+    pub name: String,
     pub modified: String,
     pub isfolder: bool,
     pub size: Option<u64>,
@@ -525,7 +531,9 @@ pub struct ListMetadata {
 
 #[cfg(test)]
 mod tests {
+    use super::ListMetadata;
     use super::build_passworddigest;
+    use super::parse_list_metadata;
 
     #[test]
     fn build_passworddigest_lowercases_username() {
@@ -533,5 +541,21 @@ mod tests {
             build_passworddigest("Alice@example.com", "s3cr3t", "abc123"),
             "994e8926e4d573e614f3f56de6449ad81288cc87"
         );
+    }
+
+    #[test]
+    fn parse_list_metadata_preserves_file_size() {
+        let md = parse_list_metadata(&ListMetadata {
+            path: Some("/repo/data/00/file".to_string()),
+            name: "file".to_string(),
+            modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
+            isfolder: false,
+            size: Some(123),
+            contents: None,
+        })
+        .expect("metadata should parse");
+
+        assert_eq!(md.content_length(), 123);
+        assert!(md.is_file());
     }
 }

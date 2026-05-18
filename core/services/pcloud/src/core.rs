@@ -26,6 +26,8 @@ use http::header;
 use opendal_core::raw::*;
 use opendal_core::*;
 use serde::Deserialize;
+use sha1::Digest;
+use sha1::Sha1;
 
 use super::error::PcloudError;
 use super::error::parse_error;
@@ -59,19 +61,67 @@ impl PcloudCore {
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.info.http_client().send(req).await
     }
+
+    async fn build_url(&self, method: &str, query: String) -> Result<String> {
+        let auth_query = self.digest_auth_query().await?;
+
+        if query.is_empty() {
+            Ok(format!("{}/{method}?{auth_query}", self.endpoint))
+        } else {
+            Ok(format!("{}/{method}?{query}&{auth_query}", self.endpoint))
+        }
+    }
+
+    async fn digest_auth_query(&self) -> Result<String> {
+        let digest = self.get_digest().await?;
+        let passworddigest = build_passworddigest(&self.username, &self.password, &digest);
+
+        Ok(format!(
+            "username={}&digest={}&passworddigest={}",
+            percent_encode_path(&self.username),
+            percent_encode_path(&digest),
+            percent_encode_path(&passworddigest)
+        ))
+    }
+
+    async fn get_digest(&self) -> Result<String> {
+        let req = Request::get(format!("{}/getdigest", self.endpoint))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        let resp = self.send(req).await?;
+
+        match resp.status() {
+            StatusCode::OK => {
+                let bs = resp.into_body();
+                let resp: GetDigestResponse =
+                    serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+                if resp.result != 0 {
+                    return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
+                }
+
+                let debug = format!("{resp:?}");
+                match resp.digest {
+                    Some(digest) => Ok(digest),
+                    None => Err(Error::new(ErrorKind::Unexpected, debug)),
+                }
+            }
+            _ => Err(parse_error(resp)),
+        }
+    }
 }
 
 impl PcloudCore {
     pub async fn get_file_link(&self, path: &str) -> Result<String> {
         let path = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/getfilelink?path=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "getfilelink",
+                format!("path=/{}", percent_encode_path(&path)),
+            )
+            .await?;
 
         let req = Request::get(url);
 
@@ -158,13 +208,12 @@ impl PcloudCore {
     }
 
     pub async fn create_folder_if_not_exists(&self, path: &str) -> Result<Response<Buffer>> {
-        let url = format!(
-            "{}/createfolderifnotexists?path=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "createfolderifnotexists",
+                format!("path=/{}", percent_encode_path(path)),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -181,14 +230,16 @@ impl PcloudCore {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
-        let url = format!(
-            "{}/renamefile?path=/{}&topath=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&from),
-            percent_encode_path(&to),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "renamefile",
+                format!(
+                    "path=/{}&topath=/{}",
+                    percent_encode_path(&from),
+                    percent_encode_path(&to)
+                ),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -204,14 +255,16 @@ impl PcloudCore {
     pub async fn rename_folder(&self, from: &str, to: &str) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
-        let url = format!(
-            "{}/renamefolder?path=/{}&topath=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&from),
-            percent_encode_path(&to),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "renamefolder",
+                format!(
+                    "path=/{}&topath=/{}",
+                    percent_encode_path(&from),
+                    percent_encode_path(&to)
+                ),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -227,13 +280,12 @@ impl PcloudCore {
     pub async fn delete_folder(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/deletefolder?path=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "deletefolder",
+                format!("path=/{}", percent_encode_path(&path)),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -249,13 +301,12 @@ impl PcloudCore {
     pub async fn delete_file(&self, path: &str) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
 
-        let url = format!(
-            "{}/deletefile?path=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "deletefile",
+                format!("path=/{}", percent_encode_path(&path)),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -272,14 +323,16 @@ impl PcloudCore {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
-        let url = format!(
-            "{}/copyfile?path=/{}&topath=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&from),
-            percent_encode_path(&to),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "copyfile",
+                format!(
+                    "path=/{}&topath=/{}",
+                    percent_encode_path(&from),
+                    percent_encode_path(&to)
+                ),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -296,14 +349,16 @@ impl PcloudCore {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
-        let url = format!(
-            "{}/copyfolder?path=/{}&topath=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(&from),
-            percent_encode_path(&to),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "copyfolder",
+                format!(
+                    "path=/{}&topath=/{}",
+                    percent_encode_path(&from),
+                    percent_encode_path(&to)
+                ),
+            )
+            .await?;
 
         let req = Request::post(url);
 
@@ -321,13 +376,9 @@ impl PcloudCore {
 
         let path = path.trim_end_matches('/');
 
-        let url = format!(
-            "{}/stat?path=/{}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url("stat", format!("path=/{}", percent_encode_path(path)))
+            .await?;
 
         let req = Request::post(url);
 
@@ -345,14 +396,16 @@ impl PcloudCore {
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
 
-        let url = format!(
-            "{}/uploadfile?path=/{}&filename={}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(path),
-            percent_encode_path(name),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url(
+                "uploadfile",
+                format!(
+                    "path=/{}&filename={}",
+                    percent_encode_path(path),
+                    percent_encode_path(name)
+                ),
+            )
+            .await?;
 
         let req = Request::put(url);
 
@@ -372,13 +425,9 @@ impl PcloudCore {
 
         let path = path.trim_end_matches('/');
 
-        let url = format!(
-            "{}/listfolder?path={}&username={}&password={}",
-            self.endpoint,
-            percent_encode_path(path),
-            self.username,
-            self.password
-        );
+        let url = self
+            .build_url("listfolder", format!("path={}", percent_encode_path(path)))
+            .await?;
 
         let req = Request::get(url);
 
@@ -424,6 +473,21 @@ pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
     Ok(md)
 }
 
+fn build_passworddigest(username: &str, password: &str, digest: &str) -> String {
+    let username_hash = sha1_hex(username.to_lowercase().as_bytes());
+    sha1_hex(format!("{password}{username_hash}{digest}").as_bytes())
+}
+
+fn sha1_hex(input: &[u8]) -> String {
+    format!("{:x}", Sha1::digest(input))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetDigestResponse {
+    pub result: u64,
+    pub digest: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct GetFileLinkResponse {
     pub result: u64,
@@ -457,4 +521,17 @@ pub struct ListMetadata {
     pub isfolder: bool,
     pub size: Option<u64>,
     pub contents: Option<Vec<ListMetadata>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_passworddigest;
+
+    #[test]
+    fn build_passworddigest_lowercases_username() {
+        assert_eq!(
+            build_passworddigest("Alice@example.com", "s3cr3t", "abc123"),
+            "994e8926e4d573e614f3f56de6449ad81288cc87"
+        );
+    }
 }

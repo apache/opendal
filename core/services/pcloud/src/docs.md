@@ -17,7 +17,7 @@ This service can be used to:
 - `root`: Set the work directory for backend
 - `endpoint`: Pcloud bucket name
 - `username` Pcloud username
-- `password` Pcloud password
+- `password` Pcloud password used for pCloud digest authentication
 
 You can refer to [`PcloudBuilder`]'s docs for more information
 

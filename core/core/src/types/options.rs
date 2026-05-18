@@ -538,4 +538,17 @@ pub struct CopyOptions {
     /// This is a best-effort execution option. Services that cannot split copy
     /// into concurrent server-side tasks can ignore it.
     pub concurrent: usize,
+
+    /// Sets chunk size for segmented copy operations.
+    ///
+    /// ### Capability
+    ///
+    /// Check [`Capability::copy_can_multi`],
+    /// [`Capability::copy_multi_min_size`] and
+    /// [`Capability::copy_multi_max_size`] before using this feature.
+    ///
+    /// This is a best-effort execution option. Services that support
+    /// server-side segmented copy can use it as the target size for each copy
+    /// step. Services that cannot split copy operations can ignore it.
+    pub chunk: Option<usize>,
 }

@@ -905,6 +905,7 @@ impl OpCopy {
 #[derive(Debug, Clone, Default)]
 pub struct OpCopier {
     concurrent: usize,
+    chunk: Option<usize>,
 }
 
 impl OpCopier {
@@ -923,6 +924,17 @@ impl OpCopier {
     pub fn concurrent(&self) -> usize {
         self.concurrent.max(1)
     }
+
+    /// Set the chunk size for the copier.
+    pub fn with_chunk(mut self, chunk: usize) -> Self {
+        self.chunk = Some(chunk);
+        self
+    }
+
+    /// Get the chunk size for the copier.
+    pub fn chunk(&self) -> Option<usize> {
+        self.chunk
+    }
 }
 
 impl From<options::CopyOptions> for (OpCopy, OpCopier) {
@@ -933,6 +945,7 @@ impl From<options::CopyOptions> for (OpCopy, OpCopier) {
             },
             OpCopier {
                 concurrent: value.concurrent.max(1),
+                chunk: value.chunk,
             },
         )
     }

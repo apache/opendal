@@ -17,3 +17,6 @@
 
 mod api;
 pub use api::*;
+
+mod multipart_copy;
+pub use multipart_copy::*;

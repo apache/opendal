@@ -48,6 +48,8 @@ use opendal_core::*;
 
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
+    pub const X_AMZ_COPY_SOURCE_IF_MATCH: &str = "x-amz-copy-source-if-match";
+    pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -103,6 +105,16 @@ pub struct S3Core {
 
     pub signer: Signer<Credential>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+pub(crate) struct S3UploadPartCopyRequest<'a> {
+    pub(crate) from: &'a str,
+    pub(crate) to: &'a str,
+    pub(crate) upload_id: &'a str,
+    pub(crate) part_number: usize,
+    pub(crate) range: BytesRange,
+    pub(crate) source_etag: Option<&'a str>,
+    pub(crate) source_version: Option<&'a str>,
 }
 
 impl Debug for S3Core {
@@ -866,6 +878,121 @@ impl S3Core {
         self.send(req).await
     }
 
+    pub async fn s3_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
+
+        let mut req = Request::post(&url);
+
+        // Set storage class header.
+        if let Some(v) = &self.default_storage_class {
+            req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
+        }
+
+        // Also set acl header if default_acl is set.
+        if let Some(acl) = &self.default_acl {
+            req = req.header(constants::X_AMZ_ACL, acl);
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CreateMultipartUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub(crate) fn s3_upload_part_copy_request(
+        &self,
+        input: S3UploadPartCopyRequest<'_>,
+    ) -> Result<Request<Buffer>> {
+        let from = build_abs_path(&self.root, input.from);
+        let to = build_abs_path(&self.root, input.to);
+
+        let mut source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        if let Some(version) = input.source_version {
+            source.push_str(&format!(
+                "?{}={}",
+                constants::S3_QUERY_VERSION_ID,
+                percent_encode_path(version)
+            ));
+        }
+
+        let url = format!(
+            "{}/{}?partNumber={}&uploadId={}",
+            self.endpoint,
+            percent_encode_path(&to),
+            input.part_number,
+            percent_encode_path(input.upload_id)
+        );
+
+        let mut req = Request::put(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        if let Some(v) = &self.server_side_encryption_customer_algorithm {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                ),
+                v,
+            )
+        }
+
+        if let Some(v) = &self.server_side_encryption_customer_key_md5 {
+            let mut v = v.clone();
+            v.set_sensitive(true);
+
+            req = req.header(
+                HeaderName::from_static(
+                    constants::X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY_MD5,
+                ),
+                v,
+            )
+        }
+
+        if let Some(etag) = input.source_etag {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, etag);
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("UploadPartCopy"))
+            .header(constants::X_AMZ_COPY_SOURCE, source)
+            .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        Ok(req)
+    }
+
     pub fn s3_upload_part_request(
         &self,
         path: &str,
@@ -962,6 +1089,50 @@ impl S3Core {
         self.send(req).await
     }
 
+    pub async fn s3_complete_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+        parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::post(&url);
+
+        // Set SSE headers.
+        req = self.insert_sse_headers(req, true);
+
+        let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
+            .map_err(new_xml_serialize_error)?;
+        // Make sure content length has been set to avoid post with chunked encoding.
+        req = req.header(CONTENT_LENGTH, content.len());
+        // Set content-type to `application/xml` to avoid mixed with form post.
+        req = req.header(CONTENT_TYPE, "application/xml");
+
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("CompleteMultipartUpload"))
+            .body(Buffer::from(Bytes::from(content)))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
     /// Abort an on-going multipart upload.
     pub async fn s3_abort_multipart_upload(
         &self,
@@ -985,6 +1156,35 @@ impl S3Core {
         let req = req
             // Inject operation to the request.
             .extension(Operation::Write)
+            .extension(ServiceOperation("AbortMultipartUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    /// Abort an on-going multipart copy.
+    pub async fn s3_abort_multipart_copy(
+        &self,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<Response<Buffer>> {
+        let p = build_abs_path(&self.root, path);
+
+        let url = format!(
+            "{}/{}?uploadId={}",
+            self.endpoint,
+            percent_encode_path(&p),
+            percent_encode_path(upload_id)
+        );
+
+        let mut req = Request::delete(&url);
+
+        // Set request payer header if enabled.
+        req = self.insert_request_payer_header(req);
+
+        let req = req
+            .extension(Operation::Copy)
             .extension(ServiceOperation("AbortMultipartUpload"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

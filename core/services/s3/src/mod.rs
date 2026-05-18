@@ -20,6 +20,7 @@ pub const S3_SCHEME: &str = "s3";
 
 mod backend;
 mod config;
+mod copier;
 mod core;
 mod deleter;
 mod error;
@@ -28,4 +29,3 @@ mod writer;
 
 pub use backend::S3Builder as S3;
 pub use config::S3Config;
-

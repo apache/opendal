@@ -45,6 +45,8 @@ use url::Url;
 
 use crate::S3_SCHEME;
 use crate::config::S3Config;
+use crate::copier::S3Copiers;
+use crate::copier::new_s3_copier;
 use crate::core::*;
 use crate::deleter::S3Deleter;
 use crate::error::parse_error;
@@ -948,6 +950,19 @@ impl Builder for S3Builder {
                             delete_with_version: config.enable_versioning,
 
                             copy: true,
+                            copy_can_multi: true,
+                            // The min multipart size of S3 is 5 MiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            copy_multi_min_size: Some(5 * 1024 * 1024),
+                            // The max multipart size of S3 is 5 GiB.
+                            //
+                            // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
+                            copy_multi_max_size: if cfg!(target_pointer_width = "64") {
+                                Some(5 * 1024 * 1024 * 1024)
+                            } else {
+                                Some(usize::MAX)
+                            },
 
                             list: true,
                             list_with_limit: true,
@@ -999,7 +1014,7 @@ impl Access for S3Backend {
     type Writer = S3Writers;
     type Lister = S3Listers;
     type Deleter = oio::BatchDeleter<S3Deleter>;
-    type Copier = ();
+    type Copier = S3Copiers;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -1100,39 +1115,12 @@ impl Access for S3Backend {
         &self,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
+        opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.s3_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => {
-                // S3 CopyObject may return an error embedded in a 200 OK response body
-                // when the error occurs during the copy (e.g., throttling, internal error).
-                // We must parse the body to detect this.
-                //
-                // ref: https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
-                // ref: https://repost.aws/knowledge-center/s3-resolve-200-internalerror
-                let body = resp.into_body().to_bytes();
-
-                let result: CopyObjectResult =
-                    quick_xml::de::from_reader(body.as_ref()).map_err(new_xml_deserialize_error)?;
-
-                // On success, ETag is always present. If it's empty, the body was not a
-                // valid <CopyObjectResult> — it's an error response embedded in 200 OK.
-                if result.etag.is_empty() {
-                    return Err(
-                        Error::new(ErrorKind::Unexpected, String::from_utf8_lossy(&body))
-                            .set_temporary(),
-                    );
-                }
-
-                Ok((RpCopy::default(), ()))
-            }
-            _ => Err(parse_error(resp)),
-        }
+        let meta = self.stat(from, OpStat::default()).await?.into_metadata();
+        let copier = new_s3_copier(self.core.clone(), from, to, args, opts, meta)?;
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

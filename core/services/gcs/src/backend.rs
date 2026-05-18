@@ -39,6 +39,9 @@ use reqsign_google::VmMetadataCredentialProvider;
 
 use super::GCS_SCHEME;
 use super::config::GcsConfig;
+use super::copier::GcsCopier;
+use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
+use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
 use super::core::*;
 use super::deleter::GcsDeleter;
 use super::error::parse_error;
@@ -366,7 +369,15 @@ impl Builder for GcsBuilder {
 
                             delete: true,
                             delete_max_size: Some(100),
+
                             copy: true,
+                            copy_can_multi: true,
+                            // GCS rewrite requires maxBytesRewrittenPerCall to be an
+                            // integral multiple of 1 MiB if specified.
+                            //
+                            // ref: <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite>
+                            copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
+                            copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
 
                             list: true,
                             list_with_limit: true,
@@ -410,7 +421,7 @@ impl Access for GcsBackend {
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
-    type Copier = ();
+    type Copier = GcsCopier;
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -480,16 +491,11 @@ impl Access for GcsBackend {
         &self,
         from: &str,
         to: &str,
-        _: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
+        opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let resp = self.core.gcs_copy_object(from, to).await?;
-
-        if resp.status().is_success() {
-            Ok((RpCopy::default(), ()))
-        } else {
-            Err(parse_error(resp))
-        }
+        let copier = GcsCopier::new(self.core.clone(), from, to, args, opts);
+        Ok((RpCopy::default(), copier))
     }
 
     async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {

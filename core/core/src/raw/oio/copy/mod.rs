@@ -18,5 +18,8 @@
 mod api;
 pub use api::*;
 
+mod block_copy;
+pub use block_copy::*;
+
 mod multipart_copy;
 pub use multipart_copy::*;

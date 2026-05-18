@@ -415,6 +415,82 @@ pub unsafe extern "C" fn opendal_operator_writer(
     }
 }
 
+/// \brief Blocking read the data from `path` with additional options.
+///
+/// Read the data out from `path` blocking by operator with additional options.
+///
+/// @param op The opendal_operator created previously
+/// @param path The path you want to read the data out
+/// @param opts The options for read operations
+/// @see opendal_operator
+/// @see opendal_result_read
+/// @see opendal_operator_options_read
+/// @see opendal_error
+/// @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
+/// opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
+/// the operation failed and the `data` field is a nullptr.
+///
+/// \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
+/// After your usage of that, please call opendal_bytes_free() to free the space.
+///
+/// # Example
+///
+/// Following is an example
+/// ```C
+/// // ... you have either write "Hello, World!" to path "/testpath" and created an operator named op
+///
+/// opendal_operator_options_read opts = {};
+/// uint64_t range[2] = {0, 14};
+/// opts.range = range;
+/// opendal_result_read r = opendal_operator_read_options(op, "testpath", opts);
+/// assert(r.error == NULL);
+///
+/// opendal_bytes bytes = r.data;
+/// assert(bytes.len == 13);
+/// opendal_bytes_free(&bytes);
+/// ```
+///
+/// # Safety
+///
+/// It is **safe** under the cases below
+/// * The memory pointed to by `path` must contain a valid nul terminator at the end of
+///   the string.
+///
+/// # Panic
+///
+/// * If the `path` points to NULL, this function panics, i.e. exits with information
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_read_options(
+    op: &opendal_operator,
+    path: *const c_char,
+    opts: *const opendal_operator_options_read,
+) -> opendal_result_read {
+    assert!(!path.is_null());
+    let path = std::ffi::CStr::from_ptr(path)
+        .to_str()
+        .expect("malformed path");
+    let opts = match options::parse_read_options(opts) {
+        Ok(opts) => opts,
+        Err(e) => {
+            return opendal_result_read {
+                data: opendal_bytes::empty(),
+                error: opendal_error::new(e),
+            };
+        }
+    };
+
+    match op.deref().read_options(path, opts) {
+        Ok(b) => opendal_result_read {
+            data: opendal_bytes::new(b),
+            error: std::ptr::null_mut(),
+        },
+        Err(e) => opendal_result_read {
+            data: opendal_bytes::empty(),
+            error: opendal_error::new(e),
+        },
+    }
+}
+
 /// \brief Blocking delete the object in `path`.
 ///
 /// Delete the object in `path` blocking by `op_ptr`.

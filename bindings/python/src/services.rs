@@ -618,7 +618,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional
@@ -3301,7 +3302,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional

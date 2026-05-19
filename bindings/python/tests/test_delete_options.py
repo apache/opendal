@@ -20,7 +20,9 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.need_capability("write", "delete", "delete_with_version", "stat_with_version")
+@pytest.mark.need_capability(
+    "write", "delete", "delete_with_version", "stat_with_version"
+)
 def test_delete_accepts_version_param(service_name, operator, async_operator):
     path = f"test_delete_version_{uuid4()}.txt"
     operator.write(path, b"test content")
@@ -44,7 +46,9 @@ def test_delete_default_params_unchanged(service_name, operator, async_operator)
     operator.delete(path)
 
 
-@pytest.mark.need_capability("write", "delete", "delete_with_version", "stat_with_version")
+@pytest.mark.need_capability(
+    "write", "delete", "delete_with_version", "stat_with_version"
+)
 @pytest.mark.asyncio
 async def test_async_delete_accepts_version_param(
     service_name, operator, async_operator

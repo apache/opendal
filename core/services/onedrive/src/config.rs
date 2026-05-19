@@ -38,7 +38,11 @@ pub struct OnedriveConfig {
     pub client_id: Option<String>,
     /// Microsoft Graph API Application client secret that is in the Azure's app registration portal
     pub client_secret: Option<String>,
-    /// Enabling version support
+    /// Deprecated: OneDrive versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_versioning: bool,
 }
 
@@ -46,7 +50,6 @@ impl Debug for OnedriveConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("OnedriveConfig")
             .field("root", &self.root)
-            .field("enable_versioning", &self.enable_versioning)
             .finish_non_exhaustive()
     }
 }

@@ -173,6 +173,8 @@ impl Builder for TosBuilder {
                 .set_root(&root)
                 .set_name(&bucket)
                 .set_native_capability(Capability {
+                    stat_with_version: true,
+
                     read: true,
                     read_with_if_match: true,
                     read_with_if_none_match: true,

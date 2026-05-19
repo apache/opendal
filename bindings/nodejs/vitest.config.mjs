@@ -29,6 +29,8 @@ export default defineConfig({
     environment: 'node',
     dir: 'tests',
     testTimeout: 300 * 1000,
+    // TODO: remove after https://github.com/apache/opendal/issues/7557 is fixed.
+    dangerouslyIgnoreUnhandledErrors: Boolean(process.env.OPENDAL_TEST),
     reporters: [
       [
         'default',

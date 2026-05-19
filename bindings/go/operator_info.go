@@ -228,7 +228,7 @@ func (c *Capability) Shared() bool {
 }
 
 func (c *Capability) Blocking() bool {
-	return c.inner.blocking == 1
+	return true
 }
 
 var ffiOperatorInfoNew = newFFI(ffiOpts{

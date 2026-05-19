@@ -37,7 +37,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? DisableConfigLoad { get; init; }
         /// <summary>
-        /// is bucket versioning enabled for this bucket
+        /// Deprecated: COS versioning capability is enabled by default.
         /// </summary>
         public bool? EnableVersioning { get; init; }
         /// <summary>

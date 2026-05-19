@@ -20,11 +20,16 @@ from uuid import uuid4
 import pytest
 
 
-@pytest.mark.need_capability("write", "delete", "delete_with_version")
+@pytest.mark.need_capability(
+    "write", "delete", "delete_with_version", "stat_with_version"
+)
 def test_delete_accepts_version_param(service_name, operator, async_operator):
     path = f"test_delete_version_{uuid4()}.txt"
     operator.write(path, b"test content")
-    operator.delete(path, version="v1")
+    meta = operator.stat(path)
+    if meta.version is None:
+        pytest.skip("backend does not return version")
+    operator.delete(path, version=meta.version)
 
 
 @pytest.mark.need_capability("write", "delete", "delete_with_recursive")
@@ -41,14 +46,19 @@ def test_delete_default_params_unchanged(service_name, operator, async_operator)
     operator.delete(path)
 
 
-@pytest.mark.need_capability("write", "delete", "delete_with_version")
+@pytest.mark.need_capability(
+    "write", "delete", "delete_with_version", "stat_with_version"
+)
 @pytest.mark.asyncio
 async def test_async_delete_accepts_version_param(
     service_name, operator, async_operator
 ):
     path = f"test_async_delete_version_{uuid4()}.txt"
     await async_operator.write(path, b"test content")
-    await async_operator.delete(path, version="v1")
+    meta = await async_operator.stat(path)
+    if meta.version is None:
+        pytest.skip("backend does not return version")
+    await async_operator.delete(path, version=meta.version)
 
 
 @pytest.mark.need_capability("write", "delete", "delete_with_recursive")

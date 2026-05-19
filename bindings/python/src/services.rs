@@ -618,7 +618,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional
@@ -1779,13 +1780,16 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional
@@ -2490,7 +2494,6 @@ submit! {
                 allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
-                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 region: builtins.str = ...,
                 root: builtins.str = ...,
@@ -2517,11 +2520,6 @@ submit! {
                     Disable config load so that opendal will not load
                     config from environment.
                     For examples: - envs like `TOS_ACCESS_KEY_ID`
-                enable_versioning : builtins.bool, optional
-                    Enable bucket versioning for this backend.
-                    If set to true, OpenDAL will support versioned
-                    operations like list with versions, read with
-                    version, etc.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.
@@ -3298,7 +3296,8 @@ submit! {
                     Disable config load so that opendal will not load
                     config from
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: COS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint of this backend.
                 root : builtins.str, optional
@@ -4459,13 +4458,16 @@ submit! {
                 allow_anonymous : builtins.bool, optional
                     Allow anonymous for oss.
                 batch_max_operations : builtins.int, optional
-                    The size of max batch operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 bucket : builtins.str
                     Bucket for oss.
                 delete_max_size : builtins.int, optional
-                    The size of max delete operations.
+                    Deprecated: OSS delete batch capability is enabled
+                    by default.
                 enable_versioning : builtins.bool, optional
-                    is bucket versioning enabled for this bucket
+                    Deprecated: OSS versioning capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
                 oidc_provider_arn : builtins.str, optional
@@ -5170,7 +5172,6 @@ submit! {
                 allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
-                enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
                 region: builtins.str = ...,
                 root: builtins.str = ...,
@@ -5197,11 +5198,6 @@ submit! {
                     Disable config load so that opendal will not load
                     config from environment.
                     For examples: - envs like `TOS_ACCESS_KEY_ID`
-                enable_versioning : builtins.bool, optional
-                    Enable bucket versioning for this backend.
-                    If set to true, OpenDAL will support versioned
-                    operations like list with versions, read with
-                    version, etc.
                 endpoint : builtins.str, optional
                     endpoint of this backend.
                     Endpoint must be full uri, e.g.

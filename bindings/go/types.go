@@ -180,7 +180,6 @@ var (
 			&ffi.TypeUint8,   // presign_write
 			&ffi.TypeUint8,   // presign_delete
 			&ffi.TypeUint8,   // shared
-			&ffi.TypeUint8,   // blocking
 			nil,
 		}[0],
 	}
@@ -220,7 +219,6 @@ type opendalCapability struct {
 	presignWrite                       uint8
 	presignDelete                      uint8
 	shared                             uint8
-	blocking                           uint8
 }
 
 type resultOperatorNew struct {

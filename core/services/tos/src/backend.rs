@@ -128,15 +128,6 @@ impl TosBuilder {
         self.config.allow_anonymous = allow;
         self
     }
-
-    /// Set bucket versioning status for this backend.
-    ///
-    /// If set to true, OpenDAL will support versioned operations like list with
-    /// versions, read with version, etc.
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-        self
-    }
 }
 
 impl Builder for TosBuilder {
@@ -182,12 +173,14 @@ impl Builder for TosBuilder {
                 .set_root(&root)
                 .set_name(&bucket)
                 .set_native_capability(Capability {
+                    stat_with_version: true,
+
                     read: true,
                     read_with_if_match: true,
                     read_with_if_none_match: true,
                     read_with_if_modified_since: true,
                     read_with_if_unmodified_since: true,
-                    read_with_version: config.enable_versioning,
+                    read_with_version: true,
 
                     write: true,
                     write_can_empty: true,
@@ -196,14 +189,14 @@ impl Builder for TosBuilder {
                     write_with_content_type: true,
                     write_with_content_encoding: true,
                     write_with_if_match: true,
-                    write_with_if_not_exists: !config.enable_versioning,
+                    write_with_if_not_exists: true,
                     write_with_user_metadata: true,
                     write_multi_min_size: Some(5 * 1024 * 1024),
                     write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
 
                     delete: true,
                     delete_max_size: Some(1000),
-                    delete_with_version: config.enable_versioning,
+                    delete_with_version: true,
 
                     copy: true,
 

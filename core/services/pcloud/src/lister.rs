@@ -49,22 +49,28 @@ fn append_entries(
     content: ListMetadata,
     recursive: bool,
 ) -> Result<()> {
-    let mut path = content
+    let mut absolute_path = content
         .path
         .clone()
         .unwrap_or_else(|| format!("{parent_path}/{}", content.name));
     if content.isfolder {
-        path.push('/');
+        absolute_path.push('/');
     }
 
     let md = parse_list_metadata(&content)?;
-    let path = build_rel_path(root, &path);
-    entries.push_back(oio::Entry::new(&path, md));
+    let relative_path = build_rel_path(root, &absolute_path);
+    entries.push_back(oio::Entry::new(&relative_path, md));
 
     if recursive {
         if let Some(contents) = content.contents {
             for child in contents {
-                append_entries(entries, root, path.trim_end_matches('/'), child, true)?;
+                append_entries(
+                    entries,
+                    root,
+                    absolute_path.trim_end_matches('/'),
+                    child,
+                    true,
+                )?;
             }
         }
     }

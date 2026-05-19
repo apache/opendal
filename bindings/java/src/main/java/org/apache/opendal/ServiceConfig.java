@@ -1497,7 +1497,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class HdfsNative implements ServiceConfig {
         /**
-         * <p>enable the append capacity</p>
+         * <p>Deprecated: HDFS Native append capability is enabled by default.</p>
+         *
+         * @deprecated HDFS Native append capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableAppend;
         /**

@@ -1832,7 +1832,8 @@ class AsyncOperator:
             Microsoft Graph API Application client secret that
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
-            Enabling version support
+            Deprecated: OneDrive versioning capability is
+            enabled by default.
         refresh_token : builtins.str, optional
             Microsoft Graph API (also OneDrive API) refresh
             token
@@ -4432,7 +4433,8 @@ class Operator:
             Microsoft Graph API Application client secret that
             is in the Azure's app registration portal
         enable_versioning : builtins.bool, optional
-            Enabling version support
+            Deprecated: OneDrive versioning capability is
+            enabled by default.
         refresh_token : builtins.str, optional
             Microsoft Graph API (also OneDrive API) refresh
             token

@@ -2211,7 +2211,9 @@ public interface ServiceConfig {
          */
         public final String bucket;
         /**
-         * <p>Is bucket versioning enabled for this bucket</p>
+         * <p>Deprecated: OBS versioning capability is not controlled by service config.</p>
+         *
+         * @deprecated OBS versioning capability is not controlled by this option and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**

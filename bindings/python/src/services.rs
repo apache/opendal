@@ -1664,7 +1664,8 @@ submit! {
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
-                    Is bucket versioning enabled for this bucket
+                    Deprecated: OBS versioning capability is not
+                    controlled by service config.
                 endpoint : builtins.str, optional
                     Endpoint for obs.
                 root : builtins.str, optional
@@ -4343,7 +4344,8 @@ submit! {
                 bucket : builtins.str, optional
                     Bucket for obs.
                 enable_versioning : builtins.bool, optional
-                    Is bucket versioning enabled for this bucket
+                    Deprecated: OBS versioning capability is not
+                    controlled by service config.
                 endpoint : builtins.str, optional
                     Endpoint for obs.
                 root : builtins.str, optional

@@ -237,10 +237,12 @@ impl AzblobBuilder {
         self
     }
 
-    /// Set maximum batch operations of this backend.
-    pub fn batch_max_operations(mut self, batch_max_operations: usize) -> Self {
-        self.config.batch_max_operations = Some(batch_max_operations);
-
+    /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit and this option is no longer needed."
+    )]
+    pub fn batch_max_operations(self, _batch_max_operations: usize) -> Self {
         self
     }
 

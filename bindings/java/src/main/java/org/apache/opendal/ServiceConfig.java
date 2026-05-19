@@ -3574,12 +3574,6 @@ public interface ServiceConfig {
          */
         public final Boolean disableConfigLoad;
         /**
-         * <p>Enable bucket versioning for this backend.</p>
-         * <p>If set to true, OpenDAL will support versioned operations like list with
-         * versions, read with version, etc.</p>
-         */
-        public final Boolean enableVersioning;
-        /**
          * <p>endpoint of this backend.</p>
          * <p>Endpoint must be full uri, e.g.</p>
          * <ul>
@@ -3638,9 +3632,6 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (disableConfigLoad != null) {
                 map.put("disable_config_load", String.valueOf(disableConfigLoad));
-            }
-            if (enableVersioning != null) {
-                map.put("enable_versioning", String.valueOf(enableVersioning));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);

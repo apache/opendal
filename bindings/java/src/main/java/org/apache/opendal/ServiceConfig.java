@@ -629,7 +629,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableConfigLoad;
         /**
-         * <p>is bucket versioning enabled for this bucket</p>
+         * <p>Deprecated: COS versioning capability is enabled by default.</p>
+         *
+         * @deprecated COS versioning capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**

@@ -40,7 +40,11 @@ pub struct CosConfig {
     pub secret_key: Option<String>,
     /// Bucket of this backend.
     pub bucket: Option<String>,
-    /// is bucket versioning enabled for this bucket
+    /// Deprecated: COS versioning capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "COS versioning capability is enabled by default and this option is no longer needed."
+    )]
     pub enable_versioning: bool,
     /// Disable config load so that opendal will not load config from
     pub disable_config_load: bool,
@@ -52,7 +56,6 @@ impl Debug for CosConfig {
             .field("root", &self.root)
             .field("endpoint", &self.endpoint)
             .field("bucket", &self.bucket)
-            .field("enable_versioning", &self.enable_versioning)
             .field("disable_config_load", &self.disable_config_load)
             .finish_non_exhaustive()
     }

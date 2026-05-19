@@ -1381,7 +1381,7 @@ class AsyncOperator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            enable the append capacity
+            Deprecated: HDFS Native append capability is enabled by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -3979,7 +3979,7 @@ class Operator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            enable the append capacity
+            Deprecated: HDFS Native append capability is enabled by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional

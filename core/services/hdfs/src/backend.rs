@@ -82,11 +82,12 @@ impl HdfsBuilder {
         self
     }
 
-    /// Enable append capacity of this backend.
-    ///
-    /// This should be disabled when HDFS runs in non-distributed mode.
-    pub fn enable_append(mut self, enable_append: bool) -> Self {
-        self.config.enable_append = enable_append;
+    /// Deprecated: HDFS append capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "HDFS append capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_append(self, _enable_append: bool) -> Self {
         self
     }
 
@@ -165,7 +166,7 @@ impl Builder for HdfsBuilder {
                             read: true,
 
                             write: true,
-                            write_can_append: self.config.enable_append,
+                            write_can_append: true,
 
                             create_dir: true,
                             delete: true,

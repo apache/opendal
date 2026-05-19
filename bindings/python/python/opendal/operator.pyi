@@ -2683,7 +2683,8 @@ class AsyncOperator:
         Parameters
         ----------
         disable_copy : builtins.bool, optional
-            WebDAV Service doesn't support copy.
+            Deprecated: WebDAV copy capability is enabled by
+            default.
         disable_create_dir : builtins.bool, optional
             Disable automatic parent directory creation before
             write operations.
@@ -2698,14 +2699,8 @@ class AsyncOperator:
             files directly.
             Default: false
         enable_user_metadata : builtins.bool, optional
-            Enable user metadata support via WebDAV PROPPATCH.
-            This feature requires the WebDAV server to support
-            RFC4918 PROPPATCH method.
-            Not all WebDAV servers support this (e.g., nginx's
-            basic WebDAV module doesn't).
-            Only enable this if your server supports PROPPATCH
-            (e.g., Apache mod_dav, Nextcloud).
-            Default: false
+            Deprecated: WebDAV user metadata capability is
+            enabled by default.
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional
@@ -5284,7 +5279,8 @@ class Operator:
         Parameters
         ----------
         disable_copy : builtins.bool, optional
-            WebDAV Service doesn't support copy.
+            Deprecated: WebDAV copy capability is enabled by
+            default.
         disable_create_dir : builtins.bool, optional
             Disable automatic parent directory creation before
             write operations.
@@ -5299,14 +5295,8 @@ class Operator:
             files directly.
             Default: false
         enable_user_metadata : builtins.bool, optional
-            Enable user metadata support via WebDAV PROPPATCH.
-            This feature requires the WebDAV server to support
-            RFC4918 PROPPATCH method.
-            Not all WebDAV servers support this (e.g., nginx's
-            basic WebDAV module doesn't).
-            Only enable this if your server supports PROPPATCH
-            (e.g., Apache mod_dav, Nextcloud).
-            Default: false
+            Deprecated: WebDAV user metadata capability is
+            enabled by default.
         endpoint : builtins.str, optional
             endpoint of this backend
         password : builtins.str, optional

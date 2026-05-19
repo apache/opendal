@@ -3795,7 +3795,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Webdav implements ServiceConfig {
         /**
-         * <p>WebDAV Service doesn't support copy.</p>
+         * <p>Deprecated: WebDAV copy capability is enabled by default.</p>
+         *
+         * @deprecated WebDAV copy capability is enabled by default and this option is no longer needed.
          */
         public final Boolean disableCopy;
         /**
@@ -3809,11 +3811,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable user metadata support via WebDAV PROPPATCH.</p>
-         * <p>This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
-         * Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
-         * Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).</p>
-         * <p>Default: false</p>
+         * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
+         *
+         * @deprecated WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.
          */
         public final Boolean enableUserMetadata;
         /**

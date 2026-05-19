@@ -22,10 +22,17 @@ use dav_server::fs::OpenOptions;
 use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use dav_server_opendalfs::OpendalFs;
 use futures::StreamExt;
+use opendal::Buffer;
 use opendal::Operator;
+use opendal::raw::oio;
+use opendal::raw::{Access, AccessorInfo, OpWrite, RpWrite};
 use opendal::services::Fs;
+use opendal::{Capability, Error, ErrorKind, Metadata};
+use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[tokio::test]
 async fn test() -> Result<()> {
@@ -212,4 +219,162 @@ async fn test_read_dir() {
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));
 
     fs::remove_dir_all(TMP_PATH).unwrap();
+}
+
+#[derive(Clone)]
+struct AbortTrackingAccess {
+    info: Arc<AccessorInfo>,
+    aborted: Arc<AtomicBool>,
+    fail_on_write: bool,
+    fail_on_close: bool,
+}
+
+impl Debug for AbortTrackingAccess {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AbortTrackingAccess").finish()
+    }
+}
+
+impl AbortTrackingAccess {
+    fn with_failures(aborted: Arc<AtomicBool>, fail_on_write: bool, fail_on_close: bool) -> Self {
+        let info = AccessorInfo::default();
+        info.set_scheme("memory")
+            .set_root("/")
+            .set_name("abort-tracking")
+            .set_native_capability(Capability {
+                write: true,
+                ..Default::default()
+            });
+
+        Self {
+            info: info.into(),
+            aborted,
+            fail_on_write,
+            fail_on_close,
+        }
+    }
+
+    fn write_failure(aborted: Arc<AtomicBool>) -> Self {
+        Self::with_failures(aborted, true, false)
+    }
+
+    fn close_failure(aborted: Arc<AtomicBool>) -> Self {
+        Self::with_failures(aborted, false, true)
+    }
+}
+
+impl Access for AbortTrackingAccess {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+
+    fn info(&self) -> Arc<AccessorInfo> {
+        self.info.clone()
+    }
+
+    async fn write(&self, _: &str, _: OpWrite) -> opendal::Result<(RpWrite, Self::Writer)> {
+        Ok((
+            RpWrite::new(),
+            Box::new(AbortTrackingWriter {
+                aborted: self.aborted.clone(),
+                fail_on_write: self.fail_on_write,
+                fail_on_close: self.fail_on_close,
+            }),
+        ))
+    }
+}
+
+struct AbortTrackingWriter {
+    aborted: Arc<AtomicBool>,
+    fail_on_write: bool,
+    fail_on_close: bool,
+}
+
+impl oio::Write for AbortTrackingWriter {
+    async fn write(&mut self, _: Buffer) -> opendal::Result<()> {
+        if self.fail_on_write {
+            return Err(Error::new(ErrorKind::Unexpected, "injected write failure"));
+        }
+
+        Ok(())
+    }
+
+    async fn close(&mut self) -> opendal::Result<Metadata> {
+        if self.fail_on_close {
+            return Err(Error::new(ErrorKind::Unexpected, "injected close failure"));
+        }
+
+        Ok(Metadata::default())
+    }
+
+    async fn abort(&mut self) -> opendal::Result<()> {
+        self.aborted.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_failed_write_aborts_before_drop() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let op = Operator::from_inner(Arc::new(AbortTrackingAccess::write_failure(
+        aborted.clone(),
+    )));
+    let webdavfs = OpendalFs::new(op);
+
+    let mut file = webdavfs
+        .open(
+            &DavPath::new("/failed-write").unwrap(),
+            OpenOptions {
+                write: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    let err = file.write_bytes(Bytes::from(vec![1; 300 * 1024])).await;
+    assert!(err.is_err());
+
+    drop(file);
+
+    assert!(
+        aborted.load(Ordering::SeqCst),
+        "writer.abort() should be called when a write fails before close()"
+    );
+}
+
+#[tokio::test]
+async fn test_failed_close_aborts_before_drop() {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let op = Operator::from_inner(Arc::new(AbortTrackingAccess::close_failure(
+        aborted.clone(),
+    )));
+    let webdavfs = OpendalFs::new(op);
+
+    let mut file = webdavfs
+        .open(
+            &DavPath::new("/failed-close").unwrap(),
+            OpenOptions {
+                write: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    file.write_bytes(Bytes::from(vec![1; 300 * 1024]))
+        .await
+        .unwrap();
+
+    let err = file.flush().await;
+    assert!(err.is_err());
+
+    drop(file);
+
+    assert!(
+        aborted.load(Ordering::SeqCst),
+        "writer.abort() should be called when close() fails during flush()"
+    );
 }

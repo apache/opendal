@@ -697,8 +697,9 @@ class AsyncOperator:
         account_name : builtins.str, optional
             The account name of Azblob service backend.
         batch_max_operations : builtins.int, optional
-            The maximum batch operations of Azblob service
-            backend.
+            Deprecated: Azblob delete batch capability is
+            enabled by default with Azure Blob's 256-operation
+            batch limit.
         container : builtins.str
             The container name of Azblob service backend.
         encryption_algorithm : builtins.str, optional
@@ -3299,8 +3300,9 @@ class Operator:
         account_name : builtins.str, optional
             The account name of Azblob service backend.
         batch_max_operations : builtins.int, optional
-            The maximum batch operations of Azblob service
-            backend.
+            Deprecated: Azblob delete batch capability is
+            enabled by default with Azure Blob's 256-operation
+            batch limit.
         container : builtins.str
             The container name of Azblob service backend.
         encryption_algorithm : builtins.str, optional

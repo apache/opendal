@@ -37,7 +37,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AccountName { get; init; }
         /// <summary>
-        /// The maximum batch operations of Azblob service backend.
+        /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
         /// </summary>
         public long? BatchMaxOperations { get; init; }
         /// <summary>

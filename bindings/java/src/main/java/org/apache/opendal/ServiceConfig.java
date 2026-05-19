@@ -173,7 +173,9 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
-         * <p>The maximum batch operations of Azblob service backend.</p>
+         * <p>Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.</p>
+         *
+         * @deprecated Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
         /**

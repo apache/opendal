@@ -121,10 +121,12 @@ impl ObsBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: OBS versioning capability is not controlled by service config.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OBS versioning capability is not controlled by this option and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 }

@@ -135,40 +135,42 @@ impl Builder for PcloudBuilder {
                 .with_context("service", PCLOUD_SCHEME)),
         }?;
 
+        let info = {
+            let am = AccessorInfo::default();
+            am.set_scheme(PCLOUD_SCHEME)
+                .set_root(&root)
+                .set_native_capability(Capability {
+                    stat: true,
+
+                    create_dir: true,
+
+                    read: true,
+
+                    write: true,
+
+                    delete: true,
+                    rename: true,
+                    copy: true,
+
+                    list: true,
+                    list_with_recursive: true,
+
+                    shared: true,
+
+                    ..Default::default()
+                });
+
+            am.into()
+        };
+
         Ok(PcloudBackend {
-            core: Arc::new(PcloudCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(PCLOUD_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-
-                            create_dir: true,
-
-                            read: true,
-
-                            write: true,
-
-                            delete: true,
-                            rename: true,
-                            copy: true,
-
-                            list: true,
-                            list_with_recursive: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    am.into()
-                },
+            core: Arc::new(PcloudCore::new(
+                info,
                 root,
-                endpoint: self.config.endpoint.clone(),
+                self.config.endpoint.clone(),
                 username,
                 password,
-            }),
+            )),
         })
     }
 }
@@ -184,7 +186,6 @@ impl Access for PcloudBackend {
     type Writer = PcloudWriters;
     type Lister = oio::PageLister<PcloudLister>;
     type Deleter = oio::OneShotDeleter<PcloudDeleter>;
-    type Copier = ();
 
     fn info(&self) -> Arc<AccessorInfo> {
         self.core.info.clone()
@@ -214,6 +215,9 @@ impl Access for PcloudBackend {
                 }
 
                 if let Some(md) = resp.metadata {
+                    if let Some(file_id) = md.fileid {
+                        self.core.cache_file_id(path, file_id);
+                    }
                     let md = parse_stat_metadata(md);
                     return md.map(RpStat::new);
                 }
@@ -263,13 +267,7 @@ impl Access for PcloudBackend {
         Ok((RpList::default(), oio::PageLister::new(l)))
     }
 
-    async fn copy(
-        &self,
-        from: &str,
-        to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
         self.core.ensure_dir_exists(to).await?;
 
         let resp = if from.ends_with('/') {
@@ -291,6 +289,12 @@ impl Access for PcloudBackend {
                 }
                 if result != 0 {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
+                }
+
+                if from.ends_with('/') {
+                    self.core.invalidate_path_prefix_cache(to);
+                } else {
+                    self.core.invalidate_path_cache(to);
                 }
 
                 Ok((RpCopy::default(), ()))
@@ -321,6 +325,14 @@ impl Access for PcloudBackend {
                 }
                 if result != 0 {
                     return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
+                }
+
+                if from.ends_with('/') {
+                    self.core.invalidate_path_prefix_cache(from);
+                    self.core.invalidate_path_prefix_cache(to);
+                } else {
+                    self.core.invalidate_path_cache(from);
+                    self.core.invalidate_path_cache(to);
                 }
 
                 Ok(RpRename::default())

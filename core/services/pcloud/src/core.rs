@@ -15,8 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use bytes::Buf;
 use http::Request;
@@ -32,7 +34,6 @@ use sha1::Sha1;
 use super::error::PcloudError;
 use super::error::parse_error;
 
-#[derive(Clone)]
 pub struct PcloudCore {
     pub info: Arc<AccessorInfo>,
 
@@ -44,6 +45,14 @@ pub struct PcloudCore {
     pub username: String,
     /// The password of this backend.
     pub password: String,
+    file_ids: RwLock<HashMap<String, u64>>,
+    download_links: RwLock<HashMap<String, CachedDownloadLink>>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedDownloadLink {
+    url: String,
+    expires_at: Timestamp,
 }
 
 impl Debug for PcloudCore {
@@ -57,9 +66,114 @@ impl Debug for PcloudCore {
 }
 
 impl PcloudCore {
+    pub fn new(
+        info: Arc<AccessorInfo>,
+        root: String,
+        endpoint: String,
+        username: String,
+        password: String,
+    ) -> Self {
+        Self {
+            info,
+            root,
+            endpoint,
+            username,
+            password,
+            file_ids: RwLock::new(HashMap::new()),
+            download_links: RwLock::new(HashMap::new()),
+        }
+    }
+
     #[inline]
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
         self.info.http_client().send(req).await
+    }
+
+    fn normalize_cached_path(&self, path: &str) -> String {
+        let path = if path.starts_with('/') {
+            path.to_string()
+        } else {
+            build_rooted_abs_path(&self.root, path)
+        };
+
+        if path == "/" {
+            path
+        } else {
+            path.trim_end_matches('/').to_string()
+        }
+    }
+
+    fn cached_file_id(&self, path: &str) -> Option<u64> {
+        let path = self.normalize_cached_path(path);
+        self.file_ids
+            .read()
+            .expect("file id cache lock poisoned")
+            .get(&path)
+            .copied()
+    }
+
+    fn cached_download_link(&self, path: &str) -> Option<String> {
+        let path = self.normalize_cached_path(path);
+        let now = Timestamp::now();
+        let mut links = self
+            .download_links
+            .write()
+            .expect("download link cache lock poisoned");
+
+        match links.get(&path) {
+            Some(link) if link.expires_at > now => Some(link.url.clone()),
+            Some(_) => {
+                links.remove(&path);
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn cache_download_link(&self, path: &str, url: String, expires: &str) -> Result<()> {
+        let path = self.normalize_cached_path(path);
+        let expires_at = Timestamp::parse_rfc2822(expires)?;
+
+        self.download_links
+            .write()
+            .expect("download link cache lock poisoned")
+            .insert(path, CachedDownloadLink { url, expires_at });
+
+        Ok(())
+    }
+
+    pub fn cache_file_id(&self, path: &str, file_id: u64) {
+        let path = self.normalize_cached_path(path);
+        self.file_ids
+            .write()
+            .expect("file id cache lock poisoned")
+            .insert(path, file_id);
+    }
+
+    pub fn invalidate_path_cache(&self, path: &str) {
+        let path = self.normalize_cached_path(path);
+
+        self.file_ids
+            .write()
+            .expect("file id cache lock poisoned")
+            .remove(&path);
+        self.download_links
+            .write()
+            .expect("download link cache lock poisoned")
+            .remove(&path);
+    }
+
+    pub fn invalidate_path_prefix_cache(&self, path: &str) {
+        let prefix = format!("{}/", self.normalize_cached_path(path).trim_end_matches('/'));
+
+        self.file_ids
+            .write()
+            .expect("file id cache lock poisoned")
+            .retain(|entry_path, _| !entry_path.starts_with(&prefix));
+        self.download_links
+            .write()
+            .expect("download link cache lock poisoned")
+            .retain(|entry_path, _| !entry_path.starts_with(&prefix));
     }
 
     async fn build_url(&self, method: &str, query: String) -> Result<String> {
@@ -113,15 +227,8 @@ impl PcloudCore {
 }
 
 impl PcloudCore {
-    pub async fn get_file_link(&self, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
-
-        let url = self
-            .build_url(
-                "getfilelink",
-                format!("path=/{}", percent_encode_path(&path)),
-            )
-            .await?;
+    async fn get_file_link_by_query(&self, path: &str, query: String) -> Result<String> {
+        let url = self.build_url("getfilelink", query).await?;
 
         let req = Request::get(url);
 
@@ -140,7 +247,7 @@ impl PcloudCore {
                 let resp: GetFileLinkResponse =
                     serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
                 let result = resp.result;
-                if result == 2010 || result == 2055 || result == 2002 {
+                if result == 2009 || result == 2010 || result == 2055 || result == 2002 {
                     return Err(Error::new(ErrorKind::NotFound, format!("{resp:?}")));
                 }
                 if result != 0 {
@@ -148,9 +255,13 @@ impl PcloudCore {
                 }
 
                 if let Some(hosts) = resp.hosts {
-                    if let Some(path) = resp.path {
+                    if let Some(link_path) = resp.path {
                         if !hosts.is_empty() {
-                            return Ok(format!("https://{}{}", hosts[0], path));
+                            let url = format!("https://{}{}", hosts[0], link_path);
+                            if let Some(expires) = resp.expires.as_deref() {
+                                self.cache_download_link(path, url.clone(), expires)?;
+                            }
+                            return Ok(url);
                         }
                     }
                 }
@@ -158,6 +269,36 @@ impl PcloudCore {
             }
             _ => Err(parse_error(resp)),
         }
+    }
+
+    pub async fn get_file_link(&self, path: &str) -> Result<String> {
+        let path = self.normalize_cached_path(path);
+
+        if let Some(url) = self.cached_download_link(&path) {
+            return Ok(url);
+        }
+
+        if let Some(file_id) = self.cached_file_id(&path) {
+            match self
+                .get_file_link_by_query(&path, format!("fileid={file_id}"))
+                .await
+            {
+                Ok(url) => return Ok(url),
+                Err(err) if err.kind() == ErrorKind::NotFound => {
+                    self.invalidate_path_cache(&path);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
+        self.get_file_link_by_query(
+            &path,
+            format!(
+                "path=/{}",
+                percent_encode_path(path.trim_start_matches('/'))
+            ),
+        )
+        .await
     }
 
     pub async fn download(&self, url: &str, range: BytesRange) -> Result<Response<HttpBody>> {
@@ -497,6 +638,7 @@ pub struct GetDigestResponse {
 pub struct GetFileLinkResponse {
     pub result: u64,
     pub path: Option<String>,
+    pub expires: Option<String>,
     pub hosts: Option<Vec<String>>,
 }
 
@@ -510,6 +652,7 @@ pub struct StatResponse {
 pub struct StatMetadata {
     pub modified: String,
     pub isfolder: bool,
+    pub fileid: Option<u64>,
     pub size: Option<u64>,
 }
 
@@ -525,6 +668,7 @@ pub struct ListMetadata {
     pub name: String,
     pub modified: String,
     pub isfolder: bool,
+    pub fileid: Option<u64>,
     pub size: Option<u64>,
     pub contents: Option<Vec<ListMetadata>>,
 }
@@ -550,6 +694,7 @@ mod tests {
             name: "file".to_string(),
             modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
             isfolder: false,
+            fileid: Some(42),
             size: Some(123),
             contents: None,
         })

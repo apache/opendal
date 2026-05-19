@@ -44,6 +44,7 @@ impl PcloudLister {
 
 fn append_entries(
     entries: &mut std::collections::VecDeque<oio::Entry>,
+    core: &PcloudCore,
     root: &str,
     parent_path: &str,
     content: ListMetadata,
@@ -55,6 +56,8 @@ fn append_entries(
         .unwrap_or_else(|| format!("{parent_path}/{}", content.name));
     if content.isfolder {
         absolute_path.push('/');
+    } else if let Some(file_id) = content.fileid {
+        core.cache_file_id(&absolute_path, file_id);
     }
 
     let md = parse_list_metadata(&content)?;
@@ -66,6 +69,7 @@ fn append_entries(
             for child in contents {
                 append_entries(
                     entries,
+                    core,
                     root,
                     absolute_path.trim_end_matches('/'),
                     child,
@@ -107,6 +111,7 @@ impl oio::PageList for PcloudLister {
                         for content in contents {
                             append_entries(
                                 &mut ctx.entries,
+                                &self.core,
                                 &self.core.root,
                                 parent_path,
                                 content,
@@ -132,11 +137,24 @@ impl oio::PageList for PcloudLister {
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+    use std::sync::Arc;
 
     use opendal_core::EntryMode;
+    use opendal_core::raw::AccessorInfo;
 
     use super::append_entries;
     use super::ListMetadata;
+    use super::PcloudCore;
+
+    fn core() -> PcloudCore {
+        PcloudCore::new(
+            Arc::new(AccessorInfo::default()),
+            "/repo/".to_string(),
+            "https://api.pcloud.com".to_string(),
+            "user@example.com".to_string(),
+            "secret".to_string(),
+        )
+    }
 
     fn file(path: &str, size: u64) -> ListMetadata {
         ListMetadata {
@@ -144,6 +162,7 @@ mod tests {
             name: path.rsplit('/').next().unwrap_or(path).to_string(),
             modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
             isfolder: false,
+            fileid: Some(1),
             size: Some(size),
             contents: None,
         }
@@ -155,6 +174,7 @@ mod tests {
             name: path.rsplit('/').next().unwrap_or(path).to_string(),
             modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
             isfolder: true,
+            fileid: None,
             size: None,
             contents: Some(contents),
         }
@@ -166,6 +186,7 @@ mod tests {
 
         append_entries(
             &mut entries,
+            &core(),
             "/repo/",
             "/repo",
             dir(
@@ -189,6 +210,7 @@ mod tests {
 
         append_entries(
             &mut entries,
+            &core(),
             "/repo/",
             "/repo",
             dir(
@@ -209,6 +231,7 @@ mod tests {
 
         append_entries(
             &mut entries,
+            &core(),
             "/repo/",
             "/repo/keys",
             ListMetadata {
@@ -216,6 +239,7 @@ mod tests {
                 name: "file1".to_string(),
                 modified: "Mon, 18 May 2026 18:00:17 +0000".to_string(),
                 isfolder: false,
+                fileid: Some(1),
                 size: Some(363),
                 contents: None,
             },

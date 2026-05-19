@@ -1760,6 +1760,7 @@ submit! {
                 security_token: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_key_id: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -1822,6 +1823,9 @@ submit! {
                     Server side encryption for oss.
                 server_side_encryption_key_id : builtins.str, optional
                     Server side encryption key id for oss.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:
@@ -4444,6 +4448,7 @@ submit! {
                 security_token: builtins.str = ...,
                 server_side_encryption: builtins.str = ...,
                 server_side_encryption_key_id: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
                 sts_endpoint: builtins.str = ...,
             ) -> typing.Self:
                 r"""
@@ -4506,6 +4511,9 @@ submit! {
                     Server side encryption for oss.
                 server_side_encryption_key_id : builtins.str, optional
                     Server side encryption key id for oss.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 sts_endpoint : builtins.str, optional
                     `sts_endpoint` will be loaded from - this field if
                     it's `is_some` - env value:

@@ -2325,7 +2325,8 @@ submit! {
                 Parameters
                 ----------
                 enable_copy : builtins.bool, optional
-                    enable_copy of this backend
+                    Deprecated: SFTP copy capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 key : builtins.str, optional
@@ -5010,7 +5011,8 @@ submit! {
                 Parameters
                 ----------
                 enable_copy : builtins.bool, optional
-                    enable_copy of this backend
+                    Deprecated: SFTP copy capability is enabled by
+                    default.
                 endpoint : builtins.str, optional
                     endpoint of this backend
                 key : builtins.str, optional

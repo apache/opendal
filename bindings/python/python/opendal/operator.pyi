@@ -1151,6 +1151,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -1187,6 +1188,9 @@ class AsyncOperator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
@@ -1381,7 +1385,8 @@ class AsyncOperator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            Deprecated: HDFS Native append capability is enabled by default.
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -1793,8 +1798,8 @@ class AsyncOperator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Deprecated: OBS versioning capability is not controlled by
-            service config.
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional
@@ -3752,6 +3757,7 @@ class Operator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -3788,6 +3794,9 @@ class Operator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
@@ -3982,7 +3991,8 @@ class Operator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            Deprecated: HDFS Native append capability is enabled by default.
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -4394,8 +4404,8 @@ class Operator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Deprecated: OBS versioning capability is not controlled by
-            service config.
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional

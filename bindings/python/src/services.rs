@@ -2495,7 +2495,6 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
                 endpoint: builtins.str = ...,
@@ -2515,9 +2514,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -5176,7 +5172,6 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
                 endpoint: builtins.str = ...,
@@ -5196,9 +5191,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.

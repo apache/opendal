@@ -2506,7 +2506,6 @@ class AsyncOperator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
         endpoint: builtins.str = ...,
@@ -2526,9 +2525,6 @@ class AsyncOperator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.
@@ -5108,7 +5104,6 @@ class Operator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
         endpoint: builtins.str = ...,
@@ -5128,9 +5123,6 @@ class Operator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.

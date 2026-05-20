@@ -3563,13 +3563,6 @@ public interface ServiceConfig {
          */
         public final String accessKeyId;
         /**
-         * <p>Allow anonymous will allow opendal to send request without signing
-         * when credential is not loaded.</p>
-         *
-         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
-         */
-        public final Boolean allowAnonymous;
-        /**
          * <p>bucket name of this backend.</p>
          * <p>required.</p>
          */
@@ -3639,9 +3632,6 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessKeyId != null) {
                 map.put("access_key_id", accessKeyId);
-            }
-            if (allowAnonymous != null) {
-                map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
             map.put("bucket", bucket);
             if (disableConfigLoad != null) {

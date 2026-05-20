@@ -127,17 +127,6 @@ impl TosBuilder {
         self.config.skip_signature = true;
         self
     }
-
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    #[deprecated(
-        since = "0.57.0",
-        note = "Please use `skip_signature` instead of `allow_anonymous`"
-    )]
-    pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.skip_signature = allow;
-        self
-    }
 }
 
 impl Builder for TosBuilder {
@@ -145,12 +134,6 @@ impl Builder for TosBuilder {
 
     fn build(self) -> Result<impl Access> {
         let mut config = self.config;
-
-        #[allow(deprecated)]
-        if config.allow_anonymous {
-            config.skip_signature = true;
-        }
-
         let region = config
             .region
             .clone()

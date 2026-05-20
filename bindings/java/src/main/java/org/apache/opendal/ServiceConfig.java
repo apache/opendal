@@ -3253,7 +3253,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
-         * <p>enable_copy of this backend</p>
+         * <p>Deprecated: SFTP copy capability is enabled by default.</p>
+         *
+         * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableCopy;
         /**

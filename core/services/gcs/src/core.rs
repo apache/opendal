@@ -35,7 +35,6 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::ErrorKind as ReqsignErrorKind;
 use reqsign_core::Signer;
 use reqsign_google::Credential;
 use serde::Deserialize;
@@ -70,7 +69,7 @@ pub struct GcsCore {
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
 
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
 }
 
 impl Debug for GcsCore {
@@ -85,53 +84,47 @@ impl Debug for GcsCore {
 
 impl GcsCore {
     pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
-        let signed = match self.signer.sign(&mut parts, None).await {
-            Ok(()) => true,
-            Err(err)
-                if self.allow_anonymous && err.kind() == ReqsignErrorKind::CredentialInvalid =>
-            {
-                false
-            }
-            Err(err) => return Err(new_request_sign_error(err.into())),
-        };
+        self.signer
+            .sign(&mut parts, None)
+            .await
+            .map_err(|err| new_request_sign_error(err.into()))?;
 
-        if signed {
-            // Always remove host header, let users' client to set it based on
-            // HTTP version.
-            //
-            // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
-            // google server could send RST_STREAM of PROTOCOL_ERROR if our
-            // request contains host header.
-            parts.headers.remove(HOST);
-        }
+        // Always remove host header, let users' client to set it based on
+        // HTTP version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our
+        // request contains host header.
+        parts.headers.remove(HOST);
 
         Ok(Request::from_parts(parts, body))
     }
 
     pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
-        let signed = match self.signer.sign(&mut parts, Some(duration)).await {
-            Ok(()) => true,
-            Err(err)
-                if self.allow_anonymous && err.kind() == ReqsignErrorKind::CredentialInvalid =>
-            {
-                false
-            }
-            Err(err) => return Err(new_request_sign_error(err.into())),
-        };
+        self.signer
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|err| new_request_sign_error(err.into()))?;
 
-        if signed {
-            // Always remove host header, let users' client to set it based on
-            // HTTP version.
-            //
-            // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
-            // google server could send RST_STREAM of PROTOCOL_ERROR if our
-            // request contains host header.
-            parts.headers.remove(HOST);
-        }
+        // Always remove host header, let users' client to set it based on
+        // HTTP version.
+        //
+        // As discussed in <https://github.com/seanmonstar/reqwest/issues/1809>,
+        // google server could send RST_STREAM of PROTOCOL_ERROR if our
+        // request contains host header.
+        parts.headers.remove(HOST);
 
         Ok(Request::from_parts(parts, body))
     }

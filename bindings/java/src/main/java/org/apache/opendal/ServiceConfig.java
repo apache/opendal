@@ -1088,6 +1088,8 @@ public interface ServiceConfig {
         /**
          * <p>Allow opendal to send requests without signing when credentials are not
          * loaded.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
          */
         public final Boolean allowAnonymous;
         /**
@@ -1137,6 +1139,10 @@ public interface ServiceConfig {
          */
         public final String serviceAccount;
         /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
          * <p>A Google Cloud OAuth2 token.</p>
          * <p>Takes precedence over <code>credential</code> and <code>credential_path</code>.</p>
          */
@@ -1183,6 +1189,9 @@ public interface ServiceConfig {
             }
             if (serviceAccount != null) {
                 map.put("service_account", serviceAccount);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             if (token != null) {
                 map.put("token", token);

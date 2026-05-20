@@ -220,13 +220,22 @@ impl GcsBuilder {
         self
     }
 
-    /// Allow anonymous requests.
+    /// Skip signature will skip loading credentials and signing requests.
     ///
     /// This is typically used for buckets which are open to the public or GCS
     /// storage emulators.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
+    }
+
+    /// Allow anonymous requests.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 }
 
@@ -235,6 +244,9 @@ impl Builder for GcsBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {self:?}");
+
+        #[allow(deprecated)]
+        let skip_signature = self.config.skip_signature || self.config.allow_anonymous;
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -402,7 +414,7 @@ impl Builder for GcsBuilder {
                 signer,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
-                allow_anonymous: self.config.allow_anonymous,
+                skip_signature,
             }),
         };
 

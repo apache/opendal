@@ -1151,6 +1151,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -1187,6 +1188,9 @@ class AsyncOperator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and
@@ -3753,6 +3757,7 @@ class Operator:
         root: builtins.str = ...,
         scope: builtins.str = ...,
         service_account: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
         token: builtins.str = ...,
     ) -> typing.Self:
         r"""
@@ -3789,6 +3794,9 @@ class Operator:
             Scope for gcs.
         service_account : builtins.str, optional
             Service Account for gcs.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
         token : builtins.str, optional
             A Google Cloud OAuth2 token.
             Takes precedence over `credential` and

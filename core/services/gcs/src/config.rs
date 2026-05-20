@@ -58,9 +58,15 @@ pub struct GcsConfig {
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
     pub default_storage_class: Option<String>,
+    /// Skip signature will skip loading credentials and signing requests.
+    #[serde(alias = "google_skip_signature")]
+    pub skip_signature: bool,
     /// Allow opendal to send requests without signing when credentials are not
     /// loaded.
-    #[serde(alias = "google_skip_signature", alias = "skip_signature")]
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
     pub allow_anonymous: bool,
     /// Disable attempting to load credentials from the GCE metadata server when
     /// running within Google Cloud.
@@ -172,14 +178,21 @@ mod tests {
     }
 
     #[test]
-    fn test_allow_anonymous_aliases() {
+    fn test_skip_signature_aliases() {
         let config_json = r#"{"google_skip_signature": true}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
-        assert!(config.allow_anonymous);
+        assert!(config.skip_signature);
 
         let config_json = r#"{"skip_signature": true}"#;
         let config: GcsConfig = serde_json::from_str(config_json).unwrap();
-        assert!(config.allow_anonymous);
+        assert!(config.skip_signature);
+
+        let config_json = r#"{"allow_anonymous": true}"#;
+        let config: GcsConfig = serde_json::from_str(config_json).unwrap();
+        #[allow(deprecated)]
+        {
+            assert!(config.allow_anonymous);
+        }
     }
 
     #[test]

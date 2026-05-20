@@ -29,8 +29,13 @@ namespace OpenDAL.ServiceConfig
     public sealed class GcsServiceConfig : IServiceConfig
     {
         /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
+        /// <summary>
         /// Allow opendal to send requests without signing when credentials are not loaded.
         /// </summary>
+        [System.Obsolete("Please use SkipSignature instead of AllowAnonymous")]
         public bool? AllowAnonymous { get; init; }
         /// <summary>
         /// bucket name
@@ -86,10 +91,16 @@ namespace OpenDAL.ServiceConfig
         public IReadOnlyDictionary<string, string> ToOptions()
         {
             var map = new Dictionary<string, string>();
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
+            }
+#pragma warning disable CS0618
             if (AllowAnonymous is not null)
             {
                 map["allow_anonymous"] = Utilities.ToOptionString(AllowAnonymous);
             }
+#pragma warning restore CS0618
             if (Bucket is not null)
             {
                 map["bucket"] = Utilities.ToOptionString(Bucket);

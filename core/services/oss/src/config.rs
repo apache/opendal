@@ -55,7 +55,13 @@ pub struct OssConfig {
     pub server_side_encryption: Option<String>,
     /// Server side encryption key id for oss.
     pub server_side_encryption_key_id: Option<String>,
+    /// Skip signature will skip loading credentials and signing requests.
+    pub skip_signature: bool,
     /// Allow anonymous for oss.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
     pub allow_anonymous: bool,
 
     // authenticate options
@@ -117,7 +123,7 @@ impl Debug for OssConfig {
             .field("root", &self.root)
             .field("bucket", &self.bucket)
             .field("endpoint", &self.endpoint)
-            .field("allow_anonymous", &self.allow_anonymous)
+            .field("skip_signature", &self.skip_signature)
             .finish_non_exhaustive()
     }
 }

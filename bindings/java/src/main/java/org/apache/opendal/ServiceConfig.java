@@ -2383,6 +2383,8 @@ public interface ServiceConfig {
         public final String addressingStyle;
         /**
          * <p>Allow anonymous for oss.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
          */
         public final Boolean allowAnonymous;
         /**
@@ -2469,6 +2471,10 @@ public interface ServiceConfig {
          */
         public final String serverSideEncryptionKeyId;
         /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
          * <p><code>sts_endpoint</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
@@ -2539,6 +2545,9 @@ public interface ServiceConfig {
             }
             if (serverSideEncryptionKeyId != null) {
                 map.put("server_side_encryption_key_id", serverSideEncryptionKeyId);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             if (stsEndpoint != null) {
                 map.put("sts_endpoint", stsEndpoint);

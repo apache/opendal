@@ -307,11 +307,20 @@ impl OssBuilder {
         self
     }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
-    pub fn allow_anonymous(mut self) -> Self {
-        self.config.allow_anonymous = true;
-        self
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
+    pub fn allow_anonymous(self) -> Self {
+        self.skip_signature()
     }
 
     /// Set role_arn for this backend.
@@ -392,6 +401,9 @@ impl Builder for OssBuilder {
 
     fn build(self) -> Result<impl Access> {
         debug!("backend build started: {:?}", &self);
+
+        #[allow(deprecated)]
+        let skip_signature = self.config.skip_signature || self.config.allow_anonymous;
 
         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
         debug!("backend use root {}", &root);
@@ -576,7 +588,7 @@ impl Builder for OssBuilder {
                 endpoint,
                 host,
                 presign_endpoint,
-                allow_anonymous: self.config.allow_anonymous,
+                skip_signature,
                 signer,
                 server_side_encryption,
                 server_side_encryption_key_id,

@@ -122,10 +122,20 @@ impl TosBuilder {
         self
     }
 
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
+        self
+    }
+
     /// Allow anonymous will allow opendal to send request without signing
     /// when credential is not loaded.
+    #[deprecated(
+        since = "0.57.0",
+        note = "Please use `skip_signature` instead of `allow_anonymous`"
+    )]
     pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.allow_anonymous = allow;
+        self.config.skip_signature = allow;
         self
     }
 }
@@ -135,6 +145,12 @@ impl Builder for TosBuilder {
 
     fn build(self) -> Result<impl Access> {
         let mut config = self.config;
+
+        #[allow(deprecated)]
+        if config.allow_anonymous {
+            config.skip_signature = true;
+        }
+
         let region = config
             .region
             .clone()
@@ -229,7 +245,7 @@ impl Builder for TosBuilder {
             endpoint_domain: endpoint_domain.to_string(),
             root,
             default_storage_class: None,
-            allow_anonymous: config.allow_anonymous,
+            skip_signature: config.skip_signature,
             signer,
         };
 

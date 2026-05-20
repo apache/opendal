@@ -57,7 +57,7 @@ pub struct TosCore {
     pub endpoint_domain: String, // endpoint domain without scheme, e.g. tos-cn-beijing.volces.com
     pub root: String,
     pub default_storage_class: Option<String>,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
 
     pub signer: Signer<Credential>,
 }
@@ -74,7 +74,7 @@ impl Debug for TosCore {
 
 impl TosCore {
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().send(req).await;
         }
 
@@ -94,7 +94,7 @@ impl TosCore {
     }
 
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().fetch(req).await;
         }
 

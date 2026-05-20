@@ -2503,6 +2503,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `tos` service.
@@ -2552,6 +2553,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 Operator
@@ -5180,6 +5184,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `tos` service.
@@ -5229,6 +5234,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 AsyncOperator

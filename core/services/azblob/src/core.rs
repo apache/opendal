@@ -489,7 +489,7 @@ impl AzblobCore {
 
     pub fn azblob_put_block_from_url_request(
         &self,
-        from: &str,
+        source: &str,
         to: &str,
         block_id: Uuid,
         range: BytesRange,
@@ -502,7 +502,6 @@ impl AzblobCore {
             )
             .finish();
 
-        let source = self.build_path_url(from);
         let mut req = Request::put(&url)
             .header(constants::X_MS_COPY_SOURCE, source)
             .header(CONTENT_LENGTH, 0);
@@ -528,7 +527,14 @@ impl AzblobCore {
         block_id: Uuid,
         range: BytesRange,
     ) -> Result<Response<Buffer>> {
-        let req = self.azblob_put_block_from_url_request(from, to, block_id, range)?;
+        let source = Request::get(self.build_path_url(from))
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("GetBlob"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let source = self.sign_query(source).await?;
+        let source = source.uri().to_string();
+        let req = self.azblob_put_block_from_url_request(&source, to, block_id, range)?;
         let req = self.sign(req).await?;
         self.send(req).await
     }
@@ -681,7 +687,13 @@ impl AzblobCore {
         to: &str,
         args: OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = self.build_path_url(from);
+        let source = Request::get(self.build_path_url(from))
+            .extension(Operation::Copy)
+            .extension(ServiceOperation("GetBlob"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        let source = self.sign_query(source).await?;
+        let source = source.uri().to_string();
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)

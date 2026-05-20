@@ -687,13 +687,7 @@ impl AzblobCore {
         to: &str,
         args: OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = Request::get(self.build_path_url(from))
-            .extension(Operation::Copy)
-            .extension(ServiceOperation("GetBlob"))
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-        let source = self.sign_query(source).await?;
-        let source = source.uri().to_string();
+        let source = self.build_path_url(from);
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)

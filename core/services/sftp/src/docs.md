@@ -19,7 +19,7 @@ This service can be used to:
 - `user`: Set the login user
 - `key`: Set the file path to the private key for authentication
 - `known_hosts_strategy`: Set the strategy for known hosts, default to `Strict`
-- `enable_copy`: Set whether the remote server has copy-file extension
+- `enable_copy`: Deprecated. SFTP copy capability is enabled by default and this option is no longer needed.
 
 For security reasons, it doesn't support password login. Use SSH key-based authentication (e.g., configure your public key on the server via `ssh-copy-id` and provide the private key here).
 

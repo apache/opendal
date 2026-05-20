@@ -518,11 +518,12 @@ pub async fn test_copier_with_if_not_exists_to_existing_file(op: Operator) -> Re
     let (target_content, _) = gen_bytes(op.info().full_capability());
     op.write(&target_path, target_content.clone()).await?;
 
-    let err = op
+    let mut copier = op
         .copier_with(&source_path, &target_path)
         .if_not_exists(true)
         .await
-        .expect_err("copier must fail");
+        .expect("copier must be created");
+    let err = copier.next().await.expect_err("copier must fail");
     assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
     let current_content = op

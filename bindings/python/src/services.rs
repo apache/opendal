@@ -2499,7 +2499,6 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
                 endpoint: builtins.str = ...,
@@ -2507,6 +2506,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `Operator` for `tos` service.
@@ -2518,9 +2518,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -2556,6 +2553,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 Operator
@@ -5180,7 +5180,6 @@ submit! {
                 /,
                 *,
                 access_key_id: builtins.str = ...,
-                allow_anonymous: builtins.bool = ...,
                 bucket: builtins.str,
                 disable_config_load: builtins.bool = ...,
                 endpoint: builtins.str = ...,
@@ -5188,6 +5187,7 @@ submit! {
                 root: builtins.str = ...,
                 secret_access_key: builtins.str = ...,
                 security_token: builtins.str = ...,
+                skip_signature: builtins.bool = ...,
             ) -> typing.Self:
                 r"""
                 Create a new `AsyncOperator` for `tos` service.
@@ -5199,9 +5199,6 @@ submit! {
                     - If access_key_id is set, we will take user's input
                     first.
                     - If not, we will try to load it from environment.
-                allow_anonymous : builtins.bool, optional
-                    Allow anonymous will allow opendal to send request
-                    without signing when credential is not loaded.
                 bucket : builtins.str
                     bucket name of this backend.
                     required.
@@ -5237,6 +5234,9 @@ submit! {
                     security_token of this backend.
                     This token will expire after sometime, it's
                     recommended to set security_token by hand.
+                skip_signature : builtins.bool, optional
+                    Skip signature will skip loading credentials and
+                    signing requests.
                 Returns
                 -------
                 AsyncOperator

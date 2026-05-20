@@ -122,10 +122,9 @@ impl TosBuilder {
         self
     }
 
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.allow_anonymous = allow;
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 }
@@ -231,7 +230,7 @@ impl Builder for TosBuilder {
             endpoint_domain: endpoint_domain.to_string(),
             root,
             default_storage_class: None,
-            allow_anonymous: config.allow_anonymous,
+            skip_signature: config.skip_signature,
             signer,
         };
 

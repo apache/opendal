@@ -1381,7 +1381,8 @@ class AsyncOperator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            Deprecated: HDFS Native append capability is enabled by default.
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -1793,8 +1794,8 @@ class AsyncOperator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Deprecated: OBS versioning capability is not controlled by
-            service config.
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional
@@ -2509,7 +2510,6 @@ class AsyncOperator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
         endpoint: builtins.str = ...,
@@ -2517,6 +2517,7 @@ class AsyncOperator:
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
         security_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `AsyncOperator` for `tos` service.
@@ -2528,9 +2529,6 @@ class AsyncOperator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.
@@ -2566,6 +2564,9 @@ class AsyncOperator:
             security_token of this backend.
             This token will expire after sometime, it's
             recommended to set security_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------
@@ -3982,7 +3983,8 @@ class Operator:
         Parameters
         ----------
         enable_append : builtins.bool, optional
-            Deprecated: HDFS Native append capability is enabled by default.
+            Deprecated: HDFS Native append capability is enabled
+            by default.
         name_node : builtins.str, optional
             name_node of this backend
         options : builtins.dict, optional
@@ -4394,8 +4396,8 @@ class Operator:
         bucket : builtins.str, optional
             Bucket for obs.
         enable_versioning : builtins.bool, optional
-            Deprecated: OBS versioning capability is not controlled by
-            service config.
+            Deprecated: OBS versioning capability is not
+            controlled by service config.
         endpoint : builtins.str, optional
             Endpoint for obs.
         root : builtins.str, optional
@@ -5110,7 +5112,6 @@ class Operator:
         /,
         *,
         access_key_id: builtins.str = ...,
-        allow_anonymous: builtins.bool = ...,
         bucket: builtins.str,
         disable_config_load: builtins.bool = ...,
         endpoint: builtins.str = ...,
@@ -5118,6 +5119,7 @@ class Operator:
         root: builtins.str = ...,
         secret_access_key: builtins.str = ...,
         security_token: builtins.str = ...,
+        skip_signature: builtins.bool = ...,
     ) -> typing.Self:
         r"""
         Create a new `Operator` for `tos` service.
@@ -5129,9 +5131,6 @@ class Operator:
             - If access_key_id is set, we will take user's input
             first.
             - If not, we will try to load it from environment.
-        allow_anonymous : builtins.bool, optional
-            Allow anonymous will allow opendal to send request
-            without signing when credential is not loaded.
         bucket : builtins.str
             bucket name of this backend.
             required.
@@ -5167,6 +5166,9 @@ class Operator:
             security_token of this backend.
             This token will expire after sometime, it's
             recommended to set security_token by hand.
+        skip_signature : builtins.bool, optional
+            Skip signature will skip loading credentials and
+            signing requests.
 
         Returns
         -------

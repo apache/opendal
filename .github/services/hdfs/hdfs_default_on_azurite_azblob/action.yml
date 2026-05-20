@@ -67,5 +67,5 @@ runs:
         LD_LIBRARY_PATH=${JAVA_HOME}/lib/server:${HADOOP_HOME}/lib/native
         OPENDAL_HDFS_ROOT=${OPENDAL_AZBLOB_ROOT}
         OPENDAL_HDFS_NAME_NODE=wasb://${OPENDAL_AZBLOB_CONTAINER}@${OPENDAL_AZBLOB_ACCOUNT_NAME}.blob.core.windows.net
-        OPENDAL_HDFS_ENABLE_APPEND=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write_can_append=false
         EOF

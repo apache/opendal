@@ -24,7 +24,8 @@ This service can be used to:
 - `access_key_secret`: Set the access_key_secret for backend.
 - `role_arn`: Set the role of backend.
 - `oidc_token`: Set the oidc_token for backend.
-- `allow_anonymous`: Set the backend access OSS in anonymous way.
+- `skip_signature`: Skip loading credentials and signing requests.
+- `allow_anonymous`: Deprecated. Use `skip_signature` instead.
 - `enable_versioning`: Deprecated. OSS versioning capability is enabled by default and this option is no longer needed.
 - `batch_max_operations`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.
 - `delete_max_size`: Deprecated. OSS delete batch capability is enabled by default and this option is no longer needed.

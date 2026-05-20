@@ -122,10 +122,9 @@ impl TosBuilder {
         self
     }
 
-    /// Allow anonymous will allow opendal to send request without signing
-    /// when credential is not loaded.
-    pub fn allow_anonymous(mut self, allow: bool) -> Self {
-        self.config.allow_anonymous = allow;
+    /// Skip signature will skip loading credentials and signing requests.
+    pub fn skip_signature(mut self) -> Self {
+        self.config.skip_signature = true;
         self
     }
 }
@@ -198,6 +197,8 @@ impl Builder for TosBuilder {
                     delete_max_size: Some(1000),
                     delete_with_version: true,
 
+                    copy: true,
+
                     list: true,
                     list_with_limit: true,
                     list_with_start_after: true,
@@ -229,7 +230,7 @@ impl Builder for TosBuilder {
             endpoint_domain: endpoint_domain.to_string(),
             root,
             default_storage_class: None,
-            allow_anonymous: config.allow_anonymous,
+            skip_signature: config.skip_signature,
             signer,
         };
 
@@ -333,5 +334,20 @@ impl Access for TosBackend {
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
         let lister = TosLister::new(self.core.clone(), path, args);
         Ok((RpList::default(), oio::PageLister::new(lister)))
+    }
+
+    async fn copy(
+        &self,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+        _opts: OpCopier,
+    ) -> Result<(RpCopy, Self::Copier)> {
+        let resp = self.core.tos_copy_object(from, to, &args).await?;
+
+        match resp.status() {
+            StatusCode::OK => Ok((RpCopy::default(), ())),
+            _ => Err(parse_error(resp)),
+        }
     }
 }

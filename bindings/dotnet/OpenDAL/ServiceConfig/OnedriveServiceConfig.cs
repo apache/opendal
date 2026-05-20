@@ -41,7 +41,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? ClientSecret { get; init; }
         /// <summary>
-        /// Enabling version support
+        /// Deprecated: OneDrive versioning capability is enabled by default.
         /// </summary>
         public bool? EnableVersioning { get; init; }
         /// <summary>

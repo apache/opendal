@@ -33,6 +33,9 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 pub mod constants {
+    pub const X_TOS_ACL: &str = "x-tos-acl";
+    pub const X_TOS_COPY_SOURCE: &str = "x-tos-copy-source";
+
     pub const X_TOS_STORAGE_CLASS: &str = "x-tos-storage-class";
 
     pub const X_TOS_META_PREFIX: &str = "x-tos-meta-";
@@ -57,7 +60,7 @@ pub struct TosCore {
     pub endpoint_domain: String, // endpoint domain without scheme, e.g. tos-cn-beijing.volces.com
     pub root: String,
     pub default_storage_class: Option<String>,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
 
     pub signer: Signer<Credential>,
 }
@@ -74,7 +77,7 @@ impl Debug for TosCore {
 
 impl TosCore {
     pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().send(req).await;
         }
 
@@ -94,7 +97,7 @@ impl TosCore {
     }
 
     pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        if self.allow_anonymous {
+        if self.skip_signature {
             return self.info.http_client().fetch(req).await;
         }
 
@@ -421,6 +424,39 @@ impl TosCore {
 
         let req = req
             .body(Buffer::from(content))
+            .map_err(new_request_build_error)?;
+
+        self.send(req).await
+    }
+
+    pub async fn tos_copy_object(
+        &self,
+        from: &str,
+        to: &str,
+        args: &OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let source = build_abs_path(&self.root, from);
+        let target = build_abs_path(&self.root, to);
+
+        let url = format!(
+            "https://{}.{}/{}",
+            self.bucket,
+            self.endpoint_domain,
+            percent_encode_path(&target)
+        );
+        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+
+        let mut req = Request::put(&url)
+            .header(constants::X_TOS_COPY_SOURCE, source)
+            .header(constants::X_TOS_ACL, "default");
+
+        if args.if_not_exists() {
+            req = req.header(http::header::IF_NONE_MATCH, "*");
+        }
+
+        let req = req
+            .extension(Operation::Copy)
+            .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
         self.send(req).await

@@ -70,7 +70,7 @@ pub struct OssCore {
     pub host: String,
     pub endpoint: String,
     pub presign_endpoint: String,
-    pub allow_anonymous: bool,
+    pub skip_signature: bool,
 
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_key_id: Option<HeaderValue>,
@@ -91,8 +91,7 @@ impl Debug for OssCore {
 
 impl OssCore {
     pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
-        // Skip signing for anonymous access.
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 
@@ -107,8 +106,7 @@ impl OssCore {
     }
 
     pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
-        // Skip signing for anonymous access.
-        if self.allow_anonymous {
+        if self.skip_signature {
             return Ok(req);
         }
 

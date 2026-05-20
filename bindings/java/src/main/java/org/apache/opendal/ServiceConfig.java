@@ -173,7 +173,9 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
-         * <p>The maximum batch operations of Azblob service backend.</p>
+         * <p>Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.</p>
+         *
+         * @deprecated Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
         /**
@@ -1086,6 +1088,8 @@ public interface ServiceConfig {
         /**
          * <p>Allow opendal to send requests without signing when credentials are not
          * loaded.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
          */
         public final Boolean allowAnonymous;
         /**
@@ -1135,6 +1139,10 @@ public interface ServiceConfig {
          */
         public final String serviceAccount;
         /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
          * <p>A Google Cloud OAuth2 token.</p>
          * <p>Takes precedence over <code>credential</code> and <code>credential_path</code>.</p>
          */
@@ -1181,6 +1189,9 @@ public interface ServiceConfig {
             }
             if (serviceAccount != null) {
                 map.put("service_account", serviceAccount);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             if (token != null) {
                 map.put("token", token);
@@ -1497,7 +1508,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class HdfsNative implements ServiceConfig {
         /**
-         * <p>enable the append capacity</p>
+         * <p>Deprecated: HDFS Native append capability is enabled by default.</p>
+         *
+         * @deprecated HDFS Native append capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableAppend;
         /**
@@ -2211,7 +2224,9 @@ public interface ServiceConfig {
          */
         public final String bucket;
         /**
-         * <p>Is bucket versioning enabled for this bucket</p>
+         * <p>Deprecated: OBS versioning capability is not controlled by service config.</p>
+         *
+         * @deprecated OBS versioning capability is not controlled by this option and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**
@@ -2277,7 +2292,9 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
-         * <p>Enabling version support</p>
+         * <p>Deprecated: OneDrive versioning capability is enabled by default.</p>
+         *
+         * @deprecated OneDrive versioning capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableVersioning;
         /**
@@ -2375,6 +2392,8 @@ public interface ServiceConfig {
         public final String addressingStyle;
         /**
          * <p>Allow anonymous for oss.</p>
+         *
+         * @deprecated Please use `skip_signature` instead of `allow_anonymous`
          */
         public final Boolean allowAnonymous;
         /**
@@ -2461,6 +2480,10 @@ public interface ServiceConfig {
          */
         public final String serverSideEncryptionKeyId;
         /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
          * <p><code>sts_endpoint</code> will be loaded from</p>
          * <ul>
          * <li>this field if it's <code>is_some</code></li>
@@ -2531,6 +2554,9 @@ public interface ServiceConfig {
             }
             if (serverSideEncryptionKeyId != null) {
                 map.put("server_side_encryption_key_id", serverSideEncryptionKeyId);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             if (stsEndpoint != null) {
                 map.put("sts_endpoint", stsEndpoint);
@@ -3227,7 +3253,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
-         * <p>enable_copy of this backend</p>
+         * <p>Deprecated: SFTP copy capability is enabled by default.</p>
+         *
+         * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
          */
         public final Boolean enableCopy;
         /**
@@ -3555,11 +3583,6 @@ public interface ServiceConfig {
          */
         public final String accessKeyId;
         /**
-         * <p>Allow anonymous will allow opendal to send request without signing
-         * when credential is not loaded.</p>
-         */
-        public final Boolean allowAnonymous;
-        /**
          * <p>bucket name of this backend.</p>
          * <p>required.</p>
          */
@@ -3614,6 +3637,10 @@ public interface ServiceConfig {
          * by hand.</p>
          */
         public final String securityToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -3625,9 +3652,6 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessKeyId != null) {
                 map.put("access_key_id", accessKeyId);
-            }
-            if (allowAnonymous != null) {
-                map.put("allow_anonymous", String.valueOf(allowAnonymous));
             }
             map.put("bucket", bucket);
             if (disableConfigLoad != null) {
@@ -3647,6 +3671,9 @@ public interface ServiceConfig {
             }
             if (securityToken != null) {
                 map.put("security_token", securityToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }
@@ -3793,7 +3820,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Webdav implements ServiceConfig {
         /**
-         * <p>WebDAV Service doesn't support copy.</p>
+         * <p>Deprecated: WebDAV copy capability is enabled by default.</p>
+         *
+         * @deprecated WebDAV copy capability is enabled by default and this option is no longer needed.
          */
         public final Boolean disableCopy;
         /**
@@ -3807,11 +3836,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable user metadata support via WebDAV PROPPATCH.</p>
-         * <p>This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
-         * Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
-         * Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).</p>
-         * <p>Default: false</p>
+         * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
+         *
+         * @deprecated WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.
          */
         public final Boolean enableUserMetadata;
         /**

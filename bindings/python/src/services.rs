@@ -1758,6 +1758,7 @@ submit! {
                 delete_max_size: builtins.int = ...,
                 enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
                 presign_addressing_style: builtins.str = ...,
@@ -1801,6 +1802,8 @@ submit! {
                     default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:
@@ -4444,6 +4447,7 @@ submit! {
                 delete_max_size: builtins.int = ...,
                 enable_versioning: builtins.bool = ...,
                 endpoint: builtins.str = ...,
+                external_id: builtins.str = ...,
                 oidc_provider_arn: builtins.str = ...,
                 oidc_token_file: builtins.str = ...,
                 presign_addressing_style: builtins.str = ...,
@@ -4487,6 +4491,8 @@ submit! {
                     default.
                 endpoint : builtins.str, optional
                     Endpoint for oss.
+                external_id : builtins.str, optional
+                    external_id for this backend.
                 oidc_provider_arn : builtins.str, optional
                     `oidc_provider_arn` will be loaded from - this field
                     if it's `is_some` - env value:

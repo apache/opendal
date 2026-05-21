@@ -8,7 +8,7 @@ OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access L
 
 OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
 
-<img src="./website/static/img/opendal-one-layer-all-storage.svg" alt="OpenDAL Architecture" width="100%" />
+<img src="./website/static/img/opendal-one-layer-all-storage-3x.png" alt="OpenDAL Architecture" width="100%" />
 
 ## For *ANY* languages
 

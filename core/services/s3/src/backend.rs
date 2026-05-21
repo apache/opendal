@@ -1140,7 +1140,7 @@ impl Access for S3Backend {
         args: OpCopy,
         opts: OpCopier,
     ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = new_s3_copier(self.core.clone(), from, to, args, opts)?;
+        let copier = new_s3_copier(self.core.clone(), from, to, args, opts).await?;
         Ok((RpCopy::default(), copier))
     }
 

@@ -120,15 +120,15 @@ Pick the storage services that your application needs. See the full OpenDAL serv
     <td><a href="https://www.google.com/drive/"><img src="./website/static/img/services/gdrive.png" width="18" height="18" alt="Google Drive logo"> gdrive</a></td>
     <td><a href="https://www.dropbox.com/"><img src="./website/static/img/services/dropbox.ico" width="18" height="18" alt="Dropbox logo"> dropbox</a></td>
     <td><a href="https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage"><img src="./website/static/img/services/onedrive.svg" width="18" height="18" alt="OneDrive logo"> onedrive</a></td>
-    <td><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP"><img src="./website/static/img/services/mdn.svg" width="18" height="18" alt="MDN Web Docs logo"> http</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/rfc959"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> ftp</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/rfc4918"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> webdav</a></td>
+    <td><a href="https://developer.mozilla.org/en-US/docs/Web/HTTP"><img src="./website/static/img/services/http.png" width="18" height="18" alt="HTTP icon"> http</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/rfc959"><img src="./website/static/img/services/ftp.png" width="18" height="18" alt="FTP icon"> ftp</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/rfc4918"><img src="./website/static/img/services/webdav.png" width="18" height="18" alt="WebDAV icon"> webdav</a></td>
   </tr>
   <tr>
     <td><a href="https://www.aliyundrive.com/"><img src="./website/static/img/services/aliyundrive.png" width="18" height="18" alt="Aliyun Drive logo"> aliyun-drive</a></td>
     <td><a href="https://huggingface.co/"><img src="./website/static/img/services/huggingface.ico" width="18" height="18" alt="Hugging Face logo"> hf</a></td>
     <td><a href="https://github.com/"><img src="./website/static/img/services/github.svg" width="18" height="18" alt="GitHub logo"> github</a></td>
-    <td><a href="https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02"><img src="./website/static/img/services/ietf.png" width="18" height="18" alt="IETF logo"> sftp</a></td>
+    <td><a href="https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02"><img src="./website/static/img/services/sftp.png" width="18" height="18" alt="SFTP icon"> sftp</a></td>
     <td></td>
     <td></td>
   </tr>

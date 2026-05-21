@@ -212,7 +212,7 @@ impl Builder for TosBuilder {
                     stat_with_if_modified_since: true,
                     stat_with_if_unmodified_since: true,
 
-                    shared: false,
+                    shared: true,
 
                     ..Default::default()
                 });

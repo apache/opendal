@@ -146,8 +146,14 @@ export function run(op) {
             op.writeSync(entry, '2')
           }
           const lists = op.listSync(dirname, { versions: true, startAfter: given[2] })
-          const actual = lists.filter((item) => item.path() !== dirname)
-          const expected = given.slice(3)
+          const actual = lists
+            .filter((item) => item.path() !== dirname)
+            .map((item) => item.path())
+            .sort()
+          const expected = given
+            .slice(3)
+            .flatMap((item) => [item, item])
+            .sort()
           expect(actual).toEqual(expected)
 
           op.removeAllSync(dirname)

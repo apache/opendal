@@ -42,6 +42,11 @@ default = ["reqwest-rustls-tls", "executors-tokio"]
 # Enable reqwest rustls tls support.
 reqwest-rustls-tls = ["reqwest/rustls"]
 
+# Enable reqwest rustls tls support without selecting a crypto provider.
+# The downstream binary is responsible for installing a `rustls`
+# `CryptoProvider` (e.g. `ring` or `aws-lc-rs`) before issuing requests.
+reqwest-rustls-no-provider-tls = ["reqwest/rustls-no-provider"]
+
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 

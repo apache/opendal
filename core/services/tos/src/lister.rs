@@ -26,6 +26,8 @@ use opendal_core::Metadata;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
+pub type TosListers = TwoWays<oio::PageLister<TosLister>, oio::PageLister<TosObjectVersionsLister>>;
+
 pub struct TosLister {
     core: Arc<TosCore>,
 
@@ -107,6 +109,130 @@ impl oio::PageList for TosLister {
 
             let de = oio::Entry::with(path, meta);
             ctx.entries.push_back(de);
+        }
+
+        Ok(())
+    }
+}
+
+pub struct TosObjectVersionsLister {
+    core: Arc<TosCore>,
+
+    prefix: String,
+    args: OpList,
+
+    delimiter: &'static str,
+    abs_start_after: Option<String>,
+}
+
+impl TosObjectVersionsLister {
+    pub fn new(core: Arc<TosCore>, path: &str, args: OpList) -> Self {
+        let delimiter = if args.recursive() { "" } else { "/" };
+        let abs_start_after = args
+            .start_after()
+            .map(|start_after| build_abs_path(&core.root, start_after));
+
+        Self {
+            core,
+            prefix: path.to_string(),
+            args,
+            delimiter,
+            abs_start_after,
+        }
+    }
+}
+
+impl oio::PageList for TosObjectVersionsLister {
+    async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        let markers = ctx.token.rsplit_once(" ");
+        let (key_marker, version_id_marker) = if let Some(data) = markers {
+            data
+        } else if let Some(start_after) = &self.abs_start_after {
+            (start_after.as_str(), "")
+        } else {
+            ("", "")
+        };
+
+        let resp = self
+            .core
+            .tos_list_object_versions(
+                &self.prefix,
+                self.delimiter,
+                self.args.limit(),
+                key_marker,
+                version_id_marker,
+            )
+            .await?;
+
+        if resp.status() != http::StatusCode::OK {
+            return Err(parse_error(resp));
+        }
+
+        let bs = resp.into_body();
+        let output: ListObjectVersionsOutput =
+            serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
+
+        ctx.done = if let Some(is_truncated) = output.is_truncated {
+            !is_truncated
+        } else {
+            false
+        };
+        ctx.token = format!(
+            "{} {}",
+            output.next_key_marker.unwrap_or_default(),
+            output.next_version_id_marker.unwrap_or_default()
+        );
+
+        for prefix in output.common_prefixes {
+            let de = oio::Entry::new(
+                &build_rel_path(&self.core.root, &prefix.prefix),
+                Metadata::new(EntryMode::DIR),
+            );
+
+            ctx.entries.push_back(de);
+        }
+
+        for version_object in output.versions {
+            if !(self.args.versions() || version_object.is_latest) {
+                continue;
+            }
+
+            let mut path = build_rel_path(&self.core.root, &version_object.key);
+            if path.is_empty() {
+                path = "/".to_string();
+            }
+
+            let mut meta = Metadata::new(EntryMode::from_path(&path));
+            meta.set_version(&version_object.version_id);
+            meta.set_is_current(version_object.is_latest);
+            meta.set_content_length(version_object.size);
+            meta.set_last_modified(version_object.last_modified.parse::<Timestamp>()?);
+
+            if let Some(etag) = version_object.etag {
+                meta.set_etag(&etag);
+                meta.set_content_md5(etag.trim_matches('"'));
+            }
+
+            let de = oio::Entry::with(path, meta);
+            ctx.entries.push_back(de);
+        }
+
+        if self.args.deleted() {
+            for delete_marker in output.delete_markers {
+                let mut path = build_rel_path(&self.core.root, &delete_marker.key);
+                if path.is_empty() {
+                    path = "/".to_string();
+                }
+
+                let mut meta = Metadata::new(EntryMode::FILE);
+                meta.set_version(&delete_marker.version_id);
+                meta.set_is_deleted(true);
+                meta.set_is_current(delete_marker.is_latest);
+                meta.set_last_modified(delete_marker.last_modified.parse::<Timestamp>()?);
+
+                let de = oio::Entry::with(path, meta);
+                ctx.entries.push_back(de);
+            }
         }
 
         Ok(())

@@ -24,7 +24,7 @@ use crate::core::constants::{X_TOS_DIRECTORY, X_TOS_META_PREFIX};
 use crate::core::*;
 use crate::deleter::TosDeleter;
 use crate::error::parse_error;
-use crate::lister::TosLister;
+use crate::lister::{TosLister, TosListers, TosObjectVersionsLister};
 use crate::utils::tos_parse_into_metadata;
 use crate::writer::TosWriter;
 use http::Response;
@@ -203,6 +203,8 @@ impl Builder for TosBuilder {
                     list_with_limit: true,
                     list_with_start_after: true,
                     list_with_recursive: true,
+                    list_with_versions: true,
+                    list_with_deleted: true,
 
                     stat: true,
                     stat_with_if_match: true,
@@ -252,7 +254,7 @@ pub struct TosBackend {
 impl Access for TosBackend {
     type Reader = HttpBody;
     type Writer = oio::MultipartWriter<TosWriter>;
-    type Lister = oio::PageLister<TosLister>;
+    type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = ();
 
@@ -336,8 +338,20 @@ impl Access for TosBackend {
     }
 
     async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let lister = TosLister::new(self.core.clone(), path, args);
-        Ok((RpList::default(), oio::PageLister::new(lister)))
+        let lister = if args.versions() || args.deleted() {
+            TwoWays::Two(oio::PageLister::new(TosObjectVersionsLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        } else {
+            TwoWays::One(oio::PageLister::new(TosLister::new(
+                self.core.clone(),
+                path,
+                args,
+            )))
+        };
+        Ok((RpList::default(), lister))
     }
 
     async fn copy(

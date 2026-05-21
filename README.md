@@ -59,7 +59,7 @@ Explore all available layers in the [layers documentation][Layers Docs].
 
 Pick the storage services that your application needs. See the full OpenDAL service configuration docs in the [services documentation][Services Docs].
 
-<table>
+<table width="100%">
   <tr>
     <th colspan="3" align="left">Object Storage</th>
     <th colspan="3" align="left">File Storage</th>
